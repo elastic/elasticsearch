@@ -10,6 +10,10 @@
 package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.MapMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -20,6 +24,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -362,6 +368,36 @@ public class RestControllerTests extends ESTestCase {
         restController.dispatchRequest(fakeRequest, channel, threadContext);
 
         assertThat(observed.get(), equalTo("test_handler_action"));
+    }
+
+    public void testDispatchedFailureRecordsHandlerName() throws Exception {
+        final Logger suppressedLogger = LogManager.getLogger("rest.suppressed");
+        final MockAppender appender = new MockAppender("rest_controller_suppressed");
+        appender.start();
+        Loggers.addAppender(suppressedLogger, appender);
+        try {
+            restController.registerHandler(new Route(GET, "/failing_handler"), new RestHandler() {
+                @Override
+                public String getName() {
+                    return "failing_test_action";
+                }
+
+                @Override
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
+                    channel.sendResponse(new RestResponse(channel, new ElasticsearchException("boom")));
+                }
+            });
+            final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/failing_handler").build();
+            final AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.INTERNAL_SERVER_ERROR);
+
+            restController.dispatchRequest(fakeRequest, channel, threadContext);
+
+            final MapMessage<?, ?> logged = (MapMessage<?, ?>) appender.getLastEventAndReset().getMessage();
+            assertEquals("failing_test_action", logged.getData().get("elasticsearch.rest.handler"));
+        } finally {
+            Loggers.removeAppender(suppressedLogger, appender);
+            appender.stop();
+        }
     }
 
     public void testRegisterAsDeprecatedHandler() {

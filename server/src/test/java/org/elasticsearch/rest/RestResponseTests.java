@@ -9,10 +9,13 @@
 
 package org.elasticsearch.rest;
 
+import co.elastic.logging.log4j2.EcsLayout;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.message.MapMessage;
@@ -31,8 +34,10 @@ import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -606,7 +611,7 @@ public class RestResponseTests extends ESTestCase {
             ),
             new ShardSearchFailure(
                 new IllegalArgumentException("bad argument"),
-                new SearchShardTarget("node-1", new ShardId("my-index", "uuid", 1), null)
+                new SearchShardTarget("node-1", new ShardId("other-index", "uuid", 1), null)
             ) };
 
         new RestResponse(channel, new SearchPhaseExecutionException("query", "all shards failed", failures));
@@ -672,6 +677,44 @@ public class RestResponseTests extends ESTestCase {
         assertEquals("coordinator failure", fields.get("elasticsearch.error.root_cause.message"));
         assertFalse(fields.containsKey("elasticsearch.error.index"));
         assertFalse(fields.containsKey("elasticsearch.error.shard"));
+    }
+
+    public void testSuppressedLoggingRecordsIndexWithoutShard() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, new IndexClosedException(new Index("my-index", "uuid")));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals("my-index", fields.get("elasticsearch.error.index"));
+        assertFalse(fields.containsKey("elasticsearch.error.shard"));
+    }
+
+    public void testSuppressedLoggingSerialisesToEcsJson() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(
+            new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_search").build()
+        );
+        final String awkward = "quote \" backslash \\ newline \n end";
+
+        new RestResponse(
+            channel,
+            new ElasticsearchException("outer", new ShardNotFoundException(new ShardId("my-index", "uuid", 3), awkward))
+        );
+
+        final EcsLayout layout = EcsLayout.newBuilder()
+            .setConfiguration(LoggerContext.getContext(false).getConfiguration())
+            .setEventDataset("elasticsearch.server")
+            .build();
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), layout.toSerializable(appender.getLastEventAndReset()))) {
+            final Map<String, Object> fields = parser.map();
+            assertEquals("path: /my-index/_search, params: {}, status: 500", fields.get("message"));
+            assertEquals(ElasticsearchException.class.getName(), fields.get("error.type"));
+            assertEquals("outer", fields.get("error.message"));
+            assertEquals(500, fields.get("http.response.status_code"));
+            assertEquals(ShardNotFoundException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+            assertEquals(awkward, fields.get("elasticsearch.error.root_cause.message"));
+            assertEquals(3, fields.get("elasticsearch.error.shard"));
+            assertFalse(fields.containsKey("elasticsearch.rest.handler"));
+        }
     }
 
     private Map<String, ?> lastLoggedFields() {

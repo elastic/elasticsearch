@@ -237,6 +237,17 @@ public class ExceptionsHelperTests extends ESTestCase {
         assertThat(ExceptionsHelper.walkCauseChain(wrapped).deepest(), sameInstance(root));
     }
 
+    public void testWalkCauseChainIgnoresSuppressed() {
+        final RuntimeException root = new RuntimeException("root");
+        final RuntimeException outer = new RuntimeException("outer", root);
+        outer.addSuppressed(new ShardNotFoundException(new ShardId("suppressed-index", "uuid", 7)));
+
+        final ExceptionsHelper.CauseChain chain = ExceptionsHelper.walkCauseChain(outer);
+
+        assertThat(chain.deepest(), sameInstance(root));
+        assertNull(chain.indexScoped());
+    }
+
     public void testWalkCauseChainOfCycle() {
         final RuntimeException e1 = new RuntimeException();
         final RuntimeException e2 = new RuntimeException(e1);

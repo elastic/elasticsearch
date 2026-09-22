@@ -600,7 +600,8 @@ public class ValuesSourceReaderBenchmark {
 
     private void setupSmallShuffledPages() {
         int docsPerLeaf = 10;
-        for (int page = 0;; page++) {
+        int pageCount = reader.leaves().stream().mapToInt(ctx -> Math.ceilDiv(ctx.reader().maxDoc(), docsPerLeaf)).max().orElse(0);
+        for (int page = 0; page < pageCount; page++) {
             IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
             IntVector.Builder leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
             int pageSize = 0;
@@ -615,9 +616,7 @@ public class ValuesSourceReaderBenchmark {
                     }
                 }
             }
-            if (pageSize == 0) {
-                return;
-            }
+            assert pageSize > 0;
             addShuffledPage(docs, leafs, pageSize);
         }
     }

@@ -1428,22 +1428,31 @@ public abstract class DocsV3Support {
             builder.append(Strings.format("### `%s` [esql-%s]\n", settingName, settingName));
 
             builder.append("```{applies_to}\n");
-            builder.append("serverless: ");
-            builder.append(setting.preview() ? "preview" : "ga");
-            builder.append("\n");
-
-            if (setting.serverlessOnly()) {
-                builder.append("stack: unavailable");
+            // A setting whose availability is not derivable from preview/serverlessOnly states it on the annotation,
+            // the same attribute the function docs already read. A setting belonging to a feature with its own
+            // documented availability says what that feature's pages say instead of reporting its own lifecycle.
+            String declaredAppliesTo = param != null ? param.applies_to() : mapParam.applies_to();
+            String declaredSince = param != null ? param.since() : mapParam.since();
+            checkAppliesToIsSelfSufficient(setting.name(), declaredAppliesTo, setting.serverlessOnly(), declaredSince);
+            if (declaredAppliesTo.isEmpty() == false) {
+                builder.append(declaredAppliesTo).append("\n");
             } else {
-                builder.append("stack: ");
+                builder.append("serverless: ");
                 builder.append(setting.preview() ? "preview" : "ga");
-                String since = param != null ? param.since() : mapParam.since();
-                if (since.length() > 0) {
-                    builder.append(" ");
-                    builder.append(since);
+                builder.append("\n");
+
+                if (setting.serverlessOnly()) {
+                    builder.append("stack: unavailable");
+                } else {
+                    builder.append("stack: ");
+                    builder.append(setting.preview() ? "preview" : "ga");
+                    if (declaredSince.isEmpty() == false) {
+                        builder.append(" ");
+                        builder.append(declaredSince);
+                    }
                 }
+                builder.append("\n");
             }
-            builder.append("\n");
             builder.append("```\n");
 
             builder.append(param != null ? param.description() : mapParam.description());
@@ -1540,6 +1549,42 @@ public abstract class DocsV3Support {
                 }
             }
             return null;
+        }
+
+        /**
+         * A declared {@code applies_to} replaces the whole badge, so every value the badge would otherwise derive is
+         * discarded. Refuse the combinations where that loses a statement, rather than publishing a badge that drops
+         * it: the docs-assert gate compares the emitter against the committed file, so a wrong badge passes green.
+         * <p>
+         * Stated as one function so the rule is executable and testable in one place; the renderer and
+         * {@code QuerySettingsTests} both call it rather than each carrying a copy.
+         */
+        public static void checkAppliesToIsSelfSufficient(String name, String appliesTo, boolean serverlessOnly, String since) {
+            if (appliesTo.isEmpty()) {
+                return;
+            }
+            // renderSettingDefinition derives stack: unavailable for a serverlessOnly setting, and a declared
+            // applies_to replaces that badge wholesale -- so declaring one must not quietly drop the statement.
+            // Requiring the axis to be present is not enough: stack: ga names it and still contradicts it.
+            // (serverlessOnly itself is only a deployment marker; QuerySettings reads it in applicableIn, which
+            // feeds telemetry. What makes such a setting unavailable on stack is its own validator, as
+            // project_routing's cross-project check does. This rule keeps the badge honest about that.)
+            if (serverlessOnly && appliesTo.contains("stack: unavailable") == false) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] is serverlessOnly but its applies_to does not state stack: unavailable, which is what"
+                        + " the derived badge would have stated. State stack: unavailable in applies_to."
+                );
+            }
+            if (since.isEmpty() == false) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] declares both applies_to and since; applies_to carries the version, so since"
+                        + " would never be read and the two could drift. Drop since."
+                );
+            }
         }
 
         private static org.elasticsearch.xpack.esql.expression.function.Param param(QuerySettingDef<?> def) {

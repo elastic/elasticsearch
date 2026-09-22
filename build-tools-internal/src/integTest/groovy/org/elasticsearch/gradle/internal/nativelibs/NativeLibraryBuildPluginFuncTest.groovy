@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.nativelibs
 
+import spock.lang.IgnoreIf
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
@@ -72,6 +73,8 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
 
     def "explains itself when no build mode is selected"() {
         when:
+        // No TEST_NATIVE_BUILD set: the library is left to its published artifact, exactly as
+        // before the ABI check existed.
         def result = gradleRunner("buildNativeLibrary").buildAndFail()
 
         then:
@@ -107,5 +110,99 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
 
         then:
         result.output.contains("producedBy=[buildNativeLibrary]")
+    }
+
+    def "the Linux ABI check applies the RHEL 8 policy defaults"() {
+        given:
+        buildFile << """
+        tasks.named('verifyNativeLibrariesLinuxAbi').configure { verify ->
+          assert verify.maxGlibcVersion.get() == '2.28'
+          assert verify.maxGlibcxxVersion.get() == '3.4.25'
+        }
+        """
+
+        when:
+        def result = gradleRunner("help").build()
+
+        then:
+        result.output.contains("BUILD SUCCESSFUL")
+    }
+
+    @IgnoreIf({ os.isLinux() == false })
+    def "finalizes the build with the Linux ABI check and fails on a policy violation"() {
+        given:
+        fakeObjdump("""
+Version References:
+  required from libstdc++.so.6:
+    0x0297f842 0x00 03 GLIBCXX_3.4.32
+""")
+
+        when:
+        def result = gradleRunner("buildNativeLibrary").withEnvironment(["TEST_NATIVE_BUILD": "host"]).buildAndFail()
+
+        then:
+        result.task(":buildNativeLibrary").outcome == TaskOutcome.SUCCESS
+        result.task(":verifyNativeLibrariesLinuxAbi").outcome == TaskOutcome.FAILED
+        result.output.contains("GLIBCXX_3.4.32")
+        result.output.contains("${PLATFORM}/libtest.so")
+    }
+
+    @IgnoreIf({ os.isLinux() == false })
+    def "finalizes the build with the Linux ABI check and succeeds when it is met"() {
+        given:
+        fakeObjdump("""
+Version References:
+  required from libc.so.6:
+    0x06969197 0x00 02 GLIBC_2.17
+""")
+
+        when:
+        def result = gradleRunner("buildNativeLibrary").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        result.task(":buildNativeLibrary").outcome == TaskOutcome.SUCCESS
+        result.task(":verifyNativeLibrariesLinuxAbi").outcome == TaskOutcome.SUCCESS
+    }
+
+    @IgnoreIf({ os.isLinux() == false })
+    def "fails when objdump cannot inspect the built library"() {
+        given:
+        buildFile << """
+        tasks.named('verifyNativeLibrariesLinuxAbi').configure {
+          objdumpExecutable.set("${projectDir}/fake-objdump")
+        }
+        """
+        file("fake-objdump").text = '''#!/bin/sh
+if [ "$1" = "--version" ]; then
+  exit 0
+fi
+exit 1
+'''
+        file("fake-objdump").setExecutable(true)
+
+        when:
+        def result = gradleRunner("buildNativeLibrary").withEnvironment(["TEST_NATIVE_BUILD": "host"]).buildAndFail()
+
+        then:
+        result.task(":verifyNativeLibrariesLinuxAbi").outcome == TaskOutcome.FAILED
+        result.output.contains("Failed to inspect")
+        result.output.contains("libtest.so")
+    }
+
+    /** Points the folded-in ABI check at a script that reports {@code output} for every library. */
+    private void fakeObjdump(String output) {
+        buildFile << """
+        tasks.named('verifyNativeLibrariesLinuxAbi').configure {
+          objdumpExecutable.set("${projectDir}/fake-objdump")
+        }
+        """
+        file("fake-objdump").text = """#!/bin/sh
+if [ "\$1" = "--version" ]; then
+  exit 0
+fi
+cat <<'EOF'
+${output}EOF
+"""
+        file("fake-objdump").setExecutable(true)
     }
 }

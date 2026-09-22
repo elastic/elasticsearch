@@ -40,8 +40,12 @@ import javax.inject.Inject;
 
 /**
  * Fails the build when Linux {@code .so} files require glibc or libstdc++ newer than the supported
- * minimum (default: RHEL 8 — glibc {@value NativeLibrariesLinuxAbiPlugin#DEFAULT_MAX_GLIBC_VERSION},
- * {@code GLIBCXX_}{@value NativeLibrariesLinuxAbiPlugin#DEFAULT_MAX_GLIBCXX_VERSION}).
+ * minimum (default: RHEL 8 — glibc {@value NativeLibraryBuildPlugin#DEFAULT_MAX_GLIBC_VERSION},
+ * {@code GLIBCXX_}{@value NativeLibraryBuildPlugin#DEFAULT_MAX_GLIBCXX_VERSION}).
+ *
+ * <p>Registered by {@link NativeLibraryBuildPlugin} as a finalizer of its native build task, scoped
+ * to that task's own output: only a fresh build can introduce a binary requiring a newer ABI, so
+ * pre-existing (e.g. published) binaries are never checked.
  */
 @CacheableTask
 public abstract class VerifyNativeLibraryLinuxAbiTask extends DefaultTask {

@@ -112,10 +112,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         );
     }
 
-    public static KnnSearchBuilder.Builder fromXContent(XContentParser parser) throws IOException {
-        return fromXContent(parser, null);
-    }
-
     public static KnnSearchBuilder.Builder fromXContent(XContentParser parser, QueryParsingReservation releasables) throws IOException {
         return PARSER.parse(parser, releasables);
     }

@@ -99,7 +99,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     @Override
     protected KnnSearchBuilder doParseInstance(XContentParser parser) throws IOException {
-        return KnnSearchBuilder.fromXContent(parser).build(DEFAULT_SIZE);
+        return KnnSearchBuilder.fromXContent(parser, null).build(DEFAULT_SIZE);
     }
 
     @Override

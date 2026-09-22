@@ -6,7 +6,7 @@
 
   - do: {xpack.usage: {}}
   - match: { logsdb_columnar.available: true }
-  - match: { logsdb_columnar.enabled: false }
+  - match: { logsdb_columnar.enabled: true }
   - match: { logsdb_columnar.indices_count: 0 }
   - match: { logsdb_columnar.indices_with_synthetic_source: 0 }
   - match: { logsdb_columnar.num_docs: 0 }
@@ -40,7 +40,7 @@
 
   - do: {xpack.usage: {}}
   - match: { logsdb_columnar.available: true }
-  - match: { logsdb_columnar.enabled: false }
+  - match: { logsdb_columnar.enabled: true }
   - match: { logsdb_columnar.indices_count: 1 }
   - match: { logsdb_columnar.indices_with_synthetic_source: 1 }
   - match: { logsdb_columnar.num_docs: 2 }
@@ -118,10 +118,10 @@
       cluster.put_settings:
         body:
           persistent:
-            cluster.columnar.enabled: true
+            cluster.columnar.enabled: false
 
   - do: {xpack.usage: {}}
-  - match: { logsdb_columnar.enabled: true }
+  - match: { logsdb_columnar.enabled: false }
 
   - do:
       cluster.put_settings:

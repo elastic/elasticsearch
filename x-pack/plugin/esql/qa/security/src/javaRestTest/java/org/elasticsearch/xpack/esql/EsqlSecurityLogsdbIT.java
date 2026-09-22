@@ -86,7 +86,7 @@ public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
 
     @Override
     @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
-    public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoadAll() throws Exception {}
+    public void testFLS_SourceDisabled_WithUnmappedFieldsLoadAll() throws Exception {}
 
     @Override
     @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")

@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetResolution;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetSchemaKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadata;
@@ -1075,6 +1077,26 @@ public class ExternalSourceResolver {
                 ),
                 listener::onFailure
             );
+            // The anchor decides this schema. If the anchor is unchanged and the settings are unchanged, reading it
+            // again can teach us nothing, so the read is skipped entirely — including when files have been appended
+            // after it, which move nothing the anchor decides.
+            DatasetSchemaKey schemaKey = cacheable && cacheService != null
+                ? datasetSchemaKey(listing, fileConfig, datasetFormat, schemaResolution)
+                : null;
+            if (schemaKey != null && cacheService.getDatasetResolution(schemaKey) instanceof DatasetResolution.FromAnchor cached) {
+                anchorListener.onResponse(buildMetadataFromCache(cached.anchor(), cached.anchor().toAttributes(), fileConfig));
+                return;
+            }
+            ActionListener<ExternalSourceMetadata> cachingAnchorListener = schemaKey == null
+                ? anchorListener
+                : ActionListener.wrap(anchorMetadata -> {
+                    cacheService.putDatasetResolution(
+                        schemaKey,
+                        new DatasetResolution.FromAnchor(schemaOnly(SchemaCacheEntry.from(anchorMetadata)))
+                    );
+                    anchorListener.onResponse(anchorMetadata);
+                }, listener::onFailure);
+
             if (cacheable) {
                 // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
                 // buildMetadataFromCache, so the cast is safe.
@@ -1082,14 +1104,14 @@ public class ExternalSourceResolver {
                     anchorPath,
                     anchorHint,
                     fileConfig,
-                    anchorListener.map(meta -> (ExternalSourceMetadata) meta)
+                    cachingAnchorListener.map(meta -> (ExternalSourceMetadata) meta)
                 );
             } else {
                 resolveSingleSourceAsync(
                     anchorPath.toString(),
                     anchorHint,
                     fileConfig,
-                    anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, fileConfig, declaredReadSpecOf(declaredMapping)))
+                    cachingAnchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, fileConfig, declaredReadSpecOf(declaredMapping)))
                 );
             }
         } finally {
@@ -1842,6 +1864,52 @@ public class ExternalSourceResolver {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Both {@link SourceStatisticsSerializer#STATS_ROW_COUNT} and {@link SourceStatisticsSerializer#STATS_COL_PREFIX}
+     * begin with this, so it names every statistic an entry can carry.
+     */
+    private static final String STATS_KEY_PREFIX = "_stats.";
+
+    /**
+     * The key this dataset's schema is cached under, or {@code null} when it cannot be keyed — an unresolvable format,
+     * or a listing the mode's identity cannot be taken from. Unlike the row-count aggregate this refuses no format:
+     * that refusal is about serving a bare count to a reader that folds an absent column statistic as implicit nulls,
+     * which is a property of the count and not of a schema.
+     */
+    @Nullable
+    private DatasetSchemaKey datasetSchemaKey(
+        FileList listing,
+        Map<String, Object> config,
+        @Nullable String datasetFormat,
+        FormatReader.SchemaResolution schemaResolution
+    ) {
+        String format = datasetFormat;
+        if (format == null) {
+            try {
+                format = FormatNameResolver.datasetFormat(config, listing.originalPattern(), dataSourceModule.formatReaderRegistry());
+            } catch (Exception e) {
+                // An unregistered extension throws; a schema cache is an optimization and must never turn a
+                // resolvable read into a throw, so refuse to key it instead.
+                return null;
+            }
+        }
+        return DatasetSchemaKeys.of(SchemaBreadth.of(schemaResolution), listing, format, storageConfig(config));
+    }
+
+    /**
+     * {@code entry} with every statistic dropped. This cache holds a schema; statistics are built on the first read
+     * and kept per file, where they stay fresh — a copy frozen here could only be staler than the one beside it.
+     */
+    private static SchemaCacheEntry schemaOnly(SchemaCacheEntry entry) {
+        Map<String, Object> withoutStatistics = new HashMap<>();
+        for (Map.Entry<String, Object> metadata : entry.safeMetadata().entrySet()) {
+            if (metadata.getKey().startsWith(STATS_KEY_PREFIX) == false) {
+                withoutStatistics.put(metadata.getKey(), metadata.getValue());
+            }
+        }
+        return entry.withSafeMetadata(withoutStatistics);
     }
 
     /**

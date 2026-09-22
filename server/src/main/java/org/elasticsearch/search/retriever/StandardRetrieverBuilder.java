@@ -52,7 +52,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
 
     static {
         PARSER.declareObject((r, v) -> r.queryBuilder = v, (p, c) -> {
-            QueryBuilder queryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage, c.getQueryParsingReleasables());
+            QueryBuilder queryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage, c.getQueryParsingReservation());
             return queryBuilder;
         }, QUERY_FIELD);
 

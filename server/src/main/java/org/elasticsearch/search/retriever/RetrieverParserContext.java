@@ -9,11 +9,10 @@
 
 package org.elasticsearch.search.retriever;
 
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.usage.SearchUsage;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -21,7 +20,7 @@ public class RetrieverParserContext {
 
     protected final SearchUsage searchUsage;
     protected final Predicate<NodeFeature> clusterSupportsFeature;
-    private final List<Releasable> queryParsingReleasables;
+    private final QueryParsingReservation queryParsingReservation;
 
     public RetrieverParserContext(SearchUsage searchUsage, Predicate<NodeFeature> clusterSupportsFeature) {
         this(searchUsage, clusterSupportsFeature, null);
@@ -30,15 +29,15 @@ public class RetrieverParserContext {
     public RetrieverParserContext(
         SearchUsage searchUsage,
         Predicate<NodeFeature> clusterSupportsFeature,
-        List<Releasable> queryParsingReleasables
+        QueryParsingReservation queryParsingReservation
     ) {
         this.searchUsage = Objects.requireNonNull(searchUsage);
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.queryParsingReleasables = queryParsingReleasables;
+        this.queryParsingReservation = queryParsingReservation;
     }
 
-    public List<Releasable> getQueryParsingReleasables() {
-        return queryParsingReleasables;
+    public QueryParsingReservation getQueryParsingReservation() {
+        return queryParsingReservation;
     }
 
     public void trackSectionUsage(String section) {

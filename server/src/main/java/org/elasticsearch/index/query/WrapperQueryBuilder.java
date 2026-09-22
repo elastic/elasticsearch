@@ -17,8 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,9 +25,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * A Query builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
@@ -160,20 +156,8 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getParserConfig(), source)) {
-            List<Releasable> trackTo = new ArrayList<>();
-            final QueryBuilder queryBuilder;
-            try {
-                queryBuilder = parseTopLevelQuery(qSourceParser, queryName -> {}, trackTo).rewrite(context);
-            } catch (Exception e) {
-                Releasables.close(trackTo);
-                throw e;
-            }
             QueryParsingReservation reservation = context.getQueryParsingReservation();
-            if (reservation != null) {
-                reservation.addCharges(trackTo);
-            } else {
-                Releasables.close(trackTo);
-            }
+            final QueryBuilder queryBuilder = parseTopLevelQuery(qSourceParser, queryName -> {}, reservation).rewrite(context);
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

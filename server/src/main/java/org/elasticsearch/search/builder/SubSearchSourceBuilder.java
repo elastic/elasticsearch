@@ -13,9 +13,9 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -39,7 +38,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class SubSearchSourceBuilder implements ToXContent, Writeable, Rewriteable<SubSearchSourceBuilder> {
 
-    private record ParseContext(SearchUsage searchUsage, List<Releasable> releasables) {}
+    private record ParseContext(SearchUsage searchUsage, QueryParsingReservation releasables) {}
 
     private static final ConstructingObjectParser<SubSearchSourceBuilder, ParseContext> PARSER = new ConstructingObjectParser<>(
         "sub_search_source_builder",
@@ -58,7 +57,7 @@ public class SubSearchSourceBuilder implements ToXContent, Writeable, Rewriteabl
         return fromXContent(parser, searchUsage, null);
     }
 
-    public static SubSearchSourceBuilder fromXContent(XContentParser parser, SearchUsage searchUsage, List<Releasable> releasables)
+    public static SubSearchSourceBuilder fromXContent(XContentParser parser, SearchUsage searchUsage, QueryParsingReservation releasables)
         throws IOException {
         return PARSER.parse(parser, new ParseContext(searchUsage, releasables));
     }

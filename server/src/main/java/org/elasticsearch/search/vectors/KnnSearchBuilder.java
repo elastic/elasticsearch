@@ -14,10 +14,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -60,9 +60,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<KnnSearchBuilder.Builder, List<Releasable>> PARSER = new ConstructingObjectParser<>(
-        "knn",
-        args -> {
+    private static final ConstructingObjectParser<KnnSearchBuilder.Builder, QueryParsingReservation> PARSER =
+        new ConstructingObjectParser<>("knn", args -> {
             // TODO optimize parsing for when BYTE values are provided
             return new Builder().field((String) args[0])
                 .queryVector((VectorData) args[1])
@@ -72,8 +71,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 .visitPercentage((Float) args[4])
                 .similarity((Float) args[6])
                 .rescoreVectorBuilder((RescoreVectorBuilder) args[7]);
-        }
-    );
+        });
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
@@ -118,7 +116,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return fromXContent(parser, null);
     }
 
-    public static KnnSearchBuilder.Builder fromXContent(XContentParser parser, List<Releasable> releasables) throws IOException {
+    public static KnnSearchBuilder.Builder fromXContent(XContentParser parser, QueryParsingReservation releasables) throws IOException {
         return PARSER.parse(parser, releasables);
     }
 

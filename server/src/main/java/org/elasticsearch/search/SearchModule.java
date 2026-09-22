@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -49,6 +48,7 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
@@ -832,12 +832,12 @@ public class SearchModule {
     }
 
     private void registerRescorers(List<SearchPlugin> plugins) {
-        // QueryRescorerBuilder registered directly so the namedObject context (query-parsing releasables) is threaded through.
+        // QueryRescorerBuilder registered directly so the namedObject context (query-parsing reservation) is threaded through.
         namedXContents.add(
             new NamedXContentRegistry.Entry(
                 RescorerBuilder.class,
                 new ParseField(QueryRescorerBuilder.NAME),
-                (p, c) -> QueryRescorerBuilder.fromXContent(p, castToReleasables(c))
+                (p, c) -> QueryRescorerBuilder.fromXContent(p, castToReservation(c))
             )
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new));
@@ -845,9 +845,8 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getRescorers, this::registerRescorer);
     }
 
-    @SuppressWarnings("unchecked")
-    private static List<Releasable> castToReleasables(Object context) {
-        return context instanceof List<?> list ? (List<Releasable>) list : null;
+    private static QueryParsingReservation castToReservation(Object context) {
+        return context instanceof QueryParsingReservation r ? r : null;
     }
 
     private void registerRescorer(RescorerSpec<?> spec) {

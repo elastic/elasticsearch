@@ -16,9 +16,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -206,9 +206,9 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         return builder;
     }
 
-    private static final ObjectParser<HighlightBuilder, List<Releasable>> PARSER;
+    private static final ObjectParser<HighlightBuilder, QueryParsingReservation> PARSER;
     static {
-        ObjectParser<HighlightBuilder, List<Releasable>> parser = new ObjectParser<>("highlight");
+        ObjectParser<HighlightBuilder, QueryParsingReservation> parser = new ObjectParser<>("highlight");
         parser.declareNamedObjects(
             HighlightBuilder::fields,
             Field.PARSER,
@@ -223,7 +223,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         return fromXContent(p, null);
     }
 
-    public static HighlightBuilder fromXContent(XContentParser p, List<Releasable> releasables) throws IOException {
+    public static HighlightBuilder fromXContent(XContentParser p, QueryParsingReservation releasables) throws IOException {
         HighlightBuilder hb = new HighlightBuilder();
         PARSER.parse(p, hb, releasables);
         if (hb.preTags() != null && hb.postTags() == null) {
@@ -405,13 +405,13 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     }
 
     public static final class Field extends AbstractHighlighterBuilder<Field> {
-        static final NamedObjectParser<Field, List<Releasable>> PARSER;
+        static final NamedObjectParser<Field, QueryParsingReservation> PARSER;
         static {
-            ObjectParser<Field, List<Releasable>> parser = new ObjectParser<>("highlight_field");
+            ObjectParser<Field, QueryParsingReservation> parser = new ObjectParser<>("highlight_field");
             parser.declareInt(Field::fragmentOffset, FRAGMENT_OFFSET_FIELD);
             parser.declareStringArray(fromList(String.class, Field::matchedFields), MATCHED_FIELDS_FIELD);
             setupParser(parser);
-            PARSER = (XContentParser p, List<Releasable> c, String name) -> {
+            PARSER = (XContentParser p, QueryParsingReservation c, String name) -> {
                 Field field = new Field(name);
                 parser.parse(p, field, c);
                 if (field.preTags() != null && field.postTags() == null) {

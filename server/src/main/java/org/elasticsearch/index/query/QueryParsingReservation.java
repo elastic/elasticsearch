@@ -13,6 +13,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -28,6 +29,10 @@ import java.util.List;
 public final class QueryParsingReservation extends AbstractRefCounted {
 
     private final List<Releasable> releasables;
+
+    public QueryParsingReservation() {
+        this.releasables = new ArrayList<>();
+    }
 
     public QueryParsingReservation(List<Releasable> releasables) {
         this.releasables = releasables;

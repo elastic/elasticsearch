@@ -30,11 +30,14 @@ import org.elasticsearch.geometry.Rectangle;
  *
  * <p>Implementation notes:
  * <ul>
- *   <li>{@link MultiPoint} is backed by coordinate arrays, not individual {@link Point} objects,
- *       so it counts as 1.</li>
- *   <li>{@link Polygon} owns a separate outer {@link LinearRing} object plus one per hole.</li>
+ *   <li>{@link MultiPoint} extends {@link GeometryCollection}{@code <Point>} and stores each
+ *       point as a distinct Java {@link Point} object, so an N-point {@code MultiPoint} counts
+ *       as {@code 1 + N}.</li>
+ *   <li>{@link Polygon} owns a separate outer {@link LinearRing} object plus one per hole,
+ *       so it counts as {@code 2 + numberOfHoles}.</li>
  *   <li>All other collection types ({@link GeometryCollection}, {@link MultiLine},
- *       {@link MultiPolygon}) store each element as a distinct Java object.</li>
+ *       {@link MultiPolygon}) count as 1 for the collection plus the recursive count of each
+ *       element.</li>
  * </ul>
  */
 public class GeometryNodeCountVisitor implements GeometryVisitor<Integer, RuntimeException> {

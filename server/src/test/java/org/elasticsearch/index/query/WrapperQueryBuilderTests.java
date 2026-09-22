@@ -258,17 +258,16 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             TermQueryBuilder inner = new TermQueryBuilder(TEXT_FIELD_NAME, "value");
             WrapperQueryBuilder wrapper = new WrapperQueryBuilder(Strings.toString(inner));
 
-            // Parse the wrapper, holding charges in wrapperCharges so we can snapshot the breaker
-            List<Releasable> wrapperCharges = new ArrayList<>();
+            // Parse the wrapper, holding charges in reservation so we can snapshot the breaker
+            QueryParsingReservation reservation = new QueryParsingReservation();
             BytesReference bytes = XContentHelper.toXContent(wrapper, XContentType.JSON, false);
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
-                AbstractQueryBuilder.parseTopLevelQuery(parser, queryName -> {}, wrapperCharges);
+                AbstractQueryBuilder.parseTopLevelQuery(parser, queryName -> {}, reservation);
             }
             long chargeAfterWrapperParse = breaker.getUsed();
             assertThat("wrapper parse must charge the breaker", chargeAfterWrapperParse, greaterThan(0L));
 
             // Set the reservation on a QRC and rewrite — inner query charges must transfer to reservation
-            QueryParsingReservation reservation = new QueryParsingReservation(wrapperCharges);
             QueryRewriteContext context = createQueryRewriteContext();
             context.setQueryParsingReservation(reservation);
             wrapper.doRewrite(context);

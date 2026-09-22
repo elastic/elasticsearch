@@ -15,10 +15,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -651,13 +650,13 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Configures all highlight fields on {@code parser}. The context type is {@code List<Releasable>} (nullable):
+     * Configures all highlight fields on {@code parser}. The context type is {@code QueryParsingReservation} (nullable):
      * when non-null the highlight_query is tracked for later release via the request circuit breaker;
      * when null (e.g. from {@link HighlightBuilder#fromXContent(XContentParser)}) queries are parsed
      * without holding charges, matching the pre-breaker behaviour.
      * After calling {@link ObjectParser#parse}, callers must validate pre/post tags themselves.
      */
-    static <HB extends AbstractHighlighterBuilder<HB>> void setupParser(ObjectParser<HB, List<Releasable>> parser) {
+    static <HB extends AbstractHighlighterBuilder<HB>> void setupParser(ObjectParser<HB, QueryParsingReservation> parser) {
         parser.declareStringArray(fromList(String.class, HB::preTags), PRE_TAGS_FIELD);
         parser.declareStringArray(fromList(String.class, HB::postTags), POST_TAGS_FIELD);
         parser.declareString(HB::order, ORDER_FIELD);
@@ -682,14 +681,14 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareBoolean((builder, value) -> {}, FORCE_SOURCE_FIELD);  // force_source is ignored
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
         parser.declareInt(HB::maxAnalyzedOffset, MAX_ANALYZED_OFFSET_FIELD);
-        parser.declareObject(HB::options, (XContentParser p, List<Releasable> c) -> {
+        parser.declareObject(HB::options, (XContentParser p, QueryParsingReservation c) -> {
             try {
                 return p.map();
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing options", e);
             }
         }, OPTIONS_FIELD);
-        parser.declareObject(HB::highlightQuery, (XContentParser p, List<Releasable> c) -> {
+        parser.declareObject(HB::highlightQuery, (XContentParser p, QueryParsingReservation c) -> {
             try {
                 return parseTopLevelQuery(p, q -> {}, c);
             } catch (IOException e) {

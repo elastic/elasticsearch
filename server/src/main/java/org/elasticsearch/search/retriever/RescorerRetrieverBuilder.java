@@ -57,7 +57,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
                         RescorerBuilder.parseFromXContent(
                             parser,
                             name -> context.trackRescorerUsage(name),
-                            context.getQueryParsingReleasables()
+                            context.getQueryParsingReservation()
                         )
                     );
                 }
@@ -67,7 +67,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
                     RescorerBuilder.parseFromXContent(
                         parser,
                         name -> context.trackRescorerUsage(name),
-                        context.getQueryParsingReleasables()
+                        context.getQueryParsingReservation()
                     )
                 );
             } else {

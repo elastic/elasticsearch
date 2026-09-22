@@ -34,12 +34,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -526,12 +525,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         AbstractQueryBuilder.setQueryParsingBreaker(measuringBreaker);
         try {
             BytesReference bytes = XContentHelper.toXContent(builder, XContentType.JSON, false);
-            List<Releasable> trackTo = new ArrayList<>();
+            QueryParsingReservation trackTo = new QueryParsingReservation();
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
                 parseTopLevelQuery(parser, queryName -> {}, trackTo);
             }
             chargeT = measuringBreaker.getUsed();  // charge still held via trackTo — non-zero
-            Releasables.close(trackTo);
+            trackTo.decRef();
             assertEquals("breaker not released after measurement parse", 0L, measuringBreaker.getUsed());
         } finally {
             AbstractQueryBuilder.setQueryParsingBreaker(null);

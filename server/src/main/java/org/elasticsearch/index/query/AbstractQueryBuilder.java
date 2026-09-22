@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.AbstractObjectParser;
@@ -522,13 +521,15 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     /**
      * Like {@link #parseTopLevelQuery(XContentParser, Consumer)} but, when {@code trackTo} is non-null and parsing
-     * succeeds, defers the circuit-breaker release: instead of releasing before returning, a {@link Releasable} that
-     * will perform the release is added to {@code trackTo}. The caller must close every element added to
-     * {@code trackTo} once the parsed query tree is no longer needed (typically when the enclosing request ends).
-     * When {@code trackTo} is {@code null}, or when parsing fails, the charge is released before this method returns.
+     * succeeds, defers the circuit-breaker release by adding the charge to {@code trackTo} via
+     * {@link QueryParsingReservation#addCharges}. When {@code trackTo} is {@code null}, or when parsing fails,
+     * the charge is released before this method returns.
      */
-    public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer, List<Releasable> trackTo)
-        throws IOException {
+    public static QueryBuilder parseTopLevelQuery(
+        XContentParser parser,
+        Consumer<String> queryNameConsumer,
+        QueryParsingReservation trackTo
+    ) throws IOException {
         final CircuitBreaker breaker = queryParsingBreaker.get(); // snapshot once per call
         final long[] totalCharged = breaker != null ? new long[1] : null;
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
@@ -597,7 +598,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         } finally {
             if (breaker != null && totalCharged[0] > 0) {
                 if (success && trackTo != null) {
-                    trackTo.add(() -> breaker.addWithoutBreaking(-totalCharged[0]));
+                    trackTo.addCharges(List.of(() -> breaker.addWithoutBreaking(-totalCharged[0])));
                 } else {
                     breaker.addWithoutBreaking(-totalCharged[0]);
                 }

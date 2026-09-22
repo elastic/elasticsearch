@@ -624,18 +624,18 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source).
         /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING].
-        /// The actual enforced limit is computed via [#effectiveMaxConcurrentRelocationRecoveries] and takes into
+        /// The actual enforced limit is computed via [#effectiveMaxConcurrentRecoveries] and takes into
         /// account the heap-based [#maxConcurrentRecoveriesPerHeapGb] limit.
         private int maxConcurrentRecoveries;
 
         /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source)
         /// per heap (in GB) allocated to this node.
         /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING].
-        /// The actual enforced limit is computed via [#effectiveMaxConcurrentRelocationRecoveries] and takes into
+        /// The actual enforced limit is computed via [#effectiveMaxConcurrentRecoveries] and takes into
         /// account the static [#maxConcurrentRecoveries] limit.
         private double maxConcurrentRecoveriesPerHeapGb;
 
-        /// The maximum proportion of [#effectiveMaxConcurrentRelocationRecoveries] slots that may be used for relocation recoveries.
+        /// The maximum proportion of [#effectiveMaxConcurrentRecoveries] slots that may be used for relocation recoveries.
         /// See [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
         private double relocationRecoveriesMaxProportion;
 

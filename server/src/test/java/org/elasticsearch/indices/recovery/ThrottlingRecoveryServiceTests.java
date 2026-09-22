@@ -548,7 +548,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var heapBytes = ByteSizeValue.ofGb(2);
         final var clusterService = newClusterService(
             Settings.builder()
-                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), randomIntBetween(4, Integer.MAX_VALUE))
                 .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 1.5)
                 .build()
         );
@@ -588,12 +588,15 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testHeapBasedLimitDeferredToMaxConcurrentLimit() {
         final var taskQueue = new DeterministicTaskQueue();
-        // 2 GB heap, ratio 10 -> heap-based ceiling = 20, but max_concurrent_incoming_recoveries=3 wins
+        // 2 GB heap, ratio in [2, Double.MAX_VALUE] -> heap-based ceiling >= 4, but max_concurrent_incoming_recoveries=3 wins
         final var heapBytes = ByteSizeValue.ofGb(2);
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3)
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 10.0)
+                .put(
+                    ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                    randomDoubleBetween(2.0, Double.MAX_VALUE, true)
+                )
                 .build()
         );
         final var service = new ThrottlingRecoveryService(

@@ -249,14 +249,23 @@ public class CollectionUtils {
             }
             return (T) (unmodifiable ? Collections.unmodifiableSet(copy) : copy);
         } else if (value instanceof byte[] bytes) {
+            if (unmodifiable) {
+                throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
+            }
             return (T) Arrays.copyOf(bytes, bytes.length);
         } else if (value instanceof double[][] doubles) {
+            if (unmodifiable) {
+                throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
+            }
             double[][] result = new double[doubles.length][];
             for (int i = 0; i < doubles.length; i++) {
                 result[i] = Arrays.copyOf(doubles[i], doubles[i].length);
             }
             return (T) result;
         } else if (value instanceof double[] doubles) {
+            if (unmodifiable) {
+                throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
+            }
             return (T) Arrays.copyOf(doubles, doubles.length);
         } else if (value == null
             || value instanceof String

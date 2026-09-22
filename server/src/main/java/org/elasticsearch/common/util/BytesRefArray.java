@@ -192,7 +192,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     /**
-     * Appends two {@link BytesRef} as one entry, allowing callers to avoid an intermediate copy.
+     * Appends two {@link BytesRef} values as one entry, allowing callers to avoid an intermediate copy.
      */
     public void append(BytesRef v1, BytesRef v2) {
         final int length = v1.length + v2.length;

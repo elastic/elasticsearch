@@ -646,6 +646,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return defaultSimilarity;
         }
 
+        /**
+         * Calculate the vector length. Vector length is the number of distinct components in the vector, usually measured via the
+         * size/length of the vector array/list.
+         *
+         * @param dims Dimension count
+         * @return The vector length
+         */
         public final int vectorLength(int dims) {
             return switch (this) {
                 case FLOAT, BFLOAT16, BYTE -> dims;
@@ -656,6 +663,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             };
         }
 
+        /**
+         * Calculate the dimension count given a vector length. Vector length is the number of distinct components in the vector,
+         * usually measured via the size/length of the vector array/list.
+         *
+         * @param vectorLength The vector length
+         * @return The dimension count
+         */
         public final int dims(int vectorLength) {
             return switch (this) {
                 case FLOAT, BFLOAT16, BYTE -> vectorLength;

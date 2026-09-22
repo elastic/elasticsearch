@@ -10,6 +10,21 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-22]]
+=== 8.19.22
+
+[discrete]
+[[es-connectors-release-notes-8-19-22-bug-fixes]]
+===== Bug fixes
+
+* Fixed sync progress logs omitting extracted, filtered, and skipped document counts, which made agentless connector logs show misleading duplicate progress lines during fast-skipping syncs.
+See: https://github.com/elastic/connectors/pull/4475[*PR 4475*]
+* Fixed ServiceNow Document Level Security exhausting Elasticsearch memory on large tenants, where every role member was expanded onto each content document. An opt-in compact mode stores role tokens instead: disable *Expand role members* to enable it. Changing the setting requires a full content sync and access control sync.
+See: https://github.com/elastic/connectors/pull/4462[*PR 4462*]
+* Fixed connectors running under Elastic Agent crashing on check-in when the Elasticsearch output policy included an `ssl` block. Agent SSL settings are now read correctly from the protobuf config payload.
+See: https://github.com/elastic/connectors/pull/4459[*PR 4459*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-21]]
 === 8.19.21
 

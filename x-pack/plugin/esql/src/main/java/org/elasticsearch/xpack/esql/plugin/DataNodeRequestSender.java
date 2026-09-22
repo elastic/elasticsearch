@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -94,6 +95,9 @@ abstract class DataNodeRequestSender {
     private final String clusterAlias;
     private final OriginalIndices originalIndices;
     private final QueryBuilder requestFilter;
+    // Routing derived from a _slice predicate in the plan, used to prune shards that cannot hold the requested slices.
+    @Nullable
+    private final String sliceRouting;
 
     private final boolean allowPartialResults;
     private final Semaphore concurrentRequests;
@@ -114,6 +118,7 @@ abstract class DataNodeRequestSender {
         CancellableTask rootTask,
         OriginalIndices originalIndices,
         QueryBuilder requestFilter,
+        @Nullable String sliceRouting,
         String clusterAlias,
         boolean allowPartialResults,
         int concurrentRequests,
@@ -126,6 +131,7 @@ abstract class DataNodeRequestSender {
         this.rootTask = rootTask;
         this.originalIndices = originalIndices;
         this.requestFilter = requestFilter;
+        this.sliceRouting = sliceRouting;
         this.clusterAlias = clusterAlias;
         this.allowPartialResults = allowPartialResults;
         this.concurrentRequests = concurrentRequests > 0 ? new Semaphore(concurrentRequests) : null;
@@ -531,7 +537,8 @@ abstract class DataNodeRequestSender {
             originalIndices.indices(),
             originalIndices.indicesOptions(),
             requestFilter,
-            null,
+            sliceRouting,
+            sliceRouting != null, // routingFromSlice: the value originates from a _slice predicate
             null,
             true, // unavailable_shards will be handled by the sender
             clusterAlias

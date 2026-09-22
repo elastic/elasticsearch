@@ -697,6 +697,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             task,
             new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS),
             null,
+            null,
             "",
             allowPartialResults,
             concurrentRequests,

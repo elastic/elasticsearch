@@ -1819,9 +1819,10 @@ public class ApiKeyService implements Closeable {
      * ever fetched. A cluster can hold orders of magnitude more REST API keys than cross-cluster ones, and usage is collected
      * periodically rather than on demand, so reading every key would be prohibitively expensive.
      * <p>
-     * The reported counts partition the REST API keys: a key that is both invalidated and expired is only counted as invalidated.
-     * Neither {@code invalidated} nor {@code expired} is a lifetime total, since {@link InactiveApiKeysRemover} deletes such keys once
-     * they fall outside {@link #DELETE_RETENTION_PERIOD}; they describe what the security index currently holds.
+     * The reported counts partition the REST API keys held in the index: {@code active} keys are neither invalidated nor expired, and a
+     * key that is both invalidated and expired is only counted as {@code invalidated}. Neither {@code invalidated} nor {@code expired}
+     * is a lifetime total, since {@link InactiveApiKeysRemover} deletes such keys once they fall outside
+     * {@link #DELETE_RETENTION_PERIOD}; they describe what the security index currently holds.
      */
     public void restApiKeyUsageStats(ActionListener<Map<String, Object>> listener) {
         if (false == isEnabled()) {
@@ -1831,7 +1832,7 @@ public class ApiKeyService implements Closeable {
         final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
         if (projectSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
-            listener.onResponse(Map.of("total", 0L, "invalidated", 0L, "expired", 0L));
+            listener.onResponse(Map.of("active", 0L, "invalidated", 0L, "expired", 0L));
         } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
@@ -1862,8 +1863,8 @@ public class ApiKeyService implements Closeable {
                         final Filters counts = searchResponse.getAggregations().get(REST_API_KEY_COUNTS_AGG_NAME);
                         listener.onResponse(
                             Map.of(
-                                "total",
-                                counts.getBucketByKey("total").getDocCount(),
+                                "active",
+                                counts.getBucketByKey("active").getDocCount(),
                                 "invalidated",
                                 counts.getBucketByKey("invalidated").getDocCount(),
                                 "expired",
@@ -1885,7 +1886,7 @@ public class ApiKeyService implements Closeable {
         return new FiltersAggregationBuilder(
             REST_API_KEY_COUNTS_AGG_NAME,
             new KeyedFilter(
-                "total",
+                "active",
                 QueryBuilders.boolQuery()
                     .filter(notInvalidated)
                     .filter(

@@ -577,13 +577,13 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         client().execute(CreateCrossClusterApiKeyAction.INSTANCE, crossClusterRequest).actionGet();
 
         final ApiKeyService apiKeyService = getInstanceFromNode(ApiKeyService.class);
-        // the short-lived keys only move from `total` to `expired` once their expiration time has actually passed
+        // the short-lived keys only move from `active` to `expired` once their expiration time has actually passed
         assertBusy(() -> {
             final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
             apiKeyService.restApiKeyUsageStats(future);
             assertThat(
                 future.actionGet(),
-                equalTo(Map.of("total", (long) activeKeys, "invalidated", (long) invalidatedKeys, "expired", (long) expiredKeys))
+                equalTo(Map.of("active", (long) activeKeys, "invalidated", (long) invalidatedKeys, "expired", (long) expiredKeys))
             );
         });
 

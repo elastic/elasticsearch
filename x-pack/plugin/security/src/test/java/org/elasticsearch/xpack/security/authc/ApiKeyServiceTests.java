@@ -1410,7 +1410,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         apiKeyService.restApiKeyUsageStats(future);
-        assertThat(future.actionGet(), equalTo(Map.of("total", 0L, "invalidated", 0L, "expired", 0L)));
+        assertThat(future.actionGet(), equalTo(Map.of("active", 0L, "invalidated", 0L, "expired", 0L)));
     }
 
     public void testRestApiKeyUsageFailsWhenIndexNotAvailable() {

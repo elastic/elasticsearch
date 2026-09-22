@@ -214,7 +214,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final int invalidatedRestKeys = randomIntBetween(0, 50);
         final int expiredRestKeys = randomIntBetween(0, 50);
         final Map<String, Object> restApiKeyUsage = Map.of(
-            "total",
+            "active",
             activeRestKeys,
             "invalidated",
             invalidatedRestKeys,
@@ -258,7 +258,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 // check API Key service
                 assertThat(source.getValue("api_key_service.enabled"), is(apiKeyServiceEnabled));
                 if (apiKeyServiceEnabled) {
-                    assertThat(source.getValue("api_key_service.api_keys.total"), equalTo(activeRestKeys));
+                    assertThat(source.getValue("api_key_service.api_keys.active"), equalTo(activeRestKeys));
                     assertThat(source.getValue("api_key_service.api_keys.invalidated"), equalTo(invalidatedRestKeys));
                     assertThat(source.getValue("api_key_service.api_keys.expired"), equalTo(expiredRestKeys));
                 } else {

@@ -67,8 +67,9 @@ public class DenseVectorFieldMapperTestUtils {
                 }
 
                 // Generate a random dimension count that is a multiple of 8
+                int minEmbeddingLength = Math.max(min / 8, 1);
                 int maxEmbeddingLength = max / 8;
-                yield RandomNumbers.randomIntBetween(random(), min, maxEmbeddingLength) * 8;
+                yield RandomNumbers.randomIntBetween(random(), minEmbeddingLength, maxEmbeddingLength) * 8;
             }
         };
     }

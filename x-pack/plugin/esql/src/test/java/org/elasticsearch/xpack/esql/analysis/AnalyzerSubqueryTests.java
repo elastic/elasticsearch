@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -77,6 +79,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -1746,6 +1749,63 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * configured external source schemas — so a dataset branch is backed by an {@link ExternalRelation}, exactly like a
      * real dataset subquery. The plan is analyzed (not optimized) to match the neighbouring tests.
      */
+    /**
+     * The outer {@code METADATA} request must not be applied until the subquery's output is final.
+     * A body ending in {@code KEEP *} still exposes an unresolved star when the Initialize batch runs, so
+     * injecting there used to throw {@code UnresolvedException}. The body does produce {@code _index}, so
+     * the outer request must pass the real metadata attribute through, not null-fill it.
+     */
+    public void testOuterMetadataWithWildcardKeepInSubqueryPassesThrough() {
+        LogicalPlan plan = analyzer().addDefaultIndex().query("""
+            FROM (FROM test METADATA _index | KEEP *) METADATA _index
+            | KEEP emp_no, _index
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        assertEquals(List.of("emp_no", "_index"), Expressions.names(project.projections()));
+        as(project.projections().get(1), MetadataAttribute.class);
+        // no null-fill anywhere in the plan
+        plan.forEachDown(Eval.class, eval -> fail("unexpected null-fill: " + eval));
+    }
+
+    /**
+     * Same wildcard shape as above, but the body does not produce {@code _index}, so the outer request is
+     * null-filled once the wildcard has been expanded.
+     */
+    public void testOuterMetadataWithWildcardKeepInSubqueryNullInjected() {
+        LogicalPlan plan = analyzer().addDefaultIndex().query("""
+            FROM (FROM test | KEEP emp*, first_name) METADATA _index
+            | KEEP emp_no, _index
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        assertEquals(List.of("emp_no", "_index"), Expressions.names(project.projections()));
+        ReferenceAttribute index = as(project.projections().get(1), ReferenceAttribute.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = eval.fields().get(0);
+        assertEquals(index.id(), alias.id());
+        Literal nullLiteral = as(alias.child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertEquals(DataType.KEYWORD, nullLiteral.dataType());
+    }
+
+    /**
+     * An unknown outer {@code METADATA} field on a subquery is reported by the Verifier with the same wording
+     * used for a plain {@code FROM}, and never reaches the physical planner.
+     */
+    public void testUnknownOuterMetadataOnSubqueryIsVerificationError() {
+        analyzer().addDefaultIndex()
+            .error(
+                "FROM (FROM test) METADATA _bogus",
+                equalTo(
+                    "Found 2 problems\nline 1:6: unresolved metadata fields: [?_bogus]\nline 1:27: Unresolved metadata pattern [_bogus]"
+                )
+            );
+    }
+
     private LogicalPlan analyzeExternalDatasetSubquery(String query) {
         DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
         Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());

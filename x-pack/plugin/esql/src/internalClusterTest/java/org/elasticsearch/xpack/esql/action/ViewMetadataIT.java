@@ -269,7 +269,11 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
 
         VerificationException ex = expectThrows(VerificationException.class, () -> run("FROM view_languages_it METADATA _fake").close());
-        assertThat(ex.getMessage(), equalTo("Found 1 problem\nline 1:33: Unresolved metadata pattern [_fake]"));
+        // Same two problems a plain `FROM index METADATA _fake` reports: the unconsumed metadata request and the bad pattern.
+        assertThat(
+            ex.getMessage(),
+            equalTo("Found 2 problems\nline 1:1: unresolved metadata fields: [?_fake]\nline 1:33: Unresolved metadata pattern [_fake]")
+        );
     }
 
     public void testViewWithIndexPatternExclusionOmitsExcludedIndex() {

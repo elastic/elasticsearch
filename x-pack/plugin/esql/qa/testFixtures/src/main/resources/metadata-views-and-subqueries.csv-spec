@@ -196,3 +196,52 @@ language_code:integer | language_name:keyword | _index:keyword
 4                     | German                | languages
 4                     | German                | null
 ;
+
+// Wildcard projections in the body: the outer METADATA request must only be applied once the body's
+// output is final (after KEEP * has been expanded), otherwise analysis fails on the unresolved star.
+
+viewBodyWithWildcardKeepDeclaresMetadataPassesThroughToOuter
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM view_languages_meta_index_keep_star METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | languages
+2                     | French                | languages
+3                     | Spanish               | languages
+4                     | German                | languages
+;
+
+subqueryBodyWithWildcardKeepDeclaresMetadataPassesThroughToOuter
+required_capability: subquery_in_from_command
+required_capability: outer_metadata_null_injection
+
+FROM (FROM languages METADATA _index | KEEP *) METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | languages
+2                     | French                | languages
+3                     | Spanish               | languages
+4                     | German                | languages
+;
+
+subqueryBodyWithWildcardKeepOuterMetadataNull
+required_capability: subquery_in_from_command
+required_capability: outer_metadata_null_injection
+
+FROM (FROM languages | KEEP language*) METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | null
+2                     | French                | null
+3                     | Spanish               | null
+4                     | German                | null
+;

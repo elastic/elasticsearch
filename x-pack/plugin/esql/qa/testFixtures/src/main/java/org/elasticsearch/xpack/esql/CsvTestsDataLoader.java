@@ -68,6 +68,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EVAL_IN_SUBQUERY;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OUTER_METADATA_NULL_INJECTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 
@@ -487,7 +488,8 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_partial_mapping_sample_data"),
         new ViewConfig("view_sample_data"),
         new ViewConfig("view_languages"),
-        new ViewConfig("view_languages_meta_index", List.of(EsqlCapabilities.Cap.OUTER_METADATA_NULL_INJECTION)),
+        new ViewConfig("view_languages_meta_index", List.of(OUTER_METADATA_NULL_INJECTION)),
+        new ViewConfig("view_languages_meta_index_keep_star", List.of(OUTER_METADATA_NULL_INJECTION)),
         new ViewConfig(
             "employees_stats_where_in_subquery_view",
             List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EsqlCapabilities.Cap.STATS_WHERE_IN_SUBQUERY)

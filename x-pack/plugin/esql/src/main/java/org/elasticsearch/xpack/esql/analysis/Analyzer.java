@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -291,7 +292,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new StripDatasetShadowRelations(),
                 new ViewCompactionPostIndexResolution(),
                 new ResolveExternalRelations(),
-                new InjectOuterMetadataForSubqueries(),
                 new PruneEmptyUnionAllBranch(),
                 new ResolveEnrich(),
                 new ResolveIpLocation(),
@@ -312,6 +312,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             ),
             new Batch<>(
                 "Resolution",
+                // Must run in a fixpoint batch: it inspects the child's output, which is only trustworthy once
+                // ResolveRefs has resolved the child (e.g. expanded wildcard projections such as KEEP *).
+                new InjectOuterMetadataForSubqueries(),
                 new ResolveRefs(),
                 new ImplicitCasting(),
                 new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
@@ -1150,14 +1153,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Consumes {@link UnresolvedMetadata} nodes emitted by the parser and null-injects any
      * outer {@code METADATA} field that is absent from a branch's output.
-     * Includes fields with wildcard patterns
+     * Includes fields with wildcard patterns.
+     * <p>
+     * The wrapper is only consumed once its child is fully resolved: deciding whether a field is "absent" requires the
+     * child's final output, and before {@code ResolveRefs} has run a child ending in e.g. {@code KEEP *} still reports
+     * an unresolved star in its output. Until then the wrapper is left in place and, being {@link Unresolvable}, keeps
+     * its parents from resolving against an output that may still gain columns. If it is never consumed the
+     * {@link Verifier} reports it instead of the plan reaching the physical planner.
      */
     private static class InjectOuterMetadataForSubqueries extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
 
         @Override
         protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
@@ -1166,6 +1170,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // ExternalRelation owns its METADATA binding end-to-end; strip the wrapper and let it stand.
             if (child instanceof ExternalRelation) {
                 return child;
+            }
+
+            // The child's output is not final yet (e.g. wildcard projections still unexpanded); try again on the next pass.
+            if (child.resolved() == false) {
+                return unresolvedMetadata;
             }
 
             List<NamedExpression> metadataFields = ResolveTable.resolveMetadata(unresolvedMetadata.metadataFields(), context);

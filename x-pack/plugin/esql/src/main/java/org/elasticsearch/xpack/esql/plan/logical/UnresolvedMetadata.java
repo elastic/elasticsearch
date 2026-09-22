@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,8 +23,12 @@ import java.util.stream.Collectors;
  * A wrapper whose main purpose is to keep track of {@code METADATA} fields from a {@code FROM} command.
  * It helps to act on fields that were requested, but weren't produced by the child plan, by e.g. filling
  * them with nulls in the Analyzer.
+ * <p>
+ * This is a transient, parse-time node: the Analyzer must consume every instance. It is {@link Unresolvable} so that
+ * an instance which survives analysis is reported by the Verifier as a user-facing error rather than surfacing as an
+ * "unsupported logical plan node" failure in the physical planner.
  */
-public class UnresolvedMetadata extends UnaryPlan {
+public class UnresolvedMetadata extends UnaryPlan implements Unresolvable {
 
     private final List<NamedExpression> metadataFields;
 
@@ -61,14 +66,25 @@ public class UnresolvedMetadata extends UnaryPlan {
         return child().output();
     }
 
+    /**
+     * Never resolved, like every other {@link Unresolvable} plan node. Parents must not resolve against this node's
+     * output: the Analyzer may still add the requested {@code METADATA} columns below it, and e.g. a {@code KEEP}
+     * resolved too early would report them as unknown.
+     */
     @Override
     public boolean expressionsResolved() {
-        for (NamedExpression e : metadataFields) {
-            if (e.resolved() == false) {
-                return false;
-            }
+        return false;
+    }
+
+    @Override
+    public String unresolvedMessage() {
+        List<NamedExpression> unresolved = metadataFields.stream().filter(e -> e.resolved() == false).toList();
+        if (unresolved.isEmpty() == false) {
+            return "unresolved metadata fields: " + unresolved;
         }
-        return true;
+        return "metadata fields "
+            + metadataFields.stream().map(NamedExpression::name).toList()
+            + " could not be applied to the underlying plan";
     }
 
     @Override

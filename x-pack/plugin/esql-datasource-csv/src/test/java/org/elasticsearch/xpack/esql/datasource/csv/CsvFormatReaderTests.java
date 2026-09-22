@@ -341,6 +341,268 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A headerless file's first record is a data row, and a leading BOM has to come off it before the
+     * first column is typed. With the BOM in place the first column infers KEYWORD instead of INTEGER
+     * and its first value carries the BOM character.
+     */
+    public void testLeadingBomStrippedFromHeaderlessFirstRecord() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF1,alpha\n2,beta\n3,gamma\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("a BOM must not change the inferred type of the first column", DataType.INTEGER, schema.get(0).dataType());
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).lastSplit(true).recordAligned(true).batchSize(10).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(3, page.getPositionCount());
+            assertEquals(1, ((IntBlock) page.getBlock(0)).getInt(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A BOM in front of a comment line must not hide the comment. With it in place the comment line is
+     * taken for the header, so a two-column typed file resolves to one KEYWORD column named after the
+     * comment and the real header line becomes a data row.
+     */
+    public void testLeadingBomDoesNotMaskACommentLine() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF// exported by tool\nid:integer,name:keyword\n1,alpha\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("the comment line must still be a comment behind a BOM", 2, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals("name", schema.get(1).name());
+    }
+
+    /** Same as {@link #testLeadingBomDoesNotMaskACommentLine}, for TSV \u2014 explicitly measured in the issue. */
+    public void testLeadingBomDoesNotMaskACommentLineTsv() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF// exported by tool\nid\tname\n1\talpha\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of("tsv"));
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("the comment line must still be a comment behind a BOM", 2, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals("name", schema.get(1).name());
+    }
+
+    /** Same, for TSV \u2014 one reader serves both formats, so the BOM has to come off the tab dialect too. */
+    public void testLeadingBomStrippedForTsvHeaderlessFirstRecord() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF1\talpha\n2\tbeta\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of("tsv"))
+            .withConfig(Map.of("header_row", false));
+        assertEquals(DataType.INTEGER, reader.metadata(object).schema().get(0).dataType());
+    }
+
+    /**
+     * With a declared schema there is no inference to absorb the BOM: the first cell of a headerless
+     * file fails to convert and the whole row is dropped under a lenient policy. After the fix every
+     * row is returned.
+     */
+    public void testLeadingBomStrippedBeforeDeclaredHeaderlessRead() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF1,alpha\n2,beta\n3,gamma\n");
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "error_mode", "skip_row", "max_errors", 100)
+        );
+        assertEquals("no row may be dropped over a BOM", 3, readRowCount(reader, object, declared, null));
+    }
+
+    /**
+     * Both the direct-to-block path ({@code withDirectBlockEnabled(true)}) and the boxed/record-reader
+     * path ({@code withDirectBlockEnabled(false)}) draw from the same {@link java.io.BufferedReader}
+     * that the fix operates on, so both get the BOM stripped. This test pins that agreement: the two
+     * paths must return the same first-column value for a BOM-prefixed headerless file.
+     */
+    public void testLeadingBomStrippedOnBothDirectAndBoxedPaths() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF1,alpha\n2,beta\n3,gamma\n");
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        for (boolean directBlock : List.of(false, true)) {
+            String desc = "directBlock=" + directBlock;
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(directBlock)
+                .withConfig(Map.of("header_row", false));
+            FormatReadContext ctx = FormatReadContext.builder()
+                .firstSplit(true)
+                .recordAligned(true)
+                .batchSize(10)
+                .readSchema(declared)
+                .build();
+            try (CloseableIterator<Page> it = reader.read(object, ctx)) {
+                Page page = it.next();
+                assertEquals(desc + ": all 3 rows must be returned", 3, page.getPositionCount());
+                assertEquals(desc + ": first value must be 1, not \\uFEFF1", 1, ((IntBlock) page.getBlock(0)).getInt(0));
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /** A BOM that is not the file's first character is ordinary data and stays in the value. */
+    public void testBomInsideTheFileIsDataAndSurvives() throws Exception {
+        StorageObject object = createStorageObject("id:keyword,name:keyword\n1,alpha\n\uFEFF2,beta\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).lastSplit(true).recordAligned(true).batchSize(10).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("\uFEFF2"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A split that does not own the file's start must not strip a leading BOM \u2014 the bytes at the
+     * split boundary are content, not a file signature. The {@code if (context.firstSplit())} guard
+     * on the data-read call site is what enforces this; this test pins it.
+     */
+    public void testNonFirstSplitLeadingBomIsDataAndSurvives() throws Exception {
+        // Stream starts with the BOM character, simulating a chunk boundary that happens to fall
+        // just before a BOM-prefixed value in the middle of the file.
+        StorageObject object = createStorageObject("\uFEFF1,alpha\n2,beta\n");
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        FormatReadContext ctx = FormatReadContext.builder()
+            .firstSplit(false)
+            .recordAligned(true)
+            .batchSize(10)
+            .readSchema(declared)
+            .build();
+        try (CloseableIterator<Page> it = reader.read(object, ctx)) {
+            Page page = it.next();
+            assertEquals(new BytesRef("\uFEFF1"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A headerless file with a declared keyword first column: the BOM must not appear in the stored
+     * value. Before the fix the BOM silently survived into the cell because keyword conversion
+     * accepts any string; inference would have widened the column to keyword to absorb it.
+     */
+    public void testLeadingBomHeaderlessDeclaredKeywordColumn() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF1,alpha\n2,beta\n3,gamma\n");
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        FormatReadContext ctx = FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(declared).build();
+        try (CloseableIterator<Page> it = reader.read(object, ctx)) {
+            Page page = it.next();
+            assertEquals(
+                "BOM must not appear in the first keyword cell",
+                new BytesRef("1"),
+                ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef())
+            );
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * A BOM followed by a blank line, then the real header: the blank line must still be treated as
+     * blank. Before the fix {@code \uFEFF\n} was not blank under {@code String.trim}, so the blank
+     * line was taken for the header and the file resolved to an empty schema.
+     */
+    public void testLeadingBomBlankLineBeforeHeader() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF\nid:integer,name:keyword\n1,alpha\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("blank line behind BOM must be skipped", 2, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals("name", schema.get(1).name());
+    }
+
+    /**
+     * A BOM on a header line that is not the file's first character \u2014 the stream-level strip leaves
+     * it because the file's first character is {@code /}, and {@link CsvFormatReader#splitFieldsForOptions}
+     * must remove it from the column name as it does today.
+     */
+    public void testBomOnHeaderLineFurtherInIsStrippedByHeaderSplitter() throws Exception {
+        StorageObject object = createStorageObject("// x\n\uFEFFid:integer,name:keyword\n1,alpha\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(2, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals(DataType.INTEGER, schema.get(0).dataType());
+        assertEquals("name", schema.get(1).name());
+    }
+
+    /**
+     * With {@code skip_rows: 1}, a comment line behind a leading BOM must still be recognised as a
+     * comment and must not count toward the skip quota. Before the fix the BOM prevented comment
+     * detection, so the comment line was counted as a content row and the first data row was
+     * incorrectly skipped instead.
+     */
+    public void testLeadingBomWithSkipRowsRecognisesComment() throws Exception {
+        // comment + 3 data rows; skip_rows=1 skips the first data row \u2014 2 rows must come back.
+        StorageObject object = createStorageObject("\uFEFF// comment\n1,alpha\n2,beta\n3,gamma\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "skip_rows", 1)
+        );
+        assertEquals("comment must not count toward skip_rows quota", 2, readRowCount(reader, object, null, null));
+    }
+
+    /**
+     * In TSV, a tab-only first line is blank (the tab is stripped by {@code String.trim}). With a
+     * leading BOM that strip does not reach the tab, so the BOM-prefixed tab line is taken for the
+     * header. The stream-level strip must remove the BOM so the blank-line rule fires correctly.
+     */
+    public void testLeadingBomTabOnlyFirstLineTsvIsSkipped() throws Exception {
+        // \uFEFF + TAB + header + one data row. After stripping the BOM the tab-only line is blank,
+        // so it is skipped and id/name are resolved from the real header. Header uses TAB delimiter.
+        StorageObject object = createStorageObject("\uFEFF\t\nid:integer\tname:keyword\n1\talpha\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of("tsv"));
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("tab-only line behind BOM must be skipped", 2, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals(DataType.INTEGER, schema.get(0).dataType());
+    }
+
+    /**
+     * A comment whose text contains the CSV delimiter. Before the fix the BOM hid the comment, so
+     * the line was split on the comma into two header fields; the real header became a data row and
+     * all values were re-typed to keyword with no error. After the fix the comment is skipped and
+     * the real header resolves the schema.
+     */
+    public void testLeadingBomCommentContainingDelimiterIsSkipped() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF// exported by tool, v2\nid,name\n1,alpha\n2,beta\n3,gamma\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("comment with delimiter must be skipped", 2, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals("name", schema.get(1).name());
+        assertEquals(3, readRowCount(reader, object, null, null));
+    }
+
+    /**
+     * A comment whose text contains a colon. Before the fix the BOM hid the comment and the typed-
+     * header parser received the comment text, throwing a malformed-schema error. After the fix the
+     * comment is skipped and the typed header parses correctly.
+     */
+    public void testLeadingBomCommentContainingColonIsSkipped() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF// generated: 2026-01-05 10:30:00\nid:integer,name:keyword\n1,alpha\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("comment with colon must be skipped", 2, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals(DataType.INTEGER, schema.get(0).dataType());
+        assertEquals("name", schema.get(1).name());
+    }
+
+    /**
      * In {@code mode: escaped} (quoting off, escaping on) the header splitter must honour the escape
      * character outside quotes, so a backslash-escaped delimiter is NOT treated as a field boundary.
      * Before the fix, {@code splitFieldsEscapeAware} had no outside-quotes escape handling, so

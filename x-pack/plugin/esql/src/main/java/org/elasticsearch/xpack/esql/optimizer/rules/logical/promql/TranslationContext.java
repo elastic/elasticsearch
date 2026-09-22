@@ -59,8 +59,8 @@ public final class TranslationContext {
      * {@code columnExpr} binds columns to the plan attributes producing them, keyed by canonical column name: a regular
      * column by its label, a packed one by {@link #mapOpen}. A requirement binds nothing; a
      * translated table's header is fully bound ({@link #isBound()}). Headers compose through the static algebra below
-     * ({@link #finite}, {@link #open}, {@link #union}, {@link #sub}, {@link #filter}, {@link #select}, {@link #bind}), which reads as the set expression
-     * it computes and keeps the bindings of the columns that survive.
+     * ({@link #finite}, {@link #open}, {@link #union}, {@link #sub}, {@link #filter}, {@link #select}, {@link #bind}),
+     * which reads as the set expression it computes and keeps the bindings of the columns that survive.
      */
     public record Header(Set<String> finiteColumns, Set<Set<String>> openColumns, Map<String, Attribute> columnExpr) {
 
@@ -137,8 +137,8 @@ public final class TranslationContext {
 
         /**
          * The columns of this bound header {@code plan} does not produce yet, as the null-valued definitions it must
-         * add: the columns {@link TranslationContext#bind(Header, Header)} could not resolve against the input, or any attribute minted for a column the
-         * table lacks.
+         * add: the columns {@link TranslationContext#bind(Header, Header)} could not resolve against the input,
+         * or any attribute minted for a column the table lacks.
          */
         public List<Alias> nullFills(LogicalPlan plan) {
             var outputs = plan.outputSet();

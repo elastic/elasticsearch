@@ -4653,7 +4653,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * Every inferred schema-resolution mode must consult the listing cache and the schema cache.
      * A second resolve of the same glob must add zero listing-loader calls and zero schema-loader
-     * calls. Parameterized over {@link #MULTI_FILE_STRATEGIES} so any new mode inherits the invariant.
+     * calls, and must produce the same schema it produced cold.
+     * <p>
+     * Parameterized over every {@link FormatReader.SchemaResolution} rather than over
+     * {@link #MULTI_FILE_STRATEGIES}, which omits {@code STRICT}: that left the one mode with no
+     * warm-path loader-call coverage at all, so a change that stopped finding the per-file entries
+     * and re-read every footer would have been invisible there. Iterating the enum also makes a new
+     * mode inherit the invariant instead of having to be remembered.
+     * <p>
      * UNION_BY_NAME used to skip {@code cachedListing} (raw {@code GlobExpander.expand}).
      */
     public void testMultiFileCacheReducesListingAndSchemaLoaderCallsPerStrategy() throws Exception {
@@ -4663,7 +4670,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             .put("esql.external.cache.listing.ttl", "30s")
             .build();
 
-        for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+        for (FormatReader.SchemaResolution strategy : FormatReader.SchemaResolution.values()) {
             List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
             Map<String, List<Attribute>> schemasByPath = new HashMap<>();
             schemasByPath.put("s3://bucket/data/a.parquet", schema);
@@ -4706,6 +4713,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     "[" + strategy + "] schema loader must not be called again on second resolve (cache hit invariant)",
                     schemaCallsAfterFirst,
                     countingProvider.schemaCallCount.get()
+                );
+                assertEquals(
+                    "[" + strategy + "] the warm resolve must produce the schema the cold one did, not merely produce it cheaply",
+                    describe(res1.resolvedSource("s3://bucket/data/*.parquet").metadata().schema()),
+                    describe(res2.resolvedSource("s3://bucket/data/*.parquet").metadata().schema())
                 );
             }
         }

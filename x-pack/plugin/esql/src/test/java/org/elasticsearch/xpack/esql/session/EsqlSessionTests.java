@@ -863,6 +863,34 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
+     * Wiring test: a zero {@code LIMIT} over an external relation forwards that relation's path as reading no
+     * rows, which is what lets the resolver stop listing once it has a schema.
+     */
+    public void testPreAnalyzeExternalSourcesForwardsPathReadingNoRows() {
+        String path = "s3://bucket/data/*.parquet";
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 0, DataType.INTEGER), relation);
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+        assertEquals(Set.of(path), captured.pathsReadingNoRows());
+        assertTrue("a path reading no rows cannot also require eager stats", captured.pathsRequiringStats().isEmpty());
+    }
+
+    /**
+     * Wiring test: a query that reads rows forwards an empty set, so every path resolves against the whole glob
+     * exactly as it did before the bound existed.
+     */
+    public void testPreAnalyzeExternalSourcesForwardsNoPathsReadingNoRowsForPositiveLimit() {
+        String path = "s3://bucket/data/*.parquet";
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+        assertNotNull("wiring must forward a non-null set", captured.pathsReadingNoRows());
+        assertTrue("a query that reads rows bounds nothing", captured.pathsReadingNoRows().isEmpty());
+    }
+
+    /**
      * Drives {@code EsqlSession#preAnalyzeExternalSources} with a capturing {@link ExternalSourceResolver}
      * and returns the {@code pathsRequiringStats} argument it forwarded to {@code resolve(...)}.
      */
@@ -876,13 +904,17 @@ public class EsqlSessionTests extends ESTestCase {
 
     private record CapturedExternalResolve(
         Set<String> pathsRequiringStats,
+        Set<String> pathsReadingNoRows,
         Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints
     ) {}
 
     private static CapturedExternalResolve captureExternalResolve(LogicalPlan plan, String path) {
         AtomicReference<Set<String>> capturedStats = new AtomicReference<>();
+        AtomicReference<Set<String>> capturedNoRows = new AtomicReference<>();
         AtomicReference<Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints = new AtomicReference<>();
         AtomicBoolean resolveCalled = new AtomicBoolean();
+        // The arity the session calls. Overriding a narrower overload would capture nothing and silently run the
+        // real resolver instead, which is how this fake first went blind.
         ExternalSourceResolver capturingResolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, null) {
             @Override
             public void resolve(
@@ -891,10 +923,12 @@ public class EsqlSessionTests extends ESTestCase {
                 Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
                 Map<String, org.elasticsearch.cluster.metadata.DatasetMapping> declaredMappings,
                 Set<String> pathsRequiringStats,
+                Set<String> pathsReadingNoRows,
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);
                 capturedStats.set(pathsRequiringStats);
+                capturedNoRows.set(pathsReadingNoRows);
                 capturedHints.set(filterHints);
                 listener.onResponse(ExternalSourceResolution.EMPTY);
             }
@@ -917,7 +951,7 @@ public class EsqlSessionTests extends ESTestCase {
         EsqlSession.preAnalyzeExternalSources(capturingResolver, plan, preAnalysis, result, future, TEST_CFG, new EsqlFunctionRegistry());
         future.actionGet();
         assertTrue("resolve must be invoked when icebergPaths is non-empty", resolveCalled.get());
-        return new CapturedExternalResolve(capturedStats.get(), capturedHints.get());
+        return new CapturedExternalResolve(capturedStats.get(), capturedNoRows.get(), capturedHints.get());
     }
 
     private static IndexResolution resolvedIndex(String indexName) {

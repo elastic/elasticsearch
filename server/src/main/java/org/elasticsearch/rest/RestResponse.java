@@ -313,6 +313,14 @@ public final class RestResponse implements Releasable {
         }
     }
 
+    /**
+     * Whether two throwables describe the same failure. Transport serialization writes the search exception's cause and its
+     * shard failures separately, so a round trip yields equal but distinct objects and identity cannot be used.
+     */
+    private static boolean isSameFailure(Throwable one, Throwable other) {
+        return one.getClass() == other.getClass() && Objects.equals(one.getMessage(), other.getMessage());
+    }
+
     private static ESLogMessage suppressedErrorMessage(RestChannel channel, RestStatus status, Exception e) {
         final CauseChain causes = walkCauseChain(e);
         final Throwable rootCause = causes.deepest();
@@ -344,7 +352,7 @@ public final class RestResponse implements Releasable {
             final ShardSearchFailure[] shardFailures = search.shardFailures();
             if (shardFailures.length > 0
                 && shardFailures[0].index() != null
-                && walkCauseChain(shardFailures[0].getCause()).deepest() == causes.deepest()) {
+                && isSameFailure(walkCauseChain(shardFailures[0].getCause()).deepest(), causes.deepest())) {
                 message.field("elasticsearch.error.index", shardFailures[0].index());
                 message.field("elasticsearch.error.shard", shardFailures[0].shardId());
             }

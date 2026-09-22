@@ -29,6 +29,8 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -761,6 +763,33 @@ public class RestResponseTests extends ESTestCase {
 
         assertThat(chain.deepest(), instanceOf(IllegalStateException.class));
         assertThat(chain.indexScoped(), sameInstance(deep));
+    }
+
+    public void testSuppressedLoggingKeepsFailureLocationAcrossTransport() throws IOException {
+        final ShardSearchFailure shardFailure = new ShardSearchFailure(
+            new IllegalStateException("engine is closed"),
+            new SearchShardTarget("node", new ShardId("my-index", "uuid", 3), null)
+        );
+        final SearchPhaseExecutionException searchFailure = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure }
+        );
+        final Exception received;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeException(new RemoteTransportException("remote search failure", searchFailure));
+            try (StreamInput in = out.bytes().streamInput()) {
+                received = in.readException();
+            }
+        }
+
+        new RestResponse(new DetailedExceptionRestChannel(new FakeRestRequest()), received);
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+        assertEquals("engine is closed", fields.get("elasticsearch.error.root_cause.message"));
+        assertEquals("my-index", fields.get("elasticsearch.error.index"));
+        assertEquals(3, fields.get("elasticsearch.error.shard"));
     }
 
     private Map<String, ?> lastLoggedFields() {

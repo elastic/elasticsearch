@@ -387,8 +387,8 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), Collections.emptySet());
         }
 
-        // debugDecision is true on the explain path and false on the allocation
         // We do not want to trigger any new fetches if we're only explaining
+        // We use debugDecision to decide this, since it's true on the explain path and false on the allocation
         if (allocation.debugDecision()) {
             final AsyncCacheStatusFetch fetch = asyncFetchStore.get(shardId);
             if (fetch == null) {

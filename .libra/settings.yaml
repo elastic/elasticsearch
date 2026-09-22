@@ -5,6 +5,4 @@ required_labels:
   - Team:Core/Infra
 paths:
   exclude:
-    - "docs/reference/**"
-    - "**/build/**"
-    - "**/*.csv"
+    - "**/generated/**"

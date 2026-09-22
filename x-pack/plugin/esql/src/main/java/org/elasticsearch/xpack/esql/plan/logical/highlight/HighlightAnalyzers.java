@@ -15,13 +15,15 @@ import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
-import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders.DEFAULT_ANALYZER_NAME;
 
 /**
  * Analyzer used to tokenize each HIGHLIGHT ON field.
@@ -52,72 +54,63 @@ public final class HighlightAnalyzers {
         @Nullable AnalysisRegistry analysisRegistry,
         Consumer<String> warnings
     ) {
+        NamedAnalyzer commandAnalyzer = PlannerUtils.resolveAnalyzer(commandAnalyzerName, analysisRegistry);
         Map<String, NamedAnalyzer> fieldAnalyzers = new LinkedHashMap<>();
         for (NamedExpression field : onFields) {
-            fieldAnalyzers.put(field.name(), analyzerOf(field, commandAnalyzerName, analysisRegistry, warnings));
+            fieldAnalyzers.put(field.name(), commandAnalyzer != null ? commandAnalyzer : analyzerOf(field, analysisRegistry, warnings));
         }
         return fieldAnalyzers;
     }
 
-    private static NamedAnalyzer analyzerOf(
-        NamedExpression field,
-        @Nullable String commandAnalyzerName,
+    private static NamedAnalyzer analyzerOf(NamedExpression field, @Nullable AnalysisRegistry analysisRegistry, Consumer<String> warnings) {
+        // Known limitation: only a FieldAttribute still knows its mapping analyzer. RENAME and EVAL mint a
+        // ReferenceAttribute, which carries a declared TO_TEXT analyzer but not a mapping one, so a renamed mapped
+        // field drops to standard (highlight.csv-spec: highlightMappingAnalyzerRenamedFieldFallsBackToStandard and
+        // highlightMappingAnalyzerLostByRenameUnderImplicitQuery). Forwarding it through Alias#toAttribute would need
+        // the gap and the fail-open-on-unknown behaviour to ride along, since an unknown TO_TEXT analyzer is an error
+        // while an unknown mapping analyzer is a warning, and both would arrive as the same string.
+        if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text) {
+            return mappingAnalyzer(field.name(), text, analysisRegistry, warnings);
+        }
+        String declared = AnalyzedTextExpression.valuesAnalyzerOf(field);
+        return PlannerUtils.resolveAnalyzer(Objects.requireNonNullElse(declared, DEFAULT_ANALYZER_NAME), analysisRegistry);
+    }
+
+    /**
+     * The mapping analyzer with its {@code position_increment_gap}, or {@code standard} plus a warning when this node
+     * cannot rebuild it, because the highlight may then differ from what matched.
+     */
+    private static NamedAnalyzer mappingAnalyzer(
+        String fieldName,
+        TextEsField text,
         @Nullable AnalysisRegistry analysisRegistry,
         Consumer<String> warnings
     ) {
-        if (commandAnalyzerName != null) {
-            return PlannerUtils.resolveAnalyzer(commandAnalyzerName, analysisRegistry);
-        }
-        // Known limitation: only a FieldAttribute still knows its mapping analyzer. RENAME and EVAL mint a
-        // ReferenceAttribute, which carries a declared TO_TEXT analyzer but not a mapping one, so a renamed mapped
-        // field drops to standard (highlight.csv-spec: highlightMappingAnalyzerRenamedFieldFallsBackToStandard,
-        // and highlightMappingAnalyzerLostByRenameUnderImplicitQuery for the borrowed-query case, where the query
-        // follows the rename but the analyzer does not). Forwarding it through Alias#toAttribute would need the
-        // gap and the fail-open-on-unknown behaviour to ride along, since an unknown TO_TEXT analyzer is an error
-        // while an unknown mapping analyzer is a warning, and both would arrive as the same string.
-        if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text) {
-            if (text.analyzerName() != null) {
-                try {
-                    NamedAnalyzer resolved = PlannerUtils.resolveAnalyzer(text.analyzerName(), analysisRegistry);
-                    int gap = text.positionIncrementGap();
-                    return resolved.getPositionIncrementGap(resolved.name()) == gap ? resolved : new NamedAnalyzer(resolved, gap);
-                } catch (InvalidArgumentException e) {
-                    // A name field-caps reported that this node cannot build, so a plugin analyzer it did not load:
-                    // index.analysis names never reach here, they arrive as INDEX_LOCAL instead. Fail open to standard,
-                    // since the name came from the mapping and a hard error would punish the user for the mapping.
-                    warnings.accept(fallbackWarning(field.name(), "analyzer [" + text.analyzerName() + "] is not registered on this node"));
-                    return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
-                }
-            }
-            // Fall back to standard for this field only, and say why, because the highlight may then differ from
-            // what matched.
-            switch (text.unknownAnalyzer()) {
-                case CONFLICT -> {
-                    warnings.accept(fallbackWarning(field.name(), "the queried indices disagree on the analyzer for this field"));
-                    return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
-                }
-                case INDEX_LOCAL -> {
-                    warnings.accept(
-                        fallbackWarning(field.name(), "its analyzer is defined in the index settings, which no node can rebuild by name")
-                    );
-                    return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
-                }
-                case NONE -> {
-                    // Either the name resolved above, or there is no analyzer worth naming. Nothing to warn about.
-                }
+        String fallbackReason = switch (text.unknownAnalyzer()) {
+            case NONE -> null;
+            case CONFLICT -> "the queried indices disagree on the analyzer for this field";
+            case INDEX_LOCAL -> "its analyzer is defined in the index settings, which no node can rebuild by name";
+        };
+        if (text.analyzerName() != null) {
+            try {
+                NamedAnalyzer resolved = PlannerUtils.resolveAnalyzer(text.analyzerName(), analysisRegistry);
+                int gap = text.positionIncrementGap();
+                return resolved.getPositionIncrementGap(resolved.name()) == gap ? resolved : new NamedAnalyzer(resolved, gap);
+            } catch (InvalidArgumentException e) {
+                // index.analysis names arrive as INDEX_LOCAL, so this is a plugin analyzer this node did not load.
+                // Fail open: the name came from the mapping, and a hard error would punish the user for the mapping.
+                fallbackReason = "analyzer [" + text.analyzerName() + "] is not registered on this node";
             }
         }
-        // Unknown TO_TEXT analyzers are errors, unlike unknown mapping analyzers.
-        String declared = AnalyzedTextExpression.valuesAnalyzerOf(field);
-        return PlannerUtils.resolveAnalyzer(declared != null ? declared : HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
-    }
-
-    /** Every mapping-analyzer fallback reads the same way: which field, why, and how to take control. */
-    private static String fallbackWarning(String fieldName, String reason) {
-        return "HIGHLIGHT on ["
-            + fieldName
-            + "] falls back to [standard]: "
-            + reason
-            + ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this.";
+        if (fallbackReason != null) {
+            warnings.accept(
+                "HIGHLIGHT on ["
+                    + fieldName
+                    + "] falls back to [standard]: "
+                    + fallbackReason
+                    + ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this."
+            );
+        }
+        return PlannerUtils.resolveAnalyzer(DEFAULT_ANALYZER_NAME, analysisRegistry);
     }
 }

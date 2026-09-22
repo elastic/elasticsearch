@@ -135,16 +135,11 @@ class FieldCapabilitiesFetcher {
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
-            if (mapping == null) {
-                indexMappingHash = null;
-            } else {
-                indexMappingHash = mapping.getSha256() + indexMode;
-                // mapping hash omits index.analysis; mix in configured analyzer names
-                Set<String> configuredAnalyzers = configuredAnalyzerNames(searchExecutionContext);
-                if (configuredAnalyzers.isEmpty() == false) {
-                    indexMappingHash += configuredAnalyzers;
-                }
-            }
+            // The mapping hash omits index.analysis, which decides whether an analyzer name is withheld as index-local.
+            Set<String> configuredAnalyzers = configuredAnalyzerNames(searchExecutionContext);
+            indexMappingHash = mapping == null
+                ? null
+                : mapping.getSha256() + indexMode + (configuredAnalyzers.isEmpty() ? "" : configuredAnalyzers.toString());
         } else {
             // even if the mapping is the same if we return only fields with values we need
             // to make sure that we consider all the shard-mappings pair, that is why we
@@ -213,8 +208,9 @@ class FieldCapabilitiesFetcher {
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
-                MappingAnalyzer mappingAnalyzer = mappingAnalyzer(mappingLookup, ft, configuredAnalyzerNames);
-                NamedAnalyzer indexAnalyzer = mappingAnalyzer.analyzer();
+                NamedAnalyzer analyzer = textIndexAnalyzer(mappingLookup, ft);
+                boolean indexLocalAnalyzer = analyzer != null && configuredAnalyzerNames.contains(analyzer.name());
+                NamedAnalyzer reported = indexLocalAnalyzer ? null : analyzer;
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
@@ -225,11 +221,9 @@ class FieldCapabilitiesFetcher {
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta(),
-                    indexAnalyzer == null ? null : indexAnalyzer.name(),
-                    indexAnalyzer == null
-                        ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
-                        : indexAnalyzer.getPositionIncrementGap(ft.name()),
-                    mappingAnalyzer.indexLocal()
+                    reported == null ? null : reported.name(),
+                    reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
+                    indexLocalAnalyzer
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -275,35 +269,17 @@ class FieldCapabilitiesFetcher {
     }
 
     /**
-     * Index-time analyzer of a text field, or {@link MappingAnalyzer#NONE} for anything that is not text. ES|QL
-     * HIGHLIGHT re-analyzes field values on the coordinator, so it cannot look this up from a shard.
+     * Index-time analyzer of a text field, or {@code null} for anything that is not text. ES|QL HIGHLIGHT
+     * re-analyzes field values on the coordinator, so it cannot look this up from a shard.
      *
-     * <p>A name bound under {@code index.analysis} (in {@code configuredAnalyzerNames}) is index-local, even
-     * when it collides with a built-in name such as {@code english}: the coordinator only resolves node-level
-     * analyzers by name, so it would build a different analyzer than this index. Withhold the name in that case
-     * and report {@link MappingAnalyzer#INDEX_LOCAL} instead, so HIGHLIGHT falls back to {@code standard} and can
-     * tell the user why rather than differing from what matched in silence.
+     * <p>The caller withholds a name bound under {@code index.analysis} as index-local, even when it collides with a
+     * built-in name such as {@code english}: the coordinator only resolves node-level analyzers by name, so it would
+     * build a different analyzer than this index. HIGHLIGHT then falls back to {@code standard} and can tell the
+     * user why rather than differing from what matched in silence.
      */
-    private static MappingAnalyzer mappingAnalyzer(MappingLookup mappingLookup, MappedFieldType ft, Set<String> configuredAnalyzerNames) {
-        if (TextFieldMapper.CONTENT_TYPE.equals(ft.familyTypeName()) == false) {
-            return MappingAnalyzer.NONE;
-        }
-        NamedAnalyzer analyzer = mappingLookup.indexAnalyzer(ft.name(), unused -> null);
-        if (analyzer == null) {
-            return MappingAnalyzer.NONE;
-        }
-        return configuredAnalyzerNames.contains(analyzer.name()) ? MappingAnalyzer.INDEX_LOCAL : new MappingAnalyzer(analyzer, false);
-    }
-
-    /**
-     * A text field's index analyzer, or the bare fact that it has one this node will not name.
-     *
-     * @param analyzer   the analyzer, or {@code null} when there is no name to report
-     * @param indexLocal {@code true} when a name was withheld because it is bound under {@code index.analysis}
-     */
-    private record MappingAnalyzer(@Nullable NamedAnalyzer analyzer, boolean indexLocal) {
-        private static final MappingAnalyzer NONE = new MappingAnalyzer(null, false);
-        private static final MappingAnalyzer INDEX_LOCAL = new MappingAnalyzer(null, true);
+    @Nullable
+    private static NamedAnalyzer textIndexAnalyzer(MappingLookup mappingLookup, MappedFieldType ft) {
+        return TextFieldMapper.CONTENT_TYPE.equals(ft.familyTypeName()) ? mappingLookup.indexAnalyzer(ft.name(), unused -> null) : null;
     }
 
     /**

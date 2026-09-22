@@ -45,7 +45,7 @@ public class TextEsField extends EsField {
         NONE,
         /** The indices behind the pattern reported different names or {@code position_increment_gap}s. */
         CONFLICT,
-        /** Every index analyzes with a name bound under {@code index.analysis}, which no node can rebuild by name. */
+        /** No index reports a name and at least one withheld an {@code index.analysis} name, which no node can rebuild. */
         INDEX_LOCAL
     }
 
@@ -60,39 +60,7 @@ public class TextEsField extends EsField {
         boolean isAlias,
         TimeSeriesFieldType timeSeriesFieldType
     ) {
-        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, null);
-    }
-
-    public TextEsField(
-        String name,
-        Map<String, EsField> properties,
-        boolean hasDocValues,
-        boolean isAlias,
-        TimeSeriesFieldType timeSeriesFieldType,
-        @Nullable String analyzerName
-    ) {
-        this(
-            name,
-            properties,
-            hasDocValues,
-            isAlias,
-            timeSeriesFieldType,
-            analyzerName,
-            DEFAULT_POSITION_INCREMENT_GAP,
-            UnknownAnalyzer.NONE
-        );
-    }
-
-    public TextEsField(
-        String name,
-        Map<String, EsField> properties,
-        boolean hasDocValues,
-        boolean isAlias,
-        TimeSeriesFieldType timeSeriesFieldType,
-        @Nullable String analyzerName,
-        int positionIncrementGap
-    ) {
-        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, analyzerName, positionIncrementGap, UnknownAnalyzer.NONE);
+        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, null, DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.NONE);
     }
 
     /**
@@ -231,17 +199,9 @@ public class TextEsField extends EsField {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (super.equals(o) == false) {
-            return false;
-        }
-        TextEsField that = (TextEsField) o;
-        return positionIncrementGap == that.positionIncrementGap
+        return super.equals(o)
+            && o instanceof TextEsField that
+            && positionIncrementGap == that.positionIncrementGap
             && unknownAnalyzer == that.unknownAnalyzer
             && Objects.equals(analyzerName, that.analyzerName);
     }

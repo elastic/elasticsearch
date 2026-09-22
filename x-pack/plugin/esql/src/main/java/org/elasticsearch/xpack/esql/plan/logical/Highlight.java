@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -366,11 +367,8 @@ public class Highlight extends UnaryPlan
     }
 
     /**
-     * Error for an unresolvable analyzer on an implicit WHERE query. Covers ON-field primaries, leaves outside ON,
-     * and {@code quote_analyzer}. The cause (per-index custom analyzer, typo, or unloaded plugin) is not
-     * distinguishable here, so the message names the fact and points at the option that has to go. A leaf
-     * {@code analyzer} option is always query-side, so {@code WITH} cannot stand in for it: the name is still
-     * resolved from the query, and only writing the query without the option clears this.
+     * Error for an unresolvable leaf {@code analyzer} or {@code quote_analyzer} on an implicit WHERE query. The option
+     * is always query-side, so {@code WITH} cannot stand in for it: only writing the query without it clears this.
      */
     private static String borrowedUnresolvedAnalyzerMessage(String name) {
         return "HIGHLIGHT derived its query from a preceding WHERE, but that query refers to analyzer ["
@@ -400,39 +398,26 @@ public class Highlight extends UnaryPlan
     }
 
     /**
-     * Resolves each analyzer name written in the query or WITH. Mapping names are not checked here.
+     * Resolves each analyzer name written in WITH or the query, WITH first. Mapping names are not checked here.
      * {@link HighlightAnalyzers#resolve} substitutes {@code standard} for an unresolvable mapping name.
      * Returns {@code true} if a failure was recorded, and skips query verification in that case.
      */
     private boolean verifyAnalyzerNames(String commandAnalyzerName, Failures failures, AnalysisRegistry analysisRegistry) {
-        String commandFailure = unresolvableMessage(commandAnalyzerName, analysisRegistry);
-        if (commandFailure != null) {
-            failures.add(fail(this, "{}", commandFailure));
-            return true;
+        Set<String> names = new LinkedHashSet<>();
+        if (commandAnalyzerName != null) {
+            names.add(commandAnalyzerName);
         }
-        Set<String> names = HighlightSupport.analyzerNamesOf(query);
-        names.remove(commandAnalyzerName);
+        names.addAll(HighlightSupport.analyzerNamesOf(query));
         for (String name : names) {
-            String failure = unresolvableMessage(name, analysisRegistry);
-            if (failure != null) {
-                failures.add(fail(this, "{}", implicitQuery ? borrowedUnresolvedAnalyzerMessage(name) : failure));
+            try {
+                PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+            } catch (InvalidArgumentException e) {
+                boolean borrowed = implicitQuery && name.equals(commandAnalyzerName) == false;
+                failures.add(fail(this, "{}", borrowed ? borrowedUnresolvedAnalyzerMessage(name) : e.getMessage()));
                 return true;
             }
         }
         return false;
-    }
-
-    /** The failure message from resolving {@code name}, or {@code null} when it resolves or is absent. */
-    private static String unresolvableMessage(String name, AnalysisRegistry analysisRegistry) {
-        if (name == null) {
-            return null;
-        }
-        try {
-            PlannerUtils.resolveAnalyzer(name, analysisRegistry);
-            return null;
-        } catch (InvalidArgumentException e) {
-            return e.getMessage();
-        }
     }
 
     private void verifyFieldTypes(Failures failures) {

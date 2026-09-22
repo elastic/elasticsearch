@@ -21,7 +21,16 @@ import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomTextEsFie
 public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
     /** Older peers omit the analyzer name, gap, and unknown-analyzer reason while retaining the rest of the field. */
     public void testAnalyzerNameSerialization() throws IOException {
-        var field = new TextEsField("title", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, "english", 0);
+        var field = new TextEsField(
+            "title",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            "english",
+            0,
+            TextEsField.UnknownAnalyzer.NONE
+        );
         var oldVersion = TransportVersionUtils.getPreviousVersion(TextEsField.FIELD_CAPS_INDEX_ANALYZER);
         assertEquals(new TextEsField("title", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE), copyInstance(field, oldVersion));
         assertEquals(field, copyInstance(field, TextEsField.FIELD_CAPS_INDEX_ANALYZER));

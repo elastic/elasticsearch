@@ -143,25 +143,6 @@ public final class HighlightQueryBuilders {
     }
 
     /**
-     * Per-field context plus the extra analyzers the builders still resolve by name. A {@code null} registry (unit
-     * tests) registers none, which makes a named option fail translation with the builder's own message.
-     */
-    private static RuntimeSearchExecutionContext runtimeContext(
-        Expression queryExpr,
-        Map<String, NamedAnalyzer> fieldAnalyzers,
-        boolean lenientFields,
-        @Nullable AnalysisRegistry analysisRegistry
-    ) {
-        Map<String, NamedAnalyzer> extraAnalyzers = new LinkedHashMap<>();
-        if (analysisRegistry != null) {
-            for (String name : HighlightSupport.analyzerNamesOf(queryExpr)) {
-                extraAnalyzers.put(name, PlannerUtils.resolveAnalyzer(name, analysisRegistry));
-            }
-        }
-        return RuntimeSearchExecutionContext.create(fieldAnalyzers, extraAnalyzers, lenientFields);
-    }
-
-    /**
      * Checks that the HIGHLIGHT query is a supported full-text form and translates with the same per-field
      * analyzers execution will use. When {@code enforceOnFields} is true, every named field must be in
      * {@code fieldAnalyzers}. An implicit query may name fields outside ON. Those fields become match-none,
@@ -179,7 +160,7 @@ public final class HighlightQueryBuilders {
             verifyQueryStructure(queryExpr, enforceOnFields ? List.copyOf(fieldAnalyzers.keySet()) : null);
         }
         try {
-            translateResolved(queryExpr, fieldAnalyzers, implicit, analysisRegistry);
+            translate(queryExpr, fieldAnalyzers, implicit, analysisRegistry);
         } catch (RuntimeException e) {
             String prefix = implicit
                 ? "Invalid query derived from WHERE for HIGHLIGHT: "
@@ -197,21 +178,28 @@ public final class HighlightQueryBuilders {
         Map<String, NamedAnalyzer> fieldAnalyzers,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
-        return translateResolved(queryExpr, fieldAnalyzers, true, analysisRegistry);
+        return translate(queryExpr, fieldAnalyzers, true, analysisRegistry);
     }
 
-    private static TranslatedQuery translateResolved(
+    /**
+     * Registers each leaf's named analyzers next to the per-field ones, since the builders resolve those by name. A
+     * {@code null} registry (unit tests) registers none, so a named option fails with the builder's own message.
+     */
+    private static TranslatedQuery translate(
         Expression queryExpr,
         Map<String, NamedAnalyzer> fieldAnalyzers,
-        boolean lenient,
+        boolean lenientFields,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
-        List<String> fieldNames = List.copyOf(fieldAnalyzers.keySet());
-        RuntimeSearchExecutionContext context = runtimeContext(queryExpr, fieldAnalyzers, lenient, analysisRegistry);
+        Map<String, NamedAnalyzer> leafAnalyzers = new LinkedHashMap<>();
+        if (analysisRegistry != null) {
+            HighlightSupport.analyzerNamesOf(queryExpr)
+                .forEach(name -> leafAnalyzers.put(name, PlannerUtils.resolveAnalyzer(name, analysisRegistry)));
+        }
+        var context = RuntimeSearchExecutionContext.create(fieldAnalyzers, leafAnalyzers, lenientFields);
         String literal = queryTextIfLiteral(queryExpr);
-        String queryText = literal != null ? literal : queryExpr.sourceText();
-        Query query = toLuceneQuery(toQueryBuilder(queryExpr, fieldNames), context);
-        return new TranslatedQuery(queryText, query);
+        Query query = toLuceneQuery(toQueryBuilder(queryExpr, List.copyOf(fieldAnalyzers.keySet())), context);
+        return new TranslatedQuery(literal != null ? literal : queryExpr.sourceText(), query);
     }
 
     /** Runtime query state produced by {@link #translate}. */

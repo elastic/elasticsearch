@@ -42,7 +42,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.QUOTE_ANALYZER_FIELD;
@@ -101,17 +103,11 @@ public final class HighlightSupport {
      */
     public static Set<String> analyzerNamesOf(Expression query) {
         Set<String> names = new LinkedHashSet<>();
-        query.forEachDown(FullTextFunction.class, leaf -> {
-            addIfPresent(names, analyzerNameOf(leaf));
-            addIfPresent(names, quoteAnalyzerNameOf(leaf));
-        });
+        query.forEachDown(
+            FullTextFunction.class,
+            leaf -> Stream.of(analyzerNameOf(leaf), quoteAnalyzerNameOf(leaf)).filter(Objects::nonNull).forEach(names::add)
+        );
         return names;
-    }
-
-    private static void addIfPresent(Set<String> names, String name) {
-        if (name != null) {
-            names.add(name);
-        }
     }
 
     /**

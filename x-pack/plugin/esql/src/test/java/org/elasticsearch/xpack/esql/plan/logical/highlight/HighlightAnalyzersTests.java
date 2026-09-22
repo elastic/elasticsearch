@@ -120,20 +120,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
 
     /** A {@code title} field whose analyzer name never reached the coordinator, for the given reason. */
     private static FieldAttribute unknownAnalyzerField(TextEsField.UnknownAnalyzer unknown) {
-        return new FieldAttribute(
-            EMPTY,
-            "title",
-            new TextEsField(
-                "title",
-                Map.of(),
-                false,
-                false,
-                EsField.TimeSeriesFieldType.NONE,
-                null,
-                TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
-                unknown
-            )
-        );
+        return textField("title", null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, unknown);
     }
 
     public void testUnknownCommandAndDeclaredAnalyzersThrow() {
@@ -157,10 +144,14 @@ public class HighlightAnalyzersTests extends ESTestCase {
     }
 
     private static FieldAttribute textField(String name, String analyzerName, int positionIncrementGap) {
+        return textField(name, analyzerName, positionIncrementGap, TextEsField.UnknownAnalyzer.NONE);
+    }
+
+    private static FieldAttribute textField(String name, String analyzerName, int gap, TextEsField.UnknownAnalyzer unknown) {
         return new FieldAttribute(
             EMPTY,
             name,
-            new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName, positionIncrementGap)
+            new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName, gap, unknown)
         );
     }
 

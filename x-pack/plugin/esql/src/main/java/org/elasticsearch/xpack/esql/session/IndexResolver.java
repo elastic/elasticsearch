@@ -566,17 +566,7 @@ public class IndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            String sharedAnalyzer = sharedIndexAnalyzer(first, rest);
-            return new TextEsField(
-                name,
-                new HashMap<>(),
-                false,
-                isAlias,
-                timeSeriesFieldType,
-                sharedAnalyzer,
-                first.indexAnalyzerPositionIncrementGap(),
-                unknownAnalyzer(sharedAnalyzer, first, rest)
-            );
+            return textField(name, isAlias, timeSeriesFieldType, fcs);
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;
@@ -595,69 +585,32 @@ public class IndexResolver {
     }
 
     /**
-     * Analyzer name shared by every index for this text field, or {@code null} if they disagree on the name or
-     * {@code position_increment_gap}, or any index withheld it. HIGHLIGHT treats {@code null} as {@code standard}
-     * for that field only; why the name is missing is carried by {@link TextEsField#unknownAnalyzer()} and surfaced
-     * as a warning header from {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers}.
+     * Keeps the index analyzer only when every index reports the same name and {@code position_increment_gap}.
+     * Otherwise HIGHLIGHT falls back to {@code standard} for this field and warns with the recorded reason: any
+     * reported name means the indices disagree (a withheld {@code index.analysis} name counts as disagreeing),
+     * while only withheld names mean none of them can be rebuilt by name.
      */
-    @Nullable
-    private static String sharedIndexAnalyzer(IndexFieldCapabilities first, List<IndexFieldCapabilities> rest) {
-        String shared = first.indexAnalyzer();
-        if (shared == null) {
-            return null;
-        }
-        int sharedGap = first.indexAnalyzerPositionIncrementGap();
-        for (IndexFieldCapabilities fc : rest) {
-            if (shared.equals(fc.indexAnalyzer()) == false || sharedGap != fc.indexAnalyzerPositionIncrementGap()) {
-                return null;
-            }
-        }
-        return shared;
-    }
-
-    /** True if any index reports a non-null analyzer name for this field. Distinguishes "conflict" from "no analyzer". */
-    private static boolean anyReportsAnalyzer(IndexFieldCapabilities first, List<IndexFieldCapabilities> rest) {
-        if (first.indexAnalyzer() != null) {
-            return true;
-        }
-        for (IndexFieldCapabilities fc : rest) {
-            if (fc.indexAnalyzer() != null) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Why HIGHLIGHT has no analyzer name for a text field, so it can warn rather than quietly differ from what matched.
-     * A shard withholds the name when it is bound under {@code index.analysis}, so a mix of naming and withholding
-     * indices is a real disagreement, while "every index withheld" means none of them can be rebuilt by name.
-     */
-    private static TextEsField.UnknownAnalyzer unknownAnalyzer(
-        @Nullable String sharedAnalyzer,
-        IndexFieldCapabilities first,
-        List<IndexFieldCapabilities> rest
+    private static TextEsField textField(
+        String name,
+        boolean isAlias,
+        EsField.TimeSeriesFieldType timeSeriesFieldType,
+        List<IndexFieldCapabilities> fcs
     ) {
-        if (sharedAnalyzer != null) {
-            return TextEsField.UnknownAnalyzer.NONE;
+        String analyzer = fcs.getFirst().indexAnalyzer();
+        int gap = fcs.getFirst().indexAnalyzerPositionIncrementGap();
+        boolean shared = analyzer != null
+            && fcs.stream().allMatch(fc -> analyzer.equals(fc.indexAnalyzer()) && gap == fc.indexAnalyzerPositionIncrementGap());
+        TextEsField.UnknownAnalyzer unknown;
+        if (shared) {
+            unknown = TextEsField.UnknownAnalyzer.NONE;
+        } else if (fcs.stream().anyMatch(fc -> fc.indexAnalyzer() != null)) {
+            unknown = TextEsField.UnknownAnalyzer.CONFLICT;
+        } else if (fcs.stream().anyMatch(IndexFieldCapabilities::indexLocalAnalyzer)) {
+            unknown = TextEsField.UnknownAnalyzer.INDEX_LOCAL;
+        } else {
+            unknown = TextEsField.UnknownAnalyzer.NONE;
         }
-        if (anyReportsAnalyzer(first, rest)) {
-            return TextEsField.UnknownAnalyzer.CONFLICT;
-        }
-        return anyReportsIndexLocalAnalyzer(first, rest) ? TextEsField.UnknownAnalyzer.INDEX_LOCAL : TextEsField.UnknownAnalyzer.NONE;
-    }
-
-    /** True if any index withheld an {@code index.analysis} analyzer name for this field. */
-    private static boolean anyReportsIndexLocalAnalyzer(IndexFieldCapabilities first, List<IndexFieldCapabilities> rest) {
-        if (first.indexLocalAnalyzer()) {
-            return true;
-        }
-        for (IndexFieldCapabilities fc : rest) {
-            if (fc.indexLocalAnalyzer()) {
-                return true;
-            }
-        }
-        return false;
+        return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType, shared ? analyzer : null, gap, unknown);
     }
 
     // Visible for testing.

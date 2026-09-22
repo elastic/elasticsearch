@@ -116,7 +116,16 @@ public class LoadMapping {
             if (esDataType == TEXT) {
                 String analyzer = textSetting(content.get("analyzer"), null);
                 int positionIncrementGap = intSetting(content.get("position_increment_gap"), TextEsField.DEFAULT_POSITION_INCREMENT_GAP);
-                field = new TextEsField(name, properties, docValues, false, tsType, analyzer, positionIncrementGap);
+                field = new TextEsField(
+                    name,
+                    properties,
+                    docValues,
+                    false,
+                    tsType,
+                    analyzer,
+                    positionIncrementGap,
+                    TextEsField.UnknownAnalyzer.NONE
+                );
             } else if (esDataType == KEYWORD) {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));

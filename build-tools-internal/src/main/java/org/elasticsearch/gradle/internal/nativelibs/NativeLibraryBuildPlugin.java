@@ -88,7 +88,7 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
                 task.getMaxGlibcVersion().set(DEFAULT_MAX_GLIBC_VERSION);
                 task.getMaxGlibcxxVersion().set(DEFAULT_MAX_GLIBCXX_VERSION);
                 task.getResultMarker().set(project.getLayout().getBuildDirectory().file("markers/verify-native-libraries-linux-abi.ok"));
-                task.getNativeLibraries().from(buildTask.flatMap(BuildNativeLibraryTask::getOutputDir));
+                task.getNativeLibraries().from(buildTask.flatMap(BuildNativeLibraryTask::getOutputDir).map(Directory::getAsFileTree));
                 task.onlyIf("Linux host OS required for native ABI verification", t -> OS.current() == OS.LINUX);
             });
         buildTask.configure(task -> task.finalizedBy(verifyAbiTask));

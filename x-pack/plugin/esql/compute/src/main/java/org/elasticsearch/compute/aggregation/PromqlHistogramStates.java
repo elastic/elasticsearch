@@ -125,10 +125,13 @@ final class PromqlHistogramStates {
 
             /**
              * Adds the cumulative {@code count} for the given {@code upperBound}, summing into any existing entry with an
-             * exactly equal bound. The bound is keyed by its raw bits so equality matches {@link Double#equals} semantics
-             * ({@code -0.0} and {@code 0.0} are distinct, every {@code NaN} collapses to one entry).
+             * equal bound. Signed zero is normalized before the bound is keyed by its bits, matching Prometheus' numeric
+             * equality for bucket bounds; every {@code NaN} also collapses to one entry.
              */
             void add(double upperBound, double count) {
+                if (upperBound == 0d) {
+                    upperBound = 0d;
+                }
                 long key = Double.doubleToLongBits(upperBound);
                 if (buckets.containsKey(key)) {
                     buckets.addTo(key, count);
@@ -502,6 +505,127 @@ final class PromqlHistogramStates {
             @Override
             SingleState newSingleState(CircuitBreaker breaker, Warnings warnings) {
                 return new SingleState(breaker, quantile, warnings);
+            }
+
+            @Override
+            SingleState state(int groupId) {
+                return (SingleState) super.state(groupId);
+            }
+        }
+    }
+
+    static final class Fraction {
+        static double bucketFraction(double lower, double upper, List<Bucket> inputBuckets) {
+            if (inputBuckets.isEmpty()) {
+                return Double.NaN;
+            }
+            List<Bucket> buckets = new ArrayList<>(inputBuckets);
+            buckets.sort(Comparator.comparingDouble(Bucket::upperBound));
+            if (buckets.getLast().upperBound() != Double.POSITIVE_INFINITY) {
+                return Double.NaN;
+            }
+
+            double count = buckets.getLast().count();
+            if (count == 0 || Double.isNaN(lower) || Double.isNaN(upper)) {
+                return Double.NaN;
+            }
+            if (lower >= upper) {
+                return 0;
+            }
+
+            double rank = 0;
+            double lowerRank = 0;
+            double upperRank = 0;
+            boolean lowerSet = false;
+            boolean upperSet = false;
+            double lowerBound = buckets.getFirst().upperBound() > 0 ? 0 : Double.NEGATIVE_INFINITY;
+            for (int i = 0; i < buckets.size(); i++) {
+                Bucket bucket = buckets.get(i);
+                if (i > 0) {
+                    lowerBound = buckets.get(i - 1).upperBound();
+                }
+                double upperBound = bucket.upperBound();
+                if (lowerSet == false && lowerBound >= lower) {
+                    lowerRank = rank;
+                    lowerSet = true;
+                }
+                if (upperSet == false && lowerBound >= upper) {
+                    upperRank = rank;
+                    upperSet = true;
+                }
+                if (lowerSet && upperSet) {
+                    break;
+                }
+                if (lowerSet == false && lowerBound < lower && upperBound > lower) {
+                    lowerRank = interpolateRank(lower, lowerBound, upperBound, rank, bucket.count());
+                    lowerSet = true;
+                }
+                if (upperSet == false && lowerBound < upper && upperBound > upper) {
+                    upperRank = interpolateRank(upper, lowerBound, upperBound, rank, bucket.count());
+                    upperSet = true;
+                }
+                if (lowerSet && upperSet) {
+                    break;
+                }
+                rank = bucket.count();
+            }
+            if (lowerSet == false || lowerRank > count) {
+                lowerRank = count;
+            }
+            if (upperSet == false || upperRank > count) {
+                upperRank = count;
+            }
+            return (upperRank - lowerRank) / count;
+        }
+
+        private static double interpolateRank(double value, double lowerBound, double upperBound, double rank, double bucketCount) {
+            if (lowerBound == Double.NEGATIVE_INFINITY) {
+                return bucketCount;
+            }
+            return rank + (bucketCount - rank) * (value - lowerBound) / (upperBound - lowerBound);
+        }
+
+        static final class SingleState extends AbstractState.Single {
+            private final double lower;
+            private final double upper;
+
+            SingleState(CircuitBreaker breaker, double lower, double upper) {
+                super(breaker);
+                this.lower = lower;
+                this.upper = upper;
+            }
+
+            SingleState(CircuitBreaker breaker, double lower, double upper, Warnings warnings) {
+                super(breaker, warnings);
+                this.lower = lower;
+                this.upper = upper;
+            }
+
+            @Override
+            double evaluate(List<Bucket> buckets) {
+                return bucketFraction(lower, upper, buckets);
+            }
+        }
+
+        static final class GroupingState extends AbstractState.Grouping {
+            private final double lower;
+            private final double upper;
+
+            GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double lower, double upper) {
+                super(breaker, bigArrays);
+                this.lower = lower;
+                this.upper = upper;
+            }
+
+            GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double lower, double upper, Warnings warnings) {
+                super(breaker, bigArrays, warnings);
+                this.lower = lower;
+                this.upper = upper;
+            }
+
+            @Override
+            SingleState newSingleState(CircuitBreaker breaker, Warnings warnings) {
+                return new SingleState(breaker, lower, upper, warnings);
             }
 
             @Override

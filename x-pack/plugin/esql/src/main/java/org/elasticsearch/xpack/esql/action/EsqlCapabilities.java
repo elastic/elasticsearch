@@ -1667,6 +1667,12 @@ public class EsqlCapabilities {
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
 
         /**
+         * Support for the {@code wildcards_match_views} query setting, which lets wildcard
+         * patterns in {@code FROM} match registered views.
+         */
+        VIEWS_MATCH_WILDCARDS,
+
+        /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
          * crash with "optimized incorrectly due to missing references [_tsid, _timeseries]":
          * (1) a view used inside a {@code TS} command now raises a clear verification exception

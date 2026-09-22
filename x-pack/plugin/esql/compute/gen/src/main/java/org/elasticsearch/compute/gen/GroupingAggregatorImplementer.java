@@ -53,6 +53,8 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_SEQUENCE;
 import static org.elasticsearch.compute.gen.Types.CIRCUIT_BREAKER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
@@ -207,6 +209,18 @@ public class GroupingAggregatorImplementer {
                     + aggState.type()
                     + ", int groupId, <partitionValue>)"
             );
+        }
+        if (supportsPartitioning && aggState.declaredType().isPrimitive() == false && combinePartitionMethod == null) {
+            if (aggParams.isEmpty() || (aggParams.get(0) instanceof StandardArgument sa && sa.type().equals(BYTES_REF)) == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + declarationType
+                        + "] requests partitioning with a non-primitive state; either the first input argument must be BytesRef"
+                        + " or the class must declare combinePartition("
+                        + aggState.type()
+                        + ", int groupId, <partitionValue>)"
+                );
+            }
         }
 
         this.createParameters = init.getParameters()
@@ -964,8 +978,15 @@ public class GroupingAggregatorImplementer {
         builder.beginControlFlow("if (length == 0)");
         builder.addStatement("return");
         builder.endControlFlow();
-        String combineMethodName = (combinePartitionMethod != null) ? "combinePartition" : "combine";
-        builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(partitionValueType));
+        final boolean primitive = aggState.declaredType().isPrimitive();
+        if (combinePartitionMethod != null) {
+            builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(partitionValueType));
+        } else if (primitive) {
+            builder.addStatement("$T values = state.partitionValues(source, partition)", ArrayTypeName.of(aggState.declaredType()));
+        } else {
+            builder.addStatement("$T values = state.partitionValues(source, partition)", BYTES_REF_SEQUENCE);
+            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+        }
         builder.addStatement("boolean[] seen = state.partitionSeen(source, partition)");
         builder.beginControlFlow("if (seen == null)");
         {
@@ -973,7 +994,13 @@ public class GroupingAggregatorImplementer {
             builder.addStatement("state.appendPartition(values, dstIds[0], length)");
             builder.nextControlFlow("else");
             builder.beginControlFlow("for (int i = 0; i < length; i++)");
-            builder.addStatement("$T." + combineMethodName + "(state, dstIds[i], values[i])", declarationType);
+            if (combinePartitionMethod != null) {
+                builder.addStatement("$T.combinePartition(state, dstIds[i], values[i])", declarationType);
+            } else if (primitive) {
+                builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+            } else {
+                builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);
+            }
             builder.endControlFlow();
             builder.endControlFlow();
             builder.addStatement("return");
@@ -981,7 +1008,13 @@ public class GroupingAggregatorImplementer {
         builder.endControlFlow();
         builder.beginControlFlow("for (int i = 0; i < length; i++)");
         builder.beginControlFlow("if (seen[i])");
-        builder.addStatement("$T." + combineMethodName + "(state, dstIds[i], values[i])", declarationType);
+        if (combinePartitionMethod != null) {
+            builder.addStatement("$T.combinePartition(state, dstIds[i], values[i])", declarationType);
+        } else if (primitive) {
+            builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
+        } else {
+            builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);
+        }
         builder.endControlFlow();
         builder.endControlFlow();
         return builder.build();

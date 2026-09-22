@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -771,9 +772,10 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
 
     private List<RecoveryState> snapshotRecoveryStates() {
         final RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).get();
-        final List<RecoveryState> states = response.shardRecoveryStates()
+        final List<RecoveryState> states = response.shardRecoveryInfos()
             .get(INDEX_NAME)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(state -> state.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT)
             .toList();
         assertThat("expected at least one snapshot recovery (one per primary shard)", states, not(empty()));

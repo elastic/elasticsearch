@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'elasticsearch.native-library-build'
-apply plugin: 'elasticsearch.jmh'
+apply plugin: 'elasticsearch.benchmark'
 
 dependencies {
   api project(':libs:foreign-library')

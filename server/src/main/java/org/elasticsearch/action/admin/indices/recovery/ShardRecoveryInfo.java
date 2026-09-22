@@ -56,7 +56,7 @@ public final class ShardRecoveryInfo implements Writeable {
         }
     }
 
-    RecoveryState recoveryState() {
+    public RecoveryState recoveryState() {
         return recoveryState;
     }
 
@@ -74,14 +74,14 @@ public final class ShardRecoveryInfo implements Writeable {
 
     /// Returns the blocking recovery gate only while the recovery is still queued in the `CREATED` stage.
     @Nullable
-    String blockedByGate() {
+    public String blockedByGate() {
         if (gate != null && recoveryState.getStage() == RecoveryState.Stage.CREATED) {
             return gate;
         }
         return null;
     }
 
-    long blockedForMillis() {
+    public long blockedForMillis() {
         return blockedForMillis;
     }
 }

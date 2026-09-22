@@ -19,6 +19,8 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -33,13 +35,17 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -54,6 +60,7 @@ import org.junit.runners.model.Statement;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -2594,5 +2601,197 @@ public class BatchBulkIT extends ESIntegTestCase {
                 .build()
         );
         assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
+    }
+
+    /**
+     * A ColumNAR-encoded keyword column written by the batch path and by the row path, read back both ways.
+     * The column's own format is what is under test: the values go through {@code StringBinaryPayload} on
+     * either path, and the codec has to store and answer for them identically whichever one wrote them.
+     *
+     * <p>The two indices are created the same way and take the same documents; only {@code
+     * indices.batch_indexing} differs between the two bulks, so the write path is the one thing that changed
+     * and the row path is the oracle rather than a hand-written expectation.
+     *
+     * <p>Enough documents to fill more than one block, over a vocabulary of terms seen many times and terms
+     * seen once, so the column is written over the shapes its layout is chosen from rather than one of them.
+     */
+    public void testColumnarCodecBatchMatchesRowPath() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+        final String batched = "test-columnar-codec-batched";
+        final String sequential = "test-columnar-codec-sequential";
+
+        createColumnarCodecIndex(batched);
+        createColumnarCodecIndex(sequential);
+
+        final int numDocs = 500;
+        final Map<String, String> sources = columnarSources(numDocs);
+        final String coordinatingNode = findCoordinatingNode();
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            assertNoFailures(client(coordinatingNode).bulk(bulkOf(batched, sources)).actionGet());
+            // Without this the test would pass just as well on the row path, proving nothing.
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        // The same documents again with batch indexing off, so this index is written a document at a time.
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        try {
+            assertNoFailures(client(coordinatingNode).bulk(bulkOf(sequential, sources)).actionGet());
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+        refresh(batched, sequential);
+
+        // Synthetic source is rebuilt from the stored slots, so this reads the payload back for every document,
+        // in the order its values were written.
+        final MultiGetRequest batchGets = new MultiGetRequest();
+        final MultiGetRequest rowGets = new MultiGetRequest();
+        for (String id : sources.keySet()) {
+            batchGets.add(batched, id);
+            rowGets.add(sequential, id);
+        }
+        final MultiGetItemResponse[] fromBatch = client().multiGet(batchGets).actionGet().getResponses();
+        final MultiGetItemResponse[] fromRow = client().multiGet(rowGets).actionGet().getResponses();
+        assertThat(fromBatch.length, equalTo(fromRow.length));
+        for (int i = 0; i < fromBatch.length; i++) {
+            final String id = fromBatch[i].getId();
+            // A payload the codec cannot decode fails the read rather than answering wrongly, so a failed item
+            // is the shape a broken format takes here and it has to name itself.
+            assertNull("batch path failed to read [" + id + "]: " + fromBatch[i].getFailure(), fromBatch[i].getFailure());
+            assertNull("row path failed to read [" + id + "]: " + fromRow[i].getFailure(), fromRow[i].getFailure());
+            assertTrue("batch path lost document [" + id + "]", fromBatch[i].getResponse().isExists());
+            assertThat(
+                "source of [" + id + "]",
+                fromBatch[i].getResponse().getSourceAsMap(),
+                equalTo(fromRow[i].getResponse().getSourceAsMap())
+            );
+        }
+
+        // The dictionary side and the escape side of the column, read as doc values rather than as source.
+        for (String term : List.of("repeated-0", "repeated-7", "once-3", "once-311")) {
+            assertSameHits(batched, sequential, QueryBuilders.termQuery("f", term), "term [" + term + "]");
+        }
+        assertSameHits(batched, sequential, QueryBuilders.existsQuery("f"), "exists");
+
+        // A terms aggregation reads the column through its ordinals, which is the path a plain fetch never takes.
+        assertResponse(
+            prepareSearch(batched).setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(new TermsAggregationBuilder("f_terms").field("f").size(50))
+                .setSize(0),
+            batchResponse -> assertResponse(
+                prepareSearch(sequential).setQuery(QueryBuilders.matchAllQuery())
+                    .addAggregation(new TermsAggregationBuilder("f_terms").field("f").size(50))
+                    .setSize(0),
+                rowResponse -> {
+                    final Terms batchTerms = batchResponse.getAggregations().get("f_terms");
+                    final Terms rowTerms = rowResponse.getAggregations().get("f_terms");
+                    assertThat("terms aggregation buckets", bucketCounts(batchTerms), equalTo(bucketCounts(rowTerms)));
+                }
+            )
+        );
+    }
+
+    /**
+     * Documents over a vocabulary of terms seen many times and terms seen once. Single-valued documents,
+     * documents holding several values in an order that is not sorted, documents with a null among their
+     * values, and documents without the field at all.
+     */
+    private static Map<String, String> columnarSources(int numDocs) {
+        final Map<String, String> sources = new LinkedHashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            final String id = "doc-" + i;
+            final String repeated = "repeated-" + (i % 8);
+            final String once = "once-" + i;
+            sources.put(id, switch (i % 5) {
+                case 0 -> "{\"f\":\"" + repeated + "\"}";
+                case 1 -> "{\"f\":\"" + once + "\"}";
+                case 2 -> "{\"f\":[\"" + once + "\",\"" + repeated + "\"]}";
+                case 3 -> "{\"f\":[\"" + repeated + "\",null,\"" + once + "\"]}";
+                default -> "{\"g\":\"no-f-here\"}";
+            });
+        }
+        return sources;
+    }
+
+    private void assertSameHits(String batched, String sequential, QueryBuilder query, String what) {
+        assertResponse(
+            prepareSearch(batched).setQuery(query).setSize(0).setTrackTotalHits(true),
+            fromBatch -> assertResponse(
+                prepareSearch(sequential).setQuery(query).setSize(0).setTrackTotalHits(true),
+                fromRow -> assertThat(
+                    "hits for " + what,
+                    fromBatch.getHits().getTotalHits().value(),
+                    equalTo(fromRow.getHits().getTotalHits().value())
+                )
+            )
+        );
+    }
+
+    private static Map<String, Long> bucketCounts(Terms terms) {
+        final Map<String, Long> counts = new LinkedHashMap<>();
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            counts.put(bucket.getKeyAsString(), bucket.getDocCount());
+        }
+        return counts;
+    }
+
+    /** A columnar index with the ColumNAR codec on. */
+    private void createColumnarCodecIndex(String index) throws IOException {
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("f").field("type", "keyword").endObject();
+                    mapping.startObject("g").field("type", "keyword").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+        // The cluster kill switch overrules the request setting, and an index that came back without the codec
+        // would read back the same on both paths while saying nothing about the format this test is here for.
+        final Settings created = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get().getIndexToSettings().get(index);
+        assumeTrue("columnar codec is disabled for [" + index + "]", IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(created));
+    }
+
+    private static BulkRequest bulkOf(String index, Map<String, String> sources) {
+        final BulkRequest request = new BulkRequest();
+        sources.forEach(
+            (id, source) -> request.add(
+                new IndexRequest(index).id(id).source(source, XContentType.JSON).opType(DocWriteRequest.OpType.CREATE)
+            )
+        );
+        return request;
     }
 }

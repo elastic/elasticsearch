@@ -1481,6 +1481,16 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for the same conversion function applied more than once to the same attribute above a {@code UnionAll}
+         * (e.g. twice in one WHERE): {@code ResolveUnionTypesInUnionAll} dedupes the equal conversions into a single
+         * pushed-down alias and must replace every equal occurrence with the union output's attribute. Matching
+         * occurrences by identity used to leave all but one unreplaced, making the analyzer's Resolution batch loop
+         * until the rule execution limit.
+         * https://github.com/elastic/elasticsearch-serverless/issues/7693
+         */
+        SUBQUERY_IN_FROM_COMMAND_REPEATED_CONVERSIONS,
+
+        /**
          * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.
          */
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME,
@@ -1490,6 +1500,21 @@ public class EsqlCapabilities {
          * (from a subquery in FROM) or a {@code Fork}.
          */
         SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
+
+        /**
+         * Fix for {@code ResolveUnionTypesInUnionAll} incorrectly pushing a type-conversion function into {@code UnionAll} branches
+         * when an {@code Aggregate} (STATS) sits between the conversion and the {@code UnionAll}. Grouping keys preserve their
+         * identifiers through an aggregation, so the name-and-id match used to collect push-down candidates falsely matched
+         * conversions that read aggregate output rather than union branch columns. The synthetic pushed-down reference was then
+         * unreachable from the consumer, causing {@code PlanConsistencyChecker} to throw {@code IllegalStateException}.
+         * esql-planning#1987
+         */
+        SUBQUERY_IN_FROM_COMMAND_FIX_CONVERT_GROUP_KEY,
+
+        /**
+         * Support nested non-correlated subqueries in the FROM command.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
 
         /**
          * Support IN non-correlated subqueries in WHERE command.
@@ -3020,6 +3045,21 @@ public class EsqlCapabilities {
         EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK,
 
         /**
+         * Omitted {@code schema_resolution} on a new dataset PUT or {@code FROM EXTERNAL} query is
+         * {@code first_file_wins}. Cluster-state documents that predate the stored key still hydrate
+         * as {@code union_by_name}. Homogeneous csv-spec omit-key tests do not gate on this;
+         * mixed-cluster tests that would disagree on omit should.
+         */
+        EXTERNAL_DEFAULT_SCHEMA_RESOLUTION_FIRST_FILE_WINS,
+
+        /**
+         * The {@code partition_detection} and {@code partition_path} dataset settings reach the read path:
+         * {@code none} suppresses detection and the Hive column-shadow substitution with it, and
+         * {@code template} binds and prunes on the templated column.
+         */
+        PARTITION_DETECTION_ON_READ_PATH,
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          */
         DATASET_IN_FROM_COMMAND,
@@ -3493,16 +3533,9 @@ public class EsqlCapabilities {
         /**
          * Read an unmapped field straight from {@code _source}, so an object value reads as {@code null} rather than as Java's
          * {@code Map.toString()}. Applies to both source modes and to {@code LOAD} as well as {@code LOAD_ALL}.
-         * <p>
-         * Snapshot-gated because changing it for the released {@code LOAD} is a minor breaking change pending
-         * https://github.com/elastic/elasticsearch/issues/158306. To lift the gate, drop the constructor argument; that also makes
-         * {@code DefaultShardContextForUnmappedField#fieldType} and its helpers dead code, so see the TODO on that override in
-         * {@code EsPhysicalOperationProviders} for the clean-up that has to follow.
-         * <p>
-         * Note this must be lifted no later than {@link #OPTIONAL_FIELDS_LOAD_ALL_V2}: both share the block loader this gates, so
-         * graduating {@code LOAD_ALL} while this stays gated would reintroduce #156381 and #156433.
+         * See https://github.com/elastic/elasticsearch/issues/158306.
          */
-        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(),
 
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
@@ -3761,6 +3794,16 @@ public class EsqlCapabilities {
         METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
 
         /**
+         * Support for the {@code _class} and {@code _name} metadata fields: {@code _class} is the kind
+         * of relation the row came from and {@code _name} is that relation's own name. Enables
+         * {@code FROM <relation> METADATA _class, _name} on an index and on a dataset. A view answers
+         * neither: referencing either column on a query that names one fails with
+         * {@code Unknown column}, unless the view resolves to its own branch alongside another source,
+         * where they bind and the view's rows answer NULL.
+         */
+        METADATA_CLASS_AND_NAME,
+
+        /**
          * Support LAST and LATEST aggregation on the same extended field types as FIRST and EARLIEST
          * (version, unsigned_long, spatial, spatial-grid, dense_vector, exponential_histogram, tdigest,
          * flattened).
@@ -3902,6 +3945,14 @@ public class EsqlCapabilities {
         FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
 
         /**
+         * {@code TS} {@code STATS} with a {@code TBUCKET}/{@code TSTEP} bucket count and no timestamp bounds
+         * no longer trips the surrogate invariant before verification runs: translation is skipped so
+         * verification rejects the query with the intended missing-bounds error.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/159602">#159602</a>.
+         */
+        FIX_TS_TBUCKET_MISSING_BOUNDS,
+
+        /**
          * CHANGE_POINT now uses EventDetector (multiple events, log-space p-values), which can report
          * a change point at a slightly different bucket and with different p-values than the previous
          * implementation.
@@ -3977,10 +4028,29 @@ public class EsqlCapabilities {
          * happens to hold. The empty string is produced only for a {@code keyword}/{@code text} column of a
          * strictly declared schema ({@code mappings} with {@code dynamic: false}), and setting {@code null_value}
          * to the empty string forces {@code null} there too. Supersedes {@link #EXTERNAL_CSV_EMPTY_STRING_NOT_NULL}.
-         * Gates the csv-spec tests that assert this, since it changes results for an ordinary inferred read:
-         * a pre-change node still answers {@code ""} for a blank cell in a column that sampled as a string.
+         * Superseded by {@link #EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN}, which removes the
+         * inferred-vs-declared distinction: a blank string cell reads {@code ""} regardless of schema provenance.
+         * No longer referenced by any spec.
          */
-        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED,
+        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED(false),
+
+        /**
+         * A blank cell in an external CSV/TSV datasource reads as {@code ""} on a {@code keyword}/{@code text}
+         * column and as {@code null} on every other type, identically for inferred and declared reads.
+         * The only way to get {@code null} for a blank string cell is to set {@code null_value: ""}.
+         * Supersedes {@link #EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED}.
+         */
+        EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN,
+
+        /**
+         * When {@code METADATA} names a column that also exists as a physical file column, the
+         * engine-generated metadata value is used and the physical column is dropped, with a warning.
+         * Without {@code METADATA}, the physical column is used. {@code METADATA} of a name that is
+         * not a metadata column is an {@code Unresolved metadata pattern} error, matching indexed
+         * {@code FROM}. Discriminates tests that assert this collision rule, since a pre-change
+         * node still answers the file column's value.
+         */
+        EXTERNAL_SOURCE_METADATA_WINS_OVER_PHYSICAL_COLUMN,
 
         /**
          * Materialize more aggregate inputs into a synthetic pre-agg eval.
@@ -3991,6 +4061,35 @@ public class EsqlCapabilities {
          * and <a href="https://github.com/elastic/elasticsearch/issues/158659">#158659</a>.
          */
         AGGS_MORE_INPUTS_VIA_EVAL,
+
+        /**
+         * Bugfixes for edge cases of aggregation functions with multiple input fields. See:
+         * <a href="https://github.com/elastic/elasticsearch/issues/158821">#158821</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/158827">#158827</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/158918">#158918</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/159029">#159029</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/159033">#159033</a>.
+         */
+        FIX_AGGS_MULTIPLE_INPUT_FIELDS,
+
+        /**
+         * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.
+         * Older coordinators omit those columns from star expansion, so a later reference fails
+         * verification with {@code Unknown column [_file.*]}. Tests that read the column after
+         * {@code KEEP *} gate on this capability.
+         */
+        EXTERNAL_SOURCE_KEEP_STAR_KEEPS_FILE_METADATA,
+
+        /**
+         * Parquet LIKE-family predicates pushed as {@code Pushability.YES} (dropped from FilterExec) now
+         * return an empty survivor mask — not the all-survive sentinel — when the predicate column is absent
+         * from the per-file predicate block map. Under {@code union_by_name} a file that lacks the column
+         * null-fills it above the reader; no pattern matches null, so zero rows must survive. Also fixes a
+         * second route: {@code readerForMapping} no longer discards YES conjuncts when the per-file filter
+         * adaptation empties the list (e.g. when a co-conjunct references a column widened via a one-way cast).
+         * See elastic/esql-planning#2052.
+         */
+        EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

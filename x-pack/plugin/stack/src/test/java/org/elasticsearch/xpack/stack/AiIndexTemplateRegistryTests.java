@@ -133,6 +133,33 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         }
     }
 
+    public void testSharedMappingsComponentDefinesLifecycleAndProvenanceFields() throws IOException {
+        registry = createRegistry(Settings.EMPTY);
+        ComponentTemplate mappings = registry.getComponentTemplateConfigs().get(AI_INDEX_MAPPINGS_COMPONENT_NAME);
+        assertThat(mappings, notNullValue());
+
+        Map<String, Object> properties = mappingProperties(mappings);
+        assertThat(propertyType(properties, "id"), equalTo("keyword"));
+        assertThat(propertyType(properties, "updated_at"), equalTo("date"));
+        assertThat(propertyType(properties, "expires_at"), equalTo("date"));
+
+        Map<String, Object> references = subProperties(properties, "references");
+        assertThat(propertyType(references, "uri"), equalTo("keyword"));
+        assertThat(propertyType(references, "relation"), equalTo("keyword"));
+        assertThat(propertyType(references, "description"), equalTo("text"));
+
+        Map<String, Object> governance = subProperties(properties, "governance");
+        Map<String, Object> provenance = subProperties(governance, "provenance");
+        for (String actor : new String[] { "created_by", "updated_by" }) {
+            Map<String, Object> actorFields = subProperties(provenance, actor);
+            assertThat("field [" + actor + "]", propertyType(actorFields, "uri"), equalTo("keyword"));
+            // Flattened so workflow versions, run ids, and other writer-specific keys need no mapping change.
+            assertThat("field [" + actor + "]", propertyType(actorFields, "metadata"), equalTo("flattened"));
+        }
+        Map<String, Object> lifecycle = subProperties(governance, "lifecycle");
+        assertThat(propertyType(lifecycle, "status"), equalTo("keyword"));
+    }
+
     public void testDataStreamSettingsComponent() {
         registry = createRegistry(Settings.EMPTY);
         ComponentTemplate dsSettings = registry.getComponentTemplateConfigs().get(AI_INDEX_DS_SETTINGS_COMPONENT_NAME);

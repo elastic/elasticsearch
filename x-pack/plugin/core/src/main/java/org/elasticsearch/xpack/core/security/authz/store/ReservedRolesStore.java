@@ -58,6 +58,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String ALERTING_V2_ALERT_VIEWS = "$.alert*";
     public static final String ALERTING_V2_RULE_VIEWS = "$.rule*";
 
+    /** Context Engine AI index retrieval views, one per AI index */
+    public static final String CONTEXT_ENGINE_AI_INDEX_VIEWS = "v-ai-index-*";
+
     /** Cases analytics indexes and aliases */
     public static final String CASES_ANALYTICS_INDEXES = ".internal.cases*";
     public static final String CASES_ANALYTICS_ALIASES = ".cases*";

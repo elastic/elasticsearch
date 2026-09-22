@@ -23,7 +23,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,10 +35,12 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -45,9 +51,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -178,6 +186,50 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         );
     }
 
+    /**
+     * Bound metadata names are unioned into {@code partitionColumnNames} so VirtualColumnIterator
+     * materializes them. A physical {@code _file.*} column is not engine-owned and stays out of
+     * that set, as does {@code _rowPosition} (a {@link MetadataAttribute}).
+     */
+    public void testPartitionColumnNamesUnionEngineOwnedAndExcludeRowPosition() {
+        Attribute value = new FieldAttribute(
+            Source.EMPTY,
+            "value",
+            new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Attribute boundIndex = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        Attribute physicalFileSize = new ReferenceAttribute(Source.EMPTY, FileMetadataColumns.SIZE, DataType.LONG);
+        Attribute rowPosition = SyntheticColumns.newRowPositionMetadataAttribute(Source.EMPTY);
+
+        AsyncExternalSourceOperatorFactory factory = factoryWithAttributes(List.of(value, boundIndex, physicalFileSize, rowPosition));
+
+        assertTrue(rowPosition instanceof MetadataAttribute);
+        assertThat(factory.partitionColumnNames(), Matchers.contains("_index"));
+        assertFalse(factory.partitionColumnNames().contains(FileMetadataColumns.SIZE));
+        assertFalse(factory.partitionColumnNames().contains(ColumnExtractor.ROW_POSITION_COLUMN));
+    }
+
+    public void testBoundFileMetadataEntersPartitionColumnNames() {
+        Attribute path = new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.PATH, DataType.KEYWORD);
+        AsyncExternalSourceOperatorFactory factory = factoryWithAttributes(List.of(path));
+        assertThat(factory.partitionColumnNames(), Matchers.contains(FileMetadataColumns.PATH));
+    }
+
+    private static AsyncExternalSourceOperatorFactory factoryWithAttributes(List<Attribute> attributes) {
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+        return AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            StoragePath.of("file:///test.csv"),
+            attributes,
+            1000,
+            10,
+            Runnable::run
+        ).build();
+    }
+
     public void testDescribeSyncWrapperMode() {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
@@ -283,6 +335,110 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertSame(executor, factory.executor());
         // No distinct consumer executor supplied: the drain shares the read/parse executor (prior single-pool behavior).
         assertSame(executor, factory.producerExecutor());
+    }
+
+    /**
+     * The factory holds the unwrapped configured reader. Each listed object's compression is applied
+     * from that object's name via {@code wrapForObject}, so gzip and plain csv of one format both
+     * present decompressed bytes to the inner reader.
+     */
+    public void testPerFileWrapDecompressesGzipLeavingConfiguredReaderUnwrapped() throws Exception {
+        byte[] plain = "n\n1\n".getBytes(StandardCharsets.UTF_8);
+        byte[] gzipped = gzipCompress(plain);
+        Map<String, byte[]> bodies = Map.of("s3://bucket/a.csv.gz", gzipped, "s3://bucket/b.csv", plain);
+        ByteArrayStorageProvider storage = new ByteArrayStorageProvider(bodies);
+        StreamPeekingFormatReader reader = new StreamPeekingFormatReader();
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new GzipDecompressionCodec());
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecs);
+
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/a.csv.gz"), gzipped.length, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/b.csv"), plain.length, Instant.EPOCH)
+            ),
+            "s3://bucket/*.csv*"
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "n", new EsField("n", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storage,
+            reader,
+            StoragePath.of("s3://bucket/*.csv*"),
+            attributes,
+            100,
+            10,
+            Runnable::run
+        ).fileList(fileList).formatReaderRegistry(formatRegistry).build();
+
+        assertSame("scan keeps the unwrapped configured reader", reader, factory.formatReader());
+
+        SourceOperator operator = factory.get(driverContext);
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+        operator.close();
+
+        assertEquals(2, reader.peeked.size());
+        for (int first : reader.peeked) {
+            assertEquals("gzip magic must not reach the inner reader", (int) 'n', first);
+        }
+    }
+
+    /**
+     * Single-file {@code .csv.gz} also wraps from this object's name once the factory stops wrapping
+     * from the resource leaf at construction.
+     */
+    public void testSingleFileWrapDecompressesGzipFromObjectName() throws Exception {
+        byte[] plain = "n\n1\n".getBytes(StandardCharsets.UTF_8);
+        byte[] gzipped = gzipCompress(plain);
+        StoragePath path = StoragePath.of("s3://bucket/hits.csv.gz");
+        ByteArrayStorageProvider storage = new ByteArrayStorageProvider(Map.of(path.toString(), gzipped));
+        StreamPeekingFormatReader reader = new StreamPeekingFormatReader();
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new GzipDecompressionCodec());
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecs);
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "n", new EsField("n", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storage,
+            reader,
+            path,
+            attributes,
+            100,
+            10,
+            Runnable::run
+        ).formatReaderRegistry(formatRegistry).build();
+
+        assertSame(reader, factory.formatReader());
+        SourceOperator operator = factory.get(driverContext);
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+        operator.close();
+        assertEquals(List.of((int) 'n'), reader.peeked);
     }
 
     public void testProducerExecutorWiredDistinctFromReadExecutor() {
@@ -1099,6 +1255,69 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     // ===== Slice Queue tests =====
+
+    /**
+     * A metadata-only projection leaves {@code queryDataSchema} empty, the same shape as
+     * {@code COUNT(*)}. The slice-queue path must not hand {@code mapFilters} a unified-width
+     * mapping in that case: the mapping indexes the query schema by slot, and an empty schema
+     * with a missing-column mapping would throw.
+     */
+    public void testSliceQueueEmptyQuerySchemaDoesNotMapFiltersAgainstUnifiedMapping() throws Exception {
+        ColumnMapping unifiedWidth = new ColumnMapping(new int[] { 0, -1 }, null);
+        List<FileSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f1.parquet"), 0, 100, "parquet", Map.of(), Map.of(), unifiedWidth),
+            new FileSplit("test", StoragePath.of("s3://bucket/f2.parquet"), 0, 200, "parquet", Map.of(), Map.of(), unifiedWidth)
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
+
+        FormatReader formatReader = new SinglePageReader(() -> new Page(2));
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        Attribute value = new FieldAttribute(
+            Source.EMPTY,
+            "value",
+            new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression pushed = new Equals(Source.EMPTY, value, new Literal(Source.EMPTY, 1, DataType.INTEGER));
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            StoragePath.of("s3://bucket/f1.parquet"),
+            List.of(new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD)),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        )
+            .sliceQueue(sliceQueue)
+            .pushedExpressions(List.of(pushed))
+            .pushdownSupport(filters -> FilterPushdownSupport.PushdownResult.all("opaque"))
+            .build();
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            assertThat(pages, Matchers.not(Matchers.empty()));
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
 
     public void testSliceQueueReadsSplitsSequentially() throws Exception {
         List<FileSplit> splits = List.of(
@@ -4119,7 +4338,152 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /** Storage provider that serves canned bytes keyed by {@link StoragePath#toString()}. */
+    private static class ByteArrayStorageProvider implements StorageProvider {
+        private final Map<String, byte[]> bodies;
+
+        ByteArrayStorageProvider(Map<String, byte[]> bodies) {
+            this.bodies = bodies;
+        }
+
+        private StorageObject object(StoragePath path) {
+            byte[] bytes = bodies.getOrDefault(path.toString(), new byte[0]);
+            return new ByteArrayStorageObject(path, bytes);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return object(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return object(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return object(path);
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return bodies.containsKey(path.toString());
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class ByteArrayStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final byte[] bytes;
+
+        ByteArrayStorageObject(StoragePath path, byte[] bytes) {
+            this.path = path;
+            this.bytes = bytes;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(bytes);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int start = Math.toIntExact(position);
+            int len = Math.toIntExact(length);
+            return new ByteArrayInputStream(bytes, start, len);
+        }
+
+        @Override
+        public long length() {
+            return bytes.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+    }
+
+    /**
+     * Records the first byte of each object's stream so wrap-for-object tests can see whether gzip
+     * was stripped before the inner reader ran.
+     */
+    private static class StreamPeekingFormatReader implements NoConfigFormatReader {
+        final List<Integer> peeked = new ArrayList<>();
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            try (InputStream in = object.newStream()) {
+                peeked.add(in.read());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return emptyIterator();
+        }
+
+        @Override
+        public String formatName() {
+            return "csv";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public boolean supportsWholeFileCompression() {
+            return true;
+        }
+
+        @Override
+        public void close() {}
+    }
+
     private static class StubMultiFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             return new StubMultiFileStorageObject(path);
@@ -4390,6 +4754,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class LargeStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final long fileSize;
 
         LargeStorageProvider(long fileSize) {

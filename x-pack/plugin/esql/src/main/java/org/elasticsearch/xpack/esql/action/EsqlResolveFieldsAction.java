@@ -151,6 +151,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         );
     }
 
+    /**
+     * This method is only called when this cluster acts as a remote for a 9.5.x coordinator trying to execute a CCS query.
+     */
     private ElasticsearchException validateNoRemoteViews(EsqlResolveFieldsRequest request) {
         // resolveViews is only set on a request from the originating cluster, so this detection runs only on a remote
         // cluster. A view is not remotable and a query that reaches one across a cluster boundary fails rather than

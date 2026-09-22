@@ -86,7 +86,6 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.maxConcurrentShardRequests(in.maxConcurrentShardRequests());
                 request.keepAlive(in.keepAlive());
                 request.preference(in.preference());
-                request.searchSlice(null);
                 request.routing(randomAlphaOfLength(5));
                 yield request;
             }
@@ -98,7 +97,6 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 if (in.searchSlice() == null) {
                     request.searchSlice(randomAlphaOfLength(5));
                 } else {
-                    request.searchSlice(null);
                     request.routing(randomAlphaOfLength(5));
                 }
                 yield request;
@@ -108,24 +106,31 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
     }
 
     private static void copyRoutingOrSlice(OpenPointInTimeRequest from, OpenPointInTimeRequest to) {
-        if (from.searchSlice() != null) {
-            to.searchSlice(from.searchSlice());
-        } else {
-            to.routing(from.routing());
-        }
+        to.routing(from.routing()).setRoutingFromSlice(from.isRoutingFromSlice());
     }
 
-    public void testRoutingAndSearchSliceAreMutuallyExclusive() {
+    public void testSearchSliceSetsRoutingAndProvenance() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        OpenPointInTimeRequest routingFirst = new OpenPointInTimeRequest("idx");
-        routingFirst.routing("manual");
-        IllegalArgumentException routingThenSlice = expectThrows(IllegalArgumentException.class, () -> routingFirst.searchSlice("s1"));
-        assertThat(routingThenSlice.getMessage(), containsString("[routing] is not allowed together with [slice]"));
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest("idx").searchSlice("s1");
+        assertEquals("s1", request.routing());
+        assertEquals("s1", request.searchSlice());
+        assertTrue(request.isRoutingFromSlice());
 
-        OpenPointInTimeRequest sliceFirst = new OpenPointInTimeRequest("idx");
-        sliceFirst.searchSlice("s1");
-        IllegalArgumentException sliceThenRouting = expectThrows(IllegalArgumentException.class, () -> sliceFirst.routing("manual"));
-        assertThat(sliceThenRouting.getMessage(), containsString("[routing] is not allowed together with [slice]"));
+        request.searchSlice(SliceIndexing.SLICE_ALL);
+        assertNull(request.routing());
+        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
+        assertTrue(request.isRoutingFromSlice());
+
+        request.setRoutingFromSlice(false);
+        assertNull(request.searchSlice());
+    }
+
+    public void testSearchSliceRejectsNull() {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest("idx");
+        expectThrows(NullPointerException.class, () -> request.searchSlice(null));
+        assertNull(request.searchSlice());
+        assertFalse(request.isRoutingFromSlice());
+        assertNull(request.routing());
     }
 
     public void testSearchSliceRejectedWhenFeatureDisabled() {

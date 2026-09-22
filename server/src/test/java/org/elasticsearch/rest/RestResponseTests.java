@@ -31,6 +31,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.ESJsonLayout;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -790,6 +792,23 @@ public class RestResponseTests extends ESTestCase {
         assertEquals("engine is closed", fields.get("elasticsearch.error.root_cause.message"));
         assertEquals("my-index", fields.get("elasticsearch.error.index"));
         assertEquals(3, fields.get("elasticsearch.error.shard"));
+    }
+
+    public void testSuppressedLoggingSerialisesToLegacyJson() throws IOException {
+        LogConfigurator.setNodeName("test-node");
+        final RestChannel channel = new DetailedExceptionRestChannel(
+            new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_search").build()
+        );
+
+        new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException("inner")));
+
+        final ESJsonLayout layout = ESJsonLayout.newBuilder().setType("server").build();
+        // NOTE: a duplicate message key surfaces as a parse failure rather than a wrong value
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), layout.toSerializable(appender.getLastEventAndReset()))) {
+            final Map<String, Object> fields = parser.map();
+            assertEquals("path: /my-index/_search, params: {}, status: 500", fields.get("message"));
+            assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+        }
     }
 
     private Map<String, ?> lastLoggedFields() {

@@ -16,7 +16,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -60,20 +59,6 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
-    /**
-     * Six rows cover every {@code (status, region)} combination exactly once, so each expected result below can be written
-     * out as a literal:
-     * <pre>
-     *   id | status | region
-     *    0 |   200  |  eu
-     *    1 |   300  |  us
-     *    2 |   400  |  eu
-     *    3 |   200  |  us
-     *    4 |   300  |  eu
-     *    5 |   400  |  us
-     * </pre>
-     */
-    private static final int ROWS = 6;
     private static final String INDEX = "vrf_idx";
     /** View that passes all rows through — equivalent to a plain index query, so conformance holds trivially. */
     private static final String PASSTHROUGH_VIEW = "vrf_passthrough";
@@ -81,14 +66,6 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     private static final String PREFILTERED_VIEW = "vrf_prefiltered";
     /** View that computes an aggregated field ({@code cnt}) not present in the source index. */
     private static final String STATS_VIEW = "vrf_stats";
-
-    private static int status(int i) {
-        return 200 + (i % 3) * 100; // 200, 300, 400
-    }
-
-    private static String region(int i) {
-        return i % 2 == 0 ? "eu" : "us";
-    }
 
     /** A real HTTP transport, so {@link #testUnsupportedDslConstructOnViewIsDroppedWithWarning} can read the {@code Warning} header. */
     @Override
@@ -124,13 +101,19 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    /** Bulk-indexes {@link #ROWS} rows with ids {@code base..base+ROWS-1} and the shared status/region pattern, then refreshes. */
+    /**
+     * Bulk-indexes the six rows every test reads, with ids {@code base..base+5}. They cover every {@code (status, region)}
+     * combination exactly once, so each expected result in this class can be written out as a literal.
+     */
     private static void indexRows(String index, int base) {
-        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < ROWS; i++) {
-            bulk.add(new IndexRequest(index).source("id", base + i, "status", status(i), "region", region(i)));
-        }
-        indexDocs(bulk);
+        indexDocs(
+            new IndexRequest(index).source("id", base, "status", 200, "region", "eu"),
+            new IndexRequest(index).source("id", base + 1, "status", 300, "region", "us"),
+            new IndexRequest(index).source("id", base + 2, "status", 400, "region", "eu"),
+            new IndexRequest(index).source("id", base + 3, "status", 200, "region", "us"),
+            new IndexRequest(index).source("id", base + 4, "status", 300, "region", "eu"),
+            new IndexRequest(index).source("id", base + 5, "status", 400, "region", "us")
+        );
     }
 
     /** Bulk-indexes the given documents and refreshes, so they are immediately visible to the queries under test. */

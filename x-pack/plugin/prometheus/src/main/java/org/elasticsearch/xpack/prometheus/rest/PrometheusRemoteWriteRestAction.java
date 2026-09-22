@@ -95,8 +95,10 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
         // Accept any application/x-protobuf, including proto=io.prometheus.write.v2.Request.
         // Unsupported proto parameters are rejected with 415 after the body is consumed so Prometheus
         // senders can fall back to remote write 1.0. Rejecting here would yield 406 instead.
+        var parsedContentType = request.getParsedContentType();
         return request.getXContentType() == null
-            && request.getParsedContentType().mediaTypeWithoutParameters().equals("application/x-protobuf");
+            && parsedContentType != null
+            && parsedContentType.mediaTypeWithoutParameters().equals("application/x-protobuf");
     }
 
     @Override
@@ -104,7 +106,8 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
         String dataset = DataStream.sanitizeDataset(request.param(DataStream.DATASET, "generic"));
         String namespace = DataStream.sanitizeNamespace(request.param(DataStream.NAMESPACE, "default"));
 
-        String proto = request.getParsedContentType().getParameters().get("proto");
+        var parsedContentType = request.getParsedContentType();
+        String proto = parsedContentType == null ? null : parsedContentType.getParameters().get("proto");
         boolean unsupportedProto = proto != null && proto.equals(REMOTE_WRITE_V1_PROTO) == false;
 
         // while the remote write spec mandates snappy, we intentionally want to allow additional compression formats

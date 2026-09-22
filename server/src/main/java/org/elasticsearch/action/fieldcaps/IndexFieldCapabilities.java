@@ -34,6 +34,10 @@ import java.util.Map;
  *                       ES|QL HIGHLIGHT re-analyzes values on the coordinator, so it reads this name from field-caps.
  * @param indexAnalyzerPositionIncrementGap Mapping {@code position_increment_gap} when {@code indexAnalyzer} is set;
  *                       default otherwise so it does not affect equality.
+ * @param indexLocalAnalyzer {@code true} when this is a text-family field whose analyzer name was withheld because it is
+ *                       bound under {@code index.analysis}. Distinguishes "analyzed with something the coordinator
+ *                       cannot rebuild" from "no name to report", so HIGHLIGHT can say which. Never {@code true}
+ *                       when {@code indexAnalyzer} is set.
  */
 
 public record IndexFieldCapabilities(
@@ -47,13 +51,15 @@ public record IndexFieldCapabilities(
     TimeSeriesParams.MetricType metricType,
     Map<String, String> meta,
     @Nullable String indexAnalyzer,
-    int indexAnalyzerPositionIncrementGap
+    int indexAnalyzerPositionIncrementGap,
+    boolean indexLocalAnalyzer
 ) implements Writeable {
 
     public IndexFieldCapabilities {
         if (indexAnalyzer == null) {
             indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         }
+        assert indexAnalyzer == null || indexLocalAnalyzer == false : "a reported analyzer name cannot be index-local";
     }
 
     private static final StringLiteralDeduplicator typeStringDeduplicator = new StringLiteralDeduplicator();
@@ -68,10 +74,17 @@ public record IndexFieldCapabilities(
         TimeSeriesParams.MetricType metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         Map<String, String> meta = in.readImmutableMap(StreamInput::readString);
         boolean isInference = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD) && in.readBoolean();
-        String indexAnalyzer = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
-            ? in.readOptionalString()
-            : null;
-        int indexAnalyzerPositionIncrementGap = indexAnalyzer != null ? in.readVInt() : TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        String indexAnalyzer = null;
+        int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        boolean indexLocalAnalyzer = false;
+        if (in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)) {
+            indexAnalyzer = in.readOptionalString();
+            if (indexAnalyzer != null) {
+                indexAnalyzerPositionIncrementGap = in.readVInt();
+            } else {
+                indexLocalAnalyzer = in.readBoolean();
+            }
+        }
         return new IndexFieldCapabilities(
             name,
             type,
@@ -83,7 +96,8 @@ public record IndexFieldCapabilities(
             metricType,
             meta,
             indexAnalyzer,
-            indexAnalyzerPositionIncrementGap
+            indexAnalyzerPositionIncrementGap,
+            indexLocalAnalyzer
         );
     }
 
@@ -104,6 +118,8 @@ public record IndexFieldCapabilities(
             out.writeOptionalString(indexAnalyzer);
             if (indexAnalyzer != null) {
                 out.writeVInt(indexAnalyzerPositionIncrementGap);
+            } else {
+                out.writeBoolean(indexLocalAnalyzer);
             }
         }
     }

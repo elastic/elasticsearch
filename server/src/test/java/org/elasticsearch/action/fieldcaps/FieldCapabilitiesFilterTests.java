@@ -373,7 +373,10 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         );
 
         assertNull(response.get("local").indexAnalyzer());
+        // Withholding the name is not the same as having none: the marker is what lets HIGHLIGHT explain its fallback.
+        assertTrue(response.get("local").indexLocalAnalyzer());
         assertEquals("default", response.get("plain").indexAnalyzer());
+        assertFalse(response.get("plain").indexLocalAnalyzer());
     }
 
     @Override

@@ -5252,7 +5252,8 @@ public class VerifierTests extends AnalyzerTestCase {
 
     /**
      * An unresolvable analyzer on an implicit WHERE query reports the "derived its query" message,
-     * not the raw registry failure.
+     * not the raw registry failure. A resolvable WITH does not clear it: the leaf option is query-side,
+     * so the name is still resolved from the query.
      */
     public void testHighlightDerivedAnalyzerNotFoundGetsTargetedMessage() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -5260,14 +5261,16 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) | HIGHLIGHT ON title",
             "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"}) AND MATCH(body, \"bar\") | HIGHLIGHT ON body",
             "FROM test | WHERE QSTR(\"title:\\\"return\\\"\", {\"analyzer\": \"standard\", \"quote_analyzer\": \"my_custom_analyzer\"})"
-                + " | HIGHLIGHT ON title"
+                + " | HIGHLIGHT ON title",
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"my_custom_analyzer\"})"
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"whitespace\" }"
         )) {
             supportsHighlightImplicit(fullText()).error(
                 query,
                 allOf(
                     containsString("HIGHLIGHT derived its query from a preceding WHERE"),
                     containsString("refers to analyzer [my_custom_analyzer]"),
-                    containsString("Specify WITH {\"analyzer\": <registered analyzer>}"),
+                    containsString("Write the query on HIGHLIGHT without that analyzer option"),
                     not(containsString("[my_custom_analyzer] is not a registered analyzer"))
                 )
             );
@@ -5305,11 +5308,16 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    /**
+     * A mapping analyzer name that reaches the coordinator but does not resolve there, which in production means a
+     * plugin analyzer this node never loaded. An {@code index.analysis} name cannot reach this path: field-caps
+     * withholds it and HIGHLIGHT reports the index-local fallback instead, covered by
+     * {@code HighlightAnalyzersTests#testIndexLocalAnalyzerFallsBackAndWarns}.
+     */
     public void testHighlightMappingAnalyzerUnknownOnNodeFallsBack() {
         supportsHighlight(analyzer().addIndex("test", "mapping-text-custom-analyzer.json").stripErrorPrefix(true)).query(
             "FROM test | HIGHLIGHT \"fox\" ON title"
         );
-        // my_index_analyzer is a per-index custom analyzer; the node cannot build it, so title falls back to standard.
         assertWarnings(mappingAnalyzerFallbackWarning("title", "my_index_analyzer"));
     }
 

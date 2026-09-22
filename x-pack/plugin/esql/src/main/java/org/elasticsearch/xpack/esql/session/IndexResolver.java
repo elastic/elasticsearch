@@ -567,9 +567,6 @@ public class IndexResolver {
 
         if (type == TEXT) {
             String sharedAnalyzer = sharedIndexAnalyzer(first, rest);
-            // conflict = at least one index reported an analyzer name and they did not all agree. "One index silent"
-            // is not a conflict: older nodes report null and we already fall back for those.
-            boolean analyzerConflict = sharedAnalyzer == null && anyReportsAnalyzer(first, rest);
             return new TextEsField(
                 name,
                 new HashMap<>(),
@@ -578,7 +575,7 @@ public class IndexResolver {
                 timeSeriesFieldType,
                 sharedAnalyzer,
                 first.indexAnalyzerPositionIncrementGap(),
-                analyzerConflict
+                unknownAnalyzer(sharedAnalyzer, first, rest)
             );
         }
         if (type == KEYWORD) {
@@ -599,10 +596,9 @@ public class IndexResolver {
 
     /**
      * Analyzer name shared by every index for this text field, or {@code null} if they disagree on the name or
-     * {@code position_increment_gap}, or any index omitted it (older node). HIGHLIGHT treats {@code null} as
-     * {@code standard} for that field only; the disagreement case is distinguished by
-     * {@link TextEsField#analyzerConflict()} and surfaced as a warning header from
-     * {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers}.
+     * {@code position_increment_gap}, or any index withheld it. HIGHLIGHT treats {@code null} as {@code standard}
+     * for that field only; why the name is missing is carried by {@link TextEsField#unknownAnalyzer()} and surfaced
+     * as a warning header from {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers}.
      */
     @Nullable
     private static String sharedIndexAnalyzer(IndexFieldCapabilities first, List<IndexFieldCapabilities> rest) {
@@ -626,6 +622,38 @@ public class IndexResolver {
         }
         for (IndexFieldCapabilities fc : rest) {
             if (fc.indexAnalyzer() != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Why HIGHLIGHT has no analyzer name for a text field, so it can warn rather than quietly differ from what matched.
+     * A shard withholds the name when it is bound under {@code index.analysis}, so a mix of naming and withholding
+     * indices is a real disagreement, while "every index withheld" means none of them can be rebuilt by name.
+     */
+    private static TextEsField.UnknownAnalyzer unknownAnalyzer(
+        @Nullable String sharedAnalyzer,
+        IndexFieldCapabilities first,
+        List<IndexFieldCapabilities> rest
+    ) {
+        if (sharedAnalyzer != null) {
+            return TextEsField.UnknownAnalyzer.NONE;
+        }
+        if (anyReportsAnalyzer(first, rest)) {
+            return TextEsField.UnknownAnalyzer.CONFLICT;
+        }
+        return anyReportsIndexLocalAnalyzer(first, rest) ? TextEsField.UnknownAnalyzer.INDEX_LOCAL : TextEsField.UnknownAnalyzer.NONE;
+    }
+
+    /** True if any index withheld an {@code index.analysis} analyzer name for this field. */
+    private static boolean anyReportsIndexLocalAnalyzer(IndexFieldCapabilities first, List<IndexFieldCapabilities> rest) {
+        if (first.indexLocalAnalyzer()) {
+            return true;
+        }
+        for (IndexFieldCapabilities fc : rest) {
+            if (fc.indexLocalAnalyzer()) {
                 return true;
             }
         }

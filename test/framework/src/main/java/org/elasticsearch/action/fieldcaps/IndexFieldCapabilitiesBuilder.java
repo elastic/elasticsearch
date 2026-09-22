@@ -30,6 +30,7 @@ public class IndexFieldCapabilitiesBuilder {
     private Map<String, String> meta;
     private @Nullable String indexAnalyzer;
     private int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+    private boolean indexLocalAnalyzer;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
         this.name = name;
@@ -86,6 +87,12 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    /** Mirrors a shard that withheld an {@code index.analysis} analyzer name. Only meaningful without an analyzer name. */
+    public IndexFieldCapabilitiesBuilder indexLocalAnalyzer(boolean indexLocalAnalyzer) {
+        this.indexLocalAnalyzer = indexLocalAnalyzer;
+        return this;
+    }
+
     public IndexFieldCapabilities build() {
         return new IndexFieldCapabilities(
             name,
@@ -98,7 +105,8 @@ public class IndexFieldCapabilitiesBuilder {
             metricType,
             meta,
             indexAnalyzer,
-            indexAnalyzerPositionIncrementGap
+            indexAnalyzerPositionIncrementGap,
+            indexLocalAnalyzer
         );
     }
 }

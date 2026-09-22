@@ -173,8 +173,8 @@ public final class AnalyzerTestUtils {
     }
 
     /**
-     * The header warning HIGHLIGHT emits when the mapping analyzer for {@code field} cannot be built on this node
-     * and the field silently falls back to {@code standard}. Kept in one place so tests that trip the fallback stay
+     * The header warning HIGHLIGHT emits when the mapping analyzer for {@code field} was named but cannot be built on
+     * this node, so the field falls back to {@code standard}. Kept in one place so tests that trip the fallback stay
      * in sync with {@code HighlightAnalyzers}.
      */
     public static String mappingAnalyzerFallbackWarning(String field, String analyzerName) {
@@ -182,9 +182,8 @@ public final class AnalyzerTestUtils {
             + field
             + "] falls back to [standard]: analyzer ["
             + analyzerName
-            + "] is not registered on this node (per-index custom analyzer or unloaded plugin). "
-            + "Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>}"
-            + " to control this.";
+            + "] is not registered on this node. "
+            + "Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this.";
     }
 
     /** Fallback warning for the {@code english} mapping analyzer, which the test analysis registry cannot build. */

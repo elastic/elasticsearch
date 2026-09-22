@@ -2174,6 +2174,24 @@ Return of the King Being the Third Part of The Lord of the Rings | null
 ;
 
 
+# The borrowed MATCH follows the RENAME, but the mapping analyzer does not: t is analyzed with standard on both
+# sides, so the "Rings" that english matched in WHERE goes unhighlighted. Known limitation, see HighlightAnalyzers.
+highlightMappingAnalyzerLostByRenameUnderImplicitQuery
+required_capability: highlight_mapping_analyzer
+required_capability: highlight_implicit_query_and_fields
+
+FROM books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| RENAME title AS t
+| HIGHLIGHT
+| KEEP t, highlight_t
+;
+
+t:text | highlight_t:keyword
+Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
 # books title is default/standard: "ring" paints "Ring" and misses "Rings".
 highlightDefaultMappingAnalyzerUsesStandard
 required_capability: highlight_mapping_analyzer

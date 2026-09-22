@@ -213,7 +213,8 @@ class FieldCapabilitiesFetcher {
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
-                NamedAnalyzer indexAnalyzer = indexAnalyzer(mappingLookup, ft, configuredAnalyzerNames);
+                MappingAnalyzer mappingAnalyzer = mappingAnalyzer(mappingLookup, ft, configuredAnalyzerNames);
+                NamedAnalyzer indexAnalyzer = mappingAnalyzer.analyzer();
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
@@ -227,7 +228,8 @@ class FieldCapabilitiesFetcher {
                     indexAnalyzer == null ? null : indexAnalyzer.name(),
                     indexAnalyzer == null
                         ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
-                        : indexAnalyzer.getPositionIncrementGap(ft.name())
+                        : indexAnalyzer.getPositionIncrementGap(ft.name()),
+                    mappingAnalyzer.indexLocal()
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -260,7 +262,8 @@ class FieldCapabilitiesFetcher {
                             null,
                             Map.of(),
                             null,
-                            TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
+                            TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+                            false
                         );
                         responseMap.put(parentField, fieldCap);
                     }
@@ -272,24 +275,35 @@ class FieldCapabilitiesFetcher {
     }
 
     /**
-     * Index-time analyzer of a text field, or {@code null} for anything that is not text. ES|QL HIGHLIGHT
-     * re-analyzes field values on the coordinator, so it cannot look this up from a shard.
+     * Index-time analyzer of a text field, or {@link MappingAnalyzer#NONE} for anything that is not text. ES|QL
+     * HIGHLIGHT re-analyzes field values on the coordinator, so it cannot look this up from a shard.
      *
      * <p>A name bound under {@code index.analysis} (in {@code configuredAnalyzerNames}) is index-local, even
      * when it collides with a built-in name such as {@code english}: the coordinator only resolves node-level
-     * analyzers by name, so it would build a different analyzer than this index. Drop it in that case so
-     * HIGHLIGHT falls back to {@code standard}, as it already does for any index-local analyzer it cannot rebuild.
+     * analyzers by name, so it would build a different analyzer than this index. Withhold the name in that case
+     * and report {@link MappingAnalyzer#INDEX_LOCAL} instead, so HIGHLIGHT falls back to {@code standard} and can
+     * tell the user why rather than differing from what matched in silence.
      */
-    @Nullable
-    private static NamedAnalyzer indexAnalyzer(MappingLookup mappingLookup, MappedFieldType ft, Set<String> configuredAnalyzerNames) {
+    private static MappingAnalyzer mappingAnalyzer(MappingLookup mappingLookup, MappedFieldType ft, Set<String> configuredAnalyzerNames) {
         if (TextFieldMapper.CONTENT_TYPE.equals(ft.familyTypeName()) == false) {
-            return null;
+            return MappingAnalyzer.NONE;
         }
         NamedAnalyzer analyzer = mappingLookup.indexAnalyzer(ft.name(), unused -> null);
-        if (analyzer == null || configuredAnalyzerNames.contains(analyzer.name())) {
-            return null;
+        if (analyzer == null) {
+            return MappingAnalyzer.NONE;
         }
-        return analyzer;
+        return configuredAnalyzerNames.contains(analyzer.name()) ? MappingAnalyzer.INDEX_LOCAL : new MappingAnalyzer(analyzer, false);
+    }
+
+    /**
+     * A text field's index analyzer, or the bare fact that it has one this node will not name.
+     *
+     * @param analyzer   the analyzer, or {@code null} when there is no name to report
+     * @param indexLocal {@code true} when a name was withheld because it is bound under {@code index.analysis}
+     */
+    private record MappingAnalyzer(@Nullable NamedAnalyzer analyzer, boolean indexLocal) {
+        private static final MappingAnalyzer NONE = new MappingAnalyzer(null, false);
+        private static final MappingAnalyzer INDEX_LOCAL = new MappingAnalyzer(null, true);
     }
 
     /**

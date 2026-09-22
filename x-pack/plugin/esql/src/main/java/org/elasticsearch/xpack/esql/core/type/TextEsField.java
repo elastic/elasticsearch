@@ -36,13 +36,22 @@ public class TextEsField extends EsField {
     /** {@link TextFieldMapper.Defaults#POSITION_INCREMENT_GAP}, used when {@link #analyzerName} is {@code null}. */
     public static final int DEFAULT_POSITION_INCREMENT_GAP = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
 
+    /**
+     * Why {@link #analyzerName} is absent, so HIGHLIGHT can explain the {@code standard} it falls back to instead of
+     * differing from what matched in silence. Only meaningful when the name is {@code null}.
+     */
+    public enum UnknownAnalyzer {
+        /** Nothing was withheld: either the name is known, or the field has no analyzer to name. */
+        NONE,
+        /** The indices behind the pattern reported different names or {@code position_increment_gap}s. */
+        CONFLICT,
+        /** Every index analyzes with a name bound under {@code index.analysis}, which no node can rebuild by name. */
+        INDEX_LOCAL
+    }
+
     private final @Nullable String analyzerName;
     private final int positionIncrementGap;
-    /**
-     * {@code true} when the pattern behind this field resolved to indices that disagree on the analyzer name.
-     * HIGHLIGHT falls back to {@code standard} in that case and emits a warning.
-     */
-    private final boolean analyzerConflict;
+    private final UnknownAnalyzer unknownAnalyzer;
 
     public TextEsField(
         String name,
@@ -62,7 +71,16 @@ public class TextEsField extends EsField {
         TimeSeriesFieldType timeSeriesFieldType,
         @Nullable String analyzerName
     ) {
-        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, analyzerName, DEFAULT_POSITION_INCREMENT_GAP, false);
+        this(
+            name,
+            properties,
+            hasDocValues,
+            isAlias,
+            timeSeriesFieldType,
+            analyzerName,
+            DEFAULT_POSITION_INCREMENT_GAP,
+            UnknownAnalyzer.NONE
+        );
     }
 
     public TextEsField(
@@ -74,15 +92,15 @@ public class TextEsField extends EsField {
         @Nullable String analyzerName,
         int positionIncrementGap
     ) {
-        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, analyzerName, positionIncrementGap, false);
+        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, analyzerName, positionIncrementGap, UnknownAnalyzer.NONE);
     }
 
     /**
      * @param analyzerName index analyzer from field-caps, or {@code null} if unknown, disagreeing, or from an older node
      * @param positionIncrementGap mapping gap; pinned to {@link #DEFAULT_POSITION_INCREMENT_GAP} when {@code analyzerName}
      *                     is {@code null}
-     * @param analyzerConflict {@code true} when indices disagreed on the analyzer name. {@code analyzerName} is {@code null}
-     *                     in that case; the flag preserves the distinction from "no analyzer" so HIGHLIGHT can warn.
+     * @param unknownAnalyzer why the name is absent. {@code analyzerName} is {@code null} for anything but
+     *                     {@link UnknownAnalyzer#NONE}; it preserves what HIGHLIGHT needs to warn about.
      */
     public TextEsField(
         String name,
@@ -92,12 +110,13 @@ public class TextEsField extends EsField {
         TimeSeriesFieldType timeSeriesFieldType,
         @Nullable String analyzerName,
         int positionIncrementGap,
-        boolean analyzerConflict
+        UnknownAnalyzer unknownAnalyzer
     ) {
         super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
+        assert analyzerName == null || unknownAnalyzer == UnknownAnalyzer.NONE : "a known analyzer name has nothing unknown about it";
         this.analyzerName = analyzerName;
         this.positionIncrementGap = analyzerName == null ? DEFAULT_POSITION_INCREMENT_GAP : positionIncrementGap;
-        this.analyzerConflict = analyzerConflict;
+        this.unknownAnalyzer = unknownAnalyzer;
     }
 
     protected TextEsField(StreamInput in) throws IOException {
@@ -109,7 +128,7 @@ public class TextEsField extends EsField {
             readTimeSeriesFieldType(in),
             in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readOptionalString() : null,
             in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readVInt() : DEFAULT_POSITION_INCREMENT_GAP,
-            in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) && in.readBoolean()
+            in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readEnum(UnknownAnalyzer.class) : UnknownAnalyzer.NONE
         );
     }
 
@@ -123,7 +142,7 @@ public class TextEsField extends EsField {
             getTimeSeriesFieldType(),
             analyzerName,
             positionIncrementGap,
-            analyzerConflict
+            unknownAnalyzer
         );
     }
 
@@ -138,7 +157,7 @@ public class TextEsField extends EsField {
             out.writeOptionalString(analyzerName);
             // StreamInput ctor reads this before it can skip on a null name.
             out.writeVInt(positionIncrementGap);
-            out.writeBoolean(analyzerConflict);
+            out.writeEnum(unknownAnalyzer);
         }
     }
 
@@ -155,11 +174,11 @@ public class TextEsField extends EsField {
     }
 
     /**
-     * {@code true} when indices disagreed on the analyzer name and this field falls back to {@code standard}.
-     * The name of the analyzer that was dropped is not carried; HIGHLIGHT only needs to know that it was.
+     * Why {@link #analyzerName()} is absent, for the HIGHLIGHT warning. The name that was withheld is not carried;
+     * HIGHLIGHT only needs to know that one was, and why.
      */
-    public boolean analyzerConflict() {
-        return analyzerConflict;
+    public UnknownAnalyzer unknownAnalyzer() {
+        return unknownAnalyzer;
     }
 
     public String getWriteableName(TransportVersion transportVersion) {
@@ -223,12 +242,12 @@ public class TextEsField extends EsField {
         }
         TextEsField that = (TextEsField) o;
         return positionIncrementGap == that.positionIncrementGap
-            && analyzerConflict == that.analyzerConflict
+            && unknownAnalyzer == that.unknownAnalyzer
             && Objects.equals(analyzerName, that.analyzerName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), analyzerName, positionIncrementGap, analyzerConflict);
+        return Objects.hash(super.hashCode(), analyzerName, positionIncrementGap, unknownAnalyzer);
     }
 }

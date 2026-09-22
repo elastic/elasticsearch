@@ -82,25 +82,11 @@ public class HighlightAnalyzersTests extends ESTestCase {
         assertThat(warnings.get(0), containsString("WITH {\"analyzer\": <registered analyzer>}"));
     }
 
-    // Two indices disagree on the analyzer. TextEsField.analyzerConflict is set and HighlightAnalyzers warns.
+    // Two indices disagree on the analyzer. TextEsField.unknownAnalyzer is CONFLICT and HighlightAnalyzers warns.
     public void testMultiIndexAnalyzerConflictFallsBackAndWarns() {
-        FieldAttribute conflictField = new FieldAttribute(
-            EMPTY,
-            "title",
-            new TextEsField(
-                "title",
-                Map.of(),
-                false,
-                false,
-                EsField.TimeSeriesFieldType.NONE,
-                null,
-                TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
-                true
-            )
-        );
         List<String> warnings = new ArrayList<>();
         Map<String, NamedAnalyzer> resolved = HighlightAnalyzers.resolve(
-            List.of(conflictField),
+            List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.CONFLICT)),
             null,
             TEST_ANALYSIS_REGISTRY,
             warnings::add
@@ -109,9 +95,32 @@ public class HighlightAnalyzersTests extends ESTestCase {
         assertThat(warnings, hasItem(containsString("indices disagree on the analyzer")));
     }
 
-    // WITH takes precedence; a conflicting mapping analyzer must not produce a warning if the user set WITH.
-    public void testWithAnalyzerSuppressesConflictWarning() {
-        FieldAttribute conflictField = new FieldAttribute(
+    // The mapping analyzer is bound under index.analysis, so the shard withheld its name. Standard is the only
+    // thing HIGHLIGHT can use, but it has to say so rather than differ from what matched in silence.
+    public void testIndexLocalAnalyzerFallsBackAndWarns() {
+        List<String> warnings = new ArrayList<>();
+        Map<String, NamedAnalyzer> resolved = HighlightAnalyzers.resolve(
+            List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL)),
+            null,
+            TEST_ANALYSIS_REGISTRY,
+            warnings::add
+        );
+        assertThat(resolved.get("title").name(), equalTo("standard"));
+        assertThat(warnings, hasItem(containsString("its analyzer is defined in the index settings")));
+    }
+
+    // WITH takes precedence; a mapping analyzer HIGHLIGHT cannot use must not warn once the user has set WITH.
+    public void testWithAnalyzerSuppressesUnknownAnalyzerWarning() {
+        for (var unknown : List.of(TextEsField.UnknownAnalyzer.CONFLICT, TextEsField.UnknownAnalyzer.INDEX_LOCAL)) {
+            List<String> warnings = new ArrayList<>();
+            HighlightAnalyzers.resolve(List.of(unknownAnalyzerField(unknown)), "keyword", TEST_ANALYSIS_REGISTRY, warnings::add);
+            assertThat(warnings, hasSize(0));
+        }
+    }
+
+    /** A {@code title} field whose analyzer name never reached the coordinator, for the given reason. */
+    private static FieldAttribute unknownAnalyzerField(TextEsField.UnknownAnalyzer unknown) {
+        return new FieldAttribute(
             EMPTY,
             "title",
             new TextEsField(
@@ -122,12 +131,9 @@ public class HighlightAnalyzersTests extends ESTestCase {
                 EsField.TimeSeriesFieldType.NONE,
                 null,
                 TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
-                true
+                unknown
             )
         );
-        List<String> warnings = new ArrayList<>();
-        HighlightAnalyzers.resolve(List.of(conflictField), "keyword", TEST_ANALYSIS_REGISTRY, warnings::add);
-        assertThat(warnings, hasSize(0));
     }
 
     public void testUnknownCommandAndDeclaredAnalyzersThrow() {

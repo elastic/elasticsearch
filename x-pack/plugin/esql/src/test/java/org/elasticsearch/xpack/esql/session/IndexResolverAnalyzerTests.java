@@ -14,7 +14,9 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField.UnknownAnalyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Map;
@@ -28,18 +30,39 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
     /**
      * Shared analyzer is kept only when every index reports the same name and
      * {@code position_increment_gap}. A disagreement or a missing name returns null.
-     * HIGHLIGHT treats that as {@code standard}.
+     * HIGHLIGHT treats that as {@code standard}, and warns whenever the null came from a disagreement.
      */
     public void testSharedIndexAnalyzerNeedsEveryIndexToAgree() {
-        assertThat(resolveTitle("english", "english").analyzerName(), equalTo("english"));
-        assertThat(resolveTitle("english", "standard").analyzerName(), nullValue());
-        assertThat(resolveTitle("english", null).analyzerName(), nullValue());
-        assertThat(resolveTitle(null, "english").analyzerName(), nullValue());
+        assertAnalyzer(resolveTitle("english", "english"), "english", UnknownAnalyzer.NONE);
+        assertAnalyzer(resolveTitle("english", "standard"), null, UnknownAnalyzer.CONFLICT);
+        // A node new enough to run HIGHLIGHT always names a text field's analyzer, so a silent index is one whose
+        // index-local name was withheld. That is a real disagreement with an index naming a built-in.
+        assertAnalyzer(resolveTitle("english", null), null, UnknownAnalyzer.CONFLICT);
+        assertAnalyzer(resolveTitle(null, "english"), null, UnknownAnalyzer.CONFLICT);
+        // Every index silent with nothing withheld: no analyzer to speak of, so standard without a warning.
+        assertAnalyzer(resolveTitle(null, null), null, UnknownAnalyzer.NONE);
 
         TextEsField sameGap = resolveTitle(index("idx-a", "english", 0), index("idx-b", "english", 0));
-        assertThat(sameGap.analyzerName(), equalTo("english"));
+        assertAnalyzer(sameGap, "english", UnknownAnalyzer.NONE);
         assertThat(sameGap.positionIncrementGap(), equalTo(0));
-        assertThat(resolveTitle(index("idx-a", "english", 0), index("idx-b", "english", 100)).analyzerName(), nullValue());
+        // Same name, different gap: the analyzers behave differently on multi-value fields.
+        assertAnalyzer(resolveTitle(index("idx-a", "english", 0), index("idx-b", "english", 100)), null, UnknownAnalyzer.CONFLICT);
+    }
+
+    /**
+     * When every index withheld an {@code index.analysis} name there is no disagreement, but HIGHLIGHT still cannot
+     * rebuild the analyzer, so the reason has to survive the merge. Mixing a withheld name with a reported one is a
+     * disagreement like any other.
+     */
+    public void testWithheldIndexLocalAnalyzerSurvivesTheMerge() {
+        assertAnalyzer(resolveTitle(indexLocal("idx-a"), indexLocal("idx-b")), null, UnknownAnalyzer.INDEX_LOCAL);
+        assertAnalyzer(resolveTitle(indexLocal("idx-a"), index("idx-b", "english", 100)), null, UnknownAnalyzer.CONFLICT);
+    }
+
+    private static void assertAnalyzer(TextEsField field, String analyzerName, UnknownAnalyzer unknownAnalyzer) {
+        Matcher<String> nameMatcher = analyzerName == null ? nullValue(String.class) : equalTo(analyzerName);
+        assertThat(field.analyzerName(), nameMatcher);
+        assertThat(field.unknownAnalyzer(), equalTo(unknownAnalyzer));
     }
 
     private static TextEsField resolveTitle(String first, String second) {
@@ -67,6 +90,12 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
         var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer(analyzer)
             .indexAnalyzerPositionIncrementGap(positionIncrementGap)
             .build();
+        return new FieldCapabilitiesIndexResponse(index, index, Map.of("title", title), true, IndexMode.STANDARD);
+    }
+
+    /** An index that analyzes {@code title} with an {@code index.analysis} name, so it reports no name at all. */
+    private static FieldCapabilitiesIndexResponse indexLocal(String index) {
+        var title = new IndexFieldCapabilitiesBuilder("title", "text").indexLocalAnalyzer(true).build();
         return new FieldCapabilitiesIndexResponse(index, index, Map.of("title", title), true, IndexMode.STANDARD);
     }
 }

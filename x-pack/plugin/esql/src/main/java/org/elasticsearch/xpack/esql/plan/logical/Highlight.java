@@ -368,13 +368,15 @@ public class Highlight extends UnaryPlan
     /**
      * Error for an unresolvable analyzer on an implicit WHERE query. Covers ON-field primaries, leaves outside ON,
      * and {@code quote_analyzer}. The cause (per-index custom analyzer, typo, or unloaded plugin) is not
-     * distinguishable here, so the message names the fact and gives the one workaround that always applies.
+     * distinguishable here, so the message names the fact and points at the option that has to go. A leaf
+     * {@code analyzer} option is always query-side, so {@code WITH} cannot stand in for it: the name is still
+     * resolved from the query, and only writing the query without the option clears this.
      */
     private static String borrowedUnresolvedAnalyzerMessage(String name) {
         return "HIGHLIGHT derived its query from a preceding WHERE, but that query refers to analyzer ["
             + name
-            + "], which is not a registered analyzer. Specify WITH {\"analyzer\": <registered analyzer>}; "
-            + "highlights may then differ from what matched.";
+            + "], which is not a registered analyzer. Write the query on HIGHLIGHT without that analyzer option, "
+            + "or drop the option from the WHERE; highlights may then differ from what matched.";
     }
 
     private void verifyQuery(String commandAnalyzerName, Failures failures, AnalysisRegistry analysisRegistry, Consumer<String> warnings) {

@@ -21,5 +21,4 @@ public class EsqlDatasetActionNames {
 
     /** Read-side resolve action for {@code FROM <dataset>}: read-authorizes the dataset names of an ES|QL query. */
     public static final String ESQL_RESOLVE_DATASET_ACTION_NAME = "indices:data/read/esql/resolve_datasets";
-
 }

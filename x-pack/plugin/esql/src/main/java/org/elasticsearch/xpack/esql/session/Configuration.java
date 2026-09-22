@@ -55,9 +55,6 @@ public class Configuration implements Writeable {
     private static final TransportVersion ESQL_RESOLVED_SETTINGS = TransportVersion.fromName("esql_resolved_settings");
 
     /**
-     * The caller is authorized to see the storage locations of the datasets named in the query
-     * ({@code indices:admin/esql/dataset/get}). When true, plan renderers use the identity location
-    /**
      * Reserved transport version id from the GROK watchdog work (#152170), which was reverted before release.
      * Intentionally unused: the id is boxed in between released version markers, so it cannot be removed without
      * breaking transport-version id density. This reference keeps the definition from becoming orphaned. Do not

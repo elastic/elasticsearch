@@ -771,11 +771,11 @@ public class EsqlSession {
      * callbacks) must go through this method — adding a new subplan execution path without calling
      * it silently drops rows from EXPLAIN output.
      */
-    private void recordExplainSubPlan(LogicalPlan subPlan, PhysicalPlan physicalSubPlan, NodeStringMapper locationMapper) {
+    private void recordExplainSubPlan(LogicalPlan subPlan, PhysicalPlan physicalSubPlan) {
         explainContext.subPlans.add(
             new ExplainSubPlan(
-                subPlan.toString(Node.NodeStringFormat.LIMITED, locationMapper),
-                physicalSubPlan.toString(Node.NodeStringFormat.LIMITED, locationMapper)
+                subPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY),
+                physicalSubPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY)
             )
         );
     }
@@ -791,8 +791,8 @@ public class EsqlSession {
      * Adding a new execution path without calling this silently drops the optimizedPhysicalPlan
      * row from EXPLAIN output (caught by the assertion in {@link #createExplainListener}).
      */
-    private void recordExplainCoordinatorPlan(PhysicalPlan physicalPlan, NodeStringMapper locationMapper) {
-        explainContext.coordinatorPhysicalPlanString = physicalPlan.toString(Node.NodeStringFormat.LIMITED, locationMapper);
+    private void recordExplainCoordinatorPlan(PhysicalPlan physicalPlan) {
+        explainContext.coordinatorPhysicalPlanString = physicalPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
     }
 
     /**
@@ -810,8 +810,7 @@ public class EsqlSession {
         // now. explainContext fields written during execution (coordinatorPhysicalPlanString,
         // subPlans) are read via this inside the callback, which fires only after all writes
         // complete (sequential callback chain).
-        NodeStringMapper locationMapper = NodeStringMapper.IDENTITY;
-        String optimizedLogicalPlanString = optimizedPlan.toString(Node.NodeStringFormat.LIMITED, locationMapper);
+        String optimizedLogicalPlanString = optimizedPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
 
         return delegate.delegateFailureAndWrap((next, result) -> {
             List<List<Object>> values = new ArrayList<>();
@@ -935,7 +934,7 @@ public class EsqlSession {
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
             if (explainContext != null) {
-                recordExplainCoordinatorPlan(physicalPlan, NodeStringMapper.IDENTITY);
+                recordExplainCoordinatorPlan(physicalPlan);
             }
             Map<String, PinnedColumns> pinnedReads = new HashMap<>();
             collectPinnedReads(optimizedPlan, pinnedReads);
@@ -1249,7 +1248,7 @@ public class EsqlSession {
         }
 
         if (explainContext != null) {
-            recordExplainSubPlan(subPlan.subPlan, physicalSubPlan, NodeStringMapper.IDENTITY);
+            recordExplainSubPlan(subPlan.subPlan, physicalSubPlan);
         }
 
         executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
@@ -1278,7 +1277,7 @@ public class EsqlSession {
                         // Capture the post-substitution physical plan — the one that actually runs. For
                         // InlineJoin and similar the plan is only meaningful after all subplans have resolved
                         // StubRelations into real LocalRelation data, so this is the earliest correct point.
-                        recordExplainCoordinatorPlan(newPhysicalPlan, NodeStringMapper.IDENTITY);
+                        recordExplainCoordinatorPlan(newPhysicalPlan);
                     }
                     runner.run(
                         newPhysicalPlan,

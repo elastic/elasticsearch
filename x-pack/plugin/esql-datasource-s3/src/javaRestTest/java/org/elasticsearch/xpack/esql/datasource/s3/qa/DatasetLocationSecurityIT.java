@@ -43,6 +43,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -189,15 +190,36 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         // Good dataset for the profile-plan test.
         putDataset("ds_loc_good", "ds_loc_good_src", s3(GOOD_CSV), null);
 
-        // ── Failing shapes: neither user must see the bucket name ────────────────────────────────
+        // ── Failing shapes: bucket hidden, object name visible ───────────────────────────────────
+
+        // For single-object datasets the object name (last path segment) must appear in every
+        // user's error. For the glob dataset the listing fails before any object is identified,
+        // so there is no object name to assert.
+        Map<String, String> expectedObjectName = Map.of(
+            "ds_loc_denied_single",
+            "denied.csv",
+            "ds_loc_wrong_format",
+            "garbage.parquet",
+            "ds_loc_bad_orc",
+            "garbage.orc"
+        );
 
         for (String dataset : List.of("ds_loc_denied_single", "ds_loc_denied_glob", "ds_loc_wrong_format", "ds_loc_bad_orc")) {
             for (String[] userAndPass : new String[][] { { "ds-loc-reader", "reader" }, { "ds-loc-metadata-reader", "metadata_reader" } }) {
                 String user = userAndPass[0];
                 String label = userAndPass[1];
                 ResponseException error = expectThrows(ResponseException.class, () -> runEsqlAs(user, "FROM " + dataset + " | LIMIT 5"));
-                for (String text : allErrorText(entityAsMap(error.getResponse()))) {
+                List<String> texts = allErrorText(entityAsMap(error.getResponse()));
+                for (String text : texts) {
                     assertThat(label + " must not see bucket name in error for [" + dataset + "]", text, not(containsString(BUCKET)));
+                }
+                String objName = expectedObjectName.get(dataset);
+                if (objName != null) {
+                    assertThat(
+                        label + " must see object name in error for [" + dataset + "]",
+                        texts.stream().anyMatch(t -> t.contains(objName)),
+                        is(true)
+                    );
                 }
             }
         }

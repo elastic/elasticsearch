@@ -654,6 +654,15 @@ public final class DocumentParser {
         ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
+            // With subobjects:false, intermediate objects are flattened, so an array of objects like
+            // "objarr": [{"k": "p"}, {"k": "q"}] must still be walked to reach mapped dotted fields
+            // like "objarr.k". The same check exists in parseObject; without it the array is silently
+            // skipped and nothing gets indexed.
+            ObjectMapper parent = context.parent();
+            if (parent.subobjects() == ObjectMapper.Subobjects.DISABLED && parent.hasMappedFieldsWithPrefix(currentFieldName)) {
+                parseArrayElements(context, null, currentFieldName, currentFieldName);
+                return;
+            }
             if (FallbackPostMapper.capture(
                 context,
                 context.path().pathAsText(currentFieldName),

@@ -1,0 +1,96 @@
+---
+"Array of objects indexed under subobjects:false with dynamic:false":
+  # Regression test: parseArrayDynamic was missing the hasMappedFieldsWithPrefix guard that parseObject
+  # has, so an array of objects like "objarr": [{"k":"p"},{"k":"q"}] was silently skipped and nothing
+  # was indexed for "objarr.k", while the plain-object form "objarr": {"k":"p"} worked correctly.
+
+  - do:
+      indices.create:
+        index: test-subobjects-false-dynamic-false
+        body:
+          mappings:
+            dynamic: false
+            subobjects: false
+            properties:
+              objarr.j:
+                type: keyword
+              objarr.k:
+                type: keyword
+
+  - do:
+      index:
+        index: test-subobjects-false-dynamic-false
+        id: "6"
+        body:
+          id: "6"
+          objarr: [{"k": "p"}, {"k": "q"}]
+
+  - do:
+      index:
+        index: test-subobjects-false-dynamic-false
+        id: "66"
+        refresh: true
+        body:
+          id: "66"
+          objarr: {"k": "p"}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-subobjects-false-dynamic-false
+        body:
+          query:
+            exists:
+              field: objarr.k
+
+  # both the plain-object document ("66") and the array-of-objects document ("6") must match
+  - match: {hits.total: 2}
+
+---
+"Array of objects under enabled:false object with dynamic:false":
+  # With enabled:false, parsing of the object is skipped entirely before any child mapper is reached,
+  # so objarr.k is never indexed — even though it is explicitly mapped. This holds for both a plain
+  # object and an array of objects, confirming symmetric treatment.
+
+  - do:
+      indices.create:
+        index: test-enabled-false-dynamic-false
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              objarr:
+                type: object
+                enabled: false
+                properties:
+                  k:
+                    type: keyword
+
+  - do:
+      index:
+        index: test-enabled-false-dynamic-false
+        id: "6"
+        body:
+          id: "6"
+          objarr: [{"k": "p"}, {"k": "q"}]
+
+  - do:
+      index:
+        index: test-enabled-false-dynamic-false
+        id: "66"
+        refresh: true
+        body:
+          id: "66"
+          objarr: {"k": "p"}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-enabled-false-dynamic-false
+        body:
+          query:
+            exists:
+              field: objarr.k
+
+  # enabled:false skips the object entirely before any child mapper is reached — 0 hits for both forms
+  - match: {hits.total: 0}

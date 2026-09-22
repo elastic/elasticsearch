@@ -20,6 +20,7 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
@@ -239,10 +240,25 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 // Doc 1 has an explicit null — no binary DV blob for "f" (null slot, no value).
                 cursor.advance();
                 List<IndexableField> doc1Fields = cursor.fields();
-                assertFalse(
-                    "doc1: f binary DV should be absent for explicit null",
-                    doc1Fields.stream().anyMatch(fld -> "f".equals(fld.name()) && fld.binaryValue() != null)
-                );
+                if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+                    assertTrue(
+                        "doc1: f columnar-payload binary DV should be present for explicit null",
+                        doc1Fields.stream().anyMatch(fld -> "f".equals(fld.name()) && fld.binaryValue() != null)
+                    );
+                    assertFalse(
+                        "doc1: f binary DV counts payload should be absent",
+                        doc1Fields.stream().anyMatch(fld -> "f.counts".equals(fld.name()) && fld.numericValue() != null)
+                    );
+                } else {
+                    assertFalse(
+                        "doc1: f binary DV should be absent for explicit null",
+                        doc1Fields.stream().anyMatch(fld -> "f".equals(fld.name()) && fld.binaryValue() != null)
+                    );
+                    assertTrue(
+                        "doc1: f binary DV counts payload should be present",
+                        doc1Fields.stream().anyMatch(fld -> "f.counts".equals(fld.name()) && fld.numericValue() != null)
+                    );
+                }
             }
         } finally {
             closeShards(shard);

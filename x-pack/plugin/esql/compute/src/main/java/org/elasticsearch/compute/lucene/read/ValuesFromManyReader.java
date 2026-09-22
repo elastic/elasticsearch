@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Loads values from a many leaves. Much less efficient than {@link ValuesFromSingleReader}.
@@ -186,10 +187,22 @@ class ValuesFromManyReader extends ValuesReader {
                 end++;
             }
             int[] result = new int[end - start];
-            for (int i = start; i < end; i++) {
-                result[i - start] = docs.docs().getInt(forwards[i]);
+            if (docs.mayContainDuplicates() == false) {
+                for (int i = start; i < end; i++) {
+                    result[i - start] = docs.docs().getInt(forwards[i]);
+                }
+                return result;
             }
-            return result;
+            // Stored fields are loaded once for adjacent duplicate positions, so select the
+            // reader from the distinct document IDs rather than the number of result rows.
+            int count = 0;
+            for (int i = start; i < end; i++) {
+                int doc = docs.docs().getInt(forwards[i]);
+                if (count == 0 || doc != result[count - 1]) {
+                    result[count++] = doc;
+                }
+            }
+            return count == result.length ? result : Arrays.copyOf(result, count);
         }
 
         /**

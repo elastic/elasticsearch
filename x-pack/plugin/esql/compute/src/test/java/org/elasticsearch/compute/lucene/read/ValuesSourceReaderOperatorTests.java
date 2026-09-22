@@ -1762,17 +1762,50 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
     }
 
+    public void testManyReaderUsesSequentialStoredFieldsForDenseRangeWithDuplicates() throws IOException {
+        testManyReaderStoredFields(
+            IntStream.rangeClosed(0, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY).flatMap(doc -> IntStream.of(doc, doc)).toArray(),
+            true
+        );
+    }
+
+    public void testManyReaderUsesSequentialStoredFieldsForDenseSourceRange() throws IOException {
+        testManyReaderRowStrideFields(
+            IntStream.range(0, between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY + 1, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2))
+                .toArray(),
+            true,
+            true
+        );
+    }
+
+    public void testManyReaderUsesRandomStoredFieldsForSmallDenseSourceRange() throws IOException {
+        testManyReaderRowStrideFields(IntStream.range(0, between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY)).toArray(), false, true);
+    }
+
     public void testManyReaderUsesRandomStoredFieldsForSparseRange() throws IOException {
         int count = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY + 1, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2);
         testManyReaderStoredFields(IntStream.range(0, count).map(i -> i * 2).toArray(), false);
     }
 
+    public void testManyReaderUsesRandomStoredFieldsForRangeWithDuplicateAndGap() throws IOException {
+        testManyReaderStoredFields(
+            IntStream.concat(IntStream.of(0, 0), IntStream.rangeClosed(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY + 1)).toArray(),
+            false
+        );
+    }
+
     private void testManyReaderStoredFields(int[] selectedDocIds, boolean sequential) throws IOException {
+        testManyReaderRowStrideFields(selectedDocIds, sequential, false);
+    }
+
+    private void testManyReaderRowStrideFields(int[] selectedDocIds, boolean sequential, boolean sourceBacked) throws IOException {
         int docCount = selectedDocIds[selectedDocIds.length - 1] + 1;
         initIndex(docCount, docCount);
         reader = ElasticsearchDirectoryReader.wrap((DirectoryReader) reader, new ShardId("index", "_na_", 0));
         assertThat(reader.leaves(), hasSize(1));
         assertThat(reader.leaves().getFirst().reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
+        String fieldName = sourceBacked ? "source_text" : "stored_text";
+        MappedFieldType fieldType = sourceBacked ? mapperService.fieldType(fieldName) : storedTextField(fieldName);
 
         List<Integer> docIds = IntStream.of(selectedDocIds).boxed().collect(Collectors.toList());
         Randomness.shuffle(docIds);
@@ -1782,7 +1815,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             for (int docId : docIds) {
                 builder.append(0, 0, docId);
             }
-            docVector = builder.build(DocVector.config());
+            DocVector.Config config = DocVector.config();
+            if (IntStream.of(selectedDocIds).distinct().count() != selectedDocIds.length) {
+                config.mayContainDuplicates();
+            }
+            docVector = builder.build(config);
         }
         assertFalse("FixedBuilder routes through ValuesFromManyReader", docVector.singleSegment());
 
@@ -1791,10 +1828,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             .run(
                 new ValuesSourceReaderOperator.Factory(
                     ByteSizeValue.ofGb(1),
-                    List.of(
-                        fieldInfo(mapperService.fieldType("key"), ElementType.INT),
-                        fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
-                    ),
+                    List.of(fieldInfo(mapperService.fieldType("key"), ElementType.INT), fieldInfo(fieldType, ElementType.BYTES_REF)),
                     new IndexedByShardIdFromSingleton<>(
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
@@ -1820,9 +1854,18 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         assertMap(
             status.readersBuilt(),
             matchesMap().entry("key:column_at_a_time:IntsFromDocValues.Singleton", 1)
-                .entry("stored_text:column_at_a_time:null", 1)
-                .entry("stored_text:row_stride:BlockStoredFieldsReader.Bytes", 1)
-                .entry("stored_fields[requires_source:false, fields:1, sequential: " + sequential + "]", 1)
+                .entry(fieldName + ":column_at_a_time:null", 1)
+                .entry(fieldName + ":row_stride:" + (sourceBacked ? "BlockSourceReader.Bytes" : "BlockStoredFieldsReader.Bytes"), 1)
+                .entry(
+                    "stored_fields[requires_source:"
+                        + sourceBacked
+                        + ", fields:"
+                        + (sourceBacked ? 0 : 1)
+                        + ", sequential: "
+                        + sequential
+                        + "]",
+                    1
+                )
         );
         assertDriverContext(driverContext);
     }

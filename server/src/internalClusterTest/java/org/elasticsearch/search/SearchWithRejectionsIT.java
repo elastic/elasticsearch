@@ -10,7 +10,6 @@
 package org.elasticsearch.search;
 
 import org.apache.logging.log4j.Level;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
@@ -71,31 +70,33 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         for (int i = 0; i < numSearches; i++) {
             final int id = i;
             outstanding.add(id);
-            prepareSearch().setQuery(matchAllQuery()).setSearchType(searchType).execute(
-                ActionListener.runAfter(
-                    ActionListener.wrap(r -> {}, e -> {}),
-                    () -> { outstanding.remove(id); completed.countDown(); }
-                )
-            );
+            prepareSearch("test").setQuery(matchAllQuery())
+                .setSearchType(searchType)
+                .execute(ActionListener.runAfter(ActionListener.noop(), () -> {
+                    outstanding.remove(id);
+                    completed.countDown();
+                }));
         }
         if (completed.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS) == false) {
             logger.info("outstanding searches: {}", outstanding);
+            HotThreads.logLocalHotThreads(logger, Level.INFO, "search did not complete", ReferenceDocs.LOGGING);
             try {
                 logger.info(
                     "in-flight tasks: {}",
-                    clusterAdmin().prepareListTasks().setDetailed(true).get(SAFE_AWAIT_TIMEOUT)
+                    clusterAdmin().prepareListTasks().setActions("indices:data/read/search*").setDetailed(true).get(SAFE_AWAIT_TIMEOUT)
                 );
             } catch (Exception e) {
                 logger.warn("could not list tasks", e);
             }
-            HotThreads.logLocalHotThreads(logger, Level.INFO, "search did not complete", ReferenceDocs.LOGGING);
-            fail(Strings.format(
-                "%d of [%d] searches with type [%s] did not complete within [%s]",
-                outstanding.size(),
-                numSearches,
-                searchType,
-                SAFE_AWAIT_TIMEOUT
-            ));
+            fail(
+                Strings.format(
+                    "%d of [%d] searches with type [%s] did not complete within [%s]",
+                    completed.getCount(),
+                    numSearches,
+                    searchType,
+                    SAFE_AWAIT_TIMEOUT
+                )
+            );
         }
         assertBusyOpenContexts("test", 0L);
     }

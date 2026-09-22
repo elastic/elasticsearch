@@ -5059,55 +5059,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testForkOverOneDataset() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("fork_one", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "FROM fork_one | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, first_name, _fork | SORT _fork"
-                ),
-                TIMEOUT
-            )
-        ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(0).get(2).toString(), equalTo("fork1"));
-            assertThat(rows.get(1).get(0), equalTo(2));
-            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
-            assertThat(rows.get(1).get(2).toString(), equalTo("fork2"));
-        }
-    }
-
-    public void testForkOverTwoDatasets() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("fork_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("fork_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "FROM fork_a, fork_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no"
-                ),
-                TIMEOUT
-            )
-        ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(4));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
-            assertThat(rows.get(1).get(0), equalTo(1));
-            assertThat(rows.get(1).get(1).toString(), equalTo("fork1"));
-            assertThat(rows.get(2).get(0), equalTo(2));
-            assertThat(rows.get(2).get(1).toString(), equalTo("fork2"));
-            assertThat(rows.get(3).get(0), equalTo(2));
-            assertThat(rows.get(3).get(1).toString(), equalTo("fork2"));
-        }
-    }
-
     public void testForkOverMixedIndexAndDataset() throws Exception {
         createIndex("fork_empty_idx");
         ensureGreen("fork_empty_idx");
@@ -5228,29 +5179,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             () -> run(syncEsqlQueryRequest("FROM fork_body_view | FORK (WHERE emp_no == 1) (WHERE emp_no == 1)"), TIMEOUT).close()
         );
         assertCauseMessageContains(failure, "Only a single FORK command is supported");
-    }
-
-    public void testForkStatsOverTwoDatasets() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("fork_stats_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        registerDataset("fork_stats_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "FROM fork_stats_a, fork_stats_b | FORK (STATS s = SUM(emp_no)) (WHERE emp_no > 1 | STATS s = SUM(emp_no)) | KEEP s, _fork | SORT _fork"
-                ),
-                TIMEOUT
-            )
-        ) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            // emp_no 1+2+3 on each dataset: 6 * 2 = 12. The filtered branch drops emp_no 1: (2+3) * 2 = 10.
-            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(12L));
-            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
-            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(10L));
-            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
-        }
     }
 
     public void testFromMixedWithWhere() throws Exception {

@@ -1439,6 +1439,13 @@ public class EsqlCapabilities {
         FORK_V9,
 
         /**
+         * {@code FORK} over a {@code FROM} that expands to one or more datasets. The expansion is one
+         * source fan-in, so it is allowed under {@code FORK}. A node without this capability rejects
+         * that expansion as a subquery.
+         */
+        FORK_OVER_DATASETS,
+
+        /**
          * Support for union types in FORK
          */
         FORK_UNION_TYPES,

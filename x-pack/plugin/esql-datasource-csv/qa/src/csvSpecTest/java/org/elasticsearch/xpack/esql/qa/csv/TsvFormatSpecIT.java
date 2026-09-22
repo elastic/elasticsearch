@@ -51,8 +51,8 @@ public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
     // employees bracket columns) assume brackets parsing, which is no longer the default. Scalar
     // coverage comes from csv-basic.csv-spec (bracket-free employees twin) and multi-value coverage
     // from tsv-multivalue.csv-spec. The multifile specs only project scalar columns, so they parse
-    // correctly under the default (tab delimiter, no column misalignment). external-heavy-aggregates
-    // uses only the bracket-free employees_no_mv twin, so it parses under TSV's default too.
+    // correctly under the default (tab delimiter, no column misalignment). external-heavy-aggregates and
+    // external-fork use only the bracket-free employees_no_mv twin, so they parse under TSV's default too.
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTests(
@@ -61,6 +61,7 @@ public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
             "/csv-declared-schema.csv-spec",
             "/datasources/external-declared-schema.csv-spec",
             "/csv-declared-schema-multifile.csv-spec",
+            "/datasources/external-fork.csv-spec",
             "/datasources/external-heavy-aggregates.csv-spec",
             "/datasources/external-multifile.csv-spec",
             "/datasources/external-multifile-resolution.csv-spec",

@@ -29,7 +29,9 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.parseNdjson;
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.tolerateDefaultLimitWarning;
@@ -67,6 +69,12 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     @After
     public void assertRequestBreakerEmpty() throws Exception {
         EsqlSpecTestCase.assertRequestBreakerEmpty();
+    }
+
+    private static final Pattern RANDOMIZED_RUNNER_SUFFIX_AT_END = Pattern.compile("(?:\\s+\\{[^}]*\\})+$");
+
+    private String viewNameForTest(String prefix) {
+        return prefix + RANDOMIZED_RUNNER_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("").toLowerCase(Locale.ROOT);
     }
 
     private static final String INDEX = "stream-test";
@@ -179,7 +187,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     public void testDropNullColumnsViewOverRowKeepsColumn() throws IOException {
-        String viewName = "test-view-row-" + getTestName().toLowerCase(java.util.Locale.ROOT);
+        String viewName = viewNameForTest("test-view-row-");
         Request createView = new Request("PUT", "/_query/view/" + viewName);
         createView.setJsonEntity("{\"query\": \"ROW f = 1\"}");
         try {
@@ -235,7 +243,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     private void assertUnionDropsNothing(String viewSuffix, String viewBody, String viewColumn, Object viewColumnValue) throws IOException {
-        String viewName = "test-union-view-" + viewSuffix + "-" + getTestName().toLowerCase(java.util.Locale.ROOT);
+        String viewName = viewNameForTest("test-union-view-" + viewSuffix + "-");
         Request createView = new Request("PUT", "/_query/view/" + viewName);
         createView.setJsonEntity("{\"query\": \"" + viewBody.replace("\"", "\\\"") + "\"}");
         try {

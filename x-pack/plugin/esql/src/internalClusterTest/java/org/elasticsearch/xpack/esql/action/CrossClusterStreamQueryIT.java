@@ -12,12 +12,20 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class CrossClusterStreamQueryIT extends AbstractCrossClusterTestCase {
+
+    private static final Pattern RANDOMIZED_RUNNER_SUFFIX_AT_END = Pattern.compile("(?:\\s+\\{[^}]*\\})+$");
+
+    private String viewNameForTest(String prefix) {
+        return prefix + RANDOMIZED_RUNNER_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("").toLowerCase(Locale.ROOT);
+    }
 
     @Before
     public void setupTwoClusters() throws Exception {
@@ -71,7 +79,7 @@ public class CrossClusterStreamQueryIT extends AbstractCrossClusterTestCase {
         client(REMOTE_CLUSTER_1).prepareIndex(REMOTE_INDEX).setSource("const", 42L).get();
         client(REMOTE_CLUSTER_1).admin().indices().prepareRefresh(REMOTE_INDEX).get();
 
-        String viewName = "drop-null-ccs-view-" + getTestName().toLowerCase(java.util.Locale.ROOT);
+        String viewName = viewNameForTest("drop-null-ccs-view-");
         assertAcked(
             client(LOCAL_CLUSTER).execute(
                 PutViewAction.INSTANCE,

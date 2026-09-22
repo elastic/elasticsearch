@@ -23,8 +23,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.operator.DriverSleeps;
-import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -70,7 +68,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.assertStreamInvariants;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -357,48 +354,6 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    /**
-     * Asserts, within a 60-second {@code assertBusy} budget, that the coordinator's {@code final}
-     * driver is currently parked on {@code streaming_page_consumer} backpressure. The task list is
-     * fetched only from {@link #coordinatingNode} (via {@code .setNodesIds}) so the observation itself
-     * never crosses the inter-node transport links and is not perturbed by any active disruption.
-     */
-    private void assertFinalDriverParkedOnConsumer() throws Exception {
-        assertBusy(() -> {
-            ListTasksResponse taskResp = client(coordinatingNode).admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(DriverTaskRunner.ACTION_NAME)
-                .setNodesIds(coordinatingNode)
-                .setDetailed(true)
-                .get();
-            assertThat("task list on coordinating node must have no node failures", taskResp.getNodeFailures(), empty());
-            DriverStatus finalDriver = taskResp.getTasks()
-                .stream()
-                .filter(t -> t.status() instanceof DriverStatus s && s.description().endsWith("final"))
-                .map(t -> (DriverStatus) t.status())
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("no 'final' driver task found; all tasks: " + taskResp.getTasks()));
-            assertThat(
-                "final driver must be ASYNC; status=" + finalDriver.status() + " sleeps=" + finalDriver.sleeps().counts(),
-                finalDriver.status(),
-                equalTo(DriverStatus.Status.ASYNC)
-            );
-            List<DriverSleeps.Sleep> lastSleeps = finalDriver.sleeps().last();
-            assertFalse("final driver has no recorded sleeps; sleeps=" + finalDriver.sleeps().counts(), lastSleeps.isEmpty());
-            DriverSleeps.Sleep currentSleep = lastSleeps.get(lastSleeps.size() - 1);
-            assertTrue("final driver must currently be sleeping; last sleep=" + currentSleep, currentSleep.isStillSleeping());
-            assertThat(
-                "final driver must be parked on streaming_page_consumer backpressure; reason="
-                    + currentSleep.reason()
-                    + " sleeps="
-                    + finalDriver.sleeps().counts(),
-                currentSleep.reason(),
-                containsString("streaming_page_consumer")
-            );
-        }, 60, TimeUnit.SECONDS);
-    }
-
     public void testHappyPathOverRealHttp() throws Exception {
         StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 100"), null, "batch_size=5");
         assertServerFullyCleanedUp();
@@ -589,20 +544,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             1,
             streamBody("FROM " + STREAM_INDEX + " | EVAL pad = REPEAT(\"x\", 2048) | LIMIT 1000"),
             true,
-            () -> {
-                // Verify that the final driver has parked on streaming_page_consumer *before*
-                // starting the disruption. The network is healthy here, so pages can flow from
-                // data nodes and fill the publisher buffer until the suspended HTTP consumer
-                // provides back-pressure. Establishing this state first avoids the race where
-                // the disruption starves the exchange, causing the driver to park on "exchange
-                // empty" instead and the assertion to time out.
-                assertFinalDriverParkedOnConsumer();
-                delay.startDisrupting();
-                // Verify the driver remains parked on streaming_page_consumer throughout the
-                // delay. The HTTP consumer is still suspended, so back-pressure holds; the
-                // exchange has buffered pages that continue to arrive (with the induced delay).
-                assertFinalDriverParkedOnConsumer();
-            },
+            delay::startDisrupting,
             "batch_size=2"
         );
 

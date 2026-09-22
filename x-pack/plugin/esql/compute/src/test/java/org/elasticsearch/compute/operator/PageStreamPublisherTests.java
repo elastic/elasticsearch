@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -226,8 +227,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
                     prod.addPage(makePageWithValues(cranky, 0, 2));
                     prod.addPage(makePageWithValues(cranky, 2, 2));
                     prod.addPage(makePageWithValues(cranky, 4, 1));
-                    expectPage(s, rows(0, pageSize));
-                    finishStream(prod, p);
+                    if (expectPageOrCircuitBreak(p, s, rows(0, pageSize))) {
+                        finishStream(prod, p);
+                    }
                 } finally {
                     s.cancel();
                     releasePages(s.receivedPages);
@@ -241,8 +243,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
                 try {
                     prod.addPage(makeNullPage(cranky, 2));
                     prod.addPage(makePageWithValues(cranky, 0, 3));
-                    expectPage(s, null, null, 0L, 1L, 2L);
-                    finishStream(prod, p);
+                    if (expectPageOrCircuitBreak(p, s, null, null, 0L, 1L, 2L)) {
+                        finishStream(prod, p);
+                    }
                 } finally {
                     s.cancel();
                     releasePages(s.receivedPages);
@@ -731,6 +734,21 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         expectPages(subscriber, column0);
     }
 
+    private static boolean expectPageOrCircuitBreak(PageStreamPublisher publisher, TestSubscriber subscriber, Long... column0) {
+        Exception failure = publisher.failure();
+        if (failure == null) {
+            expectPage(subscriber, column0);
+            return true;
+        }
+        assertThat(failure, instanceOf(CircuitBreakingException.class));
+        assertThat(failure.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        assertThat("the swallowed build failure must be reported through onError", subscriber.error, sameInstance(failure));
+        assertThat(subscriber.errorCount, equalTo(1));
+        expectNoPages(subscriber);
+        assertDriverUnblocked(publisher);
+        return false;
+    }
+
     private static void expectNoPages(TestSubscriber subscriber) {
         assertThat(subscriber.receivedPages, hasSize(0));
     }
@@ -744,7 +762,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
     }
 
     private static void assertDriverBlocked(PageStreamPublisher publisher) {
-        assertFalse(publisher.waitForWriting().listener().isDone());
+        IsBlockedResult blocked = publisher.waitForWriting();
+        assertFalse(blocked.listener().isDone());
+        assertThat(blocked.reason(), equalTo("streaming_page_consumer"));
     }
 
     private static void assertDriverUnblocked(PageStreamPublisher publisher) {

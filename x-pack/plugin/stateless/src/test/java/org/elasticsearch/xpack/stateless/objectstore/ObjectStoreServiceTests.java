@@ -125,13 +125,13 @@ import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.O
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -1445,9 +1445,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         final int numCopyThreads = node.threadPool.info(StatelessPlugin.BLOB_COPY_THREAD_POOL).getMax();
         final var releaseThreadsLatch = new CountDownLatch(1);
         for (int i = 0; i < numCopyThreads; i++) {
-            node.threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL).execute(() -> {
-                safeAwait(releaseThreadsLatch);
-            });
+            node.threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL).execute(() -> { safeAwait(releaseThreadsLatch); });
         }
         return Optional.of(releaseThreadsLatch);
     }

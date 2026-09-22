@@ -115,7 +115,9 @@ public class ConcurrentMultipartHelper {
                 }
                 throw re;
             }
-            final IOException exception = first instanceof IOException ioe ? ioe : new IOException("Concurrent multipart operation failed", first);
+            final IOException exception = first instanceof IOException ioe
+                ? ioe
+                : new IOException("Concurrent multipart operation failed", first);
             while (it.hasNext()) {
                 exception.addSuppressed(it.next());
             }

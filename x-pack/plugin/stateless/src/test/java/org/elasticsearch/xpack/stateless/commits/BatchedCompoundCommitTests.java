@@ -25,12 +25,9 @@ public class BatchedCompoundCommitTests extends ESTestCase {
         var second = randomCompoundCommit(shardId, new PrimaryTermAndGeneration(primaryTerm, 6), false);
         var third = randomCompoundCommit(shardId, new PrimaryTermAndGeneration(primaryTerm, 7), true);
 
-        var batchedCompoundCommit = new BatchedCompoundCommit(
-            first.primaryTermAndGeneration(),
-            List.of(first, second, third)
-        );
+        var batchedCompoundCommit = new BatchedCompoundCommit(first.primaryTermAndGeneration(), List.of(first, second, third));
 
         assertThat(batchedCompoundCommit.toBlobFile().blobName(), equalTo("stateless_commit_5"));
-        assertThat(batchedCompoundCommit.toString(), equalTo("[stateless_commit_5][term:" + primaryTerm +"][gen:7][h]"));
+        assertThat(batchedCompoundCommit.toString(), equalTo("[stateless_commit_5][term:" + primaryTerm + "][gen:7][h]"));
     }
 }

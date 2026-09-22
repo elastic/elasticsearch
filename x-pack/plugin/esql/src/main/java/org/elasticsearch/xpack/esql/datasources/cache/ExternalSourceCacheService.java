@@ -77,7 +77,7 @@ public class ExternalSourceCacheService implements Closeable {
      * Its own slice, like the aggregate's: the entries it saves I/O on are exactly the ones other datasets' per-file
      * churn would otherwise have evicted.
      */
-    private final Cache<DatasetSchemaKey, DatasetResolution> datasetSchemaCache;
+    private final Cache<DatasetSchemaKey, DatasetSchema> datasetSchemaCache;
     private final long datasetSchemaBudget;
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
@@ -153,6 +153,7 @@ public class ExternalSourceCacheService implements Closeable {
     private final LongAdder datasetAggregateMisses = new LongAdder();
     private final LongAdder datasetSchemaHits = new LongAdder();
     private final LongAdder datasetSchemaMisses = new LongAdder();
+    private final LongAdder datasetSchemaRefused = new LongAdder();
     private final LongAdder statsAggregateIncomplete = new LongAdder();
 
     public ExternalSourceCacheService(Settings settings) {
@@ -188,7 +189,7 @@ public class ExternalSourceCacheService implements Closeable {
             .weigher((key, value) -> value.estimatedBytes())
             .build();
 
-        this.datasetSchemaCache = CacheBuilder.<DatasetSchemaKey, DatasetResolution>builder()
+        this.datasetSchemaCache = CacheBuilder.<DatasetSchemaKey, DatasetSchema>builder()
             .setMaximumWeight(datasetSchemaBudget)
             .weigher((key, value) -> value.estimatedBytes())
             .build();
@@ -322,11 +323,11 @@ public class ExternalSourceCacheService implements Closeable {
      * no key — a resolve the identity cannot key, which is not a miss either, so it is not counted as one.
      */
     @Nullable
-    public DatasetResolution getDatasetResolution(@Nullable DatasetSchemaKey key) {
+    public DatasetSchema getDatasetSchema(@Nullable DatasetSchemaKey key) {
         if (enabled == false || key == null) {
             return null;
         }
-        DatasetResolution resolution = datasetSchemaCache.get(key);
+        DatasetSchema resolution = datasetSchemaCache.get(key);
         (resolution == null ? datasetSchemaMisses : datasetSchemaHits).increment();
         return resolution;
     }
@@ -336,21 +337,31 @@ public class ExternalSourceCacheService implements Closeable {
      * it is back under its weight, and a new entry goes in at the head: one heavier than the whole slice would push out
      * every other dataset's entry before being evicted itself, on every cold resolve of that dataset. Refusing it
      * costs that dataset its warm path and nobody else theirs.
+     * <p>
+     * A refusal is counted, so a dataset that never warms can be told apart from one never resolved twice.
      */
-    public void putDatasetResolution(@Nullable DatasetSchemaKey key, DatasetResolution resolution) {
+    public void putDatasetSchema(@Nullable DatasetSchemaKey key, DatasetSchema resolution) {
         if (enabled == false || key == null) {
             return;
         }
-        long weight = resolution.estimatedBytes();
-        if (weight > datasetSchemaBudget) {
-            logger.debug(
-                "not caching a dataset resolution of [{}] bytes: it exceeds the whole [{}]-byte slice",
-                weight,
-                datasetSchemaBudget
-            );
-            return;
+        try {
+            long weight = resolution.estimatedBytes();
+            if (weight > datasetSchemaBudget) {
+                datasetSchemaRefused.increment();
+                logger.debug(
+                    "not caching a dataset schema of [{}] bytes: it exceeds the whole [{}]-byte slice",
+                    weight,
+                    datasetSchemaBudget
+                );
+                return;
+            }
+            datasetSchemaCache.put(key, resolution);
+        } catch (Exception e) {
+            // Caching is an optimization. A resolve that succeeded must not fail because its result could not be
+            // stored, whatever the reason it could not be stored.
+            datasetSchemaRefused.increment();
+            logger.debug(() -> "could not cache a dataset schema under [" + key + "]", e);
         }
-        datasetSchemaCache.put(key, resolution);
     }
 
     /**
@@ -1619,6 +1630,7 @@ public class ExternalSourceCacheService implements Closeable {
         stats.put("dataset_schema_cache.evictions", datasetSchemaCache.stats().getEvictions());
         stats.put("dataset_schema.hits", datasetSchemaHits.sum());
         stats.put("dataset_schema.misses", datasetSchemaMisses.sum());
+        stats.put("dataset_schema.refused", datasetSchemaRefused.sum());
         synchronized (pendingDatasetAggregates) {
             stats.put("dataset_aggregate.pending", pendingDatasetAggregates.size());
         }
@@ -1640,10 +1652,6 @@ public class ExternalSourceCacheService implements Closeable {
     // Visible for testing
     Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache() {
         return datasetAggregateCache;
-    }
-
-    Cache<DatasetSchemaKey, DatasetResolution> datasetSchemaCache() {
-        return datasetSchemaCache;
     }
 
     // Visible for testing

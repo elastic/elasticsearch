@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -98,6 +99,22 @@ public class DatasetSchemaKeysTests extends ESTestCase {
         assertEquals("the rendered forms collide", render(commaDelimited), render(oneOddDelimiter));
         FileList files = listing("a.csv", "b.csv");
         assertNotEquals(key(SchemaBreadth.EVERY_FILE, files, commaDelimited), key(SchemaBreadth.EVERY_FILE, files, oneOddDelimiter));
+    }
+
+    public void testASettingWithNoValueIsNotPartOfTheKey() {
+        FileList files = listing("a.csv", "b.csv");
+        Map<String, Object> withNullValue = new HashMap<>();
+        withNullValue.put("delimiter", null);
+        assertEquals(
+            "a setting present but unset says nothing about how the file is read",
+            key(SchemaBreadth.EVERY_FILE, files, Map.of()),
+            key(SchemaBreadth.EVERY_FILE, files, withNullValue)
+        );
+    }
+
+    public void testNoSettingsAtAllKeysTheSameWhetherAbsentOrEmpty() {
+        FileList files = listing("a.csv", "b.csv");
+        assertEquals(key(SchemaBreadth.EVERY_FILE, files, Map.of()), DatasetSchemaKeys.of(SchemaBreadth.EVERY_FILE, files, "csv", null));
     }
 
     public void testDeclarationProducesNoKey() {

@@ -67,36 +67,36 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /** A first_file_wins resolution: the anchor's schema, and nothing else. */
-    private static DatasetResolution anchorResolution(int columns) {
-        return new DatasetResolution.FromAnchor(schemaEntry(columns));
+    private static DatasetSchema anchorResolution(int columns) {
+        return new DatasetSchema.FromAnchor(schemaEntry(columns));
     }
 
     /**
      * A union_by_name resolution over {@code files} files read at one {@code columns}-wide schema, each carrying its own
      * native types — the widest an entry gets, since a file whose types match the reconciled ones carries none.
      */
-    private static DatasetResolution resolution(int files, int columns) {
+    private static DatasetSchema resolution(int files, int columns) {
         Map<String, DataType> inferredTypes = new LinkedHashMap<>();
         for (int c = 0; c < columns; c++) {
             inferredTypes.put("column_" + c, DataType.LONG);
         }
-        Map<FileFingerprint, DatasetResolution.FromEveryFile.FileShape> shapes = new LinkedHashMap<>();
+        Map<FileFingerprint, DatasetSchema.FromEveryFile.FileShape> shapes = new LinkedHashMap<>();
         for (int i = 0; i < files; i++) {
             shapes.put(
                 FileFingerprint.of("s3://bucket/data/part-" + i + ".parquet", 5_000, 100 + i),
-                new DatasetResolution.FromEveryFile.FileShape(0, null, inferredTypes)
+                new DatasetSchema.FromEveryFile.FileShape(0, null, inferredTypes)
             );
         }
-        return new DatasetResolution.FromEveryFile(schemaEntry(columns), List.of(schemaEntry(columns)), shapes);
+        return new DatasetSchema.FromEveryFile(schemaEntry(columns), List.of(schemaEntry(columns)), shapes);
     }
 
     public void testDatasetResolutionRoundTripsAndCountsHitsAndMisses() {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             DatasetSchemaKey key = datasetKey("roundtrip");
-            assertNull(service.getDatasetResolution(key));
-            DatasetResolution resolution = resolution(3, 4);
-            service.putDatasetResolution(key, resolution);
-            assertSame(resolution, service.getDatasetResolution(key));
+            assertNull(service.getDatasetSchema(key));
+            DatasetSchema resolution = resolution(3, 4);
+            service.putDatasetSchema(key, resolution);
+            assertSame(resolution, service.getDatasetSchema(key));
 
             Map<String, Object> stats = service.usageStats();
             assertEquals(1L, ((Number) stats.get("dataset_schema.misses")).longValue());
@@ -108,7 +108,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     /** A resolve the identity cannot key is neither a hit nor a miss: counting it as a miss would hide real misses. */
     public void testALookupWithNoKeyIsNotCounted() {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            assertNull(service.getDatasetResolution(null));
+            assertNull(service.getDatasetSchema(null));
             assertEquals(0L, ((Number) service.usageStats().get("dataset_schema.misses")).longValue());
         }
     }
@@ -120,8 +120,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testEveryServeBuildsFreshAttributes() {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             DatasetSchemaKey key = datasetKey("nameids");
-            service.putDatasetResolution(key, anchorResolution(3));
-            SchemaCacheEntry anchor = ((DatasetResolution.FromAnchor) service.getDatasetResolution(key)).anchor();
+            service.putDatasetSchema(key, anchorResolution(3));
+            SchemaCacheEntry anchor = ((DatasetSchema.FromAnchor) service.getDatasetSchema(key)).anchor();
             List<Attribute> first = anchor.toAttributes();
             List<Attribute> second = anchor.toAttributes();
             for (int i = 0; i < first.size(); i++) {
@@ -139,17 +139,17 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testAResolutionHeavierThanTheWholeSliceIsRefusedAndEvictsNothing() {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             DatasetSchemaKey small = datasetKey("small");
-            service.putDatasetResolution(small, resolution(2, 3));
+            service.putDatasetSchema(small, resolution(2, 3));
 
             // defaultSettings is 10mb, so the slice is 512kb; at 20 columns a file weighs ~2kb, so 1,000 files overflow it.
-            DatasetResolution oversize = resolution(1_000, 20);
+            DatasetSchema oversize = resolution(1_000, 20);
             long slice = ByteSizeValue.parseBytesSizeValue("10mb", "test").getBytes() / 20;
             assertThat("the fixture must actually exceed the slice", oversize.estimatedBytes(), greaterThan(slice));
 
             DatasetSchemaKey big = datasetKey("big");
-            service.putDatasetResolution(big, oversize);
-            assertNull("an entry that can never fit is refused", service.getDatasetResolution(big));
-            assertNotNull("and refusing it evicts nothing", service.getDatasetResolution(small));
+            service.putDatasetSchema(big, oversize);
+            assertNull("an entry that can never fit is refused", service.getDatasetSchema(big));
+            assertNotNull("and refusing it evicts nothing", service.getDatasetSchema(small));
         }
     }
 
@@ -157,10 +157,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testTheSliceIsFivePercentOfTheBudget() {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             long slice = ByteSizeValue.parseBytesSizeValue("10mb", "test").getBytes() / 20;
-            DatasetResolution under = null;
-            DatasetResolution over = null;
+            DatasetSchema under = null;
+            DatasetSchema over = null;
             for (int files = 1; over == null; files += 1) {
-                DatasetResolution candidate = resolution(files, 20);
+                DatasetSchema candidate = resolution(files, 20);
                 if (candidate.estimatedBytes() <= slice) {
                     under = candidate;
                 } else {
@@ -168,20 +168,39 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 }
             }
             assertNotNull(under);
-            service.putDatasetResolution(datasetKey("under"), under);
-            service.putDatasetResolution(datasetKey("over"), over);
-            assertNotNull("the largest entry that fits the 5% slice is kept", service.getDatasetResolution(datasetKey("under")));
-            assertNull("the smallest that does not is refused", service.getDatasetResolution(datasetKey("over")));
+            service.putDatasetSchema(datasetKey("under"), under);
+            service.putDatasetSchema(datasetKey("over"), over);
+            assertNotNull("the largest entry that fits the 5% slice is kept", service.getDatasetSchema(datasetKey("under")));
+            assertNull("the smallest that does not is refused", service.getDatasetSchema(datasetKey("over")));
+        }
+    }
+
+    public void testADisabledCacheNeitherServesNorStoresDatasetResolutions() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            DatasetSchemaKey key = datasetKey("disabled");
+            service.setEnabled(false);
+            service.putDatasetSchema(key, anchorResolution(3));
+            assertNull(service.getDatasetSchema(key));
+            service.setEnabled(true);
+            assertNull("nothing was stored while it was disabled", service.getDatasetSchema(key));
+        }
+    }
+
+    /** A resolve the identity cannot key stores nothing, rather than storing under a key nothing can look up. */
+    public void testStoringWithNoKeyDoesNothing() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            service.putDatasetSchema(null, anchorResolution(3));
+            assertEquals(0L, ((Number) service.usageStats().get("dataset_schema_cache.count")).longValue());
         }
     }
 
     public void testDisablingTheCacheClearsDatasetResolutions() {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             DatasetSchemaKey key = datasetKey("cleared");
-            service.putDatasetResolution(key, resolution(2, 3));
+            service.putDatasetSchema(key, resolution(2, 3));
             service.setEnabled(false);
             service.setEnabled(true);
-            assertNull(service.getDatasetResolution(key));
+            assertNull(service.getDatasetSchema(key));
             assertEquals(0L, ((Number) service.usageStats().get("dataset_schema_cache.count")).longValue());
         }
     }

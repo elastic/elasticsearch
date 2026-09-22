@@ -35,7 +35,7 @@ import java.util.Set;
  * Holds plain data only — names and types rather than attributes — so every serve builds its attributes afresh and no
  * two queries share a {@code NameId}. The conversion to and from a resolved source lives with the resolver.
  */
-public sealed interface DatasetResolution permits DatasetResolution.FromAnchor, DatasetResolution.FromEveryFile {
+public sealed interface DatasetSchema permits DatasetSchema.FromAnchor, DatasetSchema.FromEveryFile {
 
     /** This entry's weight against the cache budget. */
     long estimatedBytes();
@@ -46,7 +46,7 @@ public sealed interface DatasetResolution permits DatasetResolution.FromAnchor, 
      * from the listing on every serve, which is purely CPU work, and each file's statistics are read where they are
      * read today — this resolve never gathered them.
      */
-    record FromAnchor(SchemaCacheEntry anchor) implements DatasetResolution {
+    record FromAnchor(SchemaCacheEntry anchor) implements DatasetSchema {
         @Override
         public long estimatedBytes() {
             return anchor.estimatedBytes();
@@ -60,7 +60,7 @@ public sealed interface DatasetResolution permits DatasetResolution.FromAnchor, 
      */
     record FromEveryFile(SchemaCacheEntry dataset, List<SchemaCacheEntry> fileSchemas, Map<FileFingerprint, FileShape> files)
         implements
-            DatasetResolution {
+            DatasetSchema {
         public FromEveryFile {
             fileSchemas = List.copyOf(fileSchemas);
             files = Map.copyOf(files);

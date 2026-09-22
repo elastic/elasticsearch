@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetSchema;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetSchemaKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
@@ -77,6 +79,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -4803,9 +4806,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     warmOpens.put(cell, provider.schemaCallCount.get() - opensBeforeWarm);
                     coldOpens.put(cell, opensBeforeChurn);
                     assertEquals(
-                        "[" + cell + "] a served schema must equal the one the cold resolve produced",
-                        describe(cold.resolvedSource(glob).metadata().schema()),
-                        describe(warm.resolvedSource(glob).metadata().schema())
+                        "[" + cell + "] a served resolve must produce what the cold one produced",
+                        describeResolved(cold, glob),
+                        describeResolved(warm, glob)
                     );
                 }
             }
@@ -4836,6 +4839,92 @@ public class ExternalSourceResolverTests extends ESTestCase {
             schemaOnlyCells,
             observedSchemaOnly
         );
+    }
+
+    /**
+     * With no format declared on the dataset, the key takes the reading format from the resource pattern, exactly as
+     * the read path does — and refuses to key at all when nothing claims the extension, because a cache is an
+     * optimization and must never turn a resolvable read into a failure.
+     */
+    public void testTheKeyTakesItsFormatFromThePatternAndRefusesAnUnknownOne() throws Exception {
+        Settings cacheSettings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .build();
+        List<StorageEntry> parquet = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        List<StorageEntry> unknown = List.of(entry("s3://bucket/odd/a.weird", 100), entry("s3://bucket/odd/b.weird", 200));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (StorageEntry e : parquet) {
+            schemasByPath.put(e.path().toString(), List.of(attr("id", DataType.INTEGER)));
+        }
+        CountingStorageProvider provider = new CountingStorageProvider(
+            Map.of("s3://bucket/data/", parquet, "s3://bucket/odd/", unknown),
+            schemasByPath
+        );
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+            FileList known = GlobExpander.fileListOf(parquet, "s3://bucket/data/*.parquet");
+            assertNotNull(
+                "the pattern says parquet, so the schema can be keyed",
+                resolver.datasetSchemaKey(known, Map.of(), null, FormatReader.SchemaResolution.UNION_BY_NAME)
+            );
+            FileList unclaimed = GlobExpander.fileListOf(unknown, "s3://bucket/odd/*.weird");
+            assertNull(
+                "nothing claims this extension, so it is not keyed rather than thrown",
+                resolver.datasetSchemaKey(unclaimed, Map.of(), null, FormatReader.SchemaResolution.UNION_BY_NAME)
+            );
+        }
+    }
+
+    /**
+     * Both refusals that keep a partial answer out of the cache and out of a query. Neither can be produced through a
+     * resolve — the key pins every file — so they are exercised where they live.
+     */
+    public void testAFileTheReconcileDidNotDescribeIsNeitherStoredNorServed() throws Exception {
+        Settings cacheSettings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .build();
+        List<StorageEntry> two = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (StorageEntry e : two) {
+            schemasByPath.put(e.path().toString(), schema);
+        }
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", two), schemasByPath);
+        FileList listing = GlobExpander.fileListOf(two, "s3://bucket/data/*.parquet");
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+            ExternalSourceResolution resolved = resolveUnder(
+                resolver,
+                "s3://bucket/data/*.parquet",
+                Map.of("s3://bucket/data/*.parquet", new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))),
+                ResolutionDemand.SCHEMA_DISCOVERY
+            );
+            ExternalSourceResolution.ResolvedSource source = resolved.resolvedSource("s3://bucket/data/*.parquet");
+
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> short1 = new HashMap<>(source.schemaMap());
+            short1.remove(listing.path(1));
+            assertNull(
+                "a reconcile that said nothing about a file cannot be cached: the serve could not rebuild it",
+                ExternalSourceResolver.datasetSchemaOf(source.metadata(), listing, short1, List.of())
+            );
+
+            DatasetSchemaKey key = resolver.datasetSchemaKey(listing, Map.of(), null, FormatReader.SchemaResolution.UNION_BY_NAME);
+            DatasetSchema partial = ExternalSourceResolver.datasetSchemaOf(
+                source.metadata(),
+                GlobExpander.fileListOf(List.of(two.get(0)), "s3://bucket/data/*.parquet"),
+                source.schemaMap(),
+                List.of()
+            );
+            assertNotNull(partial);
+            cacheService.putDatasetSchema(key, partial);
+            assertNull(
+                "an entry that does not cover every listed file is refused, not served in part",
+                resolver.servedFromDatasetSchema(key, listing, Map.of())
+            );
+        }
     }
 
     /**
@@ -5049,6 +5138,43 @@ public class ExternalSourceResolverTests extends ESTestCase {
             describe(schemaBefore),
             describe(schemaAfter)
         );
+    }
+
+    /**
+     * Everything a served resolve claims to reproduce: the dataset's schema and where it came from, the notices the
+     * resolve emitted, and per file the schema it is read at, how its columns map and its own types. Rendered as text
+     * so a failure names the field that differs.
+     * <p>
+     * Statistics are deliberately absent. They are not cached and not reproduced — they are read where they are read
+     * today — so comparing them would assert the opposite of what this change does.
+     */
+    private static List<String> describeResolved(ExternalSourceResolution resolution, String glob) {
+        ExternalSourceResolution.ResolvedSource source = resolution.resolvedSource(glob);
+        List<String> rendered = new ArrayList<>();
+        rendered.add("schema=" + describe(source.metadata().schema()));
+        rendered.add("sourceType=" + source.metadata().sourceType());
+        rendered.add("location=" + source.metadata().location());
+        rendered.add("notices=" + resolution.warnings());
+        rendered.add("files=" + source.fileList().fileCount());
+        List<String> paths = new ArrayList<>();
+        for (StoragePath path : source.schemaMap().keySet()) {
+            paths.add(path.toString());
+        }
+        Collections.sort(paths);
+        rendered.add("mapped=" + paths);
+        for (String path : paths) {
+            SchemaReconciliation.FileSchemaInfo info = source.schemaMap().get(StoragePath.of(path));
+            rendered.add(
+                path
+                    + " -> readAt="
+                    + describe(info.fileSchema().attributes())
+                    + " mapping="
+                    + info.mapping()
+                    + " ownTypes="
+                    + (info.inferredTypes() == null ? null : new TreeMap<>(info.inferredTypes()))
+            );
+        }
+        return rendered;
     }
 
     /** A schema as {@code name:type} pairs, so an assertion failure names the difference instead of an object graph. */

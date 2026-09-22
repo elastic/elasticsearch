@@ -9,8 +9,9 @@ _meta:
   managed: true
 composed_of:
   - metrics@tsdb-settings
+  - labels-prometheus@mappings
   - metrics-prometheus@mappings
-  - metrics-prometheus@settings
+  - prometheus@settings
   - metrics@custom
   - metrics-prometheus@custom
 ignore_missing_component_templates:

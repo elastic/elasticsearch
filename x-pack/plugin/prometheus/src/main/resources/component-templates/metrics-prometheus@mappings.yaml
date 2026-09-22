@@ -4,24 +4,11 @@ _meta:
   description: Default mappings for Prometheus metrics index template installed by x-pack
   managed: true
 template:
-  settings:
-    index.mapping.total_fields.limit: 10000
   mappings:
-    date_detection: false
     properties:
-      "@timestamp":
-        type: date
       data_stream.type:
         type: constant_keyword
         value: metrics
-      data_stream.dataset:
-        type: constant_keyword
-      data_stream.namespace:
-        type: constant_keyword
-      labels:
-        type: passthrough
-        priority: 10
-        time_series_dimension: true
       # Similar to the OTel mappings, Prometheus metrics also get a passthrough namespace for metrics.
       # This ensures that dots in field names are no issues (metrics.foo and metrics.foo.bar can both be ingested)
       metrics:

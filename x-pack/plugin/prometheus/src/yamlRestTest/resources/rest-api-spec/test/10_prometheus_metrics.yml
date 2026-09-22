@@ -12,12 +12,65 @@ setup:
               index:
                 time_series:
                   start_time: 2026-01-01T00:00:00
+  - do:
+      cluster.put_component_template:
+        name: exemplars-prometheus@custom
+        body:
+          template:
+            settings:
+              index:
+                time_series:
+                  start_time: 2026-01-01T00:00:00
 ---
 "Test index template exists":
   - do:
       indices.get_index_template:
         name: metrics-prometheus@template
   - length: { index_templates: 1 }
+---
+"Test exemplars index template exists":
+  - do:
+      indices.get_index_template:
+        name: exemplars-prometheus@template
+  - length: { index_templates: 1 }
+---
+"Test exemplar mappings":
+  - do:
+      bulk:
+        index: exemplars-generic.prometheus-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2026-01-01T00:00:00"
+            data_stream:
+              dataset: "generic.prometheus"
+              namespace: "default"
+              type: "exemplars"
+            labels:
+              job: "node_exporter"
+              instance: "localhost:9100"
+            exemplar_labels:
+              trace_id: "0af7651916cd43dd8448eb211c80319c"
+            metric_name: "node_cpu_seconds_total"
+            value: 42.0
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: exemplars-generic.prometheus-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.data_stream.properties.type.value: "exemplars" }
+  - match: { .$idx0name.mappings.properties.labels.type: "passthrough" }
+  - match: { .$idx0name.mappings.properties.labels.time_series_dimension: true }
+  - match: { .$idx0name.mappings.properties.exemplar_labels.type: "passthrough" }
+  - is_false: .$idx0name.mappings.properties.exemplar_labels.time_series_dimension
+  - match: { .$idx0name.mappings.properties.metric_name.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.metric_name.time_series_dimension: true }
+  - match: { .$idx0name.mappings.properties.value.type: "double" }
+  - is_false: .$idx0name.mappings.properties.metrics
 ---
 "Test bulk ingest and query":
   - do:

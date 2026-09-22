@@ -1,0 +1,19 @@
+---
+version: ${xpack.prometheus.template.version}
+_meta:
+  description: Default mappings for the Prometheus metric exemplars index template installed by x-pack
+  managed: true
+template:
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: exemplars
+      value:
+        type: double
+      metric_name:
+        type: keyword
+        time_series_dimension: true
+      exemplar_labels:
+        type: passthrough
+        priority: 20

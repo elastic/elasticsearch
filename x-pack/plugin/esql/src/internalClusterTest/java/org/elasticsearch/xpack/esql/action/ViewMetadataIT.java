@@ -26,6 +26,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -43,6 +44,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
         Map.entry("view_languages_it", "FROM languages"),
         Map.entry("view_languages_pattern_it", "FROM languages METADATA _in*"),
         Map.entry("view_languages_subquery_meta_it", "FROM (FROM languages) METADATA _index"),
+        Map.entry("view_logs_b_it", "FROM view_it_logs_b"),
         Map.entry("view_logs_exclusion_it", "FROM view_it_logs*, -view_it_logs_archive"),
         Map.entry("view_multi_source_metadata_it", "FROM view_it_logs_a, view_it_logs_b METADATA _index")
     );
@@ -315,6 +317,26 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(2).get(0), equalTo("view_it_logs_b"));
             assertThat(rows.get(2).get(1), nullValue());
         }
+    }
+
+    public void testMixedViewAndIndexOrderNotImportant() {
+        assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
+        assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+
+        String projection = " | KEEP tag, _index | SORT tag";
+        List<List<Object>> viewFirst;
+        List<List<Object>> indexFirst;
+        try (var response = run("FROM view_logs_b_it, view_it_logs_a METADATA _index" + projection)) {
+            viewFirst = getValuesList(response);
+        }
+        try (var response = run("FROM view_it_logs_a, view_logs_b_it METADATA _index" + projection)) {
+            indexFirst = getValuesList(response);
+        }
+
+        assertThat(indexFirst, equalTo(viewFirst));
+        var metadataValues = viewFirst.stream().map(row -> row.get(1)).toList();
+        assertThat(metadataValues, hasItem(nullValue()));
+        assertThat(metadataValues, hasItem(notNullValue()));
     }
 
     public void testMultiSourceViewBodyMetadataPassesThrough() {

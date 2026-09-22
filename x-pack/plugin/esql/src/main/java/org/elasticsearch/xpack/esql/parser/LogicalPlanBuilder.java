@@ -398,7 +398,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
-            return unresolvedRelation;
+            if (metadataFields.isEmpty()) {
+                return unresolvedRelation;
+            }
+            return new UnresolvedMetadata(source, unresolvedRelation, metadataFields);
         } else {
             // subquery is not supported with time-series indices at the moment
             if (command == SourceCommand.TS) {

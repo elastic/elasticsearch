@@ -642,6 +642,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must
         /// not exceed [#effectiveMaxConcurrentRecoveries].
         private int runningRecoveries = 0;
+
         /// The number of concurrent relocation recoveries currently running.
         private int runningRelocationRecoveries = 0;
 
@@ -651,7 +652,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         /// Returns the effective max concurrent relocation recoveries, derived from the provided
         /// effectiveMaxConcurrentRecoveries and [#relocationRecoveriesMaxProportion].
-        int effectiveMaxConcurrentRelocationRecoveries(int effectiveMaxConcurrentRecoveries) {
+        private int effectiveMaxConcurrentRelocationRecoveries(int effectiveMaxConcurrentRecoveries) {
             return (int) Math.ceil(effectiveMaxConcurrentRecoveries * relocationRecoveriesMaxProportion);
         }
 
@@ -666,14 +667,14 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return Math.min(maxConcurrentRecoveries, (int) Math.ceil(heapInGb * maxConcurrentRecoveriesPerHeapGb));
         }
 
-        void incrementRunning(PendingRecovery recoveryNowRunning) {
+        private void incrementRunning(PendingRecovery recoveryNowRunning) {
             runningRecoveries++;
             if (!recoveryNowRunning.isUnassigned()) {
                 runningRelocationRecoveries++;
             }
         }
 
-        void decrementRunning(PendingRecovery recoveryNowFinished) {
+        private void decrementRunning(PendingRecovery recoveryNowFinished) {
             runningRecoveries--;
             assert runningRecoveries >= 0 : "negative number of running unassigned recoveries " + runningRecoveries;
             if (!recoveryNowFinished.isUnassigned()) {
@@ -682,7 +683,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             }
         }
 
-        boolean shouldStartNextPendingRecovery(PendingRecovery nextPendingRecovery) {
+        private boolean shouldStartNextPendingRecovery(PendingRecovery nextPendingRecovery) {
             final int maxRecoveries = effectiveMaxConcurrentRecoveries();
             return runningRecoveries < maxRecoveries
                 && (nextPendingRecovery.isUnassigned()

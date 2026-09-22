@@ -863,6 +863,32 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
+     * Same fold path as {@link #testPreAnalyzeExternalSourcesForwardsFoldedDateExtractHints},
+     * with unary {@code YEAR(param)}. Proves {@code preAnalyzeExternalSources} still folds
+     * after the class-dispatch change in {@code tryFoldCall}.
+     */
+    public void testPreAnalyzeExternalSourcesForwardsFoldedYearHints() {
+        String path = "s3://bucket/data/*.parquet";
+        long ts = Instant.parse("2026-07-13T00:00:00Z").toEpochMilli();
+        UnresolvedFunction year = new UnresolvedFunction(EMPTY, "YEAR", List.of(new Literal(EMPTY, ts, DataType.DATETIME)));
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Filter(EMPTY, relation, new Equals(EMPTY, new UnresolvedAttribute(EMPTY, "year"), year));
+
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> hints = captureFilterHints(plan, path);
+        assertNotNull(hints);
+        List<PartitionFilterHintExtractor.PartitionFilterHint> pathHints = hints.get(path);
+        assertNotNull(pathHints);
+        assertEquals(1, pathHints.size());
+        assertEquals("year", pathHints.get(0).columnName());
+        assertEquals(PartitionFilterHintExtractor.Operator.EQUALS, pathHints.get(0).operator());
+        assertEquals(List.of(2026L), pathHints.get(0).values());
+        assertTrue(
+            "session plan stays unresolved",
+            plan.anyMatch(n -> n instanceof Filter f && f.condition().anyMatch(UnresolvedFunction.class::isInstance))
+        );
+    }
+
+    /**
      * Drives {@code EsqlSession#preAnalyzeExternalSources} with a capturing {@link ExternalSourceResolver}
      * and returns the {@code pathsRequiringStats} argument it forwarded to {@code resolve(...)}.
      */

@@ -10301,6 +10301,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """);
     }
 
+    /**
+     * After surrogate substitution, {@code YEAR(hire_date)} is {@code DATE_EXTRACT("year", hire_date)}.
+     */
+    public void testYearFunctionEqualsInvertsToTimestampRange() {
+        assertDateExtractYearEqualsInverts("""
+            FROM test
+            | WHERE YEAR(hire_date) == 1986
+            """);
+    }
+
     private void assertDateExtractYearEqualsInverts(String query) {
         long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
         long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();

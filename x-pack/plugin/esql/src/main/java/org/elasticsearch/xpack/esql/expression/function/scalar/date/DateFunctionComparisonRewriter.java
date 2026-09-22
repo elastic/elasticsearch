@@ -38,8 +38,10 @@ import java.time.ZoneId;
  * Fold resolves the name through the session {@link EsqlFunctionRegistry} and dispatches to a
  * static method on the registered class — never
  * {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition#build}, which would
- * instantiate the function and run arity validation that throws. Invert dispatches on the
- * resolved {@link DateTrunc} / {@link DateExtract} node the same way.
+ * instantiate the function and run arity validation that throws. Unary {@code YEAR}/{@code MONTH}/
+ * {@code DAY}/{@code HOUR} fold by injecting their chrono and delegating to
+ * {@link DateExtract}. Invert dispatches on the resolved {@link DateTrunc} /
+ * {@link DateExtract} node after surrogate substitution.
  */
 public final class DateFunctionComparisonRewriter {
 
@@ -64,6 +66,11 @@ public final class DateFunctionComparisonRewriter {
                 folded = DateExtract.tryFoldLiterals(call.source(), call.children(), config);
             } else if (clazz == DateTrunc.class) {
                 folded = DateTrunc.tryFoldLiterals(call.source(), call.children(), config);
+            } else {
+                String chrono = DatePartFunction.chronoFor(clazz);
+                if (chrono != null) {
+                    folded = DatePartFunction.tryFoldLiterals(chrono, call.source(), call.children(), config);
+                }
             }
             return folded != null ? folded : call;
         } catch (UnresolvedException e) {

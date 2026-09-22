@@ -83,6 +83,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -104,6 +105,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -591,6 +593,24 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final PlainActionFuture<Map<String, Object>> crossClusterUsage = new PlainActionFuture<>();
         apiKeyService.crossClusterApiKeyUsageStats(crossClusterUsage);
         assertThat(crossClusterUsage.actionGet().get("total"), equalTo(1));
+    }
+
+    /**
+     * REST API keys created before the {@code type} field was introduced carry no type at all, so they cannot be selected by a term
+     * query on {@code type}. They are still REST keys and must be counted as such, otherwise upgraded clusters under-report.
+     */
+    public void testRestApiKeyUsageStatsCountsKeysWithoutTypeField() {
+        final String apiKeyId = createRestApiKey("legacy-untyped", null);
+
+        // reproduce a key document written before `type` existed by replacing the document with a copy that omits the field
+        final Map<String, Object> legacySource = new HashMap<>(getApiKeyDocument(apiKeyId));
+        assertThat(legacySource.remove("type"), equalTo(ApiKey.Type.REST.value()));
+        client().prepareIndex(SECURITY_MAIN_ALIAS).setId(apiKeyId).setSource(legacySource).setRefreshPolicy(IMMEDIATE).get();
+        assertThat(getApiKeyDocument(apiKeyId), not(hasKey("type")));
+
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        getInstanceFromNode(ApiKeyService.class).restApiKeyUsageStats(future);
+        assertThat(future.actionGet(), equalTo(Map.of("active", 1L, "invalidated", 0L, "expired", 0L)));
     }
 
     private String createRestApiKey(String name, @Nullable TimeValue expiration) {

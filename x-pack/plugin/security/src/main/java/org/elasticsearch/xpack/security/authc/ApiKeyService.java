@@ -1860,7 +1860,14 @@ public class ApiKeyService implements Closeable {
                     TransportSearchAction.TYPE,
                     request,
                     ActionListener.wrap(searchResponse -> {
-                        final Filters counts = searchResponse.getAggregations().get(countsAgg.getName());
+                        // A response carries no aggregations only when no shard result was reduced, in which case nothing was counted.
+                        // Requesting an aggregation makes the search execute at least one shard, so this is not expected in practice.
+                        final InternalAggregations aggregations = searchResponse.getAggregations();
+                        final Filters counts = aggregations == null ? null : aggregations.get(countsAgg.getName());
+                        if (counts == null) {
+                            listener.onResponse(Map.of("active", 0L, "invalidated", 0L, "expired", 0L));
+                            return;
+                        }
                         listener.onResponse(
                             Map.of(
                                 "active",

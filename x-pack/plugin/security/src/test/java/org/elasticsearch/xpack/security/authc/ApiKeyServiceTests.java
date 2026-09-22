@@ -69,6 +69,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -1425,6 +1430,103 @@ public class ApiKeyServiceTests extends ESTestCase {
         apiKeyService.restApiKeyUsageStats(future);
         final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
         assertThat(e, sameInstance(expectedException));
+    }
+
+    /**
+     * Covers the search that backs the REST API key counts: that the bucket doc counts are reported under the expected names, that the
+     * query selects REST keys only, and that no key document is fetched to produce the counts.
+     */
+    public void testRestApiKeyUsageStats() {
+        when(clock.instant()).thenReturn(Instant.now());
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
+
+        final long activeKeys = randomLongBetween(0, 100);
+        final long invalidatedKeys = randomLongBetween(0, 100);
+        final long expiredKeys = randomLongBetween(0, 100);
+
+        final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+            searchRequest.set(invocationOnMock.getArgument(0));
+            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
+            ActionListener.respondAndRelease(
+                listener,
+                SearchResponseUtils.response()
+                    .shards(1, 1, 0)
+                    .tookInMillis(1L)
+                    .aggregations(
+                        InternalAggregations.from(
+                            List.of(
+                                new InternalFilters(
+                                    "rest_api_key_counts",
+                                    List.of(
+                                        new InternalFilters.InternalBucket("active", activeKeys, InternalAggregations.EMPTY),
+                                        new InternalFilters.InternalBucket("invalidated", invalidatedKeys, InternalAggregations.EMPTY),
+                                        new InternalFilters.InternalBucket("expired", expiredKeys, InternalAggregations.EMPTY)
+                                    ),
+                                    true,
+                                    true,
+                                    null
+                                )
+                            )
+                        )
+                    )
+                    .build()
+            );
+            return null;
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
+
+        final ApiKeyService apiKeyService = createApiKeyService();
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.restApiKeyUsageStats(future);
+
+        assertThat(future.actionGet(), equalTo(Map.of("active", activeKeys, "invalidated", invalidatedKeys, "expired", expiredKeys)));
+
+        final SearchSourceBuilder source = searchRequest.get().source();
+        // REST keys are those explicitly typed `rest`, plus keys written before the `type` field existed, which carry no type at all
+        assertThat(
+            source.query(),
+            is(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+                    .filter(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("type", ApiKey.Type.REST.value()))
+                            .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("type")))
+                            .minimumShouldMatch(1)
+                    )
+            )
+        );
+        // the counts must come from the aggregation alone, since a cluster can hold far more REST keys than can be read back
+        assertThat(source.size(), equalTo(0));
+
+        // the bucket names declared by the aggregation are the names the response is read back by, so they have to agree
+        final FiltersAggregationBuilder countsAgg = (FiltersAggregationBuilder) source.aggregations()
+            .getAggregatorFactories()
+            .iterator()
+            .next();
+        assertThat(countsAgg.filters().stream().map(KeyedFilter::key).toList(), contains("active", "invalidated", "expired"));
+    }
+
+    /**
+     * A search that reduced no shard result comes back successful but carries no aggregations. Nothing was counted in that case, so the
+     * counts are reported as zeros rather than throwing a {@link NullPointerException}.
+     */
+    public void testRestApiKeyUsageStatsAreZerosWhenResponseHasNoAggregations() {
+        when(clock.instant()).thenReturn(Instant.now());
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
+        doAnswer(invocationOnMock -> {
+            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
+            ActionListener.respondAndRelease(listener, SearchResponseUtils.response().shards(0, 0, 0).tookInMillis(1L).build());
+            return null;
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
+
+        final ApiKeyService apiKeyService = createApiKeyService();
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        apiKeyService.restApiKeyUsageStats(future);
+
+        assertThat(future.actionGet(), equalTo(Map.of("active", 0L, "invalidated", 0L, "expired", 0L)));
     }
 
     private Map<String, Object> mockKeyDocument(

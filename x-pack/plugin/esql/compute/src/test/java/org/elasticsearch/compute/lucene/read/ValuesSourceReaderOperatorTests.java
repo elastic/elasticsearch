@@ -32,6 +32,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -89,6 +91,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -120,6 +123,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -1744,6 +1748,66 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             true,
             between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2)
         );
+    }
+
+    public void testManyReaderUsesSequentialStoredFields() throws IOException {
+        int docCount = between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY - 1);
+        initIndex(docCount, docCount);
+        reader = ElasticsearchDirectoryReader.wrap((DirectoryReader) reader, new ShardId("index", "_na_", 0));
+        assertThat(reader.leaves(), hasSize(1));
+        assertThat(reader.leaves().getFirst().reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
+
+        List<Integer> docIds = IntStream.range(0, docCount).boxed().collect(Collectors.toList());
+        Randomness.shuffle(docIds);
+        DriverContext driverContext = driverContext();
+        DocVector docVector;
+        try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(driverContext.blockFactory(), docCount)) {
+            for (int docId : docIds) {
+                builder.append(0, 0, docId);
+            }
+            docVector = builder.build(DocVector.config());
+        }
+        assertFalse("FixedBuilder routes through ValuesFromManyReader", docVector.singleSegment());
+
+        var runner = new TestDriverRunner().builder(driverContext);
+        List<Page> results = runner.input(List.of(new Page(docVector.asBlock())))
+            .run(
+                new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
+                    List.of(
+                        fieldInfo(mapperService.fieldType("key"), ElementType.INT),
+                        fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
+                    ),
+                    new IndexedByShardIdFromSingleton<>(
+                        new ValuesSourceReaderOperator.ShardContext(
+                            reader,
+                            sourcePaths -> SourceLoader.FROM_STORED_SOURCE,
+                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                        )
+                    ),
+                    randomBoolean(),
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true),
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
+                )
+            );
+
+        Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
+        IntVector keys = results.getFirst().<IntBlock>getBlock(1).asVector();
+        for (int p = 0; p < results.getFirst().getPositionCount(); p++) {
+            int key = keys.getInt(p);
+            checks.strings(results.getFirst().getBlock(2), p, key);
+        }
+        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) runner.statuses().getFirst();
+        assertMap(
+            status.readersBuilt(),
+            matchesMap().entry("key:column_at_a_time:IntsFromDocValues.Singleton", 1)
+                .entry("stored_text:column_at_a_time:null", 1)
+                .entry("stored_text:row_stride:BlockStoredFieldsReader.Bytes", 1)
+                .entry("stored_fields[requires_source:false, fields:1, sequential: true]", 1)
+        );
+        assertDriverContext(driverContext);
     }
 
     /** Reuses a source loader when a run spans multiple segments of one shard. */

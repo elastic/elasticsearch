@@ -26,6 +26,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -474,7 +476,7 @@ public class ValuesSourceReaderBenchmark {
                 }
             }
         }
-        reader = DirectoryReader.open(directory);
+        reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId("index", "_na_", 0));
     }
 
     private void setupPages() {

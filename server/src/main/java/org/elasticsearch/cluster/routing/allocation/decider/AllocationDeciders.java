@@ -121,7 +121,7 @@ public class AllocationDeciders {
      * (most-negative) result — populated when the result is {@link Decision.Type#NO} or
      * {@link Decision.Type#NOT_PREFERRED}, {@code null} otherwise.
      */
-    public record CanRemainWithDeciderLabel(Decision decision, @Nullable String deciderLabel) {}
+    public record CanRemainWithDeciderName(Decision decision, @Nullable String deciderName) {}
 
     /**
      * Equivalent to {@link #canRemain(ShardRouting, RoutingNode, RoutingAllocation)} but also returns the
@@ -129,19 +129,19 @@ public class AllocationDeciders {
      * (either {@link Decision.Type#NO} or {@link Decision.Type#NOT_PREFERRED}), or {@code null} when the overall
      * decision is {@link Decision.Type#YES} or {@link Decision.Type#THROTTLE}.
      */
-    public CanRemainWithDeciderLabel canRemainWithDeciderLabel(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final String[] labelHolder = { null };
+    public CanRemainWithDeciderName canRemainWithDeciderName(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        final String[] deciderNameHolder = { null };
         final Decision.Type[] worstSeen = { Decision.Type.YES };
         final var canRemainDecision = canRemain(shardRouting, node, allocation, (decider, decision) -> {
             if ((decision.type() == Decision.Type.NOT_PREFERRED || decision.type() == Decision.Type.NO)
                 && worstSeen[0].compareToBetweenDecisions(decision.type()) > 0) {
                 worstSeen[0] = decision.type();
-                labelHolder[0] = decider.getClass().getSimpleName();
+                deciderNameHolder[0] = decider.getClass().getSimpleName();
             }
         });
 
         final boolean relevant = canRemainDecision.type() == Decision.Type.NOT_PREFERRED || canRemainDecision.type() == Decision.Type.NO;
-        return new CanRemainWithDeciderLabel(canRemainDecision, relevant ? labelHolder[0] : null);
+        return new CanRemainWithDeciderName(canRemainDecision, relevant ? deciderNameHolder[0] : null);
     }
 
     /**

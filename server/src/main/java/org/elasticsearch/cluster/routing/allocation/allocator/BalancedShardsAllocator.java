@@ -1276,7 +1276,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             assert sourceNode != null && sourceNode.containsShard(index, shardRouting);
             RoutingNode routingNode = sourceNode.getRoutingNode();
-            final var canRemainResult = allocation.deciders().canRemainWithDeciderLabel(shardRouting, routingNode, allocation);
+            final var canRemainResult = allocation.deciders().canRemainWithDeciderName(shardRouting, routingNode, allocation);
             final Decision canRemainDecision = canRemainResult.decision();
             if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
                 return new MoveDecisionWithDeciderName(MoveDecision.createRemainYesDecision(canRemainDecision), null, null);
@@ -1314,7 +1314,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 canAllocateNotPreferredDeciderName = null;
             }
 
-            return new MoveDecisionWithDeciderName(moveDecision, canRemainResult.deciderLabel(), canAllocateNotPreferredDeciderName);
+            return new MoveDecisionWithDeciderName(moveDecision, canRemainResult.deciderName(), canAllocateNotPreferredDeciderName);
         }
 
         private MoveDecision decideMove(

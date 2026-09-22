@@ -585,8 +585,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // Deferred extraction fires when both signals are present: the reader is
                 // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
                 // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
-                // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
-                // injects it for plain _id composition, where enabling deferred mode would create a
+                // projection is NOT a valid signal on its own — InjectRowPositionForRecordRef also
+                // injects it for plain _file.record_ref composition, where enabling deferred mode would create a
                 // SourceExtractors registry no extract operator ever closes.
                 // Additionally, deferred extraction is disabled when skip_row is active with declared-type
                 // coercion columns: the extractor runs after the page shape is fixed and cannot drop rows
@@ -626,11 +626,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .pushdownSupport(pushdownSupport)
                     .onClose(onClose)
                     .deferredExtraction(deferredExtraction)
-                    // datasetName drives the per-file _index synthesizer in
-                    // {@link ExternalMetadataColumns#extractPerFileConstants}; null when the query
-                    // came from a direct-file query (no dataset name), populated when it came from
-                    // FROM <dataset>.
-                    .datasetName(context.datasetName())
                     // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.
                     .renames(context.declaredReadSpec().renames())
                     // How a file's bytes get interpreted, bound to this query's declaration and applied per file by
@@ -639,14 +634,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .readConfigFingerprinter(schema -> ReadConfigFingerprint.of(schema, context.declaredReadSpec()))
                     // For the split-less rails, which read one whole file and so have no per-split schema.
                     .unifiedReadSchema(context.unifiedSchema() == null ? null : context.unifiedSchema().attributes())
-                    // Declared _id.path (logical column name): stamps _id from that column instead of the synthetic id.
-                    .idPath(context.declaredReadSpec().idPath())
-                    // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
-                    // carrier; without this wire-up _version would silently render as SQL NULL even
-                    // on resolved single-file plans. The slice-queue / multi-file paths still source
-                    // mtime from FileSplit.partitionValues / per-FileList entry respectively and
-                    // ignore this builder value.
-                    .lastModifiedMillis(firstFileMtime(context.fileList()))
                     .build();
                 transferred = true;
                 return built;
@@ -656,22 +643,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 }
             }
         };
-    }
-
-    /**
-     * Returns the {@code lastModifiedMillis} of the first entry in {@code fileList}, or {@code null}
-     * when the list is absent / unresolved / empty. Threaded into
-     * {@link AsyncExternalSourceOperatorFactory.Builder#lastModifiedMillis(Long)} so that the
-     * single-file producer paths render {@code _version} from the file's mtime instead of SQL
-     * {@code NULL}. Returning a boxed {@code Long} lets the builder distinguish "no mtime available"
-     * from "mtime is zero (epoch)".
-     */
-    @Nullable
-    private static Long firstFileMtime(@Nullable FileList fileList) {
-        if (fileList == null || fileList.fileCount() == 0) {
-            return null;
-        }
-        return fileList.lastModifiedMillis(0);
     }
 
     /**

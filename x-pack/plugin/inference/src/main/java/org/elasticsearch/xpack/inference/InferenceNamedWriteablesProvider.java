@@ -18,6 +18,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -209,6 +210,8 @@ public class InferenceNamedWriteablesProvider {
         addTencentCloudNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
+
+        namedWriteables.addAll(InferenceServiceFeatures.getNamedWriteables());
 
         namedWriteables.addAll(StreamingTaskManager.namedWriteables());
         namedWriteables.addAll(SageMakerModel.namedWriteables());

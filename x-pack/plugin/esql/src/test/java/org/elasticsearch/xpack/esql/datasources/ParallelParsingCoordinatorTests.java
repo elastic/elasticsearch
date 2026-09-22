@@ -56,6 +56,7 @@ import org.hamcrest.Matchers;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -67,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -995,6 +997,99 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         assertThat("early close must leave no segment stream open", obj.currentOpen(), Matchers.equalTo(0));
+    }
+
+    public void testFirstErrorAbortsHangingSiblingSegmentStreams() throws Exception {
+        byte[] content = repeatedLines(400);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+        assertThat(
+            "test needs a genuinely multi-segment file or it hits the single-stream fallback",
+            ParallelParsingCoordinator.computeSegments(reader, new InMemoryStorageObject(content), content.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+        HangingSegmentStorageObject obj = new HangingSegmentStorageObject(content, true);
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    4,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    4,
+                    null
+                )
+            ) {
+                assertTrue("sibling segment must park in read", obj.awaitParked(5, TimeUnit.SECONDS));
+                assertEquals("probes must not have aborted parked workers", 0, obj.abortCalls());
+                long abortStartNanos = System.nanoTime();
+                obj.failLeader();
+                RuntimeException thrown = expectThrows(RuntimeException.class, () -> {
+                    while (iter.hasNext()) {
+                        iter.next().releaseBlocks();
+                    }
+                });
+                iter.close();
+                long elapsedMs = (System.nanoTime() - abortStartNanos) / 1_000_000L;
+                IOException io = (IOException) ExceptionsHelper.unwrap(thrown, IOException.class);
+                assertNotNull(io);
+                assertThat(io.getMessage(), Matchers.containsString("segment 0 failed"));
+                assertThat("sibling abort must be prompt", elapsedMs, Matchers.lessThan(5_000L));
+                assertThat(obj.abortCalls(), Matchers.greaterThanOrEqualTo(1));
+                assertEquals("no segment stream may remain open", 0, obj.currentOpen());
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue(exec.awaitTermination(15, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testCloseAbortsHangingSegmentStreams() throws Exception {
+        byte[] content = repeatedLines(400);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+        assertThat(
+            "test needs a genuinely multi-segment file or it hits the single-stream fallback",
+            ParallelParsingCoordinator.computeSegments(reader, new InMemoryStorageObject(content), content.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+        HangingSegmentStorageObject obj = new HangingSegmentStorageObject(content, false);
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    4,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    4,
+                    null
+                )
+            ) {
+                assertTrue("segment read must park", obj.awaitParked(5, TimeUnit.SECONDS));
+                assertEquals("probes must not have aborted parked workers", 0, obj.abortCalls());
+                long startNanos = System.nanoTime();
+                iter.close();
+                long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000L;
+                assertThat("close abort must be prompt", elapsedMs, Matchers.lessThan(5_000L));
+                assertThat(obj.abortCalls(), Matchers.greaterThanOrEqualTo(1));
+                assertEquals("no segment stream may remain open", 0, obj.currentOpen());
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue(exec.awaitTermination(15, TimeUnit.SECONDS));
+        }
     }
 
     /**
@@ -2637,6 +2732,158 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://stream-counting");
+        }
+    }
+
+    /**
+     * Segment GETs on parser threads park until {@link #abortStream}. Probe opens on the
+     * constructing (test) thread read normally so {@code computeSegments} can finish.
+     */
+    private static final class HangingSegmentStorageObject implements StorageObject {
+        private final byte[] data;
+        private final boolean failLeader;
+        private final Thread testThread = Thread.currentThread();
+        private final CountDownLatch parked = new CountDownLatch(1);
+        private final CountDownLatch failLeaderNow = new CountDownLatch(1);
+        private final ConcurrentMap<InputStream, CountDownLatch> parks = new ConcurrentHashMap<>();
+        private final Set<InputStream> probeStreams = ConcurrentHashMap.newKeySet();
+        private final AtomicBoolean aborted = new AtomicBoolean();
+        private final AtomicInteger abortCalls = new AtomicInteger();
+        private final AtomicInteger open = new AtomicInteger();
+
+        HangingSegmentStorageObject(byte[] data, boolean failLeader) {
+            this.data = data;
+            this.failLeader = failLeader;
+        }
+
+        boolean awaitParked(long timeout, TimeUnit unit) throws InterruptedException {
+            return parked.await(timeout, unit);
+        }
+
+        int abortCalls() {
+            return abortCalls.get();
+        }
+
+        int currentOpen() {
+            return open.get();
+        }
+
+        void failLeader() {
+            failLeaderNow.countDown();
+        }
+
+        @Override
+        public InputStream newStream() {
+            return newStream(0, data.length);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            open.incrementAndGet();
+            int from = Math.toIntExact(position);
+            int len = Math.toIntExact(Math.min(length, data.length - from));
+            InputStream inner = new ByteArrayInputStream(data, from, Math.max(len, 0));
+            FilterInputStream stream = new FilterInputStream(inner) {
+                private final AtomicBoolean closed = new AtomicBoolean();
+
+                @Override
+                public int read() throws IOException {
+                    byte[] one = new byte[1];
+                    int n = read(one, 0, 1);
+                    return n == -1 ? -1 : (one[0] & 0xFF);
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    if (Thread.currentThread() != testThread) {
+                        if (failLeader && position == 0) {
+                            try {
+                                if (parked.await(5, TimeUnit.SECONDS) == false) {
+                                    throw new IOException("sibling did not park before leader fail");
+                                }
+                                if (failLeaderNow.await(15, TimeUnit.SECONDS) == false) {
+                                    throw new IOException("leader fail was not released");
+                                }
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                throw new IOException(e);
+                            }
+                            if (aborted.get() || closed.get()) {
+                                throw new IOException("aborted");
+                            }
+                            throw new IOException("segment 0 failed");
+                        }
+                        if (aborted.get() || closed.get()) {
+                            throw new IOException("aborted");
+                        }
+                        CountDownLatch mine = new CountDownLatch(1);
+                        parks.put(this, mine);
+                        parked.countDown();
+                        if (aborted.get() || closed.get()) {
+                            parks.remove(this, mine);
+                            throw new IOException("aborted");
+                        }
+                        try {
+                            if (mine.await(15, TimeUnit.SECONDS) == false) {
+                                throw new IOException("read was not unblocked by abort");
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException(e);
+                        }
+                        throw new IOException("aborted");
+                    }
+                    return in.read(b, off, len);
+                }
+
+                @Override
+                public void close() throws IOException {
+                    if (closed.compareAndSet(false, true)) {
+                        open.decrementAndGet();
+                    }
+                    super.close();
+                }
+            };
+            if (Thread.currentThread() == testThread) {
+                probeStreams.add(stream);
+            }
+            return stream;
+        }
+
+        @Override
+        public void abortStream(InputStream stream) throws IOException {
+            if (probeStreams.contains(stream)) {
+                stream.close();
+                return;
+            }
+            aborted.set(true);
+            abortCalls.incrementAndGet();
+            failLeaderNow.countDown();
+            CountDownLatch mine = parks.remove(stream);
+            if (mine != null) {
+                mine.countDown();
+            }
+            stream.close();
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("mem://hanging-segment");
         }
     }
 }

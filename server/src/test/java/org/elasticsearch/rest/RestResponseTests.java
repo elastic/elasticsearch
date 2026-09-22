@@ -651,6 +651,29 @@ public class RestResponseTests extends ESTestCase {
         assertEquals(3, fields.get("elasticsearch.error.shard"));
     }
 
+    public void testSuppressedLoggingOmitsLocationForCoordinatorFailure() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardSearchFailure shardFailure = new ShardSearchFailure(
+            new IllegalArgumentException("unrelated shard failure"),
+            new SearchShardTarget("node", new ShardId("my-index", "uuid", 3), null)
+        );
+
+        new RestResponse(
+            channel,
+            new SearchPhaseExecutionException(
+                "fetch",
+                "Phase failed",
+                new IllegalStateException("coordinator failure"),
+                new ShardSearchFailure[] { shardFailure }
+            )
+        );
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals("coordinator failure", fields.get("elasticsearch.error.root_cause.message"));
+        assertFalse(fields.containsKey("elasticsearch.error.index"));
+        assertFalse(fields.containsKey("elasticsearch.error.shard"));
+    }
+
     private Map<String, ?> lastLoggedFields() {
         final LogEvent logEvent = appender.getLastEventAndReset();
         assertThat(logEvent.getMessage(), instanceOf(MapMessage.class));

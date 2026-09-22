@@ -301,8 +301,12 @@ public final class RestResponse implements Releasable {
         } else if (ExceptionsHelper.unwrap(e, SearchPhaseExecutionException.class) instanceof SearchPhaseExecutionException search) {
             // NOTE: a shard failure records where it happened on the ShardSearchFailure rather than on the exception it wraps, so
             // the cause chain carries no index. The search failure is looked up on the chain because cross cluster search wraps it
+            // NOTE: a coordinator failure is passed to the exception explicitly and then wins over the guessed shard cause, so the
+            // shard is attached only when the recorded cause is the one that shard failed with
             final ShardSearchFailure[] shardFailures = search.shardFailures();
-            if (shardFailures.length > 0 && shardFailures[0].index() != null) {
+            if (shardFailures.length > 0
+                && shardFailures[0].index() != null
+                && ExceptionsHelper.walkCauseChain(shardFailures[0].getCause()).deepest() == causes.deepest()) {
                 message.field("elasticsearch.error.index", shardFailures[0].index());
                 message.field("elasticsearch.error.shard", shardFailures[0].shardId());
             }

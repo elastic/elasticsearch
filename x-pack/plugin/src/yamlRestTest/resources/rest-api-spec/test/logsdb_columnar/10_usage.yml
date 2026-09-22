@@ -113,12 +113,12 @@
   - match: { logsdb_columnar.num_docs: 3 }
   - gt:    { logsdb_columnar.size_in_bytes: 0 }
 
-  # Enabling cluster.logsdb_columnar.enabled must be reflected in the enabled flag
+  # Enabling cluster.columnar.enabled must be reflected in the enabled flag
   - do:
       cluster.put_settings:
         body:
           persistent:
-            cluster.logsdb_columnar.enabled: true
+            cluster.columnar.enabled: true
 
   - do: {xpack.usage: {}}
   - match: { logsdb_columnar.enabled: true }
@@ -127,7 +127,7 @@
       cluster.put_settings:
         body:
           persistent:
-            cluster.logsdb_columnar.enabled: null
+            cluster.columnar.enabled: null
 
 ---
 "logsdb_columnar data stream lifecycle classification":

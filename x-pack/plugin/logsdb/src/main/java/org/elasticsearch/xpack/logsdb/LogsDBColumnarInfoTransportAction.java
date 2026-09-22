@@ -40,6 +40,6 @@ public class LogsDBColumnarInfoTransportAction extends XPackInfoFeatureTransport
 
     @Override
     public boolean enabled() {
-        return clusterService.getClusterSettings().get(LogsDBPlugin.CLUSTER_LOGSDB_COLUMNAR_ENABLED);
+        return clusterService.getClusterSettings().get(LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED);
     }
 }

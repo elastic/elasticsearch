@@ -85,7 +85,7 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
                 dataStreamsManagedByDlm++;
             }
         }
-        final boolean enabled = clusterService.getClusterSettings().get(LogsDBPlugin.CLUSTER_LOGSDB_COLUMNAR_ENABLED);
+        final boolean enabled = clusterService.getClusterSettings().get(LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED);
         final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
         final int finalNumIndices = numIndices;

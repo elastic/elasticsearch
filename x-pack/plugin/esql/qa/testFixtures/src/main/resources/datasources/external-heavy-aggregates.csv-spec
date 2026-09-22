@@ -21,10 +21,10 @@ distinct_emp:long | total:long | sum_salary:long | avg_salary:double
 100               | 200        | 9649710         | 48248.55
 ;
 
-// The blank-gender rows group under null (inferred schema, so a blank cell has no value) and sort last.
+// The blank-gender rows group under "" (a blank string cell reads as the empty string).
 heavyAggregatesGroupedMergedAcrossDatasets
 required_capability: external_command
-required_capability: external_csv_blank_cell_null_unless_declared
+required_capability: external_csv_blank_cell_empty_string_unless_null_token
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
 
@@ -33,9 +33,9 @@ FROM emp_a, emp_b
 | SORT gender;
 
 distinct_emp:long | c:long | gender:keyword
+10                | 20     | ""
 33                | 66     | "F"
 57                | 114    | "M"
-10                | 20     | null
 ;
 
 // Per-aggregate filter on a heavy aggregate mixed with an unfiltered one. Because not every aggregate is filtered,
@@ -57,12 +57,12 @@ distinct_f:long | total:long
 
 // Grouped + selective per-aggregate filter on a heavy aggregate. Grouped stats are never hoisted by
 // ExtractAggregateCommonFilter, so the filter rides the per-branch ToPartial and is applied per group. Only the M
-// group has rows matching gender == "M", so its unioned distinct count is 57; the F and null groups still appear (the
+// group has rows matching gender == "M", so its unioned distinct count is 57; the F and "" groups still appear (the
 // grouping is over all rows) but their filtered input is empty, so COUNT_DISTINCT is 0. Proves the per-group filter
 // actually selects rows and the grouped + filtered merge is correct.
 heavyAggregatesFilteredGroupedMergedAcrossDatasets
 required_capability: external_command
-required_capability: external_csv_blank_cell_null_unless_declared
+required_capability: external_csv_blank_cell_empty_string_unless_null_token
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
 
@@ -71,9 +71,9 @@ FROM emp_a, emp_b
 | SORT gender;
 
 distinct_emp:long | gender:keyword
+0                 | ""
 0                 | "F"
 57                | "M"
-0                 | null
 ;
 
 // Empty buckets over the leaf UnionAll a multi-source FROM produces. This guards the interaction between

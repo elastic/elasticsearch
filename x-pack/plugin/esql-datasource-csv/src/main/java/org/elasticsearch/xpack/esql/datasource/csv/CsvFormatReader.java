@@ -496,14 +496,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final boolean bindsByName;
 
     /**
-     * True when a present-but-empty cell on a string column holds the empty string rather than {@code null}, unless
-     * {@code null_value} names the blank — see
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withBlankStringCellAsEmptyString}. Carried
-     * separately from {@link #bindsByName} because it decides what a cell HOLDS, not which field a column reads.
-     */
-    private final boolean blankStringCellIsEmptyString;
-
-    /**
      * When {@code true} (default), eligible non-bracket reads use the direct-to-block path that parses
      * logical records straight into typed {@code Block} builders: plain (unquoted) reads take the
      * simplest walk, and RFC 4180 quoted reads (with or without backslash escapes) take the
@@ -527,7 +519,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
-            false,
             List.of()
         );
     }
@@ -545,7 +536,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             "",
             true,
             Map.of(),
-            false,
             false,
             List.of()
         );
@@ -565,7 +555,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
-            false,
             List.of()
         );
     }
@@ -583,7 +572,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
         boolean bindsByName,
-        boolean blankStringCellIsEmptyString,
         List<String> configWarnings
     ) {
         this(
@@ -599,7 +587,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             bindsByName,
-            blankStringCellIsEmptyString,
             null,
             configWarnings
         );
@@ -623,7 +610,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
         boolean bindsByName,
-        boolean blankStringCellIsEmptyString,
         CsvReaderCounters sharedCounters,
         List<String> configWarnings
     ) {
@@ -639,7 +625,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.bindsByName = bindsByName;
-        this.blankStringCellIsEmptyString = blankStringCellIsEmptyString;
         this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
         this.configWarnings = List.copyOf(configWarnings);
         this.sharedCsvMapper = createMapper(options);
@@ -666,7 +651,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             enabled,
             declaredDateFormats,
             bindsByName,
-            blankStringCellIsEmptyString,
             configWarnings
         );
     }
@@ -1038,7 +1022,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             bindsByName,
-            blankStringCellIsEmptyString,
             configWarnings
         );
     }
@@ -1058,7 +1041,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             bindsByName,
-            blankStringCellIsEmptyString,
             configWarnings
         );
     }
@@ -1081,30 +1063,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             binding,
-            blankStringCellIsEmptyString,
-            configWarnings
-        );
-    }
-
-    @Override
-    public CsvFormatReader withBlankStringCellAsEmptyString(boolean blankIsEmptyString) {
-        if (blankIsEmptyString == blankStringCellIsEmptyString) {
-            return this;
-        }
-        return new CsvFormatReader(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            bindsByName,
-            blankIsEmptyString,
             configWarnings
         );
     }
@@ -1253,7 +1211,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             physicalNameToPattern,
             bindsByName,
-            blankStringCellIsEmptyString,
             configWarnings
         );
     }
@@ -1279,7 +1236,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             bindsByName,
-            blankStringCellIsEmptyString,
             counters,
             configWarnings
         );
@@ -1315,7 +1271,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.directBlockEnabled,
             result.declaredDateFormats,
             result.bindsByName,
-            result.blankStringCellIsEmptyString,
             parsedOptions.configWarnings()
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
@@ -3903,8 +3858,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 rowCountPolicyPermitsLicence(),
                 schema,
                 declaredDateFormats,
-                schemaFieldIndex != null ? ExternalStats.BINDING_BY_NAME : ExternalStats.BINDING_BY_POSITION,
-                emptyCellIsEmptyString
+                schemaFieldIndex != null ? ExternalStats.BINDING_BY_NAME : ExternalStats.BINDING_BY_POSITION
             );
         }
 
@@ -4060,8 +4014,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 base,
                 resolvedSchema,
                 declaredDateFormats,
-                schemaFieldIndex != null ? ExternalStats.BINDING_BY_NAME : ExternalStats.BINDING_BY_POSITION,
-                emptyCellIsEmptyString
+                schemaFieldIndex != null ? ExternalStats.BINDING_BY_NAME : ExternalStats.BINDING_BY_POSITION
             );
             Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
             ExternalStatsCapture.record(filePath, flat);

@@ -213,7 +213,6 @@ public final class StripeStatsHarvester {
      * @param schema            full file schema (drives the per-column serialization)
      * @param physicalDateFormats declared date patterns by physical column name, for the read identity
      * @param binding           {@link ExternalStats#BINDING_BY_NAME} or {@link ExternalStats#BINDING_BY_POSITION}
-     * @param blankStringCellIsEmptyString whether a blank string cell held the empty string on this read
      */
     public void emit(
         String sourceLocation,
@@ -225,8 +224,7 @@ public final class StripeStatsHarvester {
         boolean rowCountPolicyPermitsLicence,
         List<Attribute> schema,
         Map<String, String> physicalDateFormats,
-        String binding,
-        boolean blankStringCellIsEmptyString
+        String binding
     ) {
         if (chunkBytes <= 0) {
             return; // unknown / empty byte range — safe miss
@@ -278,7 +276,7 @@ public final class StripeStatsHarvester {
             base.put(ExternalStats.COVERAGE_IS_LAST_KEY, eof);
             // What this read DID, beside the hash of it: the per-column merge pairs columns by name and compares the
             // behaviours, which a hash cannot be taken apart into.
-            SourceStatisticsSerializer.stampReadIdentity(base, schema, physicalDateFormats, binding, blankStringCellIsEmptyString);
+            SourceStatisticsSerializer.stampReadIdentity(base, schema, physicalDateFormats, binding);
             Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
             ExternalStatsCapture.record(sourceLocation, flat);
         }

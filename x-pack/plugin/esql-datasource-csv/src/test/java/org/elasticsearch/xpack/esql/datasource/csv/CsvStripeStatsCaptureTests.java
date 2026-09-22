@@ -338,7 +338,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
     /**
      * Every contribution names what the read DID — the columns it bound in read order, the type each was read at, how
-     * it bound them, and what it made of a blank string cell. A per-column merge needs these; the read-configuration
+     * and how it bound them. A per-column merge needs these; the read-configuration
      * hash beside them can only say "same" or "different" for the whole schema at once.
      */
     public void testReadIdentityIsStampedOnEveryContribution() throws Exception {
@@ -351,18 +351,14 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             assertEquals(List.of("integer"), contribution.get(ExternalStats.READ_COLUMN_TYPES_KEY));
             assertEquals(ExternalStats.BINDING_BY_POSITION, contribution.get(ExternalStats.READ_BINDING_KEY));
             assertFalse(
-                "the blank key is written only when the read holds a blank string cell as the empty string",
-                contribution.containsKey(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY)
-            );
-            assertFalse(
                 "no column declared a date pattern, so the key stays off",
                 contribution.containsKey(ExternalStats.READ_COLUMN_DATE_FORMATS_KEY)
             );
         }
     }
 
-    /** The by-name twin: a read told to bind by name and to hold a blank string cell as "" says both. */
-    public void testReadIdentityNamesTheBindingAndTheBlankRule() throws Exception {
+    /** The by-name twin: a read told to bind by name says so. */
+    public void testReadIdentityNamesTheBinding() throws Exception {
         byte[] bytes = "n\nx\ny\n".getBytes(StandardCharsets.UTF_8);
         StorageObject o = memoryObject(bytes);
         FormatReadContext ctx = FormatReadContext.builder()
@@ -380,7 +376,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .build();
         FormatReader reader = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
             Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
-        ).withReadConfig("config-B").withNameBinding(true).withBlankStringCellAsEmptyString(true);
+        ).withReadConfig("config-B").withNameBinding(true);
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (var handle = ExternalStatsCapture.bind(sink); CloseableIterator<Page> it = reader.read(o, ctx)) {
             while (it.hasNext()) {
@@ -391,7 +387,6 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         assertThat(contributions, not(empty()));
         for (Map<String, Object> contribution : contributions) {
             assertEquals(ExternalStats.BINDING_BY_NAME, contribution.get(ExternalStats.READ_BINDING_KEY));
-            assertEquals(Boolean.TRUE, contribution.get(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY));
         }
     }
 

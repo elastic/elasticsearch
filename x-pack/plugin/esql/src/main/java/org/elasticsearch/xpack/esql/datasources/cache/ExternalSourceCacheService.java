@@ -799,9 +799,10 @@ public class ExternalSourceCacheService implements Closeable {
      *   <li>the entry holds a column of that name at the same type;</li>
      *   <li>neither side parsed it with a declared date pattern, which decides which values parse;</li>
      *   <li>it is the same physical field — bound by name, or bound by position at the same index into an entry whose
-     *       columns are the file's own (a part whose header permutes the anchor's fails this);</li>
-     *   <li>for a string column, both reads made the same thing of a blank cell.</li>
+     *       columns are the file's own (a part whose header permutes the anchor's fails this).</li>
      * </ol>
+     * What a blank string cell holds needs no rule here: {@code null_value} alone decides it, and it is part of the
+     * config fingerprint every match already requires.
      * Every returned map carries the licence: an entry's fold licence is the AND over what it holds, so a crossed map
      * without it would take the entry, and every dataset fold over it, off the warm path.
      *
@@ -882,10 +883,6 @@ public class ExternalSourceCacheService implements Closeable {
                     continue;
                 }
             }
-            if (DataType.isString(entryType) && identity.blankStringCellIsEmptyString() != blankPolicyOf(existing)) {
-                refused.add(column + " (the two reads disagree on what a blank cell holds)");
-                continue;
-            }
             String prefix = SourceStatisticsSerializer.STATS_COL_PREFIX + column + ".";
             for (Map.Entry<String, Object> e : stats.entrySet()) {
                 if (e.getKey().startsWith(prefix)) {
@@ -942,11 +939,6 @@ public class ExternalSourceCacheService implements Closeable {
             return merged;
         }
         return crossed;
-    }
-
-    /** What the entry's own read made of a blank string cell; absent means the default, {@code null}. */
-    private static boolean blankPolicyOf(SchemaCacheEntry entry) {
-        return Boolean.TRUE.equals(entry.safeMetadata().get(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY));
     }
 
     private static int indexOf(@Nullable String[] names, String column) {

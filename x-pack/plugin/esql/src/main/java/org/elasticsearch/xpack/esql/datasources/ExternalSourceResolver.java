@@ -3431,12 +3431,10 @@ public class ExternalSourceResolver {
             }
             dateFormats = collected;
         }
-        // The one place the reading mode is read: it selects two read INSTRUCTIONS and is consumed here, never
-        // travelling. A strict schema is a claim about the file, so its columns bind by name and a blank string cell
-        // holds the empty string; a dynamic schema was inferred from the file, so position already equals physical
-        // position and a blank reads null. Nothing downstream sees the mode, or asks which of them produced a read.
-        boolean declared = isDeclaredSchema(declaredMapping);
-        return DeclaredReadSpec.of(renames, dateFormats, declaredTypeColumns, declared, declared);
+        // The one place the reading mode is read: it selects a read INSTRUCTION and is consumed here, never
+        // travelling. A strict schema is a claim about the file, so its columns bind by name; a dynamic schema was
+        // inferred from the file, so position already equals physical position. Nothing downstream sees the mode.
+        return DeclaredReadSpec.of(renames, dateFormats, declaredTypeColumns, isDeclaredSchema(declaredMapping));
     }
 
     /**
@@ -3561,33 +3559,6 @@ public class ExternalSourceResolver {
      * read-configuration component now does. Two limits remain on this rail regardless: the columnar exclusion
      * above, and {@link #rowCountOnlyStats}, which strips per-column stats so MIN/MAX never warms here at all.
      */
-    /**
-     * The metadata a strict per-file seed carries. The read configuration comes from the declaration this entry
-     * was minted for: without it the seed would carry none while every harvest carries one, the first contribution
-     * would match nothing, and the strict warm rail would die silently — the failure the reverted stopgap hit.
-     * <p>
-     * The blank-cell rule is recorded beside it because a crossing compares against it
-     * ({@code ExternalSourceCacheService#blankPolicyOf}). A declared read holds a blank string cell as {@code ""},
-     * and an entry that did not say so was read as holding the default, {@code null} — so every string column of
-     * one declaration was refused into another declaration's entry although both read blanks the same way.
-     */
-    private static Map<String, Object> strictSeedMetadata(
-        long mtimeMillis,
-        Map<String, Object> config,
-        List<Attribute> logicalSchema,
-        @Nullable DatasetMapping declaredMapping
-    ) {
-        DeclaredReadSpec spec = declaredReadSpecOf(declaredMapping);
-        Map<String, Object> seed = new HashMap<>(4);
-        seed.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
-        seed.put(ExternalStats.CONFIG_FINGERPRINT_KEY, SchemaCacheKey.buildFormatConfig(storageConfig(config)));
-        seed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ReadConfigFingerprint.of(logicalSchema, spec));
-        if (spec.blankStringCellIsEmptyString()) {
-            seed.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
-        }
-        return Map.copyOf(seed);
-    }
-
     private ExternalSourceMetadata strictSingleFileMetadata(
         String path,
         StoragePath storagePath,
@@ -3614,7 +3585,17 @@ public class ExternalSourceResolver {
                     logicalSchema,
                     sourceType,
                     path,
-                    strictSeedMetadata(mtimeMillis, config, logicalSchema, declaredMapping),
+                    Map.of(
+                        ExternalStats.MTIME_MILLIS_KEY,
+                        mtimeMillis,
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        SchemaCacheKey.buildFormatConfig(storageConfig(config)),
+                        // Seed the read configuration too, from the declaration this entry was minted for. Without it the seed
+                        // would carry no read configuration while every harvest carries one, so the first contribution would match
+                        // nothing and the strict warm rail would die silently — the failure the reverted stopgap hit.
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        ReadConfigFingerprint.of(logicalSchema, declaredReadSpecOf(declaredMapping))
+                    ),
                     Map.of()
                 )
             );

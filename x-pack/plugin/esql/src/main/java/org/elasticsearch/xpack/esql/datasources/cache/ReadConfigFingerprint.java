@@ -48,8 +48,8 @@ import java.util.Map;
  *   <li><b>Binding mode</b> — a by-name read binds each column against the file's own physical names and null-fills
  *       one the file does not supply; a positional read takes the <em>i</em>-th physical field. Same columns, different
  *       cells.</li>
- *   <li><b>Blank-cell policy</b> — whether a present-but-empty cell on a string column holds the empty string or
- *       {@code null}. It changes that column's values, and with them its null count, value count and extrema.</li>
+ *   <li><b>NOT the blank-cell rule</b> — what a present-but-empty string cell holds is decided by {@code null_value}
+ *       alone, which the config fingerprint beside this one already carries.</li>
  *   <li><b>NOT nullability</b> — {@code FileSplit} normalizes the planner-internal UNKNOWN to nullable on the wire,
  *       so a coordinator hashing its in-memory schema and a data node hashing the round-tripped one would disagree.
  *       An identity the two sides compute differently is worse than no identity: it matches nothing, silently.</li>
@@ -115,10 +115,10 @@ public final class ReadConfigFingerprint {
             appendLengthPrefixed(encoded, attribute.dataType().typeName());
             appendLengthPrefixed(encoded, dateFormats.getOrDefault(logicalName, ""));
         }
-        // The two read INSTRUCTIONS, named rather than derived from where the schema came from: each changes what the
-        // read observes, so two reads differing on either describe different cells and must not share a statistic.
+        // The read INSTRUCTION, named rather than derived from where the schema came from: it changes which field a
+        // column observes, so two reads differing on it describe different cells and must not share a statistic.
+        // What a blank string cell holds is decided by null_value, which is part of the cache key already.
         appendLengthPrefixed(encoded, readSpec.bindsByName() ? "binding:name" : "binding:position");
-        appendLengthPrefixed(encoded, readSpec.blankStringCellIsEmptyString() ? "blank:empty" : "blank:null");
 
         byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());

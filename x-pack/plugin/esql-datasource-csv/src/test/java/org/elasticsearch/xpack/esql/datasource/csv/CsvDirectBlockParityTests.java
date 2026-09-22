@@ -1808,7 +1808,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             .recordAligned(true)
             .readSchema(reader.metadata(object).schema())
             .build();
-        return collect(reader.withNameBinding(true).withBlankStringCellAsEmptyString(true), object, ctx);
+        return collect(reader.withNameBinding(true), object, ctx);
     }
 
     private List<List<Object>> drain(CsvFormatReader reader, List<String> projection, int batchSize, ErrorPolicy policy, String content)

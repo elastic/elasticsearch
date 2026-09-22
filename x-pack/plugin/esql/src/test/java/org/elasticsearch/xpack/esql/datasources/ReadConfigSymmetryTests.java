@@ -42,7 +42,7 @@ public class ReadConfigSymmetryTests extends ESTestCase {
 
     public void testFingerprintSurvivesTheSplitRoundTrip() throws IOException {
         List<Attribute> coordinatorSchema = List.of(attr("user", DataType.KEYWORD), attr("count", DataType.LONG));
-        DeclaredReadSpec spec = new DeclaredReadSpec(Map.of(), Map.of(), Set.of(), false, false);
+        DeclaredReadSpec spec = new DeclaredReadSpec(Map.of(), Map.of(), Set.of(), false);
 
         String coordinatorSide = ReadConfigFingerprint.of(coordinatorSchema, spec);
         String dataNodeSide = ReadConfigFingerprint.of(roundTrip(coordinatorSchema).readSchema(), spec);
@@ -55,13 +55,7 @@ public class ReadConfigSymmetryTests extends ESTestCase {
         // A declaration is where the two sides have the most room to disagree: renames, per-column patterns and the
         // binding mode all feed the read configuration, and only the schema half crosses the wire in the split.
         List<Attribute> coordinatorSchema = List.of(attr("user", DataType.KEYWORD), attr("ts", DataType.DATETIME));
-        DeclaredReadSpec spec = new DeclaredReadSpec(
-            Map.of("user", "user_name"),
-            Map.of("ts", "yyyyMMdd"),
-            Set.of("user", "ts"),
-            true,
-            true
-        );
+        DeclaredReadSpec spec = new DeclaredReadSpec(Map.of("user", "user_name"), Map.of("ts", "yyyyMMdd"), Set.of("user", "ts"), true);
 
         assertEquals(
             ReadConfigFingerprint.of(coordinatorSchema, spec),

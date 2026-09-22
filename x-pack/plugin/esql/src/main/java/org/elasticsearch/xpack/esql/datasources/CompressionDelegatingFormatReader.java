@@ -133,14 +133,6 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public FormatReader withBlankStringCellAsEmptyString(boolean blankStringCellIsEmptyString) {
-        // Delegate for the same reason as the binding above: a compressed .csv.gz must read a blank cell exactly as
-        // the plain file does, or the two disagree on a column's values and on the statistics harvested from them.
-        FormatReader configured = inner.withBlankStringCellAsEmptyString(blankStringCellIsEmptyString);
-        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
-    }
-
-    @Override
     public boolean nameBindingNeedsFileStart() {
         return inner.nameBindingNeedsFileStart();
     }

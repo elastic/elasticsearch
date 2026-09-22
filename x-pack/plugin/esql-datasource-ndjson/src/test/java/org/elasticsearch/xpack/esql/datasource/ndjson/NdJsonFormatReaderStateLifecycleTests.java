@@ -100,8 +100,6 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         "withDeclaredTypeColumns",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withNameBinding",
-        WitherLifecycle.IDENTITY_NO_COPY,
-        "withBlankStringCellAsEmptyString",
         WitherLifecycle.IDENTITY_NO_COPY
     );
 
@@ -288,7 +286,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withReadConfig" -> new Object[] { "0123456789abcdef0123456789abcdef" };
             case "withPushedFilter" -> new Object[] { new Object() };
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
-            case "withNameBinding", "withBlankStringCellAsEmptyString" -> new Object[] { true };
+            case "withNameBinding" -> new Object[] { true };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

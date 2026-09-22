@@ -59,15 +59,8 @@ sealed interface SourceStatsContribution {
      * @param columnTypes  the type each was read at, positionally aligned with {@code columnNames}
      * @param dateFormats  declared date parse-patterns by physical column name; empty when none was declared
      * @param binding      {@link ExternalStats#BINDING_BY_NAME} or {@link ExternalStats#BINDING_BY_POSITION}
-     * @param blankStringCellIsEmptyString whether a blank string cell held the empty string on this read
      */
-    record ReadIdentity(
-        List<String> columnNames,
-        List<String> columnTypes,
-        Map<String, String> dateFormats,
-        @Nullable String binding,
-        boolean blankStringCellIsEmptyString
-    ) {
+    record ReadIdentity(List<String> columnNames, List<String> columnTypes, Map<String, String> dateFormats, @Nullable String binding) {
         /** Lifts the identity out of a raw contribution, or null when the producer stamped none. */
         @Nullable
         static ReadIdentity from(Map<String, Object> raw) {
@@ -87,8 +80,7 @@ sealed interface SourceStatsContribution {
                 dateFormats = Map.copyOf(collected);
             }
             String binding = raw.get(ExternalStats.READ_BINDING_KEY) instanceof String b ? b : null;
-            boolean blank = Boolean.TRUE.equals(raw.get(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY));
-            return new ReadIdentity(names, types, dateFormats, binding, blank);
+            return new ReadIdentity(names, types, dateFormats, binding);
         }
 
         @Nullable

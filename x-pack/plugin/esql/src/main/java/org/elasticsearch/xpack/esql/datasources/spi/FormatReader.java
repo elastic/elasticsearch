@@ -344,24 +344,6 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Returns a reader that reads a present-but-empty cell on a string column as the empty string rather than as
-     * {@code null}, unless {@code null_value} names the blank. False reads such a cell as {@code null} on every column
-     * type.
-     * <p>
-     * A separate axis from {@link #withNameBinding}: that decides which physical field a column reads, this decides
-     * what an empty one holds. A statistic harvested under one blank rule describes different cells from one
-     * harvested under the other, so the two are carried separately.
-     * <p>
-     * Only the text readers need it: no other format has a present-but-empty cell distinct from an absent one.
-     *
-     * @param blankStringCellIsEmptyString true when a blank string cell holds the empty string
-     * @return a new reader honoring the rule, or {@code this} when it does not apply
-     */
-    default FormatReader withBlankStringCellAsEmptyString(boolean blankStringCellIsEmptyString) {
-        return this;
-    }
-
-    /**
      * Returns a reader that stamps {@code readConfig} onto the statistics it harvests — the caller-computed identity of
      * how THIS file is being read (see {@code ReadConfigFingerprint}). Opaque to the reader, exactly like the canonical
      * config string it sits beside: the reader carries it through onto its contributions and never interprets it.

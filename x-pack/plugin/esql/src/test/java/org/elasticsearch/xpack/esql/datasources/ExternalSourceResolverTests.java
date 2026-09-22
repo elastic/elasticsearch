@@ -1718,9 +1718,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins("s3://bucket/data/a.parquet", ffw, DeclaredReadSpec.NONE));
         assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins(null, ffw, DeclaredReadSpec.NONE));
         assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins(GLOB, ubn, DeclaredReadSpec.NONE));
-        assertFalse(
-            ExternalSourceResolver.isAnchorPinnedFirstFileWins(GLOB, ffw, DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), true, true))
-        );
+        assertFalse(ExternalSourceResolver.isAnchorPinnedFirstFileWins(GLOB, ffw, DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), true)));
     }
 
     public void testNativeTypesUnknownRequiresAnchorPinAndMissingSnapshot() {
@@ -1741,7 +1739,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testPinnedColumnsOfUnknownFirstFileWinsUsesPhysicalNamesAfterRename() {
         ExternalSchema overlaid = new ExternalSchema(List.of(attr("y", DataType.INTEGER)));
         SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(overlaid, null, null);
-        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of(), false, false);
+        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of(), false);
         assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(unknown, true, renamed));
     }
 

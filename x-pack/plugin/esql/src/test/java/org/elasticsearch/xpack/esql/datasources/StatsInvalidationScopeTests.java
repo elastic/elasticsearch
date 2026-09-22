@@ -70,7 +70,6 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         ExternalStats.READ_COLUMN_TYPES_KEY,
         ExternalStats.READ_COLUMN_DATE_FORMATS_KEY,
         ExternalStats.READ_BINDING_KEY,
-        ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY,
         ExternalStats.COLUMNS_IN_FILE_ORDER_KEY
     );
 
@@ -186,7 +185,6 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         Map.entry(ExternalStats.READ_COLUMN_TYPES_KEY, FoldBehaviour.CALLER_REATTACHED),
         Map.entry(ExternalStats.READ_COLUMN_DATE_FORMATS_KEY, FoldBehaviour.CALLER_REATTACHED),
         Map.entry(ExternalStats.READ_BINDING_KEY, FoldBehaviour.CALLER_REATTACHED),
-        Map.entry(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, FoldBehaviour.CALLER_REATTACHED),
         Map.entry(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, FoldBehaviour.CALLER_REATTACHED),
         Map.entry(SourceStatisticsSerializer.STATS_KEY_PREFIX, FoldBehaviour.MODEL_INTERNAL),
         Map.entry(SourceStatisticsSerializer.STATS_COL_PREFIX, FoldBehaviour.MODEL_INTERNAL),

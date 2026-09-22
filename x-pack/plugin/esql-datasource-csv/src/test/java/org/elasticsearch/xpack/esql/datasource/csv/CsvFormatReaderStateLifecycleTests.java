@@ -62,7 +62,6 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         "readConfig",
         "declaredDateFormats",
         "bindsByName",
-        "blankStringCellIsEmptyString",
         "directBlockEnabled",
         "configWarnings"
     );
@@ -83,7 +82,6 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withSchema", WitherLifecycle.PER_QUERY_FORKS),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.PER_QUERY_FORKS),
         Map.entry("withNameBinding", WitherLifecycle.PER_QUERY_FORKS),
-        Map.entry("withBlankStringCellAsEmptyString", WitherLifecycle.PER_QUERY_FORKS),
         Map.entry("withDirectBlockEnabled", WitherLifecycle.PER_QUERY_FORKS),
         Map.entry("withReadConfig", WitherLifecycle.PER_FILE_SHARES),
         Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
@@ -273,7 +271,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
                 new Object[] { List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG)) }
             );
             case "withDeclaredDateFormats" -> List.<Object[]>of(new Object[] { Map.of("b", "yyyy-MM-dd") });
-            case "withNameBinding", "withBlankStringCellAsEmptyString" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
+            case "withNameBinding" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withDirectBlockEnabled" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withReadConfig" -> List.<Object[]>of(new Object[] { "0123456789abcdef0123456789abcdef" });
             case "withPushedFilter" -> List.<Object[]>of(new Object[] { new Object() });

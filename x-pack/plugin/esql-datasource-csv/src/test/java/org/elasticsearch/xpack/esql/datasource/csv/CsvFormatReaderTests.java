@@ -5807,8 +5807,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG)
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("skip_rows", 2, "header_row", true))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6929,8 +6928,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         for (boolean binding : List.of(false, true)) {
             CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-                .withNameBinding(binding)
-                .withBlankStringCellAsEmptyString(binding);
+                .withNameBinding(binding);
             try (
                 CloseableIterator<Page> it = reader.read(
                     object,
@@ -6955,7 +6953,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
             Map.of("header_row", true, "datetime_format", "yyyy-MM-dd HH:mm:ss")
-        ).withNameBinding(true).withBlankStringCellAsEmptyString(true);
+        ).withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -6982,8 +6980,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7016,7 +7013,6 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
             .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true)
             .withSchema(declared);
 
         List<String> names = reader.metadata(object).schema().stream().map(Attribute::name).toList();
@@ -7036,8 +7032,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7071,8 +7066,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject("1\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "value", DataType.LONG));
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7107,8 +7101,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD)
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7136,8 +7129,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject("1,Alice\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG));
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> reader.read(
@@ -7153,8 +7145,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject("a,b,c,d,e,f,g,h,i,999\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col9", DataType.LONG));
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7174,8 +7165,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "nope", DataType.LONG));
         List<String> warnings = new ArrayList<>();
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7202,8 +7192,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "EventTime", DataType.LONG));
         List<String> warnings = new ArrayList<>();
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7230,8 +7219,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col007", DataType.KEYWORD));
         List<String> warnings = new ArrayList<>();
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7256,8 +7244,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject("42,7\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col500000000", DataType.LONG));
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7275,8 +7262,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject("id,ts,id\n1,2,3\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> reader.read(
@@ -7296,13 +7282,10 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader headered = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
         CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
         assertFalse("no declared path -> nothing to bind by name", headered.nameBindingNeedsFileStart());
-        assertTrue(
-            "headered + declared path binds against the header line",
-            headered.withNameBinding(true).withBlankStringCellAsEmptyString(true).nameBindingNeedsFileStart()
-        );
+        assertTrue("headered + declared path binds against the header line", headered.withNameBinding(true).nameBindingNeedsFileStart());
         assertFalse(
             "headerless names encode their own positions, so any split can bind",
-            headerless.withNameBinding(true).withBlankStringCellAsEmptyString(true).nameBindingNeedsFileStart()
+            headerless.withNameBinding(true).nameBindingNeedsFileStart()
         );
     }
 
@@ -7316,7 +7299,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
             Map.of("header_row", false, "datetime_format", "yyyy-MM-dd HH:mm:ss")
-        ).withNameBinding(true).withBlankStringCellAsEmptyString(true);
+        ).withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7752,8 +7735,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
             CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(false)
                 .withConfig(config)
-                .withNameBinding(true)
-                .withBlankStringCellAsEmptyString(true);
+                .withNameBinding(true);
             int declaredRows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"));
             List<String> declaredWarnings = drainWarnings();
 
@@ -7847,8 +7829,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // a hand-assembled config that only happens to share its delimiter.
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV)
             .withConfig(config)
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         int rows = readRowCount(reader, createStorageObject(tsv), idTagsScore(), List.of("id", "tags"));
         List<String> warnings = drainWarnings();
         assertEquals(1, rows);
@@ -7871,7 +7852,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
             Map.of("header_row", false, "multi_value_syntax", "brackets")
-        ).withNameBinding(true).withBlankStringCellAsEmptyString(true);
+        ).withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7899,8 +7880,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, raw field 0
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7933,8 +7913,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col5", DataType.KEYWORD)   // absent: file has 3 fields
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -7965,8 +7944,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(true)
             .withConfig(Map.of("header_row", false, "multi_value_syntax", "none"))
-            .withNameBinding(true)
-            .withBlankStringCellAsEmptyString(true);
+            .withNameBinding(true);
         try (
             CloseableIterator<Page> it = reader.read(
                 object,
@@ -8319,37 +8297,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             .batchSize(100)
             .readSchema(declared)
             .build();
-        try (CloseableIterator<Page> iterator = reader.withNameBinding(true).withBlankStringCellAsEmptyString(true).read(object, ctx)) {
+        try (CloseableIterator<Page> iterator = reader.withNameBinding(true).read(object, ctx)) {
             assertTrue("expected at least one page", iterator.hasNext());
             asserts.accept(iterator.next());
-        }
-    }
-
-    /**
-     * The two read instructions are independent axes. Binding by name says which physical field a column reads; the
-     * blank flag says what a present-but-empty cell on a string column holds. Setting one must not move the other.
-     * <p>Fails if {@code blankStringSemantics} is fed the binding instead of the blank flag, or if
-     * {@code withBlankStringCellAsEmptyString} does not thread its value — the decoupling this whole change rests on.
-     */
-    public void testBlankRuleFollowsTheBlankFlagNotTheBinding() throws IOException {
-        String csv = """
-            id:long,phrase:keyword,n:integer
-            1,apple,10
-            2,,20
-            """;
-        StorageObject object = createStorageObject(csv);
-        List<Attribute> pinned = new CsvFormatReader(blockFactory).metadata(object).schema();
-        FormatReadContext ctx = FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(100).readSchema(pinned).build();
-
-        // By name, but told nothing about blanks: a blank keyword cell is null.
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).withNameBinding(true).read(object, ctx)) {
-            assertTrue("expected at least one page", it.hasNext());
-            assertBlockNull(it.next(), 1, 1);
-        }
-        // Positional, but told a blank string cell is the empty string: it is, despite the positional binding.
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).withBlankStringCellAsEmptyString(true).read(object, ctx)) {
-            assertTrue("expected at least one page", it.hasNext());
-            assertKeyword(it.next(), 1, 1, "");
         }
     }
 
@@ -8806,7 +8756,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         FormatReader effective = reader;
         if (declared) {
             ctx.firstSplit(true).recordAligned(true).readSchema(reader.metadata(object).schema());
-            effective = reader.withNameBinding(true).withBlankStringCellAsEmptyString(true);
+            effective = reader.withNameBinding(true);
         }
         try (CloseableIterator<Page> iterator = effective.read(object, ctx.build())) {
             assertTrue("expected at least one page", iterator.hasNext());

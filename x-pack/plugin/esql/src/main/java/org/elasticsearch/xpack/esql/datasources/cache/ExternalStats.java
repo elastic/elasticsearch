@@ -101,13 +101,6 @@ public final class ExternalStats {
     public static final String BINDING_BY_POSITION = "position";
 
     /**
-     * Set when the read held a present-but-empty cell on a string column as the empty string rather than
-     * {@code null}. Written only when true. It changes that column's value count, null count and extrema, so it
-     * separates two reads that agree on every name and type.
-     */
-    public static final String READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY = "_stats.read_blank_string_cell_is_empty_string";
-
-    /**
      * Set on a cache ENTRY whose column order is the file's own physical order — an entry seeded from the file's own
      * inferred schema. A positional contribution may only be paired with such an entry column by column, because
      * position is what a positional read binds by; without this marker the entry's order is unknown and the pairing

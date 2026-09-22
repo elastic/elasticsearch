@@ -1020,122 +1020,14 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * B1: a blank cell is the empty string on one read and null on another, so the same string column measured by
-     * the two has different value counts, null counts and extrema. Same name, same type, and still not the same
-     * cells.
-     */
-    public void testStringColumnCrossesOnlyWhenBlankPoliciesAgree() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            String path = "file:///data/c.csv";
-            long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
-            List<Attribute> schema = List.of(
-                new ReferenceAttribute(Source.EMPTY, null, "color", DataType.KEYWORD, Nullability.TRUE, null, false),
-                new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG, Nullability.TRUE, null, false)
-            );
-            service.getOrComputeSchema(
-                key,
-                k -> SchemaCacheEntry.from(
-                    schema,
-                    "csv",
-                    path,
-                    Map.of(
-                        ExternalStats.CONFIG_FINGERPRINT_KEY,
-                        "fp",
-                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
-                        "config-own",
-                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
-                        Boolean.TRUE
-                    ),
-                    Map.of()
-                )
-            );
-
-            Map<String, Object> foreign = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
-            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
-            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
-            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("color", "n"));
-            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("keyword", "long"));
-            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
-            // This read held a blank string cell as the empty string; the entry's read (no key) made it null.
-            foreign.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
-            foreign.put(SourceStatisticsSerializer.columnValueCountKey("color"), 30L);
-            foreign.put(SourceStatisticsSerializer.columnMinKey("n"), 2L);
-            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
-
-            Map<String, Object> stripe = stripeAt(service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); }), 0);
-            assertNotNull("the numeric column is unaffected by the blank rule and must still cross", stripe);
-            assertEquals(2L, stripe.get(SourceStatisticsSerializer.columnMinKey("n")));
-            assertNull(
-                "the two reads disagree on what a blank holds, so the string column's counts describe different cells",
-                stripe.get(SourceStatisticsSerializer.columnValueCountKey("color"))
-            );
-        }
-    }
-
-    /**
      * An entry that already measured its own read, enriched by a licensed whole-file contribution from a different
      * one. The row count crosses; the entry's own measurement of a column it already measured is kept rather than
      * replaced by the other read's.
      */
     /**
-     * A string column crosses into an entry that recorded holding blanks as the empty string when the crossing
-     * read holds them the same way. The strict rail records it on its seed, which is what makes the conjunct a
-     * comparison rather than a refusal of every declared read's string columns.
-     */
-    public void testStringColumnCrossesIntoAnEntryThatRecordedTheSameBlankRule() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            String path = "file:///data/blank-agree.csv";
-            long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
-            List<Attribute> schema = List.of(
-                new ReferenceAttribute(Source.EMPTY, null, "color", DataType.KEYWORD, Nullability.TRUE, null, false)
-            );
-            service.getOrComputeSchema(
-                key,
-                k -> SchemaCacheEntry.from(
-                    schema,
-                    "csv",
-                    path,
-                    Map.of(
-                        ExternalStats.CONFIG_FINGERPRINT_KEY,
-                        "fp",
-                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
-                        "config-own",
-                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
-                        Boolean.TRUE,
-                        // What the strict seed records about its own read.
-                        ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY,
-                        Boolean.TRUE
-                    ),
-                    Map.of()
-                )
-            );
-
-            Map<String, Object> foreign = wholeFileStats(mtime, "fp", 10L);
-            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
-            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
-            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("color"));
-            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("keyword"));
-            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_NAME);
-            foreign.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
-            foreign.put(SourceStatisticsSerializer.columnMinKey("color"), "amber");
-            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
-
-            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
-            assertEquals(
-                "both reads hold a blank cell as the empty string, so the column crosses",
-                "amber",
-                after.safeMetadata().get(SourceStatisticsSerializer.columnMinKey("color"))
-            );
-        }
-    }
-
-    /**
      * An entry never records a read identity, not even its own read's: the stamped keys travel on the wire
-     * contribution and {@code toFlatMap} drops them, so nothing writes them into an entry. The blank-cell conjunct in
-     * {@code crossingStats} therefore compares a crossing read's blank rule against the default, which is what
-     * {@code testStringColumnCrossesOnlyWhenBlankPoliciesAgree} exercises from the contribution's side.
+     * contribution and {@code toFlatMap} drops them, so nothing writes them into an entry. An entry is therefore never
+     * relabelled as a read it did not make, whatever contributions reach it.
      */
     public void testAnEntryRecordsNoReadIdentityOfItsOwn() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -1155,7 +1047,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             sameRead.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("color"));
             sameRead.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("keyword"));
             sameRead.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_NAME);
-            sameRead.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(sameRead)));
 
             SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
@@ -1165,7 +1056,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 after.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
             assertFalse("no binding is recorded on the entry", after.safeMetadata().containsKey(ExternalStats.READ_BINDING_KEY));
-            assertFalse("nor a blank rule", after.safeMetadata().containsKey(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY));
             assertFalse("nor the column names it was read under", after.safeMetadata().containsKey(ExternalStats.READ_COLUMN_NAMES_KEY));
         }
     }

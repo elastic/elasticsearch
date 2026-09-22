@@ -4542,7 +4542,7 @@ public class FileSplitProviderTests extends ESTestCase {
             unified,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), true, true)
+            DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), true)
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4568,7 +4568,7 @@ public class FileSplitProviderTests extends ESTestCase {
             overlaid,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of(), false, false)
+            DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of(), false)
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();

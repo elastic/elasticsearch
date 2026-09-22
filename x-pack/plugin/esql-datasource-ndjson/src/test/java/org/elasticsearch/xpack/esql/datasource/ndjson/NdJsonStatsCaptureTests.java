@@ -278,8 +278,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
 
     /**
      * The identity says what this read did to the cells, so another read's statistics can be compared with it per
-     * column. NDJSON binds every column by object key and has no present-but-empty cell, so the binding is always
-     * by name and the blank key stays off.
+     * column. NDJSON binds every column by object key, so the binding is always by name.
      */
     public void testReadIdentityIsStampedOnEveryContribution() throws Exception {
         StorageObject o = obj("{\"a\":1,\"b\":\"x\"}\n{\"a\":2,\"b\":\"y\"}\n");
@@ -292,10 +291,6 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         assertEquals(List.of("a", "b"), c.get(ExternalStats.READ_COLUMN_NAMES_KEY));
         assertEquals(List.of("long", "keyword"), c.get(ExternalStats.READ_COLUMN_TYPES_KEY));
         assertEquals(ExternalStats.BINDING_BY_NAME, c.get(ExternalStats.READ_BINDING_KEY));
-        assertFalse(
-            "NDJSON has no present-but-empty cell, so the blank key is never written",
-            c.containsKey(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY)
-        );
         assertFalse("no column declared a date pattern, so the key stays off", c.containsKey(ExternalStats.READ_COLUMN_DATE_FORMATS_KEY));
     }
 

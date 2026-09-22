@@ -121,9 +121,9 @@ public final class SourceStatisticsSerializer {
 
     /**
      * Stamps onto {@code base} what the producing read did: the physical column names it bound in read order, the
-     * type each was read at, the declared date patterns, the binding mode, and whether a blank string cell held the
-     * empty string. Identity data, not measurement — it lets a per-column merge pair columns by name and compare the
-     * behaviours that decide whether two reads saw the same cells.
+     * type each was read at, the declared date patterns, and the binding mode. Identity data, not measurement — it
+     * lets a per-column merge pair columns by name and compare the behaviours that decide whether two reads saw the
+     * same cells.
      * <p>
      * Names are physical: {@code FileSourceFactory} applies the declared renames before the reader sees the schema,
      * exactly as {@code ReadConfigFingerprint#of} hashes them.
@@ -132,8 +132,7 @@ public final class SourceStatisticsSerializer {
         Map<String, Object> base,
         @Nullable List<Attribute> readSchema,
         @Nullable Map<String, String> physicalDateFormats,
-        @Nullable String binding,
-        boolean blankStringCellIsEmptyString
+        @Nullable String binding
     ) {
         if (readSchema == null || readSchema.isEmpty()) {
             return base;
@@ -151,10 +150,6 @@ public final class SourceStatisticsSerializer {
         }
         if (binding != null) {
             base.put(ExternalStats.READ_BINDING_KEY, binding);
-        }
-        // Written only when true: absence is the common case and means the default rule (a blank is null).
-        if (blankStringCellIsEmptyString) {
-            base.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
         }
         return base;
     }

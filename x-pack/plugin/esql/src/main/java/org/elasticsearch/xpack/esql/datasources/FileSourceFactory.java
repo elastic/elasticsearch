@@ -534,12 +534,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
                     // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
                     .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
-                    // Two read instructions the resolution decided, passed through as instructions: a by-name schema
+                    // A read instruction the resolution decided, passed through as an instruction: a by-name schema
                     // binds by name even with no `path`, and a positional one must never re-bind at the reader (its
-                    // positions already came from the file). The blank rule rides beside it because it changes what a
-                    // cell holds, which is a different question from which field it reads.
-                    .withNameBinding(context.declaredReadSpec().bindsByName())
-                    .withBlankStringCellAsEmptyString(context.declaredReadSpec().blankStringCellIsEmptyString());
+                    // positions already came from the file).
+                    .withNameBinding(context.declaredReadSpec().bindsByName());
                 ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
                 Map<String, Object> partitionValues = Map.of();

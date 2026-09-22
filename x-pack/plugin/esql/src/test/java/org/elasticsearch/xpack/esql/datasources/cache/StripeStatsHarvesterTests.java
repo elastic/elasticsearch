@@ -78,8 +78,7 @@ public class StripeStatsHarvesterTests extends ESTestCase {
                 false,
                 SCHEMA,
                 Map.of(),
-                ExternalStats.BINDING_BY_POSITION,
-                false
+                ExternalStats.BINDING_BY_POSITION
             );
         }
         List<Map<String, Object>> raw = sink.get(path);

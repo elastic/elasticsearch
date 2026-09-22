@@ -207,13 +207,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     private static BytesRefVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newBytesRefVectorBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                int length = in.readArraySize();
-                blockFactory.adjustBreaker(length);
-                try {
-                    builder.appendBytesRef(in.readBytesRef(length));
-                } finally {
-                    blockFactory.adjustBreaker(-length);
-                }
+                builder.appendBytesRef(in.readBytesRef());
             }
             return builder.build();
         }

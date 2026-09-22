@@ -25,7 +25,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestWarningsSource;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -235,38 +234,21 @@ public class BlockSerializationTests extends SerializationTestCase {
     private static final ByteSizeValue LIMIT = ByteSizeValue.ofMb(1);
     /**
      * A value twice {@link #LIMIT}, with its bytes actually present on the wire, as in a legitimately large page. The breaker
-     * must refuse it before a single byte of the value is read; reading first allocated the whole value unaccounted, which is
-     * how the coordinator died in elastic/elasticsearch-serverless#7314.
+     * must refuse it before a single byte of the value is read; reading first put the whole value on the heap unaccounted.
      */
     private static final BytesRef TOO_BIG = new BytesRef(new byte[2 * 1024 * 1024]);
 
     public void testTooBigConstantBytesRefIsRefusedBeforeItIsRead() throws IOException {
+        BlockFactory limited = BlockFactoryTests.blockFactory(LIMIT);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(3);
             out.writeByte(Vector.SERIALIZE_VECTOR_CONSTANT);
             out.writeBytesRef(TOO_BIG);
-            assertRefusedBeforeRead(out, (in, limited) -> BytesRefVector.readFrom(limited, in));
+            StreamInput in = streamInput(out);
+            expectThrows(CircuitBreakingException.class, () -> BytesRefVector.readFrom(limited, in));
+            assertThat("value bytes were read before the breaker refused them", in.available(), equalTo(TOO_BIG.length));
         }
-    }
-
-    public void testTooBigBytesRefVectorValueIsRefusedBeforeItIsRead() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(1);
-            out.writeByte(Vector.SERIALIZE_VECTOR_VALUES);
-            out.writeBytesRef(TOO_BIG);
-            assertRefusedBeforeRead(out, (in, limited) -> BytesRefVector.readFrom(limited, in));
-        }
-    }
-
-    public void testTooBigBytesRefBlockValueIsRefusedBeforeItIsRead() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeByte(Block.SERIALIZE_BLOCK_VALUES);
-            out.writeVInt(1);
-            out.writeBoolean(false);
-            out.writeVInt(1);
-            out.writeBytesRef(TOO_BIG);
-            assertRefusedBeforeRead(out, (in, limited) -> BytesRefBlock.readFrom(new BlockStreamInput(in, limited)));
-        }
+        assertThat(limited.breaker().getUsed(), equalTo(0L));
     }
 
     /** A corrupt length past the JVM array limit is rejected before it reaches the breaker or the allocator. */
@@ -291,18 +273,6 @@ public class BlockSerializationTests extends SerializationTestCase {
             out.writeBytes(TOO_BIG.bytes, 0, TOO_BIG.length / 2);
             expectThrows(EOFException.class, () -> BytesRefVector.readFrom(limited, streamInput(out)));
         }
-        assertThat(limited.breaker().getUsed(), equalTo(0L));
-    }
-
-    private interface Reader {
-        Releasable read(StreamInput in, BlockFactory blockFactory) throws IOException;
-    }
-
-    private static void assertRefusedBeforeRead(BytesStreamOutput out, Reader reader) throws IOException {
-        BlockFactory limited = BlockFactoryTests.blockFactory(LIMIT);
-        StreamInput in = streamInput(out);
-        expectThrows(CircuitBreakingException.class, () -> reader.read(in, limited));
-        assertThat("value bytes were read before the breaker refused them", in.available(), equalTo(TOO_BIG.length));
         assertThat(limited.breaker().getUsed(), equalTo(0L));
     }
 

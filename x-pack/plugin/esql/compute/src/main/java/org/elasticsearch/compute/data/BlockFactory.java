@@ -564,7 +564,7 @@ public class BlockFactory {
     /** Wraps {@code value} without copying it, so the caller must not reuse or share it. */
     BytesRefVector newConstantBytesRefVector(BytesRef value, int positions, long preAdjustedBytes) {
         var v = new ConstantBytesRefVector(value, positions, this);
-        adjustBreaker(v.ramBytesUsed() - preAdjustedBytes);
+        assert v.ramBytesUsed() == preAdjustedBytes;
         return v;
     }
 

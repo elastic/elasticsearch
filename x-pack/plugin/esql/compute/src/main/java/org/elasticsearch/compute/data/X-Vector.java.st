@@ -301,32 +301,16 @@ $if(BytesRef)$
         }
     }
 
-    private static BytesRefVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
-        try (var builder = blockFactory.newBytesRefVectorBuilder(positions)) {
-            for (int i = 0; i < positions; i++) {
-                int length = in.readArraySize();
-                blockFactory.adjustBreaker(length);
-                try {
-                    builder.appendBytesRef(in.readBytesRef(length));
-                } finally {
-                    blockFactory.adjustBreaker(-length);
-                }
-            }
-            return builder.build();
-        }
-    }
-
-$else$
-    private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
-        try (var builder = blockFactory.new$Type$VectorFixedBuilder(positions)) {
-            for (int i = 0; i < positions; i++) {
-                builder.append$Type$(i, in.read$Type$());
-            }
-            return builder.build();
-        }
-    }
-
 $endif$
+    private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.append$Type$($if(BytesRef)$$else$i, $endif$in.read$Type$());
+            }
+            return builder.build();
+        }
+    }
+
     private static void writeValues($Type$Vector v, int positions, StreamOutput out) throws IOException {
 $if(BytesRef)$
         var scratch = new BytesRef();

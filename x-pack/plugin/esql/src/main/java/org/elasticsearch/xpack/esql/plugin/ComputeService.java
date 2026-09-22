@@ -2037,12 +2037,7 @@ public class ComputeService {
          * be quite large, and it isn't tracked.
          */
         boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
-        // Select the location mapper: authorized callers see the real storage paths; others get
-        // "[redacted]" in place of every location() field (sourcePath, datasetName).
-        NodeStringMapper locationMapper = context.configuration().canSeeDatasetLocation()
-            ? NodeStringMapper.IDENTITY
-            : NodeStringMapper.REDACT_LOCATION;
-        String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, locationMapper) : null;
+        String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY) : null;
         return listener.map(ignored -> {
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(

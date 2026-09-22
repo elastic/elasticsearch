@@ -245,6 +245,24 @@ public final class StoragePath {
         return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
     }
 
+    /**
+     * Returns the last path segment of {@code location} (the safe, displayable part), falling back
+     * to {@code location} itself if parsing fails or the path is empty. Suitable for including in
+     * user-visible error messages and plan strings where the bucket, prefix, and full URI must not
+     * be exposed.
+     */
+    public static String objectName(String location) {
+        if (location == null) {
+            return "";
+        }
+        try {
+            String name = StoragePath.of(location).objectName();
+            return name != null && name.isEmpty() == false ? name : location;
+        } catch (IllegalArgumentException e) {
+            return location;
+        }
+    }
+
     public StoragePath parentDirectory() {
         if (path.isEmpty() || path.equals(PATH_SEPARATOR)) {
             return null;

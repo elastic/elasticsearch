@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
@@ -69,39 +68,6 @@ public final class ExternalFailures {
     private ExternalFailures() {}
 
     /**
-     * Internal carrier for a coordinator-side resolution failure whose storage location is known.
-     * The {@link #resolve(boolean) resolved} exception exposes the location only to callers that hold
-     * {@code indices:admin/esql/dataset/get}; others receive the same message without the path.
-     * <p>
-     * This type is never serialised across node boundaries — it is created in
-     * {@code ExternalSourceResolver.mapResolveFailure} and resolved in {@code EsqlSession} before
-     * the exception leaves the coordinator.
-     */
-    public static final class LocatedException extends RuntimeException {
-        private final RuntimeException unlocated;
-        private final RuntimeException located;
-
-        LocatedException(RuntimeException unlocated, RuntimeException located) {
-            super(unlocated.getMessage(), unlocated);
-            this.unlocated = unlocated;
-            this.located = located;
-        }
-
-        /** Returns the exception whose message includes the storage path if {@code canSeeLocation}, otherwise the redacted version. */
-        public RuntimeException resolve(boolean canSeeLocation) {
-            return canSeeLocation ? located : unlocated;
-        }
-    }
-
-    /**
-     * Wraps a pair of exceptions — one without the storage path, one with — so the coordinator can
-     * reinstate the path only for callers authorised by {@code indices:admin/esql/dataset/get}.
-     */
-    public static LocatedException locatedException(RuntimeException unlocated, RuntimeException located) {
-        return new LocatedException(unlocated, located);
-    }
-
-    /**
      * Third-party decoding exceptions that are, by contract, malformed-input signals rather than bugs —
      * currently Parquet's {@code ParquetDecodingException} ("could not read page ..."). They are
      * unchecked {@link RuntimeException}s (not {@link IOException}s), so without this they would be
@@ -115,7 +81,7 @@ public final class ExternalFailures {
      */
     private static final Set<String> MALFORMED_DATA_EXCEPTIONS = Set.of("org.apache.parquet.io.ParquetDecodingException");
 
-    /** Depth bound for {@link #rootDetail}'s walk. Real chains here are 2-4 deep; this only stops a pathological one. */
+    /** Depth bound for {@link #isMalformedDataException} and {@link #rootCause} walks. Real chains here are 2-4 deep; this only stops a pathological one. */
     private static final int MAX_CAUSE_DEPTH = 12;
 
     /**
@@ -220,23 +186,6 @@ public final class ExternalFailures {
      */
     private static String detail(Throwable failure) {
         return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
-    }
-
-    /**
-     * Applies the same rule for any wrapper prefix: a detail that already names the location is returned as-is,
-     * so the path is not printed twice. Callers that have already resolved their own detail string use this
-     * directly rather than re-deriving it from the cause.
-     */
-    public static String locate(String prefix, String location, @Nullable String detail) {
-        if (detail == null) {
-            // A message-less throwable reaches here from the arms that pass getMessage() straight in --
-            // EsRejectedExecutionException has a no-argument constructor. Name the location and stop, rather
-            // than appending the word "null".
-            return prefix + " [" + location + "]";
-        }
-        // contains() is deliberately loose: a location that is a strict prefix of the one named in the detail would
-        // suppress the prefix wrongly. No path produces that today, so tightening it is not worth a behaviour change.
-        return detail.contains(location) ? detail : prefix + " [" + location + "]: " + detail;
     }
 
     /**

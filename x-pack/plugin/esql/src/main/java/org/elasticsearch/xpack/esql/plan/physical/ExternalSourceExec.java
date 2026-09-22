@@ -1021,11 +1021,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        // sourcePath is an external storage location — use mapper.location() so callers without
-        // indices:admin/esql/dataset/get can have it redacted. pushedFilter is a predicate the caller
-        // wrote themselves — redact under anonymization but not for location-only redaction.
+        // sourcePath is an external storage location — only the object name (last path segment) is
+        // included; bucket, prefix, and full URI are always omitted. pushedFilter is a predicate the
+        // caller wrote themselves — redact under anonymization only.
         // sourceType is a low-cardinality format enum, never redacted.
-        sb.append(nodeName()).append("[").append(mapper.location(sourcePath)).append("][").append(sourceType).append("]");
+        sb.append(nodeName()).append("[").append(StoragePath.objectName(sourcePath)).append("][").append(sourceType).append("]");
         if (pushedFilter != null) {
             sb.append("[filter=").append(mapper.opaque(String.valueOf(pushedFilter))).append("]");
         }
@@ -1039,10 +1039,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             sb.append("[splits=").append(splits.size()).append("]");
         }
         if (datasetName != null) {
-            // Dataset name is the logical name the caller used in FROM — always visible, redact only
-            // the storage URI (sourcePath) via mapper.location() above.
             sb.append("[dataset=").append(datasetName).append("]");
         }
         NodeUtils.toString(sb, attributes, format, mapper);
     }
+
 }

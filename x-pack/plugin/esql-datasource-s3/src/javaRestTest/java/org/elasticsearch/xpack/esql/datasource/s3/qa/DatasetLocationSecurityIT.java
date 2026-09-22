@@ -46,25 +46,24 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Verifies that users with only {@code read} privilege on a dataset cannot see its storage location
- * (S3 bucket name, object key, or path prefix) through error messages or profile plan strings,
- * while users who also hold {@code read_dataset_metadata} (which authorizes
- * {@code indices:admin/esql/dataset/get}) do see the location in both.
+ * Verifies that no user — regardless of privilege level — can see the storage location (S3 bucket
+ * name, object key prefix) through error messages or profile plan strings. The object name (last
+ * path segment, e.g. {@code good.csv}) is always shown to everyone; the bucket and prefix are
+ * never shown to anyone.
  *
- * <p>Three failing shapes are tested against two users ({@code ds-loc-reader} and
- * {@code ds-loc-metadata-reader}):
+ * <p>Four failing shapes are tested:
  * <ol>
  *   <li>Single-object access-denied (S3 403) — exercises the storage-object path.</li>
  *   <li>Glob listing access-denied (S3 403 on the list call) — exercises the storage-provider path.</li>
  *   <li>Format mismatch (garbage bytes read as Parquet) — exercises the format-reader path.</li>
+ *   <li>ORC tail-parsing failure (garbage bytes with .orc extension) — exercises the ORC reader path.</li>
  * </ol>
  *
- * <p>A fourth scenario verifies that successful queries issued with {@code profile:true} redact the
- * storage path in {@code profile.plans[].plan} strings for the reader but expose it for the
- * metadata-reader, while still preserving the plan shape (e.g. {@code ExternalSourceExec} node type).
+ * <p>A fifth scenario verifies that successful queries issued with {@code profile:true} do not expose
+ * the bucket name in {@code profile.plans[].plan} strings for any user, while still preserving the
+ * plan shape (e.g. {@code ExternalSourceExec} node type).
  *
- * <p>The cluster uses two nodes so that scan-time failures can cross the node boundary and exercise
- * the location-reinstatement path on the coordinator.
+ * <p>The cluster uses two nodes so that scan-time failures exercise the cross-node error path.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class DatasetLocationSecurityIT extends ESRestTestCase {
@@ -146,12 +145,10 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * Verifies three failing shapes across two users and then checks the profile-plan redaction gate
-     * for a successful query. For all error shapes, {@code reader} must not see the bucket name or
-     * any path component in any part of the error response; {@code metadata_reader} must see it.
-     * For the successful query with {@code profile:true}, plan strings must be similarly gated.
+     * Verifies that the bucket name never appears in error responses or profile plan strings for
+     * any user. The object name (last path segment) may appear, but the bucket and prefix must not.
      */
-    public void testDatasetLocationIsRedactedBasedOnPrivilege() throws IOException {
+    public void testDatasetLocationIsNeverExposed() throws IOException {
         // Data source that serves all seeded objects normally.
         putDataSource(
             "ds_loc_good_src",
@@ -193,51 +190,43 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         // Good dataset for the profile-plan test.
         putDataset("ds_loc_good", "ds_loc_good_src", s3(GOOD_CSV), null);
 
-        // ── Failing shapes: reader must not see bucket; metadata_reader must ─────────────────────
+        // ── Failing shapes: neither user must see the bucket name ────────────────────────────────
 
         for (String dataset : List.of("ds_loc_denied_single", "ds_loc_denied_glob", "ds_loc_wrong_format", "ds_loc_bad_orc")) {
-            // reader must not see the bucket name in any field of the error response
-            ResponseException readerError = expectThrows(
-                ResponseException.class,
-                () -> runEsqlAs("ds-loc-reader", "FROM " + dataset + " | LIMIT 5")
-            );
-            for (String text : allErrorText(entityAsMap(readerError.getResponse()))) {
-                assertThat("reader must not see bucket name in error for [" + dataset + "]", text, not(containsString(BUCKET)));
-            }
-
-            // metadata_reader must see the storage path in at least one field of the error response
-            ResponseException metaError = expectThrows(
-                ResponseException.class,
-                () -> runEsqlAs("ds-loc-metadata-reader", "FROM " + dataset + " | LIMIT 5")
-            );
-            boolean metaSeesPath = allErrorText(entityAsMap(metaError.getResponse())).stream().anyMatch(t -> t.contains(BUCKET));
-            assertTrue("metadata_reader must see storage path in error for [" + dataset + "]", metaSeesPath);
-        }
-
-        // ── Profile plan strings: reader gets redacted path; metadata_reader gets full path ──────
-
-        // reader: no bucket name in any plan string; plan shape is still visible
-        Map<String, Object> readerProfileResp = runEsqlWithProfileAs("ds-loc-reader", "FROM ds_loc_good | LIMIT 5");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> readerPlans = plansFromProfileResponse(readerProfileResp);
-        for (Map<String, Object> entry : readerPlans) {
-            String plan = (String) entry.get("plan");
-            if (plan != null) {
-                assertThat("reader must not see storage path in profile plan", plan, not(containsString(BUCKET)));
-                // Confirm the plan shape (node type) is still present — location redaction must not collapse the whole node.
-                assertThat("plan shape must be visible to reader", plan, containsString("ExternalSourceExec"));
+            for (String[] userAndPass : new String[][] {
+                { "ds-loc-reader", "reader" },
+                { "ds-loc-metadata-reader", "metadata_reader" } }) {
+                String user = userAndPass[0];
+                String label = userAndPass[1];
+                ResponseException error = expectThrows(
+                    ResponseException.class,
+                    () -> runEsqlAs(user, "FROM " + dataset + " | LIMIT 5")
+                );
+                for (String text : allErrorText(entityAsMap(error.getResponse()))) {
+                    assertThat(label + " must not see bucket name in error for [" + dataset + "]", text, not(containsString(BUCKET)));
+                }
             }
         }
 
-        // metadata_reader: bucket name appears in at least one plan entry
-        Map<String, Object> metaProfileResp = runEsqlWithProfileAs("ds-loc-metadata-reader", "FROM ds_loc_good | LIMIT 5");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> metaPlans = plansFromProfileResponse(metaProfileResp);
-        boolean metaSeesPathInPlan = metaPlans.stream()
-            .map(e -> (String) e.get("plan"))
-            .filter(p -> p != null)
-            .anyMatch(p -> p.contains(BUCKET));
-        assertTrue("metadata_reader must see storage path in at least one plan entry", metaSeesPathInPlan);
+        // ── Profile plan strings: neither user sees the bucket name ──────────────────────────────
+
+        for (String[] userAndPass : new String[][] {
+            { "ds-loc-reader", "reader" },
+            { "ds-loc-metadata-reader", "metadata_reader" } }) {
+            String user = userAndPass[0];
+            String label = userAndPass[1];
+            Map<String, Object> profileResp = runEsqlWithProfileAs(user, "FROM ds_loc_good | LIMIT 5");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> plans = plansFromProfileResponse(profileResp);
+            for (Map<String, Object> entry : plans) {
+                String plan = (String) entry.get("plan");
+                if (plan != null) {
+                    assertThat(label + " must not see bucket name in profile plan", plan, not(containsString(BUCKET)));
+                    // Confirm the plan shape (node type) is still present.
+                    assertThat("plan shape must be visible to " + label, plan, containsString("ExternalSourceExec"));
+                }
+            }
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────────────

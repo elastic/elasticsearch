@@ -215,7 +215,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertSame(expired, thrown.getCause());
         assertThat(thrown.getMessage(), containsString("expired or invalid"));
         assertThat(thrown.getMessage(), containsString("Refresh the data source credentials"));
-        // The storage path is intentionally omitted here; mapResolveFailure adds it for authorised callers via LocatedException.
+        // The storage path is intentionally omitted from the exception message.
         assertThat(thrown.getMessage(), not(containsString(PATH.toString())));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));
         assertSame(thrown, ExternalFailures.classify(thrown));

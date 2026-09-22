@@ -267,29 +267,6 @@ public class ExternalFailuresTests extends ESTestCase {
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
     }
 
-    public void testLocateOmitsThePrefixWhenTheDetailAlreadyNamesTheLocation() {
-        String location = "s3://bucket/data/good.csv";
-        assertThat(
-            ExternalFailures.locate("Failed to resolve external source", location, "Object not found: " + location),
-            equalTo("Object not found: s3://bucket/data/good.csv")
-        );
-    }
-
-    public void testLocateAddsThePrefixWhenTheDetailDoesNotNameTheLocation() {
-        assertThat(
-            ExternalFailures.locate("Failed to resolve external source", "s3://bucket/data/good.csv", "CSV file has no schema line"),
-            equalTo("Failed to resolve external source [s3://bucket/data/good.csv]: CSV file has no schema line")
-        );
-    }
-
-    public void testLocateHandlesAMessagelessFailure() {
-        // EsRejectedExecutionException has a no-argument constructor, and the rejection arm passes getMessage()
-        // straight into locate -- so a null detail is reachable, not hypothetical.
-        assertEquals(
-            "Failed to resolve external source [s3://bucket/data/good.csv]",
-            ExternalFailures.locate("Failed to resolve external source", "s3://bucket/data/good.csv", null)
-        );
-    }
 
     public void testRootCauseStepsThroughAToStringDerivedWrapper() {
         IOException real = new IOException("Object not found: s3://bucket/x.csv");

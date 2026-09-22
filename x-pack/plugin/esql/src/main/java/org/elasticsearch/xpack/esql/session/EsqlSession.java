@@ -55,16 +55,7 @@ import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
-import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -93,10 +84,8 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
@@ -537,25 +526,13 @@ public class EsqlSession {
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
 
-        // Dataset names are only known after DatasetResolver.replaceDatasets() runs (which rewrites
-        // FROM <name> UnresolvedRelation nodes into UnresolvedExternalRelation nodes with datasetName
-        // set). Collect them lazily via a Holder that analyzedPlan() populates once the rewrite
-        // completes; the Holder is safe to read in the failure callback because replaceDatasets always
-        // completes before any ExternalSourceResolver failure can propagate to the listener.
-        Holder<Set<String>> resolverDatasetNames = new Holder<>(Set.of());
-        ActionListener<Versioned<Result>> analysisListener = ActionListener.wrap(
-            listener::onResponse,
-            e -> reinstateLocationIfAuthorized(e, resolverDatasetNames.get(), listener)
-        );
-
         analyzedPlan(
             plan,
             QuerySettings.UNMAPPED_FIELDS.get(finalConfiguration.resolvedSettings()),
             finalConfiguration,
             executionInfo,
             request.filter(),
-            resolverDatasetNames,
-            new EsqlCCSUtils.CssPartialErrorsActionListener(finalConfiguration, executionInfo, analysisListener) {
+            new EsqlCCSUtils.CssPartialErrorsActionListener(finalConfiguration, executionInfo, listener) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
                     assert ThreadPool.assertCurrentThreadPool(
@@ -609,12 +586,6 @@ public class EsqlSession {
                     );
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
-                    var preMappedPlan = new Holder<LogicalPlan>();
-                    // Fail-closed: stays false until checkDatasetLocationPrivilege resolves.
-                    // Used to resolve LocatedException on the execution failure path, where the
-                    // SubscribableListener chain ends at .addListener(listener) rather than going
-                    // through analysisListener/reinstateLocationIfAuthorized.
-                    var callerHoldsDatasetLocationPrivilege = new AtomicBoolean(false);
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
@@ -622,13 +593,7 @@ public class EsqlSession {
                                 l
                             )
                         )
-                        .<Boolean>andThen((l, p) -> {
-                            preMappedPlan.set(p);
-                            checkDatasetLocationPrivilege(p, l);
-                        })
-                        .<Result>andThen((l, canSee) -> {
-                            callerHoldsDatasetLocationPrivilege.set(canSee);  // volatile write; visible to addListener below
-                            LogicalPlan p = preMappedPlan.get();
+                        .<Result>andThen((l, p) -> {
                             columnMetadata.set(
                                 createColumnMetadata(
                                     p,
@@ -641,7 +606,7 @@ public class EsqlSession {
                                 executionInfo,
                                 planRunner,
                                 p,
-                                finalConfiguration.withCanSeeDatasetLocation(canSee),
+                                finalConfiguration,
                                 foldContext,
                                 new Holder<ApproximationDriver>(),
                                 physicalPlanOptimizer,
@@ -679,13 +644,7 @@ public class EsqlSession {
                                 )
                             );
                         })
-                        .addListener(ActionListener.wrap(listener::onResponse, e -> {
-                            if (e instanceof ExternalFailures.LocatedException located) {
-                                listener.onFailure(located.resolve(callerHoldsDatasetLocationPrivilege.get()));  // volatile read
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        }));
+                        .addListener(listener);
                 }
             }
         );
@@ -752,89 +711,6 @@ public class EsqlSession {
         } catch (Exception e) {
             return "";
         }
-    }
-
-    private static NodeStringMapper locationMapper(Configuration configuration) {
-        return configuration.canSeeDatasetLocation() ? NodeStringMapper.IDENTITY : NodeStringMapper.REDACT_LOCATION;
-    }
-
-    /**
-     * Reinstates the storage path in a {@link ExternalFailures.LocatedException} for callers that hold
-     * {@code indices:admin/esql/dataset/get}; otherwise passes the redacted version through.
-     * Non-located exceptions are forwarded unchanged.
-     */
-    private void reinstateLocationIfAuthorized(Exception e, Set<String> datasetNames, ActionListener<Versioned<Result>> listener) {
-        if (e instanceof ExternalFailures.LocatedException located) {
-            checkDatasetLocationPrivilege(
-                datasetNames,
-                ActionListener.wrap(
-                    canSee -> listener.onFailure(located.resolve(canSee)),
-                    ignored -> listener.onFailure(located.resolve(false))
-                )
-            );
-        } else {
-            listener.onFailure(e);
-        }
-    }
-
-    private void checkDatasetLocationPrivilege(LogicalPlan plan, ActionListener<Boolean> listener) {
-        checkDatasetLocationPrivilege(
-            plan.collect(ExternalRelation.class).stream().map(ExternalRelation::datasetName).filter(name -> name != null).collect(toSet()),
-            listener
-        );
-    }
-
-    /**
-     * Checks whether the caller has the {@code read_dataset_metadata} privilege on every named dataset.
-     * Responds {@code true} if so, {@code false} otherwise (or if {@code datasetNames} is empty).
-     * Fail-closed: any transport error or missing user resolves to {@code false} (redact).
-     */
-    private void checkDatasetLocationPrivilege(Set<String> datasetNames, ActionListener<Boolean> listener) {
-        if (datasetNames.isEmpty()) {
-            // No named datasets to check (e.g. EXTERNAL "s3://…" literal URI queries): the caller
-            // supplied the URI themselves, so there is no privilege boundary to enforce — show the path.
-            listener.onResponse(true);
-            return;
-        }
-        final Settings settings = clusterService.getSettings();
-        if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
-            listener.onResponse(true);
-            return;
-        }
-        final SecurityContext securityContext = new SecurityContext(settings, transportService.getThreadPool().getThreadContext());
-        final User user = securityContext.getUser();
-        if (user == null) {
-            // No user in the thread context. In production with security enabled and the plugin
-            // running, API calls always carry a user — null indicates a system/stashed context where
-            // we cannot verify privileges. Fail closed to avoid accidentally leaking paths.
-            listener.onResponse(false);
-            return;
-        }
-        HasPrivilegesRequest request = new HasPrivilegesRequest();
-        request.username(user.principal());
-        request.clusterPrivileges(new String[0]);
-        RoleDescriptor.IndicesPrivileges[] indexPrivileges = datasetNames.stream()
-            .map(
-                name -> RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(name)
-                    .privileges(EsqlDatasetActionNames.ESQL_DATASET_METADATA_PRIVILEGE_NAME)
-                    .build()
-            )
-            .toArray(RoleDescriptor.IndicesPrivileges[]::new);
-        request.indexPrivileges(indexPrivileges);
-        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-        transportService.sendRequest(
-            transportService.getLocalNode(),
-            HasPrivilegesAction.NAME,
-            request,
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(ActionListener.wrap(resp -> {
-                listener.onResponse(resp.isCompleteMatch());
-            }, e -> {
-                LOGGER.debug("dataset-location privilege check failed, treating as unauthorized", e);
-                listener.onResponse(false);
-            }), HasPrivilegesResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-        );
     }
 
     private ActionListener<Versioned<Result>> wrapForAnonymizedFailureLog(ActionListener<Versioned<Result>> delegate) {
@@ -938,7 +814,7 @@ public class EsqlSession {
         // now. explainContext fields written during execution (coordinatorPhysicalPlanString,
         // subPlans) are read via this inside the callback, which fires only after all writes
         // complete (sequential callback chain).
-        NodeStringMapper locationMapper = locationMapper(configuration);
+        NodeStringMapper locationMapper = NodeStringMapper.IDENTITY;
         String optimizedLogicalPlanString = optimizedPlan.toString(Node.NodeStringFormat.LIMITED, locationMapper);
 
         return delegate.delegateFailureAndWrap((next, result) -> {
@@ -1063,7 +939,7 @@ public class EsqlSession {
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
             if (explainContext != null) {
-                recordExplainCoordinatorPlan(physicalPlan, locationMapper(configuration));
+                recordExplainCoordinatorPlan(physicalPlan, NodeStringMapper.IDENTITY);
             }
             Map<String, PinnedColumns> pinnedReads = new HashMap<>();
             collectPinnedReads(optimizedPlan, pinnedReads);
@@ -1377,7 +1253,7 @@ public class EsqlSession {
         }
 
         if (explainContext != null) {
-            recordExplainSubPlan(subPlan.subPlan, physicalSubPlan, locationMapper(configuration));
+            recordExplainSubPlan(subPlan.subPlan, physicalSubPlan, NodeStringMapper.IDENTITY);
         }
 
         executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
@@ -1406,7 +1282,7 @@ public class EsqlSession {
                         // Capture the post-substitution physical plan — the one that actually runs. For
                         // InlineJoin and similar the plan is only meaningful after all subplans have resolved
                         // StubRelations into real LocalRelation data, so this is the earliest correct point.
-                        recordExplainCoordinatorPlan(newPhysicalPlan, locationMapper(configuration));
+                        recordExplainCoordinatorPlan(newPhysicalPlan, NodeStringMapper.IDENTITY);
                     }
                     runner.run(
                         newPhysicalPlan,

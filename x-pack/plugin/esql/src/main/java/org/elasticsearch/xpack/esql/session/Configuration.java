@@ -89,7 +89,6 @@ public class Configuration implements Writeable {
     private final boolean profile;
     private final boolean allowPartialResults;
     private final boolean explainOnly;
-    private final boolean canSeeDatasetLocation;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
@@ -143,7 +142,6 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            false,
             false
         );
     }
@@ -169,8 +167,7 @@ public class Configuration implements Writeable {
         int resultTruncationDefaultSizeTimeseries,
         ResolvedSettings resolvedSettings,
         Map<String, String> viewQueries,
-        boolean explainOnly,
-        boolean canSeeDatasetLocation
+        boolean explainOnly
     ) {
         this.now = now;
         this.username = username;
@@ -191,7 +188,6 @@ public class Configuration implements Writeable {
         this.viewQueries = viewQueries;
         assert viewQueries != null;
         this.explainOnly = explainOnly;
-        this.canSeeDatasetLocation = canSeeDatasetLocation;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -241,11 +237,7 @@ public class Configuration implements Writeable {
             this.explainOnly = false;
         }
         if (in.getTransportVersion().supports(ESQL_DATASET_LOCATION_VISIBLE)) {
-            this.canSeeDatasetLocation = in.readBoolean();
-        } else {
-            // Older peers do not send this flag; default to false (redact) so the fail-closed behaviour
-            // applies when the coordinator is newer than a data node.
-            this.canSeeDatasetLocation = false;
+            in.readBoolean(); // consumed for wire compatibility; location visibility is no longer a per-caller flag
         }
         if (readLegacySettings) {
             // project_routing is intentionally not synthesized here — data nodes never had it on the wire.
@@ -306,7 +298,7 @@ public class Configuration implements Writeable {
             out.writeBoolean(explainOnly);
         }
         if (out.getTransportVersion().supports(ESQL_DATASET_LOCATION_VISIBLE)) {
-            out.writeBoolean(canSeeDatasetLocation);
+            out.writeBoolean(false); // location visibility is no longer a per-caller flag; always write false for wire compat
         }
         if (writeLegacySettings == false) {
             resolvedSettings.writeTo(out);
@@ -418,24 +410,6 @@ public class Configuration implements Writeable {
     }
 
     /**
-     * Whether the caller is authorized to see storage locations for the datasets named in this
-     * query ({@code indices:admin/esql/dataset/get}). When {@code true}, plan renderers use the
-     * identity location mapper and error messages include storage paths; when {@code false},
-     * locations are redacted. Clusters with security disabled always receive {@code true}.
-     */
-    public boolean canSeeDatasetLocation() {
-        return canSeeDatasetLocation;
-    }
-
-    /**
-     * Returns a new Configuration with {@code canSeeDatasetLocation} set to the given value.
-     * Called on the coordinator after the privilege check completes.
-     */
-    public Configuration withCanSeeDatasetLocation(boolean value) {
-        return new ConfigurationBuilder(this).canSeeDatasetLocation(value).build();
-    }
-
-    /**
      * Returns a new Configuration with profile and explainOnly enabled.
      * Used for EXPLAIN queries that need to capture plan information.
      */
@@ -508,8 +482,7 @@ public class Configuration implements Writeable {
             && allowPartialResults == that.allowPartialResults
             && Objects.equals(resolvedSettings, that.resolvedSettings)
             && viewQueries.equals(that.viewQueries)
-            && explainOnly == that.explainOnly
-            && canSeeDatasetLocation == that.canSeeDatasetLocation;
+            && explainOnly == that.explainOnly;
     }
 
     @Override
@@ -530,8 +503,7 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            explainOnly,
-            canSeeDatasetLocation
+            explainOnly
         );
     }
 

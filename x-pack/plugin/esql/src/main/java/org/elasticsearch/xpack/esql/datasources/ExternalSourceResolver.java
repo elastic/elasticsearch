@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -732,18 +731,9 @@ public class ExternalSourceResolver {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE);
         }
-        // A LocatedException was already typed and wrapped by a deeper layer (e.g. lastFactoryFailure). Preserve
-        // it so the coordinator can reinstate the path for authorised callers.
-        if (e instanceof ExternalFailures.LocatedException locatedEx) {
-            recordDiscoveryFailure();
-            LOGGER.error("Failed to resolve external source [{}]: {}", path, locatedEx.getMessage(), locatedEx);
-            return locatedEx;
-        }
         // A buried 503 (retryable back-pressure) must not be masked as a 400 by the factory loop's IllegalArgumentException
-        // wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches the 503 raw or wrapped. Re-wrap so
-        // the 503 status and the throttling flag survive; the path is omitted from the message. Unlike the client-error
-        // arm below, this arm does not wrap in a LocatedException, because a transient unavailability does not benefit
-        // from path reinstatement.
+        // wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches the 503 raw or wrapped.
+        // Return the original to preserve retryAfterMs and all other fields.
         ExternalUnavailableException unavailable = (ExternalUnavailableException) ExceptionsHelper.unwrap(
             e,
             ExternalUnavailableException.class
@@ -751,12 +741,10 @@ public class ExternalSourceResolver {
         if (unavailable != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            // Return the original exception to preserve retryAfterMs and all other fields.
             return unavailable;
         }
         // Expired session tokens are a typed 400 so prefetch/listing fail-fast can instanceof them.
-        // Recover from a cache ExecutionException the same way as the 503 arm: without this, a glob
-        // listing expiry becomes a 500 on the cacheable rail.
+        // Recover from a cache ExecutionException the same way as the 503 arm.
         ExternalCredentialsExpiredException expired = (ExternalCredentialsExpiredException) ExceptionsHelper.unwrap(
             e,
             ExternalCredentialsExpiredException.class
@@ -764,20 +752,12 @@ public class ExternalSourceResolver {
         if (expired != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            // Wrap in LocatedException so reinstateLocationIfAuthorized can show the path to
-            // authorised callers while hiding it from everyone else.
-            String expiredDetail = expired.getMessage() != null ? expired.getMessage() : "Failed to resolve external source";
-            RuntimeException unlocatedExpired = new ExternalCredentialsExpiredException(expired, "{}", expiredDetail);
-            RuntimeException locatedExpired = new ExternalCredentialsExpiredException(
-                expired,
-                "{}",
-                ExternalFailures.locate("Failed to resolve external source", path, expiredDetail)
-            );
-            return ExternalFailures.locatedException(unlocatedExpired, locatedExpired);
+            return expired;
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
         // in an IllegalArgumentException (400), so recover it from the cause chain before the IllegalArgumentException
         // branch: a node-level rejection must keep its 429 status instead of being masked as a client error.
+        // Return the original to preserve isExecutorShutdown() and all other fields.
         EsRejectedExecutionException rejected = (EsRejectedExecutionException) ExceptionsHelper.unwrap(
             e,
             EsRejectedExecutionException.class
@@ -785,12 +765,9 @@ public class ExternalSourceResolver {
         if (rejected != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            // Return the original exception to preserve isExecutorShutdown() and all other fields.
             return rejected;
         }
-        // A breaker trip carries its own 429 and must survive a wrapper for the same reason: ParsedFooterCache
-        // raises it during resolution, and the boundary already treats it as a status carrier alongside the two
-        // above (see ExternalFailures). Unwrapped rather than re-wrapped -- the type's byte counts are the payload.
+        // A breaker trip carries its own 429 and must survive a wrapper for the same reason.
         CircuitBreakingException breaking = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         if (breaking != null) {
             recordDiscoveryFailure();
@@ -803,55 +780,38 @@ public class ExternalSourceResolver {
         // that rail, making the status depend on whether the provider happened to be cacheable. Recovering at the
         // boundary rather than auditing every wrap site means a wrapper introduced later cannot silently
         // reintroduce the same masking.
-        // The message does not include the path; LocatedException carries it for authorised callers.
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (clientError != null) {
             recordDiscoveryFailure();
             LOGGER.error("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
-            String detail = clientError.getMessage();
-            RuntimeException located = new IllegalArgumentException(
-                ExternalFailures.locate("Failed to resolve external source", path, detail),
-                clientError
-            );
-            return ExternalFailures.locatedException(clientError, located);
+            return clientError;
         }
         // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
         // does. The file-metadata rail raises IOException (missing object, access denied) and it arrives wrapped
         // in the schema cache's ExecutionException on the cacheable rail — so without this a missing bucket is a
         // 500 on the cacheable path and a 400 on the non-cacheable path. The storage layer separates retryable
         // faults as ExternalUnavailableException (503) before they reach here, so any IOException that remains
-        // is non-retryable and is the caller's fault. rootDetail rather than getMessage so the ExecutionException
-        // wrapper's toString-derived message is skipped in favour of the IOException's own message.
+        // is non-retryable and is the caller's fault.
+        // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
+        // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
         IOException ioError = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
         if (ioError != null) {
             recordDiscoveryFailure();
-            String detail = ExternalFailures.rootDetail(e);
+            String detail = ExternalFailures.rootDetail(ioError);
             LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
             // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
             // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
-            RuntimeException unlocated = new ExternalClientException(ioError, "{}", detail);
-            RuntimeException located = new ExternalClientException(
-                ioError,
-                "{}",
-                ExternalFailures.locate("Failed to resolve external source", path, detail)
-            );
-            return ExternalFailures.locatedException(unlocated, located);
+            return new ExternalClientException(ioError, "{}", detail);
         }
         recordDiscoveryFailure();
-        // rootDetail, not getMessage: the file-metadata rail raises a plain IOException that arrives inside the
+        // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the
         // cache's ExecutionException whose message is the cause's toString(). Reading the top message there would
         // print "java.io.IOException: Object not found: ..." at the user.
         String detail = ExternalFailures.rootDetail(e);
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
         // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
         // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
-        RuntimeException unlocated = new ExternalServerException(ExternalFailures.rootCause(e), "{}", detail);
-        RuntimeException located = new ExternalServerException(
-            ExternalFailures.rootCause(e),
-            "{}",
-            ExternalFailures.locate("Failed to resolve external source", path, detail)
-        );
-        return ExternalFailures.locatedException(unlocated, located);
+        return new ExternalServerException(ExternalFailures.rootCause(e), "{}", detail);
     }
 
     private void resolveSource(
@@ -1423,8 +1383,7 @@ public class ExternalSourceResolver {
      * the message, along with the path's configure-time notices (see {@link #currentPathConfigWarnings}).
      */
     private IllegalArgumentException noFilesMatched(String path, FileList listing) {
-        // The path is intentionally omitted from the message; mapResolveFailure wraps this in a
-        // LocatedException so authorised callers can still see it.
+        // The path is intentionally omitted from the message.
         StringBuilder message = new StringBuilder("Glob pattern matched no files");
         for (String notice : listing.listingWarnings()) {
             message.append(". ").append(notice);
@@ -2811,33 +2770,12 @@ public class ExternalSourceResolver {
      * missing object, a wrong format, a truncated footer and an empty file with one identical sentence — and the
      * factories already build that same sentence one level down, so the wrapper also duplicated it. It now carries
      * the diagnosis instead.
-     * <p>
-     * Returns a {@link ExternalFailures.LocatedException} so {@code mapResolveFailure} — which only knows the
-     * outer path (a glob) and not this specific file — can still expose the specific file path to authorised
-     * callers via {@code LocatedException.resolve(true)}.
      */
     private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
         String detail = ExternalFailures.rootDetail(lastFailure);
-        // Status-bearing exceptions (503, 429, etc.) carry their own HTTP status and must flow
-        // through mapResolveFailure's recovery arms unmodified. LocatedException is checked first
-        // in mapResolveFailure, so wrapping these would bypass status recovery.
-        // Use full-chain unwrap (not just the root cause) so a status carrier buried behind an
-        // intermediate wrapper is still detected. EsRejectedExecutionException extends
-        // RejectedExecutionException (not ElasticsearchException) and requires an explicit check.
-        if (ExceptionsHelper.unwrap(lastFailure, ElasticsearchException.class) != null
-            || ExceptionsHelper.unwrap(lastFailure, EsRejectedExecutionException.class) != null) {
-            // Preserve the full cause chain so mapResolveFailure's unwrap arms can find the
-            // status carrier regardless of how many wrappers surround it.
-            return new IllegalArgumentException(detail, lastFailure);
-        }
-        // Preserve the full cause chain in both variants so stack frames from factory attempts
-        // (e.g. HTTP client exceptions wrapping an SDK timeout) are not silently discarded.
-        RuntimeException unlocated = new IllegalArgumentException(detail, lastFailure);
-        RuntimeException located = new IllegalArgumentException(
-            ExternalFailures.locate("Failed to resolve external source", path, detail),
-            lastFailure
-        );
-        return ExternalFailures.locatedException(unlocated, located);
+        // Preserve the full cause chain so mapResolveFailure's unwrap arms can still find any
+        // status carrier (503, 429, etc.) buried inside it.
+        return new IllegalArgumentException(detail, lastFailure);
     }
 
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {

@@ -3,6 +3,9 @@
   # Regression test: parseArrayDynamic was missing the hasMappedFieldsWithPrefix guard that parseObject
   # has, so an array of objects like "objarr": [{"k":"p"},{"k":"q"}] was silently skipped and nothing
   # was indexed for "objarr.k", while the plain-object form "objarr": {"k":"p"} worked correctly.
+  - requires:
+      cluster_features: [ "mapper.fix_sorted_numeric_with_offsets_empty_array" ]
+      reason: "requires fix for SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer empty offsetToOrd"
 
   - do:
       indices.create:

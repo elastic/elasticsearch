@@ -51,7 +51,7 @@ public class TermSelectionTests extends ESTestCase {
     }
 
     // NOTE: terms of equal standing are ordered by term, so a column yields the same answer however its values arrived.
-    public void testTermsHeldEquallyOftenAreOrderedByTerm() {
+    public void testTermsOfEqualDensityAreOrderedByTerm() {
         final Fixture fixture = fixture(Map.of("TRACE", 5, "DEBUG", 5, "ERROR", 5));
         assertEquals(List.of("DEBUG"), fixture.forDictionary(new DictionaryPolicy(5, 0.5, 1.0), 1000));
         assertEquals(List.of("DEBUG", "ERROR"), fixture.forDictionary(new DictionaryPolicy(10, 0.5, 1.0), 1000));
@@ -95,6 +95,51 @@ public class TermSelectionTests extends ESTestCase {
         assertTrue("a summary holds what the dictionary does, and more", fixture.forSummary(ROOMY_SUMMARY).containsAll(named));
     }
 
+    public void testAShortTermOutranksALongerOneHeldMoreOften() {
+        final Fixture fixture = fixture(Map.of("WARN", 100, "deprecation.warning.repeated", 500));
+        // Room for one of the two. Ranked by count the long term takes it and does not fit; ranked by what each names per byte
+        // the short one wins, naming a value every four bytes against the long term's twenty-eight.
+        assertEquals(List.of("WARN"), fixture.forDictionary(new DictionaryPolicy(27, 0.5, 1.0), 10_000));
+    }
+
+    public void testTermsHeldEquallyOftenAreOrderedByLength() {
+        final Fixture fixture = fixture(Map.of("aaaaaaaa", 10, "zz", 10));
+        // NOTE: equal counts, so a ranking by count alone would tie and fall to term order, taking the eight
+        // byte term first and fitting neither. By what each names per byte the two byte term is four times
+        // the better buy.
+        assertEquals(List.of("zz"), fixture.forDictionary(new DictionaryPolicy(2, 0.5, 1.0), 10_000));
+        assertEquals(List.of("aaaaaaaa", "zz"), fixture.forDictionary(new DictionaryPolicy(10, 0.5, 1.0), 10_000));
+    }
+
+    public void testATermTheQuotaRefusesDoesNotEndTheWalk() {
+        // NOTE: by density the single byte term held once leads the two hundred byte term held a hundred
+        // times, and the dictionary admits no term held once. Stopping at the first term it refuses would
+        // cost it the one behind, which names a hundred of the hundred and one values.
+        final Fixture fixture = fixture(Map.of("a", 1, "t".repeat(200), 100));
+        assertEquals(List.of("t".repeat(200)), fixture.forDictionary(new DictionaryPolicy(512, 0.5, 1.0), 10_000));
+        assertEquals(List.of("a", "t".repeat(200)), fixture.forSummary(new SummaryPolicy(512)));
+    }
+
+    // NOTE: the two quotas admit different terms, so the same size does not make the same set.
+    public void testTheSameSizeDoesNotMakeASummaryTheDictionary() {
+        final Fixture fixture = fixture(Map.of("a", 1, "t".repeat(200), 100));
+        assertEquals(List.of("t".repeat(200)), fixture.forDictionary(new DictionaryPolicy(200, 0.5, 1.0), 10_000));
+        assertEquals("one term each, and not the same one", List.of("a"), fixture.forSummary(new SummaryPolicy(200)));
+    }
+
+    public void testDensitiesAreComparedAsFractions() {
+        // NOTE: three halves against four thirds. Integer division would make both one and let term order
+        // decide, which takes the wrong term first.
+        final Fixture fixture = fixture(Map.of("zz", 3, "aaa", 4));
+        assertEquals(List.of("zz"), fixture.forDictionary(new DictionaryPolicy(2, 0.5, 1.0), 10_000));
+    }
+
+    public void testTrulyEqualDensitiesFallBackToTermOrder() {
+        // NOTE: five halves against ten quarters, so the counts differ and the densities do not.
+        final Fixture fixture = fixture(Map.of("aa", 5, "zzzz", 10));
+        assertEquals(List.of("aa"), fixture.forDictionary(new DictionaryPolicy(2, 0.5, 1.0), 10_000));
+    }
+
     public void testWhatIsKeptComesBackInTermOrder() {
         final Fixture fixture = fixture(Map.of("TRACE", 2, "INFO", 9, "WARN", 4));
         assertEquals(List.of("INFO", "TRACE", "WARN"), fixture.forDictionary(ROOMY_DICTIONARY, 1000));
@@ -125,7 +170,7 @@ public class TermSelectionTests extends ESTestCase {
     private static Fixture fixture(Map<String, Integer> termCounts) {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         final Map<String, Integer> ordered = new LinkedHashMap<>(termCounts);
-        final int[] counts = new int[ordered.size()];
+        final long[] counts = new long[ordered.size()];
         for (Map.Entry<String, Integer> entry : ordered.entrySet()) {
             int id = terms.add(new BytesRef(entry.getKey()));
             if (id < 0) {

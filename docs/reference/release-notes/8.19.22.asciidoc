@@ -11,42 +11,42 @@ Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
 
 Analysis::
 * Add option to limit the number of characters in analyze filters {es-pull}158713[#158713]
-* Bound `min_hash` filter params to prevent OOM {es-pull}154480[#154480]
-* Cap `min_hash` filter params {es-pull}158211[#158211]
+* Bound `min_hash` filter parameters to prevent out-of-memory errors {es-pull}154480[#154480]
+* Cap `min_hash` filter parameters {es-pull}158211[#158211]
 
 Authentication::
-* Fix stackoverflow when authorizing LDAP users with large group membership {es-pull}158564[#158564]
+* Fix stack overflow when authorizing LDAP users with large group membership {es-pull}158564[#158564]
 * Scope role mapping metadata to gateway and API {es-pull}158862[#158862]
 
 Authorization::
-* Reject `allow_restricted_indices=true` consistently in roles granted by users with the `manage_roles` privilege. {es-pull}158831[#158831]
+* Reject `allow_restricted_indices=true` consistently in roles granted by users with the `manage_roles` privilege {es-pull}158831[#158831]
 
 ES|QL::
-* Fix ST_DISTANCE with both args from doc-values {es-pull}157983[#157983] (issue: {es-issue}149814[#149814])
+* Fix `ST_DISTANCE` with both arguments from doc values {es-pull}157983[#157983] (issue: {es-issue}149814[#149814])
 * Fix bulk inference requests being left waiting forever {es-pull}158313[#158313] (issue: {es-issue}156135[#156135])
 * Reject 2^63 in QL and ES|QL double-to-long conversion {es-pull}157555[#157555] (issue: {es-issue}157551[#157551])
-* When reversing strings, treat Carriage Return Line Feed as a single control character, in line with UTF guidelines {es-pull}158745[#158745]
+* When reversing strings, treat carriage return line feed (CRLF) as a single control character, in line with Unicode guidelines {es-pull}158745[#158745]
 
 Highlighting::
 * Allow `max_analyzed_offset` to be set to `-1` to default to `index.highlight.max_analyzed_offset` {es-pull}157381[#157381] (issue: {es-issue}156122[#156122])
 
 Machine Learning::
-* Extend AD results template for reindexed indices and generalize heal beyond job_id mapping {es-pull}153755[#153755] (issue: {es-issue}147686[#147686])
+* Extend anomaly detection results template for reindexed indices and generalize healing beyond `job_id` mapping {es-pull}153755[#153755] (issue: {es-issue}147686[#147686])
 * Fix NPE when preview datafeed checks `date_nanos` for an unmapped time field {es-pull}144909[#144909] (issue: {es-issue}144888[#144888])
 * Fix `model.failed_category_count` in `_cat/ml/anomaly_detectors` reporting the dead category count {es-pull}158186[#158186]
 * Limit concurrent text structure analyses to the allocated processor count {es-pull}158935[#158935] (issue: {es-issue}158927[#158927])
 * Reject blank datafeed ID in stop datafeed request {es-pull}157929[#157929]
-* Reject blank job id on close request {es-pull}158020[#158020]
-* STOPPING trained model routes with no local deployment process no longer block ML node shutdown during node drain {es-pull}158820[#158820] (issue: {es-issue}158818[#158818])
+* Reject blank job ID on close request {es-pull}158020[#158020]
+* Prevent `STOPPING` trained model routes with no local deployment process from blocking ML node shutdown during node drain {es-pull}158820[#158820] (issue: {es-issue}158818[#158818])
 * Treat ML node exhaustion as 4xx {es-pull}155310[#155310]
 
 SQL::
-* Fix result size limit check on INSERT {es-pull}157752[#157752]
+* Fix result size limit check on `INSERT` {es-pull}157752[#157752]
 
 Search::
 * Keep a cancelled search from failing others through the request cache {es-pull}157457[#157457] (issue: {es-issue}157302[#157302])
 * Release fetch-source request breaker bytes {es-pull}158734[#158734] (issue: {es-issue}158634[#158634])
-* Scripted fields can cause oom {es-pull}152718[#152718] (issue: {es-issue}120459[#120459])
+* Prevent scripted fields from causing out-of-memory errors {es-pull}152718[#152718] (issue: {es-issue}120459[#120459])
 
 Snapshot/Restore::
 * Fix interrupt deadlock in `CancellableRateLimitedFluxIterator` {es-pull}158936[#158936]
@@ -59,20 +59,20 @@ Suggesters::
 === Enhancements
 
 Search::
-* Msearch/template parity with msearch: memory bounds, cancellation, metrics {es-pull}157642[#157642]
+* Bring `_msearch/template` to parity with `_msearch`: memory bounds, cancellation, and metrics {es-pull}157642[#157642]
 
 [[upgrade-8.19.22]]
 [float]
 === Upgrades
 
 Infra/Core::
-* Bump bundled JDK to 27 {es-pull}159368[#159368]
-* Bump jackson to 2.21.6 {es-pull}157295[#157295] (issue: {es-issue}141442[#141442])
+* Upgrade the bundled JDK to 27 {es-pull}159368[#159368]
+* Upgrade Jackson to 2.21.6 {es-pull}157295[#157295] (issue: {es-issue}141442[#141442])
 
 Network::
-* Netty upgrade 4.1.137.Final {es-pull}157348[#157348]
+* Upgrade Netty to 4.1.137.Final {es-pull}157348[#157348]
 
 Security::
-* Bump Jakarta Mail to 1.6.8 {es-pull}158317[#158317] (issue: {es-issue}154588[#154588])
+* Upgrade Jakarta Mail to 1.6.8 {es-pull}158317[#158317] (issue: {es-issue}154588[#154588])
 
 

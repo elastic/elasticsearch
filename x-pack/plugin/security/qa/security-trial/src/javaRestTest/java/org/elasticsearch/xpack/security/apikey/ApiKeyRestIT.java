@@ -113,20 +113,20 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        deleteUser(SYSTEM_USER);
-        deleteUser(END_USER);
-        deleteUser(DATA_ADMIN_USER);
-        deleteUser(MANAGE_OWN_API_KEY_USER);
-        deleteUser(MANAGE_API_KEY_USER);
-        deleteUser(MANAGE_SECURITY_USER);
-        deleteUser(CLONE_API_KEY_USER);
-        deleteRole("system_role");
-        deleteRole("user_role");
-        deleteRole("data_admin_role");
-        deleteRole("manage_own_api_key_role");
-        deleteRole("manage_api_key_role");
-        deleteRole("manage_security_role");
-        deleteRole("clone_api_key_role");
+        deleteUserIfExists(SYSTEM_USER);
+        deleteUserIfExists(END_USER);
+        deleteUserIfExists(DATA_ADMIN_USER);
+        deleteUserIfExists(MANAGE_OWN_API_KEY_USER);
+        deleteUserIfExists(MANAGE_API_KEY_USER);
+        deleteUserIfExists(MANAGE_SECURITY_USER);
+        deleteUserIfExists(CLONE_API_KEY_USER);
+        deleteRoleIfExists("system_role");
+        deleteRoleIfExists("user_role");
+        deleteRoleIfExists("data_admin_role");
+        deleteRoleIfExists("manage_own_api_key_role");
+        deleteRoleIfExists("manage_api_key_role");
+        deleteRoleIfExists("manage_security_role");
+        deleteRoleIfExists("clone_api_key_role");
         invalidateApiKeysForUser(END_USER);
         invalidateApiKeysForUser(DATA_ADMIN_USER);
         invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);

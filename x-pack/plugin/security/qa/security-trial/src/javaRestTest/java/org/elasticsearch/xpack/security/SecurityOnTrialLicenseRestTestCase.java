@@ -135,6 +135,10 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected void deleteUser(String username) throws IOException {
+        getSecurityClient().deleteUser(username);
+    }
+
+    protected void deleteUserIfExists(String username) throws IOException {
         try {
             getSecurityClient().deleteUser(username);
         } catch (ResponseException e) {
@@ -145,6 +149,10 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected void deleteRole(String name) throws IOException {
+        getSecurityClient().deleteRole(name);
+    }
+
+    protected void deleteRoleIfExists(String name) throws IOException {
         try {
             getSecurityClient().deleteRole(name);
         } catch (ResponseException e) {

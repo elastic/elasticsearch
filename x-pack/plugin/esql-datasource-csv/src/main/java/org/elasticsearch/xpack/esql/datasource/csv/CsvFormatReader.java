@@ -1923,22 +1923,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         InputStream rawStream = object.newStream();
-        // Strip a UTF-8 BOM (EF BB BF) before CountingInputStream so the three BOM bytes neither
-        // inflate the stats byte count nor shift _file.record_ref offsets. Only the UTF-8 BOM is
-        // handled at the raw-byte level; other encodings' BOMs are stripped at the character level
-        // in readSchema via stripLeadingBomFromReader. Non-UTF-8 data files are left untouched.
-        int bomBytesConsumed = 0;
-        if (context.firstSplit() && StandardCharsets.UTF_8.name().equals(options.encoding().name())) {
-            byte[] probe = new byte[3];
-            int n = rawStream.readNBytes(probe, 0, 3);
-            if (n == 3 && (probe[0] & 0xFF) == 0xEF && (probe[1] & 0xFF) == 0xBB && (probe[2] & 0xFF) == 0xBF) {
-                bomBytesConsumed = 3;
-            } else if (n > 0) {
-                PushbackInputStream pb = new PushbackInputStream(rawStream, n);
-                pb.unread(probe, 0, n);
-                rawStream = pb;
-            }
-        }
         // CountingInputStream tracks decompressed-byte consumption for stream-only sources whose
         // length() throws UnsupportedOperationException. The byte count flows through {@link
         // ExternalStats} as sizeInBytes when the file lacks a publishable length.
@@ -1999,9 +1983,31 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean useRecordReaderPath = useBracketAware
             || rowPositionProjected
             || (useDirectBlock == false && jacksonGrammarApplies() == false);
+        // Strip a leading UTF-8 BOM between CountingInputStream and CsvRecordCappingInputStream so
+        // that: (a) CountingInputStream counts all N file bytes including the 3 BOM bytes, keeping
+        // byteCounter.getBytesRead() == N; (b) CsvRecordCappingInputStream never sees the BOM bytes,
+        // so a BufferedReader fill cannot trip the per-record cap before the first real record; and
+        // (c) after seeding recordReader.bytesRead() at 3, inferredEndOffset == splitStartByte +
+        // chunkBytes and the stripe-capture tripwire does not fire.
+        // For non-BOM files the probed bytes are restored via PushbackInputStream so the downstream
+        // parse receives the complete stream content. Only UTF-8 is handled: the BOM is exactly 3
+        // bytes (EF BB BF). Non-UTF-8 encodings either have no BOM or a different byte width.
+        int bomBytesConsumed = 0;
+        InputStream streamAfterBom = stream;
+        if (context.firstSplit() && StandardCharsets.UTF_8.name().equals(options.encoding().name())) {
+            byte[] probe = new byte[3];
+            int n = stream.readNBytes(probe, 0, 3);
+            if (n == 3 && (probe[0] & 0xFF) == 0xEF && (probe[1] & 0xFF) == 0xBB && (probe[2] & 0xFF) == 0xBF) {
+                bomBytesConsumed = 3;
+            } else if (n > 0) {
+                PushbackInputStream pb = new PushbackInputStream(stream, n);
+                pb.unread(probe, 0, n);
+                streamAfterBom = pb;
+            }
+        }
         InputStream capped = (useRecordReaderPath || useDirectBlock)
-            ? stream
-            : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
+            ? streamAfterBom
+            : new CsvRecordCappingInputStream(streamAfterBom, context.maxRecordBytes());
         BufferedReader reader = new BufferedReader(new InputStreamReader(capped, options.encoding()), READER_BUFFER_SIZE);
         CsvLogicalRecordReader recordReader = recordEscapeAware
             ? new CsvLogicalRecordReader(
@@ -2022,6 +2028,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.encoding(),
                 options.quoting()
             );
+        if (bomBytesConsumed > 0) {
+            recordReader.setInitialByteOffset(bomBytesConsumed);
+        }
         // Bulk read-ahead is safe when this reader owns the stream end to end: the direct-to-block
         // path, and the house per-record path (useRecordReaderPath). The Jackson bulk path skips the
         // header through this reader then resumes on the same underlying BufferedReader, so it must
@@ -2181,7 +2190,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             counters,
             useDirectBlockPlain,
             useDirectBlockQuoted,
-            context.splitStartByte() + bomBytesConsumed,
+            context.splitStartByte(),
             chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
@@ -2775,17 +2784,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Reads and discards a leading UTF-8 byte-order mark from {@code reader} if one is present.
-     * Called on the {@code readSchema} path where encoding is known at the character level, so the
-     * BOM check is encoding-aware: only a decoded {@code U+FEFF} is stripped, leaving non-BOM bytes
-     * intact. {@link BufferedReader} supports {@link java.io.Reader#mark(int)}, so the peek is safe
-     * to reverse when the first character is not a BOM.
+     * The {@link InputStreamReader} has already decoded the stream, so only a decoded {@code U+FEFF}
+     * character is stripped — non-BOM bytes are always restored via {@link java.io.Reader#mark}/{@link
+     * java.io.Reader#reset}. Called from {@code readSchema}; the data-read path strips the BOM at
+     * byte level before {@link CsvRecordCappingInputStream} to avoid tripping the cap on a
+     * {@link BufferedReader} fill.
      */
-    private static void stripLeadingBomFromReader(BufferedReader reader) throws IOException {
+    private static boolean stripLeadingBomFromReader(BufferedReader reader) throws IOException {
         reader.mark(1);
         int first = reader.read();
-        if (first != BOM) {
-            reader.reset();
+        if (first == BOM) {
+            return true;
         }
+        reader.reset();
+        return false;
     }
 
     /**

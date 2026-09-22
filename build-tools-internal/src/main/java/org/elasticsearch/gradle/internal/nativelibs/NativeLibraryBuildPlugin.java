@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.gradle.internal.nativelibs;
 
+import org.elasticsearch.gradle.OS;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -91,7 +92,7 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
                 task.getMaxGlibcxxVersion().set(DEFAULT_MAX_GLIBCXX_VERSION);
                 task.getResultMarker().set(project.getLayout().getBuildDirectory().file("markers/verify-native-libraries-linux-abi.ok"));
                 task.getNativeLibraries().from(buildTask.flatMap(BuildNativeLibraryTask::getOutputDir));
-                task.onlyIf("Linux host OS required for native ABI verification", t -> LinuxBuildHost.isLinux());
+                task.onlyIf("Linux host OS required for native ABI verification", t -> OS.current() == OS.LINUX);
             });
         buildTask.configure(task -> task.finalizedBy(verifyAbiTask));
 

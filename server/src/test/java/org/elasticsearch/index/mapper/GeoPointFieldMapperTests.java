@@ -774,6 +774,27 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    public void testDoSupportsColumnarParseReturnsFalseWhenMultiFieldsPresent() throws IOException {
+        final Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+
+        final MapperService withMultiField = createMapperService(columnarSettings, fieldMapping(b -> {
+            b.field("type", "geo_point");
+            b.startObject("fields").startObject("hash").field("type", "keyword").endObject().endObject();
+        }));
+        final GeoPointFieldMapper mapperWithField = (GeoPointFieldMapper) withMultiField.mappingLookup().getMapper("field");
+        assertFalse(
+            "doSupportsColumnarParse must be false when [fields] is present",
+            mapperWithField.doSupportsColumnarParse(withMultiField.getIndexSettings())
+        );
+
+        final MapperService withoutMultiField = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "geo_point")));
+        final GeoPointFieldMapper mapperWithoutField = (GeoPointFieldMapper) withoutMultiField.mappingLookup().getMapper("field");
+        assertTrue(
+            "doSupportsColumnarParse must be true when no [fields] are present",
+            mapperWithoutField.doSupportsColumnarParse(withoutMultiField.getIndexSettings())
+        );
+    }
+
     /**
      * Verifies that the object-form ({@code {"field":{"lat":…,"lon":…}}}) geo_point produces exactly
      * one SORTED_NUMERIC column with the expected packed long and the correct Lucene field type when

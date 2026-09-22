@@ -403,7 +403,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        return fieldType().hasDocValues()
+        return multiFields().iterator().hasNext() == false
+            && fieldType().hasDocValues()
             && fieldType().indexType.hasPoints() == false
             && fieldType().isStored() == false
             && nullValue == null;

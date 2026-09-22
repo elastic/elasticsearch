@@ -172,6 +172,9 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.dynamic_template.warn_on_duplicate_names"
     );
     public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
+    public static final NodeFeature FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY = new NodeFeature(
+        "mapper.fix_sorted_numeric_with_offsets_empty_array"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -274,7 +277,8 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_ON_FAILURE,
             DISK_BBQ_STABLE_FORMAT_SELECTION,
             PUT_MAPPING_NO_TYPES_CHECK,
-            MAPPING_LIMIT_CHECKS_AT_PARSE_TIME
+            MAPPING_LIMIT_CHECKS_AT_PARSE_TIME,
+            FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY
         );
     }
 }

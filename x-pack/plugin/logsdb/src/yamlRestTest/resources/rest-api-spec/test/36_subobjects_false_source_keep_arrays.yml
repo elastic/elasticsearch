@@ -1,0 +1,51 @@
+---
+"Regression: numeric field with synthetic_source_keep=arrays empty nested array then scalar":
+  # Bug: an integer field with offsetsFieldName (from synthetic_source_keep=arrays at index level)
+  # appeared in two elements of an object array in the same document. One element had the field as
+  # [[]] (nested empty array), which called markEmptyArray() producing an offsetToOrd of length 0
+  # with no doc value. The other element had a scalar value (doc value added, no offset). The loader
+  # then reported count()=1 but wrote 0 values, leaving XContentBuilder in VALUE_EXPECTED state and
+  # causing "Can not write a field name, expecting a value" on the next field during fetch.
+
+  - requires:
+      cluster_features: [ "mapper.fix_sorted_numeric_with_offsets_empty_array" ]
+      reason: "requires fix for SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer empty offsetToOrd"
+
+  - do:
+      indices.create:
+        index: test-numeric-offsets-empty-array
+        body:
+          settings:
+            index.mode: logsdb
+            index.mapping.synthetic_source_keep: arrays
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              obj:
+                properties:
+                  id:
+                    type: integer
+
+  - do:
+      index:
+        index: test-numeric-offsets-empty-array
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T10:00:00.000Z"
+          obj:
+            - id:
+                - []
+            - id: 42
+          other: "z"
+
+  - do:
+      get:
+        index: test-numeric-offsets-empty-array
+        id: "1"
+
+  # "other" must be present — its absence would indicate the builder was left in VALUE_EXPECTED state
+  # after writing "id", which is the exact failure mode of the original bug.
+  - match: { _source.other: "z" }
+  - match: { _source.obj.id: 42 }

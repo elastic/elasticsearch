@@ -107,6 +107,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -1015,10 +1017,45 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             Failures failures = new Failures();
             plan.verify(failures);
+            verifyTimeBucketBounds(plan, failures);
             if (failures.hasFailures()) {
                 throw new VerificationException(failures);
             }
             return plan;
+        }
+
+        /**
+         * {@link TranslateTimeSeriesAggregate} calls {@code TBucket}/{@code TStep} {@code surrogate()}
+         * later in this batch, which requires timestamp bounds. Validate them here so missing bounds
+         * fail with a verification error instead of tripping the surrogate invariant.
+         */
+        private static void verifyTimeBucketBounds(TimeSeriesAggregate plan, Failures failures) {
+            Set<NameId> groupingIds = new HashSet<>();
+            for (Expression grouping : plan.groupings()) {
+                if (grouping instanceof NamedExpression named) {
+                    groupingIds.add(named.id());
+                }
+            }
+            plan.child().forEachExpressionUp(NamedExpression.class, e -> {
+                if (groupingIds.contains(e.id())) {
+                    verifyTimeBucketBounds(e, plan, failures);
+                }
+            });
+            for (Expression grouping : plan.groupings()) {
+                if (grouping instanceof NamedExpression named) {
+                    verifyTimeBucketBounds(named, plan, failures);
+                }
+            }
+        }
+
+        private static void verifyTimeBucketBounds(NamedExpression expression, TimeSeriesAggregate plan, Failures failures) {
+            for (Expression child : expression.children()) {
+                if (child instanceof TBucket tbucket && plan.timestamp() != null && plan.timestamp().semanticEquals(tbucket.timestamp())) {
+                    tbucket.postAnalysisVerification(failures);
+                } else if (child instanceof TStep tstep && plan.timestamp() != null && plan.timestamp().semanticEquals(tstep.timestamp())) {
+                    tstep.postAnalysisVerification(failures);
+                }
+            }
         }
     }
 

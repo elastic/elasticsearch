@@ -185,11 +185,14 @@ public class ExternalDistributedNodeUnavailableIT extends AbstractExternalDataSo
                     drainQuery(future);
                 }
             }
+            // A missing reassignment log fails the test on its own, including when the query
+            // errors or a response assertion fails. The earlier failure is suppressed on that one.
             try (var response = future.actionGet(TIMEOUT)) {
                 assertThat(response.isPartial(), equalTo(false));
                 assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));
+            } finally {
+                mockLog.assertAllExpectationsMatched();
             }
-            mockLog.assertAllExpectationsMatched();
         }
     }
 

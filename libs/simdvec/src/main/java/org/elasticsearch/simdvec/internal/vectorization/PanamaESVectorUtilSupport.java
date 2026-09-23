@@ -2531,24 +2531,23 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             acc3.intoMemorySegment(c, (c3 + j) * Float.BYTES, ByteOrder.nativeOrder());
         }
 
-        // masked vector column tail, groups of 4 rows
-        if (j < n) {
-            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(j, n);
-            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES);
-            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
-            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
-            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
+        // scalar column tail, groups of 4 rows
+        for (; j < n; j++) {
+            float s0 = 0;
+            float s1 = 0;
+            float s2 = 0;
+            float s3 = 0;
             for (long l = 0; l < inner; l++) {
-                FloatVector bv = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, (l * n + j) * Float.BYTES, ByteOrder.nativeOrder(), mask);
-                acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a0 + l)), bv, acc0);
-                acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a1 + l)), bv, acc1);
-                acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a2 + l)), bv, acc2);
-                acc3 = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a3 + l)), bv, acc3);
+                float bv = b.getAtIndex(JAVA_FLOAT, l * n + j);
+                s0 = fma(a.getAtIndex(JAVA_FLOAT, a0 + l), bv, s0);
+                s1 = fma(a.getAtIndex(JAVA_FLOAT, a1 + l), bv, s1);
+                s2 = fma(a.getAtIndex(JAVA_FLOAT, a2 + l), bv, s2);
+                s3 = fma(a.getAtIndex(JAVA_FLOAT, a3 + l), bv, s3);
             }
-            acc0.intoMemorySegment(c, (c0 + j) * Float.BYTES, ByteOrder.nativeOrder(), mask);
-            acc1.intoMemorySegment(c, (c1 + j) * Float.BYTES, ByteOrder.nativeOrder(), mask);
-            acc2.intoMemorySegment(c, (c2 + j) * Float.BYTES, ByteOrder.nativeOrder(), mask);
-            acc3.intoMemorySegment(c, (c3 + j) * Float.BYTES, ByteOrder.nativeOrder(), mask);
+            c.setAtIndex(JAVA_FLOAT, c0 + j, s0);
+            c.setAtIndex(JAVA_FLOAT, c1 + j, s1);
+            c.setAtIndex(JAVA_FLOAT, c2 + j, s2);
+            c.setAtIndex(JAVA_FLOAT, c3 + j, s3);
         }
     }
 
@@ -2711,15 +2710,13 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             acc.intoMemorySegment(c, (c0 + j) * Float.BYTES, ByteOrder.nativeOrder());
         }
 
-        // masked vector column tail
-        if (j < n) {
-            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(j, n);
-            FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        // column tail
+        for (; j < n; j++) {
+            float s = 0;
             for (long l = 0; l < inner; l++) {
-                FloatVector bv = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, (l * n + j) * Float.BYTES, ByteOrder.nativeOrder(), mask);
-                acc = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a0 + l)), bv, acc);
+                s = fma(a.getAtIndex(JAVA_FLOAT, a0 + l), b.getAtIndex(JAVA_FLOAT, l * n + j), s);
             }
-            acc.intoMemorySegment(c, (c0 + j) * Float.BYTES, ByteOrder.nativeOrder(), mask);
+            c.setAtIndex(JAVA_FLOAT, c0 + j, s);
         }
     }
 

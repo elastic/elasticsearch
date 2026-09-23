@@ -159,4 +159,17 @@ describe("generatePipelines", () => {
   test("should not run later-branch bwc on a branch that is not a development branch", () => {
     expect(laterBranchBwcSteps("patch/serverless-fix")).toBeUndefined();
   });
+
+  const anyIncludedRegionPipeline = (changedFiles: string[]) =>
+    generatePipelines(`${import.meta.dirname}/mocks/pipelines`, changedFiles).find(
+      (pipeline) => pipeline.name === "any-included-region",
+    );
+
+  test("should include a pipeline when any changed file is in an included region", () => {
+    expect(anyIncludedRegionPipeline(["build.gradle", "x-pack/plugin/esql/build.gradle"])).toBeDefined();
+  });
+
+  test("should not include a pipeline when no changed file is in an included region", () => {
+    expect(anyIncludedRegionPipeline(["build.gradle"])).toBeUndefined();
+  });
 });

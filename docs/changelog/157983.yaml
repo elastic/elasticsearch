@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 149814
-pr: 157983
-summary: Fix `ST_DISTANCE` query failures when both arguments use doc values
-type: bug

@@ -69,6 +69,16 @@ const changedFilesIncludedCheck = (pipeline: EsPipeline, changedFiles: string[])
   return true;
 };
 
+// Include the pipeline if any of the changed files in the PR is in at least one included region
+const changedFilesAnyIncludedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
+  if (pipeline.config?.["any-included-regions"]) {
+    return changedFiles.some((file) =>
+      getArray(pipeline.config?.["any-included-regions"]).some((region) => file.match(region)),
+    );
+  }
+  return true;
+};
+
 const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefined) => {
   if (!targetBranch || !pipeline.config?.["skip-target-branches"]) {
     return true;
@@ -203,6 +213,7 @@ export const generatePipelines = (
     (pipeline) => labelCheckSkip(pipeline, labels),
     (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
     (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
+    (pipeline) => changedFilesAnyIncludedCheck(pipeline, changedFiles),
   ];
 
   // When triggering via the "run elasticsearch-ci/step-name" comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc

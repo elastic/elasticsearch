@@ -483,6 +483,27 @@ public class LuceneSliceQueueTests extends ESTestCase {
         assertThat(overriddenSlices.size(), greaterThan(1));
     }
 
+    /**
+     * Regression for #158605 / #156243: a multi-segment index whose <em>total</em> doc count is below
+     * {@link LuceneSliceQueue#MIN_DOCS_PER_SLICE} must still collapse to a single slice. Without capping the
+     * bin-pack target by {@code totalDocs / minDocsPerSlice}, {@code balancedBinPack} would open one bin per
+     * segment (up to {@code taskConcurrency}) and over-split.
+     */
+    public void testDocPartitioningDoesNotOverSplitTinyMultiSegmentIndex() throws IOException {
+        IndexSearcher searcher = new IndexSearcher(
+            new MultiReader(new MockLeafReader(400), new MockLeafReader(300), new MockLeafReader(300))
+        );
+        var slices = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            8,
+            null,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+        );
+        assertThat(slices, hasSize(1));
+        assertThat(slices.getFirst(), hasSize(3));
+    }
+
     public void testCreateSlice() throws IOException {
         try (var directory = newDirectory()) {
             try (var reader = simpleReader(directory, 1, 1)) {

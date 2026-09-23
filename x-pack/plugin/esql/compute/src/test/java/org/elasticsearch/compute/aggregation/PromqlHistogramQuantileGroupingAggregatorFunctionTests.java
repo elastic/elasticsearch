@@ -32,6 +32,16 @@ public class PromqlHistogramQuantileGroupingAggregatorFunctionTests extends Grou
         return new PromqlHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
     }
 
+    /**
+     * The generic grouping-aggregator harness (e.g. testNullGroups) feeds randomized null-group values that are
+     * not valid histograms, so this aggregator legitimately warns while computing quantiles. Those warnings are
+     * incidental to what those shared tests assert, so exempt them from the per-driver warnings leak-check.
+     */
+    @Override
+    protected boolean assertNoLeakedWarnings() {
+        return false;
+    }
+
     @Override
     protected String expectedDescriptionOfAggregator() {
         return "promql_histogram_quantile";

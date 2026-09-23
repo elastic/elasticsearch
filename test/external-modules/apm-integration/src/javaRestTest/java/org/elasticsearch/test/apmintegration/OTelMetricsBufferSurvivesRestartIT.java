@@ -53,11 +53,9 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
         Thread.sleep(1000);
 
-        cluster.restart(false);
+        cluster.stop(false);
         closeClients();
-        initClient();
         recordingApmServer.reset();
-        recordingApmServer.clearResponseCode();
 
         AtomicBoolean replayed = new AtomicBoolean();
         recordingApmServer.addMessageConsumer(msg -> {
@@ -67,6 +65,9 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
                 replayed.set(true);
             }
         });
+
+        cluster.start();
+        initClient();
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
         assertBusy(

@@ -29,10 +29,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -296,23 +299,25 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         var shardContexts = new IndexedByShardIdFromSingleton<>(shardContext);
         var op1 = new LuceneSourceOperator(
             shardContexts,
-            blockFactory(),
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory(), null),
             100,
             queue,
             LuceneOperator.NO_LIMIT,
             Limiter.NO_LIMIT,
             false,
-            () -> 0L
+            () -> 0L,
+            QueryWarnings.EMIT
         );
         var op2 = new LuceneSourceOperator(
             shardContexts,
-            blockFactory(),
+            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory(), null),
             100,
             queue,
             LuceneOperator.NO_LIMIT,
             Limiter.NO_LIMIT,
             false,
-            () -> 0L
+            () -> 0L,
+            QueryWarnings.EMIT
         );
         try {
             Thread thread1 = new Thread(() -> {

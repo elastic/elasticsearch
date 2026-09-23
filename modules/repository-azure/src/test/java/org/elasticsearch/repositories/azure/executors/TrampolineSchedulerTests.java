@@ -259,9 +259,9 @@ public class TrampolineSchedulerTests extends ESTestCase {
      * the refill requests are serialized behind the running production.
      */
     public void testConcatMapUnderConcurrentDemandDeliversEveryItemOnceInOrder() throws Exception {
-        final int items = 2000;
-        final int subscriptions = 500;
-        final int concurrentSubscriptions = 8;
+        final int items = between(1500, 3000);
+        final int subscriptions = between(400, 800);
+        final int concurrentSubscriptions = between(4, 16);
         final Executor eventLoop = threadPool.executor(EVENT_LOOP);
         final List<String> problems = new ArrayList<>();
         for (int first = 0; first < subscriptions; first += concurrentSubscriptions) {
@@ -281,7 +281,17 @@ public class TrampolineSchedulerTests extends ESTestCase {
                 subscriber.verify(items, problems);
             }
         }
-        assertThat(String.join("\n", problems), problems, hasSize(0));
+        assertThat(
+            items
+                + " items, "
+                + subscriptions
+                + " subscriptions, "
+                + concurrentSubscriptions
+                + " concurrent:\n"
+                + String.join("\n", problems),
+            problems,
+            hasSize(0)
+        );
     }
 
     private static final class RecordingSubscriber extends BaseSubscriber<Integer> {

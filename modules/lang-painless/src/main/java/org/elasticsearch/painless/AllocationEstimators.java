@@ -149,6 +149,10 @@ public final class AllocationEstimators {
     private static final long HASHTABLE_ENTRY_BYTES = 40;
     /** An {@code IdentityHashMap} with no table. {@link #identityHashMapShellBytes()} adds the default 64 slots. */
     private static final long IDENTITY_HASH_MAP_OBJECT_BYTES = 32;
+    /** An {@code IdentityHashMap} table holds the key and the value of each slot side by side in one array. */
+    private static final long IDENTITY_HASH_MAP_REFERENCES_PER_SLOT = 2;
+    /** The JDK sizes the table as the largest power of two at or below three times the expected size, so at most this many times it. */
+    private static final long IDENTITY_HASH_MAP_MAX_CAPACITY_FACTOR = 3;
     /** A {@code List.subList} view: two list references plus offset, size and modCount. */
     private static final long SUB_LIST_VIEW_BYTES = 40;
     /** Default {@code ArrayList} capacity. A list built by repeated {@code add} never holds less than this. */
@@ -190,7 +194,10 @@ public final class AllocationEstimators {
         long expected = AllocSizes.addSat(size, size / 10 + 2); // at least 1.1 * (size + 1)
         return AllocSizes.addSat(
             IDENTITY_HASH_MAP_OBJECT_BYTES,
-            AllocSizes.arrayBytes(AllocSizes.mulSat(expected, 6), AllocSizes.REFERENCE_SIZE)
+            AllocSizes.arrayBytes(
+                AllocSizes.mulSat(expected, IDENTITY_HASH_MAP_MAX_CAPACITY_FACTOR * IDENTITY_HASH_MAP_REFERENCES_PER_SLOT),
+                AllocSizes.REFERENCE_SIZE
+            )
         );
     }
 

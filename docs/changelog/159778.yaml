@@ -1,57 +1,15 @@
 area: Search
 highlight:
-  body: "Adds an experimental _knn_eval API for evaluating DiskBBQ kNN settings\n\
-    against exact or approximate baselines.\n\n• Supports sampled or supplied query\
-    \ vectors.   • Reports recall, cost,\nfailures, and rescore capping.   • Supports\
-    \ synchronous and task-backed\nexecution.\n\nExamples. \n\n## Sample 100 docs\
-    \ as query vectors\n\n```\nPOST my-index/_knn_eval\n  {\n    \"field\": \"emb\"\
-    ,\n    \"k\": 10,\n    \"sample\": { \"size\": 100, \"seed\": 42 },\n    \"baseline\"\
-    : { \"exact\": true },\n    \"knn_settings\": [\n      { \"visit_percentage\"\
-    : 0.5 },\n      { \"visit_percentage\": 1 },\n      { \"visit_percentage\": 5\
-    \ },\n      { \"visit_percentage\": 25 }\n    ]\n  }\n  ```\n  Response, from\
-    \ a 30k-vector `bbq_disk` index (300 clusters, 64 dims,\none segment):\n  ```\n\
-    \  {\n    \"baseline\": { \"exact\": true },\n    \"baseline_took_ms\": 172,\n\
-    \    \"baseline_vector_ops\": 3000000,\n    \"baseline_vector_ops_kind\": \"full_precision_scan\"\
-    ,\n    \"results\": [\n      { \"knn_settings\": { \"visit_percentage\": 0.5 },\
-    \  \"recall\": 0.779,\n          \"included_queries\": 100, \"excluded_queries\"\
-    : 0, \"took_ms\": 167,\n          \"vector_ops\": 53790 },\n      { \"knn_settings\"\
-    : { \"visit_percentage\": 1.0 },  \"recall\": 0.873,\n          \"included_queries\"\
-    : 100, \"excluded_queries\": 0, \"took_ms\": 80,\n          \"vector_ops\": 99415\
-    \ },\n      { \"knn_settings\": { \"visit_percentage\": 5.0 },  \"recall\": 0.972,\n\
-    \          \"included_queries\": 100, \"excluded_queries\": 0, \"took_ms\": 78,\n\
-    \          \"vector_ops\": 328990 },\n      { \"knn_settings\": { \"visit_percentage\"\
-    : 25.0 }, \"recall\": 0.996,\n          \"included_queries\": 100, \"excluded_queries\"\
-    : 0, \"took_ms\": 208,\n          \"vector_ops\": 1531001 }\n    ],\n    \"failures\"\
-    : {}\n  }\n```\n\nInstead of the `exact` baseline, the default runs 20%\n`visit_percentage`.\
-    \ This shows that some queries were excluded with that\nbaseline. We're excluding\
-    \ queries if any documents are retrieved that\nhave a higher relevance score than\
-    \ docs in the baseline.\n\n```\n \"baseline\": { \"visit_percentage\": 20 }\n\
-    ```\n\n```\n{\n    \"baseline\": { \"visit_percentage\": 20.0 },\n    \"baseline_took_ms\"\
-    : 498,\n    \"baseline_vector_ops\": 1228504,\n    \"baseline_vector_ops_kind\"\
-    : \"quantized_visit_plus_rescore\",\n    \"results\": [\n      { \"knn_settings\"\
-    : { \"visit_percentage\": 0.5 },   \"recall\":\n          0.791, \"included_queries\"\
-    : 98,  \"excluded_queries\": 2, \"took_ms\": 255,\n          \"vector_ops\": 57667\
-    \ },\n      { \"knn_settings\": { \"visit_percentage\": 1.0 },   \"recall\":\n\
-    \          0.863, \"included_queries\": 98,  \"excluded_queries\": 2, \"took_ms\"\
-    : 210,\n          \"vector_ops\": 99499 },\n      { \"knn_settings\": { \"visit_percentage\"\
-    : 5.0 },   \"recall\":\n          0.974, \"included_queries\": 98,  \"excluded_queries\"\
-    : 2, \"took_ms\": 222,\n          \"vector_ops\": 327820 },\n      { \"knn_settings\"\
-    : { \"visit_percentage\": 25.0 },  \"recall\": 1.0,\n          \"included_queries\"\
-    : 100, \"excluded_queries\": 0, \"took_ms\": 218,\n          \"vector_ops\": 1525657\
-    \ },\n      { \"knn_settings\": { \"visit_percentage\": 100.0 }, \"recall\":\n\
-    \          0.999, \"included_queries\": 99,  \"excluded_queries\": 1, \"took_ms\"\
-    : 269,\n          \"vector_ops\": 6003300 }\n    ],\n    \"failures\": {}\n  }\n\
-    ```\n\n### Specify query vectors (instead of sampling from document vectors)\n\
-    \n## Floats as query vectors\n\n```\nPOST my-index/_knn_eval\n  {\n    \"field\"\
-    : \"emb\",\n    \"k\": 10,\n    \"queries\": [\n      { \"id\": \"q1\", \"query_vector\"\
-    : [0.1, 0.2, 0.3, 0.4] }\n    ],\n    \"knn_settings\": [\n      { \"visit_percentage\"\
-    : 5 }\n    ]\n  }\n```\n\n## Base64 encoded query vectors\n\n```\nPOST my-index/_knn_eval\n\
-    \  {\n    \"field\": \"emb\",\n    \"k\": 10,\n    \"queries\": [\n      { \"\
-    id\": \"q1\", \"query_vector\": \"PczMzT5MzM0+mZmaPszMzQ==\" }\n    ],\n    \"\
-    knn_settings\": [\n      { \"visit_percentage\": 5 }\n    ]\n  }\n```"
+  body: |-
+    Adds the experimental `_knn_eval` API for evaluating DiskBBQ kNN settings
+    against exact or approximate baselines. Evaluations can use sampled document
+    vectors or caller-supplied query vectors and run synchronously or as tasks.
+
+    Results report recall, elapsed time, vector operations, excluded or failed
+    queries, and whether a rescore window was capped.
   notable: true
-  title: Add a simple knn recall eval endpoint
+  title: Add a simple kNN recall evaluation endpoint
 issues: []
 pr: 159778
-summary: Add a simple knn recall eval endpoint
+summary: Add a simple kNN recall evaluation endpoint
 type: feature

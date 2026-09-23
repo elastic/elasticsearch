@@ -794,6 +794,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 maxConcurrentRelocationsPerHeapGb = newRatio;
             }
             if (oldRatio < newRatio) {
+                // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
+                // applier thread stops before the thread pool shuts down so this should never be rejected.
                 executor.execute(this::startRelocationsUpToLimit);
             }
         }

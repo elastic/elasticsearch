@@ -610,6 +610,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     }
 
     @Override
+    public int getVectorCount(FieldInfo fieldInfo) throws IOException {
+        // the IVF structure (centroids, posting lists) does not change the number of vectors in the
+        // segment, so the count comes straight from the raw flat reader's metadata
+        return getReaderForField(fieldInfo.name).getVectorCount(fieldInfo);
+    }
+
+    @Override
     public void close() throws IOException {
         List<Closeable> closeables = new ArrayList<>(genericReaders.allReaders());
         Collections.addAll(closeables, ivfCentroids, ivfClusters);

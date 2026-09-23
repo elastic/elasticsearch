@@ -167,6 +167,11 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
+    public int getVectorCount(FieldInfo fieldInfo) {
+        return getFieldEntryOrThrow(fieldInfo.name).size();
+    }
+
+    @Override
     public void checkIntegrity() throws IOException {
         CodecUtil.checksumEntireFile(vectorData);
     }

@@ -166,6 +166,11 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
+    public int getVectorCount(FieldInfo fieldInfo) throws IOException {
+        return genericReaders.getReaderForField(fieldInfo.number).getVectorCount(fieldInfo);
+    }
+
+    @Override
     public void close() throws IOException {
         IOUtils.close(genericReaders.allReaders());
     }

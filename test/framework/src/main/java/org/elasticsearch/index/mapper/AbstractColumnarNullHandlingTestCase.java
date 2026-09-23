@@ -253,6 +253,37 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         assertEquals("one empty postings field, not one per array", 1, postings(fields).size());
     }
 
+    /**
+     * A nested object yields a Lucene document per array element, so the field an all-null array leaves behind belongs to the element's
+     * document, not the root. The empty postings field has to land on that same document, or the one holding it is still the odd one
+     * out. Guards the capture of the current document at parse time, which resolving against the root would quietly undo.
+     */
+    public void testNestedDocumentsEachGetTheirOwn() throws IOException {
+        MapperService mapperService = createMapperService(codecSettings(), mapping(b -> {
+            b.startObject("n").field("type", "nested");
+            b.startObject("properties");
+            b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject();
+            b.endObject().endObject();
+        }));
+        String source = "{\"n\":[{\"" + FIELD + "\":[null]},{\"" + FIELD + "\":[\"" + sampleValue() + "\"]}]}";
+        ParsedDocument parsed = mapperService.documentMapper().parse(new SourceToParse("1", new BytesArray(source), XContentType.JSON));
+
+        for (LuceneDocument doc : parsed.docs()) {
+            List<IndexableField> fields = new ArrayList<>();
+            for (IndexableField field : doc.getFields()) {
+                if (field.name().equals("n." + FIELD)) {
+                    fields.add(field);
+                }
+            }
+            if (fields.isEmpty()) {
+                continue; // the root document, which carries none of this
+            }
+            assertEquals("every document carrying the field states its index options", 1, postings(fields).size());
+        }
+        // Lucene is the real check: a document left without them fails the whole batch.
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), reader -> assertEquals(3, reader.maxDoc()));
+    }
+
     public void testAllNullArrayIndexesAlongsideValue() throws IOException {
         indexAlongsideValue(codecMapperService(), b -> b.startArray(FIELD).nullValue().endArray());
     }

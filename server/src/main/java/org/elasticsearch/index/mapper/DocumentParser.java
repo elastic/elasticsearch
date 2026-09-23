@@ -776,10 +776,14 @@ public final class DocumentParser {
                 mapper.recordEmptyArrayInOrder(context.doc());
             }
         }
-        if (mapper != null && valueElements == 0) {
+        if (mapper != null && valueElements == 0 && mapper.storesArrayValuesInOrder()) {
             // The array held nothing to index, so whatever the mapper wrote for it — a null slot, an empty array — may stand alone in
             // the document. Only the mapper knows whether that leaves the field needing its index options stated separately, and only
-            // once the whole document has been read, since another array may yet write a value to the same field.
+            // once the whole document has been read, since another array may yet write a value to the same field. Confined to the
+            // mappers that keep array order, the only ones that write anything for such an array at all.
+            //
+            // The document is captured here rather than looked up when the record is acted on: a nested object yields a Lucene
+            // document per array element, and the field belongs to the one open now.
             context.recordArrayWithoutIndexedValue(mapper, context.doc());
         }
         postProcessDynamicArrayMapping(context, lastFieldName, valueElements);

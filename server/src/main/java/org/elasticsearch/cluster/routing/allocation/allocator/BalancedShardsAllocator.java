@@ -1200,14 +1200,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * This overload will always search for relocation targets for {@link Decision#NOT_PREFERRED}
          * allocations.
          *
-         * @see #decideMove(ProjectIndex, ShardRouting, Predicate)
+         * @see #decideMoveWithDeciderName(ProjectIndex, ShardRouting, Predicate)
          * @param index The index that the shard being considered belongs to
          * @param shardRouting The shard routing being considered for movement
          * @return The {@link MoveDecision} for the shard
          */
         public MoveDecision decideMove(final ProjectIndex index, final ShardRouting shardRouting) {
             // Always assess options for non-preferred allocations
-            return decideMove(index, shardRouting, ignored -> true);
+            return decideMoveWithDeciderName(index, shardRouting, ignored -> true).moveDecision();
         }
 
         /**
@@ -1230,20 +1230,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *                              {@link Type#NOT_PREFERRED}. If the predicate returns true, a search for relocation targets will be
          *                              performed, if it returns false no search will be performed and {@link MoveDecision#NOT_TAKEN} will
          *                              be returned.
-         * @return The {@link MoveDecision} for the shard
+         * @return The {@link MoveDecisionWithDeciderName} for the shard
          */
-        private MoveDecision decideMove(ProjectIndex index, ShardRouting shardRouting, Predicate<ShardRouting> nonPreferredPredicate) {
-            return decideMoveWithDeciderName(index, shardRouting, nonPreferredPredicate).moveDecision();
-        }
-
-        private record MoveDecisionWithDeciderName(
-            MoveDecision moveDecision,
-            @Nullable String canRemainDeciderName,
-            @Nullable String canAllocateNotPreferredDeciderName
-        ) {}
-
-        private static final MoveDecisionWithDeciderName NOT_TAKEN = new MoveDecisionWithDeciderName(MoveDecision.NOT_TAKEN, null, null);
-
         private MoveDecisionWithDeciderName decideMoveWithDeciderName(
             ProjectIndex index,
             ShardRouting shardRouting,
@@ -2281,4 +2269,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             assert indexName.equals(shard.getIndexName()) : "Index name mismatch [" + this + "] vs [" + shard + "]";
         }
     }
+
+    private record MoveDecisionWithDeciderName(
+        MoveDecision moveDecision,
+        @Nullable String canRemainDeciderName,
+        @Nullable String canAllocateNotPreferredDeciderName
+    ) {}
+
+    private static final MoveDecisionWithDeciderName NOT_TAKEN = new MoveDecisionWithDeciderName(MoveDecision.NOT_TAKEN, null, null);
 }

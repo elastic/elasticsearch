@@ -229,7 +229,8 @@ public class TrampolineSchedulerTests extends ESTestCase {
         safeAwait(threeTicks);
         periodic.dispose();
         assertTrue(periodic.isDisposed());
-        safeSleep(50);
+        // no tick body starts after dispose; wait for the one that may be executing to finish before taking the count
+        assertBusy(() -> assertFalse(running.get()));
         final int ticksAfterDispose = ticks.get();
         safeSleep(50);
         assertThat("periodic task kept running after dispose", ticks.get(), equalTo(ticksAfterDispose));

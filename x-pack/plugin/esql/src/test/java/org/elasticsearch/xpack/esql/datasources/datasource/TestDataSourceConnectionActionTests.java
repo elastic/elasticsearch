@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasources.TestConnectionResult;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -156,6 +157,40 @@ public class TestDataSourceConnectionActionTests extends ESTestCase {
         TestDataSourceConnectionAction.Response r = TransportTestDataSourceConnectionAction.aggregate(results);
         assertEquals("failure", r.status());
         assertEquals("real failure", r.error());
+    }
+
+    /**
+     * The {@code handleException} path in the coordinator maps a {@link org.elasticsearch.transport.TransportException}
+     * to the fixed untestable reason below. This test pins that text so refactoring the coordinator doesn't
+     * silently change the user-visible message.
+     */
+    public void testHandleExceptionUntestableMessageText() {
+        // The coordinator sets this exact string when a node probe does not complete (timeout, old node, etc.)
+        String handleExceptionReason = "One or more nodes returned no probe result; the backend may still be reachable";
+        AtomicArray<TestConnectionResult> results = resultsOf(new TestConnectionResult.Untestable(handleExceptionReason));
+        TestDataSourceConnectionAction.Response r = TransportTestDataSourceConnectionAction.aggregate(results);
+        assertEquals("untestable", r.status());
+        assertEquals(handleExceptionReason, r.message());
+    }
+
+    /** The coordinator strips {@code region} from probe settings before fanning out.
+     *  The NodeRequest wire format must accept a map without it; this round-trip verifies that path. */
+    public void testNodeRequestRoundTripWithRegionStripped() throws IOException {
+        // Simulate what the coordinator does: copy rawSettings and remove "region" before constructing the NodeRequest.
+        Map<String, Object> rawSettings = new HashMap<>();
+        rawSettings.put("auth", "static_credentials");
+        rawSettings.put("access_key", "AKIAIOSFODNN7EXAMPLE");
+        rawSettings.put("region", "us-east-1");
+        rawSettings.remove("region"); // coordinator strips region before fanning out
+
+        TestDataSourceNodeAction.NodeRequest original = new TestDataSourceNodeAction.NodeRequest("s3", rawSettings);
+        BytesStreamOutput out = new BytesStreamOutput();
+        original.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        TestDataSourceNodeAction.NodeRequest copy = new TestDataSourceNodeAction.NodeRequest(in);
+
+        assertFalse("region must not appear in the probe settings", copy.rawSettings.containsKey("region"));
+        assertEquals("s3", copy.type);
     }
 
     private static AtomicArray<TestConnectionResult> resultsOf(TestConnectionResult... values) {

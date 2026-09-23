@@ -979,7 +979,14 @@ public class S3StorageProvider implements StorageProvider {
      * {@link TestConnectionNotSupportedException} (untestable) rather than success or failure:
      * the same as GCS and Azure when facing bucket/container-scoped credentials. The user is
      * directed to create a dataset to verify access at the bucket level.
-     * Invalid credentials ({@code InvalidClientTokenId}, {@code SignatureDoesNotMatch}) are re-thrown as failures.
+     *
+     * <p>An {@code AuthorizationHeaderMalformed} error (HTTP 400) means the request was signed for
+     * the wrong region. Queries avoid this via a one-shot HeadBucket region-discovery retry
+     * ({@link #shouldAttemptRegionRetry}), but {@code ListBuckets} has no bucket to discover the
+     * region from, so the probe cannot perform the same recovery. Because the data source works fine
+     * for queries, this is also reported as {@code untestable} rather than {@code failure}.
+     *
+     * <p>Invalid credentials ({@code InvalidClientTokenId}, {@code SignatureDoesNotMatch}) are re-thrown as failures.
      * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
      */
     public void testConnection() {
@@ -997,6 +1004,16 @@ public class S3StorageProvider implements StorageProvider {
                 throw new TestConnectionNotSupportedException(
                     "S3 returned 403 AccessDenied on ListBuckets; credentials may be bucket-scoped",
                     "Bucket-scoped credentials cannot be verified at the data source level; create a dataset to validate access."
+                );
+            }
+            if (isAuthorizationHeaderMalformed(e)) {
+                // Custom endpoint with no region: ListBuckets fails with AuthorizationHeaderMalformed
+                // because the request was signed for the wrong region. Queries recover via HeadBucket
+                // region-discovery, but that retry needs a bucket name. The data source is reachable —
+                // set region in the settings or create a dataset to validate access.
+                throw new TestConnectionNotSupportedException(
+                    "S3 returned AuthorizationHeaderMalformed on ListBuckets; region cannot be determined at the data source level",
+                    "Set the region in the data source settings, or create a dataset to validate access."
                 );
             }
             throw e;

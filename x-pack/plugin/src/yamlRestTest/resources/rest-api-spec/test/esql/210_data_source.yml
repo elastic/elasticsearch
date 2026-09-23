@@ -169,8 +169,9 @@ teardown:
 
 ---
 "test-connection-anonymous-untestable":
-  # Anonymous S3 access has no account-level probe to run — expect untestable.
-  # This also exercises Response.toXContent for the untestable status without a message.
+  # Anonymous S3 access has no account-level probe to run — expect untestable with a user-visible message.
+  # Also exercises the end-to-end message flow: TestConnectionNotSupportedException.userReason() reaches
+  # the response body as the "message" field.
   - requires:
       capabilities:
         - method: POST
@@ -184,6 +185,28 @@ teardown:
           type: "s3"
           settings:
             auth: "anonymous"
+  - match: { status: "untestable" }
+  - match: { message: "Anonymous access targets public buckets; create a dataset to validate read access." }
+
+---
+"test-connection-region-stripped":
+  # The coordinator strips "region" from probe settings before fanning out to nodes (region is a
+  # dataset-level setting; queries drop it via DatasetRewriter). Including region must not cause a
+  # validation error or change the probe result — anonymous auth still returns untestable.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "region must be stripped from probe settings without causing a validation error"
+  - do:
+      esql.test_data_source_connection:
+        body:
+          type: "s3"
+          settings:
+            auth: "anonymous"
+            region: "us-east-1"
   - match: { status: "untestable" }
 
 ---

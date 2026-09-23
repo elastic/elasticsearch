@@ -26,7 +26,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasources.TestConnectionResult;
-import org.elasticsearch.xpack.esql.datasources.UnknownDataSourceTypeException;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.NodeEligibilityStrategy;
 
@@ -63,9 +62,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Aligning both registries behind a single source of truth is a follow-up.
  *
  * <p><b>Concurrency note.</b> Each node probe opens a storage client and blocks a GENERIC-pool
- * thread until the probe completes or times out. In a large cluster this means one GENERIC thread
- * per data node for up to {@link #PROBE_TIMEOUT} per call. Cancellation of the REST request does
- * not propagate to node requests. A per-call concurrency limit is a follow-up.
+ * thread until the SDK call returns (which may be longer than {@link #PROBE_TIMEOUT} if the SDK
+ * ignores the transport deadline). In a large cluster this means one GENERIC thread per data node
+ * per call. Cancellation of the REST request does not propagate to node requests. A per-call
+ * concurrency limit is a follow-up.
  */
 public class TransportTestDataSourceConnectionAction extends HandledTransportAction<
     TestDataSourceConnectionAction.Request,
@@ -114,9 +114,6 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         // --- Step 2: validate settings structure (bad settings → 400, not soft failure) ---
         try {
             validator.validateDatasource(request.rawSettings());
-        } catch (UnknownDataSourceTypeException e) {
-            listener.onFailure(new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e));
-            return;
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e));
             return;

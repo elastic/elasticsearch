@@ -30,9 +30,9 @@ import java.util.Objects;
  * validating a new or modified configuration before saving it.
  *
  * <p>No per-request timeout parameter is exposed: enforcing a wall-clock deadline on a blocking
- * {@link org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory#open} call would require
- * interrupting a GENERIC-pool thread, which is connector-dependent and non-trivial. The connector's
- * own connect-timeout setting applies. A per-request timeout can be added in a follow-up.
+ * storage-provider probe would require interrupting a GENERIC-pool thread, which is
+ * connector-dependent and non-trivial. The storage provider's own connect-timeout applies.
+ * A per-request timeout can be added in a follow-up.
  *
  * <p>The transport layer applies a per-node deadline of
  * {@link TransportTestDataSourceConnectionAction#PROBE_TIMEOUT} (30 seconds). A node that exceeds

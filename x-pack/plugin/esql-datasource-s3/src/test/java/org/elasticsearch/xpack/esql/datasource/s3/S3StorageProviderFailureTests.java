@@ -428,4 +428,15 @@ public class S3StorageProviderFailureTests extends ESTestCase {
         TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
         assertThat(ex.getMessage(), containsString("AccessDenied"));
     }
+
+    public void testTestConnectionAuthorizationHeaderMalformedIsUntestable() {
+        S3Client client = mock(S3Client.class);
+        S3Exception authMalformed = s3FailureWithErrorCode(400, "AuthorizationHeaderMalformed", "eu-west-1");
+        when(client.listBuckets()).thenThrow(authMalformed);
+        // Non-anonymous config so the anonymous short-circuit does not fire.
+        S3Configuration config = S3Configuration.fromFields("key", "secret", null, null);
+        S3StorageProvider provider = new S3StorageProvider(config, client);
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
+        assertThat(ex.getMessage(), containsString("AuthorizationHeaderMalformed"));
+    }
 }

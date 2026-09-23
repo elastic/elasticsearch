@@ -20,6 +20,7 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobStorageException;
@@ -260,7 +261,7 @@ public final class AzureStorageProvider implements StorageProvider {
         try {
             clients(null).sync().getAccountInfo();
         } catch (BlobStorageException e) {
-            if (e.getStatusCode() == 403) {
+            if (e.getStatusCode() == 403 && isContainerScoped403(e)) {
                 throw new TestConnectionNotSupportedException(
                     "Azure returned 403 on Get Account Information; credentials may be container-scoped",
                     "Container-scoped credentials cannot be verified at the data source level; create a dataset to validate access."
@@ -268,6 +269,19 @@ public final class AzureStorageProvider implements StorageProvider {
             }
             throw e;
         }
+    }
+
+    /**
+     * Returns {@code true} when a 403 from Get Account Information indicates container-scoped credentials
+     * (which are valid for the actual container but lack the account-wide listing privilege), and {@code false}
+     * when the credentials are definitively wrong (e.g. {@link BlobErrorCode#AUTHENTICATION_FAILED}).
+     * <p>
+     * A null error code is treated conservatively as container-scoped: the header may be absent on older
+     * API versions or on proxies that strip Azure-specific headers.
+     */
+    static boolean isContainerScoped403(BlobStorageException e) {
+        BlobErrorCode errorCode = e.getErrorCode();
+        return errorCode == null || errorCode == BlobErrorCode.AUTHORIZATION_PERMISSION_MISMATCH;
     }
 
     /**

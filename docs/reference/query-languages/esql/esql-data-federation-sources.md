@@ -71,7 +71,7 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-data-source) |
-<!-- | [Test connection](#test-a-connection) | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) | -->
+| [Test connection](#test-a-connection) | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) |
 
 ### Create or update a data source
 
@@ -215,9 +215,11 @@ The response contains a `status` field with one of three values:
 
 | Status | Meaning |
 |---|---|
-| `success` | The probe ran and the backend is reachable with the given credentials. |
+| `success` | The probe ran on every eligible node and the backend is reachable with the given credentials. |
 | `failure` | The probe ran but the backend was unreachable or rejected the credentials. An `error` field contains a human-readable reason. |
-| `untestable` | The type is valid and accepted, but has no connectivity probe. The configuration may still be correct — this status simply means it cannot be verified without running a query. |
+| `untestable` | The configuration cannot be verified at the data source level. An optional `message` field, when present, explains why. Common reasons: the backend type has no connectivity probe; credentials are scoped to a container or bucket rather than the account; authentication uses anonymous or managed-identity access that requires a dataset path to resolve the endpoint; or no eligible node could complete the probe. The configuration may still be correct — create a dataset and run a query to validate access. |
+
+The probe runs on every eligible node in parallel, with a 30-second timeout per node. If any node cannot complete the probe, the result is `untestable` rather than `success`.
 
 ::::{tab-set}
 :group: api-ref
@@ -267,7 +269,7 @@ Example responses:
 ```
 
 ```json
-{ "status": "untestable" }
+{ "status": "untestable", "message": "Anonymous access targets public buckets; create a dataset to validate read access." }
 ```
 
 :::{note}

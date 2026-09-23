@@ -51,8 +51,15 @@ public final class AllocSizes {
      */
     private static final int REGEX_ASSUMED_GROUPS = 10;
 
-    /** Heap size of the {@code ReadLimitedCharSequence} that wraps a regex input: a header, three references and four {@code int}s. */
-    private static final long REGEX_WRAPPER_BYTES = pad8(OBJECT_HEADER + 3L * REFERENCE_SIZE + 4L * Integer.BYTES);
+    /**
+     * Heap size of the {@code ReadLimitedCharSequence} that wraps a regex input. {@code Augmentation.wrapRegexReceiver} builds
+     * it as an anonymous subclass that captures the receiver, the pattern and the limit factor, so on top of the base class's
+     * one reference and three {@code int}s it carries two more references and one more {@code int}.
+     */
+    private static final long READ_LIMITED_CHAR_SEQUENCE_BYTES = pad8(OBJECT_HEADER + 3L * REFERENCE_SIZE + 4L * Integer.BYTES);
+
+    /** Heap size of a {@code Matcher} object without its arrays: six references, nine {@code int}s and four {@code boolean}s. */
+    private static final long MATCHER_OBJECT_BYTES = pad8(OBJECT_HEADER + 6L * REFERENCE_SIZE + 9L * Integer.BYTES + 4L);
 
     /**
      * Heap size of what one use of a regex operator ({@code =~} or {@code ==~}) allocates when the pattern is not a literal,
@@ -82,10 +89,11 @@ public final class AllocSizes {
         // Group 0 is the whole match, so a pattern with no capturing groups still gets one slot pair.
         long slots = 2L * (groups + 1L);
 
-        return pad8(OBJECT_HEADER + 6L * REFERENCE_SIZE + 9L * Integer.BYTES + 4L) + arrayBytes(slots, Integer.BYTES) + arrayBytes(
-            slots,
-            Integer.BYTES
-        ) + arrayBytes(groups + 1L, REFERENCE_SIZE) + REGEX_WRAPPER_BYTES;
+        long groupsArray = arrayBytes(slots, Integer.BYTES);
+        long localsArray = arrayBytes(slots, Integer.BYTES);
+        long localsPosArray = arrayBytes(groups + 1L, REFERENCE_SIZE);
+
+        return MATCHER_OBJECT_BYTES + groupsArray + localsArray + localsPosArray + READ_LIMITED_CHAR_SEQUENCE_BYTES;
     }
 
     /** Rounds {@code bytes} up to the nearest 8-byte alignment boundary, saturating rather than overflowing near {@link Long#MAX_VALUE}. */

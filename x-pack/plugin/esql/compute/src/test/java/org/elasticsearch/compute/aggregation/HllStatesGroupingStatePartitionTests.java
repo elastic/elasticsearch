@@ -25,14 +25,26 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
 
+    public void testFlatRoundTrip() {
+        // precision=4 → dense sketch = 16 bytes; even 50k groups gives 50k×16 = 800 KB, well under the 400 MB flat threshold
+        runTest(4, between(1, 50_000));
+    }
+
+    public void testPagedRoundTrip() {
+        // precision=18 → dense sketch = 256 KB; 3000 groups × 256 KB = 750 MB > 400 MB flat threshold → paged path
+        runTest(Integer.MAX_VALUE, between(3_000, 5_000));
+    }
+
     public void testRoundTrip() {
+        runTest(40_000, between(1, 50_000));
+    }
+
+    private void runTest(int precisionThreshold, int numGroups) {
         BlockFactory blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         var partitionBreaker = new NoopCircuitBreaker("partition");
 
-        int numGroups = between(1, 50_000);
-
-        try (var state = new HllStates.GroupingState(driverContext, 40_000)) {
+        try (var state = new HllStates.GroupingState(driverContext, precisionThreshold)) {
             long[] expectedCardinalities = new long[numGroups];
             for (int g = 0; g < numGroups; g++) {
                 int numValues = between(0, 32);
@@ -70,17 +82,14 @@ public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
 
             BytesRef scratch = new BytesRef();
             for (int p = 0; p < NUM_PARTITIONS; p++) {
-                // HLL has no null groups, so seen is always null
                 assertThat("seen must be null for HLL", state.partitionSeen(partitioned, p), nullValue());
                 assertThat("hasAllValues must be true for HLL", partitioned.hasAllValues(p), equalTo(true));
 
                 BytesRefSequence values = state.partitionValues(partitioned, p);
 
-                // Groups assigned to partition p: p, p + NUM_PARTITIONS, p + 2*NUM_PARTITIONS, ...
                 int k = 0;
                 for (int g = p; g < numGroups; g += NUM_PARTITIONS) {
-                    // Merge the serialized sketch into a fresh single-group state and verify cardinality matches
-                    try (var check = new HllStates.GroupingState(driverContext, 40_000)) {
+                    try (var check = new HllStates.GroupingState(driverContext, precisionThreshold)) {
                         check.merge(0, values.get(k, scratch), 0);
                         assertThat(
                             "cardinality mismatch for group " + g + " in partition " + p + " slot " + k,

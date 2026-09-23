@@ -15,6 +15,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -101,17 +103,24 @@ final class HllStates {
 
     static class GroupingState implements GroupingAggregatorState {
 
+        /**
+         * Switches partition storage from a flat {@code byte[]} per partition to
+         * {@link BytesRefArray}-backed paged storage when the conservative estimate of
+         * total serialized bytes (groups × dense-sketch-size) exceeds this threshold.
+         * Matches {@link BytesRefArrayState#PAGED_PARTITION_THRESHOLD_BYTES}.
+         */
+        static final long PAGED_PARTITION_THRESHOLD_BYTES = 400L * 1024 * 1024;
+
         private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
 
         final HyperLogLogPlusPlus hll;
+        private final BigArrays bigArrays;
+        private final int hllPrecision;
 
         GroupingState(DriverContext driverContext, int precision) {
-            this.hll = new HyperLogLogPlusPlus(
-                HyperLogLogPlusPlus.precisionFromThreshold(precision),
-                driverContext.bigArrays(),
-                driverContext.breaker(),
-                1
-            );
+            this.hllPrecision = HyperLogLogPlusPlus.precisionFromThreshold(precision);
+            this.bigArrays = driverContext.bigArrays();
+            this.hll = new HyperLogLogPlusPlus(hllPrecision, driverContext.bigArrays(), driverContext.breaker(), 1);
         }
 
         @Override
@@ -174,12 +183,14 @@ final class HllStates {
         }
 
         GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
-            return new HllPartitionSplitter(breaker);
+            return new HllPartitionSplitter(breaker, bigArrays, hll.maxOrd(), hllPrecision);
         }
 
         BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
-            HllPartitionedState state = (HllPartitionedState) source;
-            return new BytesRefSequence.Flat(state.partitionData[partition], state.partitionOffsets[partition], state.partitionCounts[partition]);
+            if (source instanceof FlatHllPartitionedState flat) {
+                return new BytesRefSequence.Flat(flat.partitionData[partition], flat.partitionOffsets[partition], flat.partitionCounts[partition]);
+            }
+            return new BytesRefSequence.Paged(((PagedHllPartitionedState) source).partitionArrays[partition]);
         }
 
         boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
@@ -210,8 +221,8 @@ final class HllStates {
             );
         }
 
-        private static final class HllPartitionedState implements GroupingAggregatorFunction.PartitionedState {
-            private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(HllPartitionedState.class);
+        private static final class FlatHllPartitionedState implements GroupingAggregatorFunction.PartitionedState {
+            private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(FlatHllPartitionedState.class);
             static final String LABEL = "HllStates#partition";
 
             private final long baseBytes;
@@ -220,7 +231,7 @@ final class HllStates {
             private int[] partitionDataUsed;
             private int[] partitionCounts;
 
-            HllPartitionedState(CircuitBreaker breaker, int initialKeysPerPartition, int initialBytesPerPartition) {
+            FlatHllPartitionedState(CircuitBreaker breaker, int initialKeysPerPartition, int initialBytesPerPartition) {
                 baseBytes = BASE_RAM_USAGE
                     + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionData outer ref[]
                     + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionOffsets outer ref[]
@@ -283,17 +294,77 @@ final class HllStates {
             }
         }
 
+        private static final class PagedHllPartitionedState implements GroupingAggregatorFunction.PartitionedState {
+            private BytesRefArray[] partitionArrays;
+
+            PagedHllPartitionedState(BigArrays bigArrays, int avgKeysPerPartition, long avgBytesPerPartition) {
+                partitionArrays = new BytesRefArray[NUM_PARTITIONS];
+                boolean success = false;
+                try {
+                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                        partitionArrays[p] = new BytesRefArray(avgKeysPerPartition, bigArrays, avgBytesPerPartition);
+                    }
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        for (BytesRefArray arr : partitionArrays) {
+                            if (arr != null) arr.close();
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public boolean hasAllValues(int partition) {
+                return true;
+            }
+
+            @Override
+            public void releasePartition(CircuitBreaker breaker, int partition) {
+                if (partitionArrays[partition] != null) {
+                    partitionArrays[partition].close();
+                    partitionArrays[partition] = null;
+                }
+            }
+
+            @Override
+            public void releaseAll(CircuitBreaker breaker) {
+                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    if (partitionArrays[p] != null) {
+                        partitionArrays[p].close();
+                        partitionArrays[p] = null;
+                    }
+                }
+            }
+        }
+
         private final class HllPartitionSplitter implements GroupingAggregatorFunction.PartitionSplitter {
             private final CircuitBreaker partitionBreaker;
-            private HllPartitionedState partitionedState;
+            private FlatHllPartitionedState flatState;
+            private PagedHllPartitionedState pagedState;
 
-            HllPartitionSplitter(CircuitBreaker partitionBreaker) {
+            HllPartitionSplitter(CircuitBreaker partitionBreaker, BigArrays bigArrays, long maxOrd, int hllPrecision) {
                 this.partitionBreaker = partitionBreaker;
-                partitionedState = new HllPartitionedState(partitionBreaker, PARTITION_WRITE_BATCH, PARTITION_WRITE_BATCH * 512);
+                long estimatedTotalBytes = maxOrd * (1L << hllPrecision);
+                int avgKeysPerPartition = Math.max((int) Math.ceilDiv(maxOrd, NUM_PARTITIONS), 1);
+                if (estimatedTotalBytes <= PAGED_PARTITION_THRESHOLD_BYTES) {
+                    int avgBytesPerPartition = (int) Math.max(Math.ceilDiv(estimatedTotalBytes, NUM_PARTITIONS), 1);
+                    flatState = new FlatHllPartitionedState(partitionBreaker, avgKeysPerPartition, avgBytesPerPartition);
+                } else {
+                    pagedState = new PagedHllPartitionedState(bigArrays, avgKeysPerPartition, PARTITION_WRITE_BATCH * 512L);
+                }
             }
 
             @Override
             public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+                if (flatState != null) {
+                    splitFlat(firstId, shiftedIds, batchPartitionCounts);
+                } else {
+                    splitPaged(firstId, shiftedIds, batchPartitionCounts);
+                }
+            }
+
+            private void splitFlat(int firstId, short[] shiftedIds, int[] batchPartitionCounts) {
                 BytesRefStreamOutput out = new BytesRefStreamOutput();
                 try {
                     for (int p = 0; p < NUM_PARTITIONS; p++) {
@@ -301,21 +372,42 @@ final class HllStates {
                         if (count == 0) {
                             continue;
                         }
-                        final int keyBase = partitionedState.partitionCounts[p];
+                        final int keyBase = flatState.partitionCounts[p];
                         final int base = p * PARTITION_WRITE_BATCH;
                         ensureOffsetCapacity(p, keyBase + count + 1);
                         for (int i = 0; i < count; i++) {
                             final int id = firstId + shiftedIds[base + i];
-                            partitionedState.partitionOffsets[p][keyBase + i] = partitionedState.partitionDataUsed[p];
+                            flatState.partitionOffsets[p][keyBase + i] = flatState.partitionDataUsed[p];
                             hll.writeTo(id, out);
                             BytesRef ref = out.get();
-                            ensureDataCapacity(p, partitionedState.partitionDataUsed[p] + ref.length);
-                            System.arraycopy(ref.bytes, ref.offset, partitionedState.partitionData[p], partitionedState.partitionDataUsed[p], ref.length);
-                            partitionedState.partitionDataUsed[p] += ref.length;
+                            ensureDataCapacity(p, flatState.partitionDataUsed[p] + ref.length);
+                            System.arraycopy(ref.bytes, ref.offset, flatState.partitionData[p], flatState.partitionDataUsed[p], ref.length);
+                            flatState.partitionDataUsed[p] += ref.length;
                             out.reset();
                         }
-                        partitionedState.partitionOffsets[p][keyBase + count] = partitionedState.partitionDataUsed[p];
-                        partitionedState.partitionCounts[p] += count;
+                        flatState.partitionOffsets[p][keyBase + count] = flatState.partitionDataUsed[p];
+                        flatState.partitionCounts[p] += count;
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            private void splitPaged(int firstId, short[] shiftedIds, int[] batchPartitionCounts) {
+                BytesRefStreamOutput out = new BytesRefStreamOutput();
+                try {
+                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                        final int count = batchPartitionCounts[p];
+                        if (count == 0) {
+                            continue;
+                        }
+                        final int base = p * PARTITION_WRITE_BATCH;
+                        for (int i = 0; i < count; i++) {
+                            final int id = firstId + shiftedIds[base + i];
+                            hll.writeTo(id, out);
+                            pagedState.partitionArrays[p].append(out.get());
+                            out.reset();
+                        }
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -323,39 +415,49 @@ final class HllStates {
             }
 
             private void ensureDataCapacity(int p, int minLength) {
-                final byte[] sub = partitionedState.partitionData[p];
+                final byte[] sub = flatState.partitionData[p];
                 if (sub.length >= minLength) {
                     return;
                 }
                 final int newLength = ArrayUtil.oversize(minLength, 1);
-                partitionBreaker.addEstimateBytesAndMaybeBreak(newLength, HllPartitionedState.LABEL);
-                partitionedState.partitionData[p] = Arrays.copyOf(sub, newLength);
+                partitionBreaker.addEstimateBytesAndMaybeBreak(newLength, FlatHllPartitionedState.LABEL);
+                flatState.partitionData[p] = Arrays.copyOf(sub, newLength);
                 partitionBreaker.addWithoutBreaking(-sub.length);
             }
 
             private void ensureOffsetCapacity(int p, int minCount) {
-                final int[] sub = partitionedState.partitionOffsets[p];
+                final int[] sub = flatState.partitionOffsets[p];
                 if (sub.length >= minCount) {
                     return;
                 }
                 final int newCount = ArrayUtil.oversize(minCount, Integer.BYTES);
-                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByIntPage(newCount), HllPartitionedState.LABEL);
-                partitionedState.partitionOffsets[p] = Arrays.copyOf(sub, newCount);
+                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByIntPage(newCount), FlatHllPartitionedState.LABEL);
+                flatState.partitionOffsets[p] = Arrays.copyOf(sub, newCount);
                 partitionBreaker.addWithoutBreaking(-bytesUsedByIntPage(sub.length));
             }
 
             @Override
-            public HllPartitionedState finish() {
-                HllPartitionedState result = partitionedState;
-                partitionedState = null;
-                return result;
+            public GroupingAggregatorFunction.PartitionedState finish() {
+                if (flatState != null) {
+                    GroupingAggregatorFunction.PartitionedState result = flatState;
+                    flatState = null;
+                    return result;
+                } else {
+                    GroupingAggregatorFunction.PartitionedState result = pagedState;
+                    pagedState = null;
+                    return result;
+                }
             }
 
             @Override
             public void release(CircuitBreaker breaker) {
-                if (partitionedState != null) {
-                    partitionedState.releaseAll(breaker);
-                    partitionedState = null;
+                if (flatState != null) {
+                    flatState.releaseAll(breaker);
+                    flatState = null;
+                }
+                if (pagedState != null) {
+                    pagedState.releaseAll(breaker);
+                    pagedState = null;
                 }
             }
         }

@@ -26,20 +26,19 @@ import static org.hamcrest.Matchers.nullValue;
 public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
 
     public void testFlatRoundTrip() {
-        // precision=4 → dense sketch = 16 bytes; even 50k groups gives 50k×16 = 800 KB, well under the 400 MB flat threshold
-        runTest(4, between(1, 50_000));
+        runTest(4, between(1, 50_000), HllStates.GroupingState.PAGED_PARTITION_THRESHOLD_BYTES);
     }
 
     public void testPagedRoundTrip() {
-        // precision=18 → dense sketch = 256 KB; 3000 groups × 256 KB = 750 MB > 400 MB flat threshold → paged path
-        runTest(Integer.MAX_VALUE, between(3_000, 5_000));
+        // Force the paged path by using a 1-byte threshold so any non-empty state goes paged.
+        runTest(Integer.MAX_VALUE, between(1, 5_000), 1L);
     }
 
     public void testRoundTrip() {
-        runTest(40_000, between(1, 50_000));
+        runTest(40_000, between(1, 50_000), HllStates.GroupingState.PAGED_PARTITION_THRESHOLD_BYTES);
     }
 
-    private void runTest(int precisionThreshold, int numGroups) {
+    private void runTest(int precisionThreshold, int numGroups, long pagedThresholdBytes) {
         BlockFactory blockFactory = blockFactory();
         var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         var partitionBreaker = new NoopCircuitBreaker("partition");
@@ -54,7 +53,7 @@ public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
                 expectedCardinalities[g] = state.cardinality(g);
             }
 
-            var splitter = state.createPartitioningSplitter(partitionBreaker);
+            var splitter = state.createPartitioningSplitter(partitionBreaker, pagedThresholdBytes);
             int batchTotal = NUM_PARTITIONS * PARTITION_WRITE_BATCH;
             int[] cumulativeCounts = new int[NUM_PARTITIONS];
 

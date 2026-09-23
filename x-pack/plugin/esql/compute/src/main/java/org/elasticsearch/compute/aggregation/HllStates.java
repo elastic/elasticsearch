@@ -105,11 +105,11 @@ final class HllStates {
 
         /**
          * Switches partition storage from a flat {@code byte[]} per partition to
-         * {@link BytesRefArray}-backed paged storage when the conservative estimate of
-         * total serialized bytes (groups × dense-sketch-size) exceeds this threshold.
-         * Matches {@link BytesRefArrayState#PAGED_PARTITION_THRESHOLD_BYTES}.
+         * {@link BytesRefArray}-backed paged storage when the upper bound on total serialized
+         * bytes exceeds this threshold. See {@link HllPartitionSplitter} for how the bound is computed.
+         * Use a larger value than 400mb, since the tested values is likely a large over-estimate.
          */
-        static final long PAGED_PARTITION_THRESHOLD_BYTES = 400L * 1024 * 1024;
+        static final long PAGED_PARTITION_THRESHOLD_BYTES = 1_600L * 1024 * 1024;
 
         private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
 
@@ -183,7 +183,11 @@ final class HllStates {
         }
 
         GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
-            return new HllPartitionSplitter(breaker, bigArrays, hll.maxOrd(), hllPrecision);
+            return createPartitioningSplitter(breaker, PAGED_PARTITION_THRESHOLD_BYTES);
+        }
+
+        GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker, long pagedThresholdBytes) {
+            return new HllPartitionSplitter(breaker, bigArrays, hll.maxOrd(), hllPrecision, hll.hllBucketCount(), pagedThresholdBytes);
         }
 
         BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
@@ -343,15 +347,35 @@ final class HllStates {
             private FlatHllPartitionedState flatState;
             private PagedHllPartitionedState pagedState;
 
-            HllPartitionSplitter(CircuitBreaker partitionBreaker, BigArrays bigArrays, long maxOrd, int hllPrecision) {
+            /**
+             * @param maxOrd total group count (LC + HLL)
+             * @param hllPrecision precision bits; HLL serialized size = {@code 1L << hllPrecision}
+             * @param numHll number of groups in HLL mode
+             * @param pagedThresholdBytes use paged storage when conservative estimate exceeds this
+             */
+            HllPartitionSplitter(
+                CircuitBreaker partitionBreaker,
+                BigArrays bigArrays,
+                long maxOrd,
+                int hllPrecision,
+                long numHll,
+                long pagedThresholdBytes
+            ) {
                 this.partitionBreaker = partitionBreaker;
-                long estimatedTotalBytes = maxOrd * (1L << hllPrecision);
+                long numLC = maxOrd - numHll;
+                long hllSize = 1L << hllPrecision;
+                // max number of elements in full size LC
+                long lcMaxCount = (3L * hllSize) / 4 / 4;
+                long lcMinSize = 3L; // precision + algorithm + size => 1 + 1 + 1
+                long lcMaxSize = 6L + lcMaxCount * 4; // precision + algorithm + size + size * 4 => 1 + 1 + 4 + count * 4
+                long upperBound = numHll * hllSize + numLC * lcMaxSize;
+                long lowerBound = numHll * hllSize + numLC * lcMinSize;
                 int avgKeysPerPartition = Math.max((int) Math.ceilDiv(maxOrd, NUM_PARTITIONS), 1);
-                if (estimatedTotalBytes <= PAGED_PARTITION_THRESHOLD_BYTES) {
-                    int avgBytesPerPartition = (int) Math.max(Math.ceilDiv(estimatedTotalBytes, NUM_PARTITIONS), 1);
-                    flatState = new FlatHllPartitionedState(partitionBreaker, avgKeysPerPartition, avgBytesPerPartition);
+                long avgBytesPerPartition = Math.max(Math.ceilDiv(lowerBound, NUM_PARTITIONS), 1);
+                if (upperBound <= pagedThresholdBytes) {
+                    flatState = new FlatHllPartitionedState(partitionBreaker, avgKeysPerPartition, (int) avgBytesPerPartition);
                 } else {
-                    pagedState = new PagedHllPartitionedState(bigArrays, avgKeysPerPartition, PARTITION_WRITE_BATCH * 512L);
+                    pagedState = new PagedHllPartitionedState(bigArrays, avgKeysPerPartition, avgBytesPerPartition);
                 }
             }
 

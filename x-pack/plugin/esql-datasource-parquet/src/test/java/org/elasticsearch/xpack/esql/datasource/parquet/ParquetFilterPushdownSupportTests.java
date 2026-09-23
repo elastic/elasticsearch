@@ -1073,6 +1073,22 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
     }
 
+    /**
+     * And(realCol LIKE "x*", _file.name LIKE "y*"): canConvert is disjunctive so the And converts
+     * (left arm), but isFullyEvaluable must be RECHECK because the virtual-column conjunct has no
+     * predicate block at runtime and must not be dropped from FilterExec.
+     * See elastic/esql-planning#2052.
+     */
+    public void testAndWithRealAndVirtualLikeIsRecheck() {
+        Attribute realCol = attr("url", DataType.KEYWORD);
+        Attribute virtualCol = virtualAttr("_file.name", DataType.KEYWORD);
+        Expression realLike = new WildcardLike(Source.EMPTY, realCol, new WildcardPattern("*google*"));
+        Expression virtualLike = new WildcardLike(Source.EMPTY, virtualCol, new WildcardPattern("*.parquet"));
+        Expression and = new And(Source.EMPTY, realLike, virtualLike);
+        // The And converts (realLike arm) but must not be YES because virtualLike is not evaluable.
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(and));
+    }
+
     public void testMixedDateComparisonNotPushed() {
         Attribute nanos = attr("ts", DataType.DATE_NANOS);
         assertEquals(

@@ -711,12 +711,21 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
   method: testPreExistingBufferFilesDrainAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/160054
-- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
-  method: testSnapshotWarningEmittedWhenEncryptedDataPresent
-  issue: https://github.com/elastic/elasticsearch/issues/160057
-- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
-  method: testNoSnapshotWarningWhenIncludeGlobalStateFalse
-  issue: https://github.com/elastic/elasticsearch/issues/160058
 - class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
   method: testReadLatestBccPopulatesCache
   issue: https://github.com/elastic/elasticsearch/issues/160077
+- class: org.elasticsearch.xpack.esql.action.ExternalRequestFilterRowGroupPruningIT
+  method: testWhereAndRequestFilterPruneIdentically
+  issue: https://github.com/elastic/elasticsearch/issues/160084
+- class: org.elasticsearch.indices.IndicesLifecycleListenerIT
+  method: testRelocationFailureNotRetriedForever
+  issue: https://github.com/elastic/elasticsearch/issues/160100
+- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
+  method: testStopNestedSubquery
+  issue: https://github.com/elastic/elasticsearch/issues/160115
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification byte vector type}
+  issue: https://github.com/elastic/elasticsearch/issues/160126
+- class: org.elasticsearch.indices.recovery.RecoveryMetricsIT
+  method: testDirectCancellationMetricsQueuedAndStarted
+  issue: https://github.com/elastic/elasticsearch/issues/160130

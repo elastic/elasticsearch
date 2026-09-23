@@ -179,7 +179,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
             } else {
                 test.systemProperty("generateDocs", "write");
                 FileTree snippetsTree = project.fileTree(snippetsFolder)
-                    .matching(p -> p.include("**/functions/**/*.md", "**/operators/**/*.md"));
+                    .matching(p -> p.include("**/functions/**/*.md", "**/operators/**/*.md", "**/syntax/*.md"));
                 FileTree typesTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/types/*.md"));
                 FileTree settingsTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/settings/*.md"));
                 FileTree commandsExamplesTree = project.fileTree(snippetsFolder).matching(p -> p.include("**/*.csv-spec/*.md"));
@@ -261,7 +261,8 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                             "**/operators/**/*.md",
                             "**/lists/*.md",
                             "**/commands/**/*.md",
-                            "**/common/**/*.md"
+                            "**/common/**/*.md",
+                            "**/syntax/*.md"
                         )
                     );
                 }

@@ -105,20 +105,46 @@ import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.bccSize
 public class SharedBlobCacheWarmingService {
 
     public enum Type {
-        INDEXING_EARLY(true),
-        INDEXING(true),
-        INDEXING_MERGE(false),
+        INDEXING_EARLY(true, Priority.NORMAL),
+        INDEXING(true, Priority.NORMAL),
+        INDEXING_MERGE(false, Priority.LOW),
         // search shard recovery doesn't guarantee that all of region 0 has been cached, because header reads served from
         // index shards are served at page rather than region granularity.
-        SEARCH(false),
-        HOLLOWING(true),
-        UNHOLLOWING(true),
-        INDEXING_BCC_HEADER_PREWARM(false);
+        SEARCH(false, Priority.NORMAL),
+        HOLLOWING(true, Priority.NORMAL),
+        UNHOLLOWING(true, Priority.NORMAL),
+        INDEXING_BCC_HEADER_PREWARM(false, Priority.HIGH);
 
         final boolean skipsWarmingForRegion0Locations;
 
-        Type(boolean skipsWarmingForRegion0Locations) {
+        /// Priority of a warming task where a task with higher priority is warmed before a task with lower priority
+        /// (see [AbstractWarmingTask#compareTo] and [PrioritizedThrottledAsyncTaskRunner]).
+        /// All types have NORMAL priority except [Type#INDEXING_BCC_HEADER_PREWARM] and [Type#INDEXING_MERGE] that have HIGH and LOW
+        /// priority respectively. Region-0 warming (i.e., INDEXING_BCC_HEADER_PREWARM) has the highest priority across all the types
+        /// because it is in the hot path for relocations.
+        enum Priority {
+            LOW(0),
+            NORMAL(1),
+            HIGH(2);
+
+            private final int value;
+
+            Priority(int value) {
+                this.value = value;
+            }
+
+            /// returns true if task with priority `this` is to be warmed before a task of priority `that`
+            /// e.g., `HIGH.isHigherThan(LOW)` returns true and `NORMAL.isHigherThan(NORMAL)` returns false
+            boolean isHigherThan(Priority that) {
+                return value > that.value;
+            }
+        }
+
+        final Priority priority;
+
+        Type(boolean skipsWarmingForRegion0Locations, Priority priority) {
             this.skipsWarmingForRegion0Locations = skipsWarmingForRegion0Locations;
+            this.priority = priority;
         }
     }
 
@@ -2210,8 +2236,6 @@ public class SharedBlobCacheWarmingService {
     }
 
     /// Base class for warming tasks that establishes priority of warming tasks.
-    /// All types have equal priority except [Type#INDEXING_MERGE] which has a lower priority.
-    /// Tasks of equal priority based on type are ordered by caller-defined `position`.
     abstract static class AbstractWarmingTask implements ActionListener<Releasable>, Comparable<AbstractWarmingTask> {
         protected final Type type;
         protected final long position;
@@ -2221,22 +2245,21 @@ public class SharedBlobCacheWarmingService {
             this.position = position;
         }
 
+        /// For two tasks x and y, x.compareTo(y) < 0 means that we need to warm x before y.
         @Override
         public int compareTo(AbstractWarmingTask that) {
-            // Merge warming has lower priority than other types (meaning it should compare bigger).
-            // Other types have equivalent priority but will be executed in FIFO order using provided task position.
+            if (type.priority.isHigherThan(that.type.priority)) {
+                return -1;
+            }
+            if (that.type.priority.isHigherThan(type.priority)) {
+                return 1;
+            }
+
+            // Tasks with the same priority will be executed in FIFO order using provided task position.
             // `position` can technically overflow but that would only result in a small amount of tasks having
             // wrong priorities for a short time period.
             // So we don't have any special logic for that.
-            if (type == Type.INDEXING_MERGE) {
-                if (that.type == Type.INDEXING_MERGE) {
-                    return Long.compare(position, that.position);
-                } else {
-                    return 1;
-                }
-            }
-
-            return that.type == Type.INDEXING_MERGE ? -1 : Long.compare(position, that.position);
+            return Long.compare(position, that.position);
         }
 
         @Override

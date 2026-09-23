@@ -43,6 +43,13 @@ public final class StoragePath {
     private final int port;           // -1 if not specified
     private final String path;        // path within the storage
 
+    /**
+     * Sentinel with no scheme, bucket, or key. {@link #objectName()} returns {@code ""}, so
+     * structured exception constructors that need a path but have none available produce a
+     * condition-only message (e.g. {@code "Malformed external data"}).
+     */
+    public static final StoragePath NONE = new StoragePath("none://", "none", null, "", -1, "");
+
     private StoragePath(String location, String scheme, String userInfo, String host, int port, String path) {
         this.location = location;
         this.scheme = scheme;

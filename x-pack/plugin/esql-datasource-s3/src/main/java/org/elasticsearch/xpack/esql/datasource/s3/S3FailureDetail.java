@@ -11,6 +11,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Set;
 
@@ -77,12 +78,7 @@ final class S3FailureDetail {
         if (s3 == null) {
             return null;
         }
-        return new ExternalCredentialsExpiredException(
-            cause,
-            "Session credentials expired or invalid {}. Refresh the data source credentials and re-run the query. ({})",
-            action,
-            of(s3)
-        );
+        return new ExternalCredentialsExpiredException(StoragePath.NONE, of(s3), "", cause);
     }
 
     static String of(Throwable cause) {

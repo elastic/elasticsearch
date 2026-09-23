@@ -18,16 +18,15 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalCredentialsExpiredException extends ExternalException {
 
-    // TODO: make these package-private once all call sites outside spi are migrated to structured constructors
-    public ExternalCredentialsExpiredException(String message, Throwable cause) {
+    ExternalCredentialsExpiredException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public ExternalCredentialsExpiredException(Throwable cause, String message, Object... args) {
+    ExternalCredentialsExpiredException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    public ExternalCredentialsExpiredException(String message, Object... args) {
+    ExternalCredentialsExpiredException(String message, Object... args) {
         super(message, args);
     }
 

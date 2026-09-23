@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources;
+package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -15,11 +15,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 
 import java.io.EOFException;
 import java.io.IOException;

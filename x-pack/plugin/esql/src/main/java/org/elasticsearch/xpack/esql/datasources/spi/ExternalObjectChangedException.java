@@ -18,16 +18,15 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalObjectChangedException extends ExternalException {
 
-    // TODO: make these package-private once all call sites outside spi are migrated to structured constructors
-    public ExternalObjectChangedException(String message, Throwable cause) {
+    ExternalObjectChangedException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public ExternalObjectChangedException(Throwable cause, String message, Object... args) {
+    ExternalObjectChangedException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    public ExternalObjectChangedException(String message, Object... args) {
+    ExternalObjectChangedException(String message, Object... args) {
         super(message, args);
     }
 

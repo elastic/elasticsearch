@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
@@ -67,6 +66,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -1594,10 +1596,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (String dup : duplicates) {
                 rendered.add("'" + dup + "'");
             }
-            throw new ExternalClientException(
-                "CSV header has duplicate column names {}; if the file has no header row, " + "set header_row=false",
-                rendered.toString()
+            ExternalClientException headerEx = new ExternalClientException(
+                ExternalException.Condition.MALFORMED_DATA,
+                StoragePath.NONE,
+                "",
+                ""
             );
+            headerEx.setDetail(
+                "CSV header has duplicate column names " + rendered + "; if the file has no header row, set header_row=false"
+            );
+            throw headerEx;
         }
     }
 
@@ -1842,15 +1850,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     private static ExternalClientException failFastSamplingError(long row, Throwable cause) {
         Exception e = cause instanceof Exception ex ? ex : null;
-        return new ExternalClientException(
-            e,
-            "{}",
+        ExternalClientException samplingEx = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            e
+        );
+        samplingEx.setDetail(
             "CSV schema sampling failed at row ["
                 + row
                 + "]: "
                 + CsvErrorMessages.summarize(cause != null ? cause.getMessage() : "(no message)")
                 + "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
         );
+        return samplingEx;
     }
 
     private static ExternalClientException budgetExceededSamplingError(
@@ -1870,14 +1884,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
             .append(policy.maxErrorRatio())
             .append("] ratio; first errors: ");
         appendCapturedErrors(details, capturedErrors);
-        return new ExternalClientException(cause, "{}", details.toString());
+        ExternalClientException budgetEx = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            cause
+        );
+        budgetEx.setDetail(details.toString());
+        return budgetEx;
     }
 
     private static ExternalClientException zeroRowsSamplingError(List<String> capturedErrors, Throwable firstCause) {
         Exception cause = firstCause instanceof Exception ex ? ex : null;
         StringBuilder details = new StringBuilder("CSV schema inference failed: no rows could be parsed; first errors: ");
         appendCapturedErrors(details, capturedErrors);
-        return new ExternalClientException(cause, "{}", details.toString());
+        ExternalClientException zeroEx = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            cause
+        );
+        zeroEx.setDetail(details.toString());
+        return zeroEx;
     }
 
     private static void appendCapturedErrors(StringBuilder details, List<String> capturedErrors) {
@@ -2398,7 +2428,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String trimmedColumn = column.trim();
             String[] parts = trimmedColumn.split(":");
             if (parts.length != 2) {
-                throw new ExternalClientException("Invalid CSV schema format: [{}]. Expected 'name:type'", column);
+                ExternalClientException schemaEx = new ExternalClientException(
+                    ExternalException.Condition.MALFORMED_DATA,
+                    StoragePath.NONE,
+                    "",
+                    ""
+                );
+                schemaEx.setDetail("Invalid CSV schema format: [" + column + "]. Expected 'name:type'");
+                throw schemaEx;
             }
             String name = options.quoting() ? unquoteHeaderName(parts[0], options.quoteChar()) : parts[0].trim();
             String trimmedType = parts[1].trim();
@@ -2432,7 +2469,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "IP" -> DataType.IP;
             case "VERSION", "V" -> DataType.VERSION;
             case "NULL", "N" -> DataType.NULL;
-            default -> throw new ExternalClientException("illegal data type [{}]", typeName);
+            default -> {
+                ExternalClientException dtEx = new ExternalClientException(
+                    ExternalException.Condition.MALFORMED_DATA,
+                    StoragePath.NONE,
+                    "",
+                    ""
+                );
+                dtEx.setDetail("illegal data type [" + typeName + "]");
+                throw dtEx;
+            }
         };
     }
 
@@ -6817,11 +6863,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 String hint = structural
                     ? "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
                     : "; set error_mode=null_field to null-fill the bad field instead of failing";
-                throw new ExternalClientException(
-                    cause,
-                    "{}",
-                    "CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + rowExcerpt + hint
+                ExternalClientException parseEx = new ExternalClientException(
+                    ExternalException.Condition.MALFORMED_DATA,
+                    StoragePath.NONE,
+                    "",
+                    "",
+                    cause
                 );
+                parseEx.setDetail("CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + rowExcerpt + hint);
+                throw parseEx;
             }
             if (structural == false) {
                 // Reached only under SKIP_ROW: NULL_FIELD routes coercion failures to onFieldError and keeps the
@@ -6878,14 +6928,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 );
                 // Budget exceeded is a client-data problem (the file has too many bad rows for the
                 // user-configured tolerance), not a server bug — surface as HTTP 400.
-                throw new ExternalClientException(
-                    cause,
-                    "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
-                    errorCount,
-                    totalRowCount,
-                    errorPolicy.maxErrors(),
-                    errorPolicy.maxErrorRatio()
+                ExternalClientException budgetRtEx = new ExternalClientException(
+                    ExternalException.Condition.MALFORMED_DATA,
+                    StoragePath.NONE,
+                    "",
+                    "",
+                    cause
                 );
+                budgetRtEx.setDetail(
+                    "CSV error budget exceeded: ["
+                        + errorCount
+                        + "] errors in ["
+                        + totalRowCount
+                        + "] rows, maximum allowed is ["
+                        + errorPolicy.maxErrors()
+                        + "] errors or ["
+                        + errorPolicy.maxErrorRatio()
+                        + "] ratio"
+                );
+                throw budgetRtEx;
             }
         }
 

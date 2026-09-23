@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -201,7 +202,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 ActionListener<DirectReadBuffer> listener
             ) {
                 if (attempts.getAndIncrement() == 0) {
-                    listener.onFailure(new ExternalUnavailableException("transient async read failure", (Throwable) null));
+                    listener.onFailure(new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L));
                 } else {
                     listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
                 }
@@ -292,7 +293,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
             ) {
                 int attempt = attempts.getAndIncrement();
                 if (attempt == 0) {
-                    listener.onFailure(new ExternalUnavailableException("transient async read failure", (Throwable) null));
+                    listener.onFailure(new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L));
                     return () -> attempt0Closed.set(true);
                 }
                 if (attempt == 1) {
@@ -447,7 +448,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
 
         AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
             StoragePath.of("gcs://bucket/key"),
-            new ExternalUnavailableException(true, "throttled")
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L)
         );
         RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(1, 1, 10));
         obj.attachMetrics(metrics, "gcs");
@@ -850,7 +851,15 @@ public class RetryableStorageObjectTests extends ESTestCase {
             StoragePath.of("s3://bucket/key"),
             payload,
             400,
-            new ExternalUnavailableException("mid-read drop", new IOException("premature end of body"))
+            new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
+                StoragePath.NONE,
+                "",
+                "",
+                false,
+                0L,
+                new IOException("premature end of body")
+            )
         );
 
         RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
@@ -953,7 +962,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
             StoragePath.of("s3://bucket/key"),
             payload,
             40,
-            new ExternalCredentialsExpiredException("Session credentials expired or invalid reading [s3://bucket/key]")
+            new ExternalCredentialsExpiredException(StoragePath.NONE, "", "")
         );
 
         RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
@@ -977,7 +986,15 @@ public class RetryableStorageObjectTests extends ESTestCase {
             StoragePath.of("s3://bucket/key"),
             payload,
             0,
-            new ExternalUnavailableException("persistent drop", new IOException("premature end of body")),
+            new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
+                StoragePath.NONE,
+                "",
+                "",
+                false,
+                0L,
+                new IOException("premature end of body")
+            ),
             true
         );
 
@@ -1006,7 +1023,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
             StoragePath.of("s3://bucket/key"),
             payload,
             0,
-            new ExternalUnavailableException(true, "throttled"),
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L),
             true
         );
 
@@ -1029,7 +1046,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
             StoragePath.of("s3://bucket/key"),
             payload,
             0,
-            new ExternalUnavailableException(true, "throttled"),
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L),
             true
         );
 
@@ -1063,7 +1080,15 @@ public class RetryableStorageObjectTests extends ESTestCase {
             StoragePath.of("s3://bucket/key"),
             payload,
             150,
-            new ExternalUnavailableException("flaky drop", new IOException("premature end of body")),
+            new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
+                StoragePath.NONE,
+                "",
+                "",
+                false,
+                0L,
+                new IOException("premature end of body")
+            ),
             true
         );
 
@@ -1398,7 +1423,15 @@ public class RetryableStorageObjectTests extends ESTestCase {
                         @Override
                         public int read() throws IOException {
                             if (p >= 100) {
-                                throw new ExternalUnavailableException("transient mid-read drop", new IOException("connection reset"));
+                                throw new ExternalUnavailableException(
+                                    Condition.STORE_UNAVAILABLE,
+                                    StoragePath.NONE,
+                                    "",
+                                    "",
+                                    false,
+                                    0L,
+                                    new IOException("connection reset")
+                                );
                             }
                             return slice[p++] & 0xFF;
                         }
@@ -1406,7 +1439,15 @@ public class RetryableStorageObjectTests extends ESTestCase {
                         @Override
                         public int read(byte[] b, int off, int len) throws IOException {
                             if (p >= 100) {
-                                throw new ExternalUnavailableException("transient mid-read drop", new IOException("connection reset"));
+                                throw new ExternalUnavailableException(
+                                    Condition.STORE_UNAVAILABLE,
+                                    StoragePath.NONE,
+                                    "",
+                                    "",
+                                    false,
+                                    0L,
+                                    new IOException("connection reset")
+                                );
                             }
                             int n = Math.min(len, 100 - p);
                             System.arraycopy(slice, p, b, off, n);
@@ -2026,7 +2067,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
                         Thread.currentThread().interrupt();
                         throw new IOException(e);
                     }
-                    throw new ExternalUnavailableException("connection aborted");
+                    throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
                 }
             };
             return lastOpened;
@@ -2113,12 +2154,12 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 lastOpened = new InputStream() {
                     @Override
                     public int read() throws IOException {
-                        throw new ExternalUnavailableException("connection aborted");
+                        throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
                     }
 
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
-                        throw new ExternalUnavailableException("connection aborted");
+                        throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
                     }
                 };
                 return lastOpened;

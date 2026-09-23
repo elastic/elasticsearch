@@ -420,12 +420,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             // and would expose the storage URI to the caller. Only the object name appears in the
             // user-facing message.
             LOGGER.debug(() -> "ORC tail parse failure for [" + path.getName() + "]", e);
+            Throwable re;
             try {
-                ParsedFooterCache.rethrowStructural(e);
-            } catch (IOException ignored) {
-                // cause intentionally dropped — contains storage URI
+                re = ParsedFooterCache.rethrowStructural(e);
+            } catch (IOException io) {
+                throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]: " + io.getClass().getSimpleName());
             }
-            throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]");
+            throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]: " + re.getClass().getSimpleName());
         }
     }
 

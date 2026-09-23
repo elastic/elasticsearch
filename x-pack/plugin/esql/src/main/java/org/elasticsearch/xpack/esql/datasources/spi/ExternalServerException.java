@@ -17,16 +17,15 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalServerException extends ExternalException {
 
-    // TODO: make these package-private once all call sites outside spi are migrated to structured constructors
-    public ExternalServerException(String message, Throwable cause) {
+    ExternalServerException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public ExternalServerException(Throwable cause, String message, Object... args) {
+    ExternalServerException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    public ExternalServerException(String message, Object... args) {
+    ExternalServerException(String message, Object... args) {
         super(message, args);
     }
 

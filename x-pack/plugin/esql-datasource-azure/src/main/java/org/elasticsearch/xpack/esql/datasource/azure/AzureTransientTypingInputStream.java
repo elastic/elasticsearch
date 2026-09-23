@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import com.azure.storage.blob.models.BlobStorageException;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -71,6 +72,14 @@ final class AzureTransientTypingInputStream extends FilterInputStream {
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path.objectName());
+        return new ExternalUnavailableException(
+            throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
+            path,
+            "",
+            "",
+            throttling,
+            retryAfterMs,
+            e
+        );
     }
 }

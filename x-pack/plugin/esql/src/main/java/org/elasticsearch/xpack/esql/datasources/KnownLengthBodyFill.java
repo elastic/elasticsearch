@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -60,13 +61,15 @@ public final class KnownLengthBodyFill {
     public ExternalUnavailableException copyOrOverflow(DirectReadBuffer dest, ByteBuffer chunk) {
         int remaining = chunk.remaining();
         if (remaining > expectedLength - offset) {
-            return new ExternalUnavailableException(
-                "{} response body exceeded expected length reading [{}]: cumulative={}, expected={}",
-                store,
-                path.objectName(),
-                (long) offset + remaining,
-                expectedLength
+            ExternalUnavailableException ex = new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L);
+            ex.setDetail(
+                store
+                    + " response body exceeded expected length: cumulative="
+                    + ((long) offset + remaining)
+                    + ", expected="
+                    + expectedLength
             );
+            return ex;
         }
         DirectByteBufferCopies.copyChunkIntoDestination(dest.buffer(), offset, chunk);
         offset += remaining;
@@ -99,13 +102,9 @@ public final class KnownLengthBodyFill {
         if (offset == expectedLength) {
             return null;
         }
-        return new ExternalUnavailableException(
-            "{} response body shorter than expected reading [{}]: received={}, expected={}",
-            store,
-            path.objectName(),
-            offset,
-            expectedLength
-        );
+        ExternalUnavailableException ex = new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L);
+        ex.setDetail(store + " response body shorter than expected: received=" + offset + ", expected=" + expectedLength);
+        return ex;
     }
 
     /**
@@ -113,7 +112,9 @@ public final class KnownLengthBodyFill {
      * it stays next to the other mismatch EUEs.
      */
     public ExternalUnavailableException beyondContentLength(long skip) {
-        return new ExternalUnavailableException("Position {} is beyond content length reading [{}]", skip, path.objectName());
+        ExternalUnavailableException ex = new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L);
+        ex.setDetail("position " + skip + " is beyond content length");
+        return ex;
     }
 
     /** Bytes copied so far. Callers set {@code dest.buffer().position(0).limit(offset())} after a successful fill. */

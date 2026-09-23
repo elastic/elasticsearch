@@ -565,6 +565,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         ExternalClientException e = expectThrows(ExternalClientException.class, obj::length);
         assertTrue(e.getMessage().contains("Failed to get metadata for"));
         assertTrue(e.getMessage().contains(path.objectName()));
+        assertTrue(e.getMessage().contains("HTTP 500"));
     }
 
     public void testPreknownLengthSkipsMetadataFetch() throws IOException {

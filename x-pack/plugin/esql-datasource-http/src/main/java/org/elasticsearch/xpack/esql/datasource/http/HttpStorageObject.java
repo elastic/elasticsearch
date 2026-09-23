@@ -19,6 +19,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -168,17 +169,23 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         String suffix = (detail == null || detail.isEmpty()) ? "" : ", body: " + detail;
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
-            return new ExternalUnavailableException(
-                throttling,
-                throttling ? retryAfterMs : 0L,
-                "HTTP store unavailable reading [{}] (HTTP {}){}",
+            ExternalUnavailableException ex = new ExternalUnavailableException(
+                throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
                 path,
-                statusCode,
-                suffix
+                "HTTP " + statusCode,
+                "",
+                throttling,
+                throttling ? retryAfterMs : 0L
             );
+            if (detail != null && detail.isEmpty() == false) {
+                ex.setDetail("body: " + detail);
+            }
+            return ex;
         }
         if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
-            return new ExternalObjectChangedException("Object changed during read of [{}] (HTTP {}){}", path, statusCode, suffix);
+            ExternalObjectChangedException ex = new ExternalObjectChangedException(path);
+            ex.setDetail("HTTP " + statusCode + suffix);
+            return ex;
         }
         return new IOException(context + " " + path + ", HTTP status: " + statusCode + suffix);
     }
@@ -559,7 +566,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         String current = pinnedEtag.get();
         if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
             if (current != null) {
-                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+                throw new ExternalObjectChangedException(path);
             }
             return;
         }
@@ -570,7 +577,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             current = pinnedEtag.get();
         }
         if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+            throw new ExternalObjectChangedException(path);
         }
     }
 
@@ -690,7 +697,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     }
 
     private ExternalUnavailableException typeTransportFailure(Exception e) {
-        return new ExternalUnavailableException(false, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L, e);
     }
 
     /**

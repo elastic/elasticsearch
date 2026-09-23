@@ -25,8 +25,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -350,7 +352,15 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
      * must leave it unchanged rather than re-wrapping it as a client or server exception.
      */
     public void testUnavailableExceptionDuringMaterializationStays503() {
-        ExternalUnavailableException failure = new ExternalUnavailableException("store 503", new IOException("connection reset"));
+        ExternalUnavailableException failure = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
+            new IOException("connection reset")
+        );
         try (SourceExtractors registry = new SourceExtractors()) {
             int id = registry.register(new ThrowingExtractor(failure));
             Page page = newPage(new long[] { 1L }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 9 });

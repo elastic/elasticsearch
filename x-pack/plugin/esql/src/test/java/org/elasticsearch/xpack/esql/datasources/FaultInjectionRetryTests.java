@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -31,7 +32,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
 
         String result = policy.execute(() -> {
             if (calls.incrementAndGet() <= faultCount) {
-                throw new ExternalUnavailableException(true, "503 Service Unavailable");
+                throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
             }
             return "data";
         }, "GET_OBJECT", path);
@@ -47,7 +48,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
 
         ExternalUnavailableException ex = expectThrows(ExternalUnavailableException.class, () -> policy.execute(() -> {
             calls.incrementAndGet();
-            throw new ExternalUnavailableException(true, "503 Service Unavailable");
+            throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
         }, "GET_OBJECT", path));
 
         assertTrue(ex.getMessage().contains("503"));
@@ -110,7 +111,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
         String result = policy.execute(() -> {
             calls.incrementAndGet();
             if (faultCounter.decrementAndGet() >= 0) {
-                throw new ExternalUnavailableException(true, "503 Service Unavailable");
+                throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
             }
             return "success";
         }, "GET_OBJECT", path);
@@ -140,7 +141,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
 
         ExternalUnavailableException ex = expectThrows(ExternalUnavailableException.class, () -> policy.execute(() -> {
             calls.incrementAndGet();
-            throw new ExternalUnavailableException(true, "503 Service Unavailable");
+            throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
         }, "GET_OBJECT", path));
 
         assertTrue(ex.getMessage().contains("503"));

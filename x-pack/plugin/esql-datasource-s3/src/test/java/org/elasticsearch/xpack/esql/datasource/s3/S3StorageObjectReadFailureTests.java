@@ -28,11 +28,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.reactivestreams.Subscriber;
@@ -331,12 +332,24 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
      */
     public void testAsyncUnavailableSurvivesWrapping() throws Exception {
         ExternalUnavailableException withCause = new ExternalUnavailableException(
-            "S3 response body shorter than expected reading [" + PATH + "]",
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
             new IOException("connection reset")
         );
         assertSame(withCause, readAsyncFailure(asyncClientFailingWith(withCause), 10));
 
-        ExternalUnavailableException wrapped = new ExternalUnavailableException("S3 response body shorter than expected");
+        ExternalUnavailableException wrapped = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L
+        );
         Throwable sdkWrapped = new CompletionException(SdkClientException.create("Unable to execute HTTP request", wrapped));
         assertSame(wrapped, readAsyncFailure(asyncClientFailingWith(sdkWrapped), 10));
     }

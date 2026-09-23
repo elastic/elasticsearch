@@ -54,6 +54,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -3772,7 +3774,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 formatName,
                 format[1],
                 schemasByPath,
-                () -> new ExternalUnavailableException("Timed out acquiring cloud API concurrency permit", (Throwable) null),
+                () -> new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L),
                 null
             );
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
@@ -3801,7 +3803,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     formatName,
                     format[1],
                     schemasByPath,
-                    () -> new ExternalUnavailableException("Timed out acquiring cloud API concurrency permit", (Throwable) null),
+                    () -> new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L),
                     cacheService
                 );
                 PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
@@ -4127,9 +4129,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
         String path = "s3://b/x.parquet";
         // Providers no longer embed the storage path in the message; only the refresh hint appears.
-        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(
-            "Session credentials expired. Refresh the data source credentials and re-run the query."
-        );
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(StoragePath.NONE, "", "");
 
         RuntimeException mapped = resolver.mapResolveFailure(path, new ExecutionException(expired));
 
@@ -4142,9 +4142,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testCredentialsExpiredRawStays400() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
         // Providers no longer embed the storage path in the message.
-        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(
-            "Session credentials expired. Refresh the data source credentials and re-run the query."
-        );
+        ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(StoragePath.NONE, "", "");
 
         RuntimeException mapped = resolver.mapResolveFailure("s3://b/k", expired);
 
@@ -4161,11 +4159,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
         String path = "s3://b/x.parquet";
         ExternalUnavailableException store = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.of(path),
+            "HTTP 503",
+            "",
             false,
-            (Throwable) null,
-            "S3 store unavailable reading [{}] (HTTP {})",
-            path,
-            503
+            0L
         );
 
         RuntimeException mapped = resolver.mapResolveFailure(path, new ExecutionException(store));

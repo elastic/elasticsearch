@@ -25,6 +25,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -160,15 +161,17 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(bse.getResponse().getHeaderValue("Retry-After"));
             }
             return new ExternalUnavailableException(
+                throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
+                path,
+                "HTTP " + bse.getStatusCode(),
+                "",
                 throttling,
                 retryAfterMs,
-                cause,
-                "Azure store unavailable (HTTP {})",
-                bse.getStatusCode()
+                cause
             );
         }
         if (cause instanceof BlobStorageException precondition && precondition.getStatusCode() == 412) {
-            return new ExternalObjectChangedException("External data object [" + path.objectName() + "] was modified during read", cause);
+            return new ExternalObjectChangedException(path, cause);
         }
         return new IOException(context + " [" + path.objectName() + "]", cause);
     }
@@ -269,7 +272,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         String current = pinnedEtag.get();
         if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
             if (current != null) {
-                throw new ExternalObjectChangedException("External data object [" + path.objectName() + "] was modified during read");
+                throw new ExternalObjectChangedException(path);
             }
             return;
         }
@@ -280,7 +283,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             current = pinnedEtag.get();
         }
         if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("External data object [" + path.objectName() + "] was modified during read");
+            throw new ExternalObjectChangedException(path);
         }
     }
 

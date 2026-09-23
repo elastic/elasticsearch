@@ -15,9 +15,10 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -348,14 +349,26 @@ public class HttpStorageObjectTests extends ESTestCase {
     public void testAsyncUnavailableSurvivesWrapping() throws Exception {
         StoragePath path = StoragePath.of("https://example.com/file.parquet");
         ExternalUnavailableException withCause = new ExternalUnavailableException(
-            "HTTP response body shorter than expected reading [" + path + "]",
+            Condition.STORE_UNAVAILABLE,
+            path,
+            "",
+            "",
+            false,
+            0L,
             new IOException("connection reset")
         );
         HttpClient direct = mock(HttpClient.class);
         doReturn(CompletableFuture.failedFuture(withCause)).when(direct).sendAsync(any(), any());
         assertSame(withCause, readAsyncFailure(new HttpStorageObject(direct, path, HttpConfiguration.defaults()), 10));
 
-        ExternalUnavailableException wrapped = new ExternalUnavailableException("HTTP response body shorter than expected");
+        ExternalUnavailableException wrapped = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L
+        );
         HttpClient jdkWrapped = mock(HttpClient.class);
         doReturn(
             CompletableFuture.failedFuture(

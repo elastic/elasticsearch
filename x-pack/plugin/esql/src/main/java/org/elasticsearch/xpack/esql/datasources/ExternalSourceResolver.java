@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -870,7 +871,7 @@ public class ExternalSourceResolver {
             LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
             // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
             // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
-            return new ExternalClientException(ioError, "{}", detail);
+            return new ExternalClientException(ExternalException.Condition.METADATA_UNAVAILABLE, StoragePath.NONE, detail, "", ioError);
         }
         recordDiscoveryFailure();
         // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the
@@ -880,7 +881,13 @@ public class ExternalSourceResolver {
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
         // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
         // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
-        return new ExternalServerException(ExternalFailures.rootCause(e), "{}", detail);
+        return new ExternalServerException(
+            ExternalException.Condition.CLIENT_BUG,
+            StoragePath.NONE,
+            detail,
+            "",
+            ExternalFailures.rootCause(e)
+        );
     }
 
     private void resolveSource(

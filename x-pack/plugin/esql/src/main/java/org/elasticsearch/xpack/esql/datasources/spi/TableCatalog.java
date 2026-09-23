@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;

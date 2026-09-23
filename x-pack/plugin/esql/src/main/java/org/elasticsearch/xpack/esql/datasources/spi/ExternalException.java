@@ -167,10 +167,16 @@ public abstract class ExternalException extends QlException {
         METADATA_UNAVAILABLE {
             @Override
             public String render(String objectName, String detailCode, String remedy) {
+                StringBuilder sb = new StringBuilder();
                 if (objectName.isEmpty()) {
-                    return "Failed to get external data metadata";
+                    sb.append("Failed to get external data metadata");
+                } else {
+                    sb.append("Failed to get metadata for [").append(objectName).append("]");
                 }
-                return "Failed to get metadata for [" + objectName + "]";
+                if (detailCode.isEmpty() == false) {
+                    sb.append(" (").append(detailCode).append(")");
+                }
+                return sb.toString();
             }
         },
         /** A listing call failed — the prefix could not be enumerated. */
@@ -230,7 +236,7 @@ public abstract class ExternalException extends QlException {
      */
     private volatile String detail;
     /**
-     * Dataset context injected by the operator after {@link org.elasticsearch.xpack.esql.datasources.ExternalFailures#classify},
+     * Dataset context injected by the operator after {@link ExternalFailures#classify},
      * e.g. {@code "in dataset [tmax] from data source [noaa] (s3)"}. Appended to {@link #getMessage()}
      * after any {@link #detail}. Must be set before the exception crosses any node boundary.
      */

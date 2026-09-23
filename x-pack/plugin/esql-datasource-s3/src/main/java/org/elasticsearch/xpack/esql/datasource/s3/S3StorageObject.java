@@ -241,7 +241,17 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                     s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
                 );
             }
-            return new ExternalUnavailableException(throttling, retryAfterMs, cause, "S3 store unavailable (HTTP {})", s3.statusCode());
+            return new ExternalUnavailableException(
+                throttling
+                    ? ExternalUnavailableException.Condition.STORE_THROTTLED
+                    : ExternalUnavailableException.Condition.STORE_UNAVAILABLE,
+                path,
+                "HTTP " + s3.statusCode(),
+                "",
+                throttling,
+                retryAfterMs,
+                cause
+            );
         }
         if (cause instanceof S3Exception precondition && precondition.statusCode() == 412) {
             return new ExternalObjectChangedException(path, cause);
@@ -275,10 +285,26 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "", cause);
         }
         if (isClosedClient(cause)) {
-            return new ExternalUnavailableException(false, cause, "S3 client unavailable: {}", S3FailureDetail.of(cause));
+            return new ExternalUnavailableException(
+                ExternalUnavailableException.Condition.STORE_UNAVAILABLE,
+                path,
+                S3FailureDetail.of(cause),
+                "",
+                false,
+                0L,
+                cause
+            );
         }
         if (isSdkClientTransportFailure(cause)) {
-            return new ExternalUnavailableException(false, cause, "S3 store unavailable: {}", S3FailureDetail.of(cause));
+            return new ExternalUnavailableException(
+                ExternalUnavailableException.Condition.STORE_UNAVAILABLE,
+                path,
+                S3FailureDetail.of(cause),
+                "",
+                false,
+                0L,
+                cause
+            );
         }
         if (cause instanceof IllegalStateException ise) {
             return ise;

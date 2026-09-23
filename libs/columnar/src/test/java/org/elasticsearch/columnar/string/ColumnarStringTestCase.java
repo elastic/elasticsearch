@@ -184,7 +184,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
             slotCountsBlockSize
         );
-        withColumn(docSlots, new StringColumnOptions(policy, chunkCodec, sizes), check);
+        withColumn(docSlots, new StringColumnOptions(policy, StringColumnOptions.DEFAULT_SUMMARY, chunkCodec, sizes), check);
     }
 
     /** As above, with every choice named at once, for a test that cares about one the overloads do not reach. */

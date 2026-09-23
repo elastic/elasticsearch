@@ -239,6 +239,53 @@ teardown:
             - visit_percentage: 5
 
 ---
+"A field inside an object is resolved by its full path":
+  - do:
+      indices.create:
+        index: knn_eval_object
+        body:
+          mappings:
+            properties:
+              obj:
+                properties:
+                  emb:
+                    type: dense_vector
+                    dims: 32
+                    index: true
+                    similarity: l2_norm
+                    index_options:
+                      type: bbq_disk
+
+  - do:
+      bulk:
+        index: knn_eval_object
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"obj": {"emb": [-0.3475, -0.742, 0.2579, -0.8845, 0.0898, -0.2758, -0.9026, 0.0235, -0.9297, -0.1527, -0.8309, -0.7987, -0.1766, 0.6611, -0.7499, -0.516, 0.2778, 0.8742, 0.2022, -0.2448, 0.9443, -0.8811, 0.6821, -0.4219, -0.7576, -0.7476, -0.3565, 0.6396, -0.601, 0.1446, 0.2973, -0.2458]}}'
+          - '{"index": {"_id": "2"}}'
+          - '{"obj": {"emb": [-0.3427, -0.7857, 0.2139, -0.9139, 0.1078, -0.283, -0.9212, 0.0321, -0.9344, -0.1727, -0.8015, -0.7788, -0.2022, 0.6685, -0.7474, -0.4785, 0.3007, 0.853, 0.2502, -0.283, 0.9361, -0.8554, 0.6473, -0.423, -0.8037, -0.7308, -0.33, 0.6469, -0.5635, 0.126, 0.3168, -0.2364]}}'
+          - '{"index": {"_id": "3"}}'
+          - '{"obj": {"emb": [-0.3379, -0.8294, 0.1699, -0.9433, 0.1258, -0.2902, -0.9398, 0.0407, -0.9391, -0.1927, -0.7721, -0.7589, -0.2278, 0.6759, -0.7449, -0.441, 0.3236, 0.8318, 0.2982, -0.3212, 0.9279, -0.8297, 0.6125, -0.4241, -0.8498, -0.714, -0.3035, 0.6542, -0.526, 0.1074, 0.3363, -0.227]}}'
+
+  - do:
+      knn_eval:
+        index: knn_eval_object
+        body:
+          field: obj.emb
+          k: 1
+          sample:
+            size: 3
+            seed: 42
+          baseline:
+            visit_percentage: 100
+          knn_settings:
+            - visit_percentage: 100
+
+  - match: { results.0.recall: 1.0 }
+  - match: { results.0.included_queries: 3 }
+
+---
 "A rescore_vector setting makes the baseline an exact reference":
   # The mapping's oversample of 3 rescores only the quantized top 3k, which can drop a document whose true rank is inside k. Raising
   # it on the baseline alone turns the reference into exact search without a brute-force script_score.

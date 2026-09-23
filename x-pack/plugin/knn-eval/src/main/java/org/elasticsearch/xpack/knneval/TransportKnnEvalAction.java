@@ -142,7 +142,9 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         for (Map<String, FieldMappingMetadata> indexMappings : response.mappings().values()) {
             FieldMappingMetadata metadata = indexMappings.get(field);
             FieldResolution resolution = FieldResolution.UNMAPPED;
-            if (metadata != null && metadata.sourceAsMap().get(field) instanceof Map<?, ?> mapping) {
+            // keyed by leaf name (`emb` for `obj.emb`), so take the sole entry rather than looking up the full path
+            Map<String, Object> source = metadata == null ? Map.of() : metadata.sourceAsMap();
+            if (source.size() == 1 && source.values().iterator().next() instanceof Map<?, ?> mapping) {
                 @SuppressWarnings("unchecked") // a field mapping body is always a string-keyed object
                 Map<String, Object> typed = (Map<String, Object>) mapping;
                 fieldMapping = fieldMapping == null ? typed : fieldMapping;

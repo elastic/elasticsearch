@@ -64,6 +64,22 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
     }
 
     /**
+     * Whether any slot holds a value, as opposed to the document having recorded nothing but nulls for the field. A document with a
+     * value indexed a term for it and so already carries the field's index options; one without needs them stated separately. See
+     * {@link EmptyPostingsField}.
+     *
+     * <p>Costs one pass over this document's slots for this field, which is the array the caller just read.
+     */
+    public boolean hasValue() {
+        for (BytesRef value : values) {
+            if (value != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * This document's slots as a payload. The bytes are the builder's own, so they are valid until the next call on this field — which
      * is all Lucene needs, since it copies the value into the doc-values writer as soon as it is handed over.
      */

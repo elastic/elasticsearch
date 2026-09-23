@@ -1192,9 +1192,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public void recordArrayWithoutIndexedValue(LuceneDocument doc) {
-        // Only when the array left a payload behind: an array the mapper wrote nothing for leaves the field absent, which needs no
-        // index options of its own.
-        if (emptyPostingsFieldType != null && fieldType().usesColumnarPayload() && doc.getByKey(fieldType().name()) != null) {
+        if (emptyPostingsFieldType == null || fieldType().usesColumnarPayload() == false) {
+            return;
+        }
+        // The payload is what the array left behind, so it settles both questions: an array the mapper wrote nothing for leaves no
+        // payload and so no field to give index options to, and one whose slots hold a value indexed a term and already has them.
+        if (doc.getByKey(fieldType().name()) instanceof ColumnarBinaryDocValuesField payload && payload.hasValue() == false) {
             EmptyPostingsField.record(doc, fieldType().name(), emptyPostingsFieldType);
         }
     }

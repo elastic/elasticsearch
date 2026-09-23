@@ -254,7 +254,9 @@ public class NestedQueryBuilder extends LeafQueryBuilder<NestedQueryBuilder> {
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + path.length() * 2L + 64L;
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + path.length() * 2L + 64L;
+        if (innerHitBuilder != null) estimate += innerHitBuilder.parseTimeBreakerEstimate();
+        return estimate;
     }
 
     @Override

@@ -466,6 +466,31 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         return innerCollapseBuilder;
     }
 
+    /**
+     * Estimates the heap bytes held by this {@code InnerHitBuilder} immediately after parsing,
+     * for use by the parse-time circuit breaker in containing query builders.
+     */
+    public long parseTimeBreakerEstimate() {
+        long estimate = 256L;
+        if (name != null) estimate += name.length() * 2L + 64L;
+        if (storedFieldsContext != null && storedFieldsContext.fieldNames() != null) {
+            for (String f : storedFieldsContext.fieldNames()) estimate += f.length() * 2L + 64L;
+        }
+        if (docValueFields != null) {
+            for (FieldAndFormat f : docValueFields) estimate += f.field.length() * 2L + 64L;
+        }
+        if (fetchFields != null) {
+            for (FieldAndFormat f : fetchFields) estimate += f.field.length() * 2L + 64L;
+        }
+        if (scriptFields != null) {
+            for (ScriptField sf : scriptFields) estimate += sf.fieldName().length() * 2L + 128L;
+        }
+        if (sorts != null) estimate += (long) sorts.size() * 256L;
+        if (highlightBuilder != null) estimate += 512L;
+        if (innerCollapseBuilder != null) estimate += innerCollapseBuilder.getField().length() * 2L + 128L;
+        return estimate;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

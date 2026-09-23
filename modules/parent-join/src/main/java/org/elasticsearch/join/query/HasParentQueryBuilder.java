@@ -269,7 +269,9 @@ public class HasParentQueryBuilder extends LeafQueryBuilder<HasParentQueryBuilde
 
     @Override
     protected long parseTimeBreakerEstimate() {
-        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + parentType.length() * 2L + 64L;
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + parentType.length() * 2L + 64L;
+        if (innerHitBuilder != null) estimate += innerHitBuilder.parseTimeBreakerEstimate();
+        return estimate;
     }
 
     @Override

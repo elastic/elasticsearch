@@ -72,7 +72,7 @@ ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixture
 def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv', 'uint32_pushdown', 'uint64_pushdown', 'null_batch_keyword']
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv', 'uint32_pushdown', 'uint64_pushdown', 'null_batch_keyword', 'md_collision']
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
@@ -129,6 +129,31 @@ def multifileUbnDir = file("${parquetFixtureOutputDir}/multifile_ubn")
   def taskName = "generateMultifileUbnParquet_${baseName}"
   def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
   def parquetFile = file("${multifileUbnDir}/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetFile.path]
+    inputs.file(csvInput)
+    outputs.file(parquetFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  generateParquetTasks.add(tasks.named(taskName))
+}
+
+// Generate multifile_ubn_like_recheck fixtures: two Parquet files used to verify that a YES LIKE filter
+// on a column that IS present in a file correctly drops rows even when mapFilters withholds another
+// conjunct (qty:INTEGER→DOUBLE one-way widening), leaving no native Parquet predicate.
+// parquet_ubn_like_recheck_a.csv has [name:keyword, city:keyword, qty:integer]
+// parquet_ubn_like_recheck_b.csv has [name:keyword, city:keyword, qty:double]
+// Under UBN the unified schema is: name:keyword, city:keyword, qty:double (widened from int32 in A).
+def multifileUbnLikeRecheckDir = file("${parquetFixtureOutputDir}/multifile_ubn_like_recheck")
+['parquet_ubn_like_recheck_a', 'parquet_ubn_like_recheck_b'].each { baseName ->
+  def taskName = "generateMultifileUbnLikeRecheckParquet_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetFile = file("${multifileUbnLikeRecheckDir}/${baseName}.parquet")
   tasks.register(taskName, JavaExec) {
     dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
     dependsOn testFixturesProject.tasks.named('processResources')

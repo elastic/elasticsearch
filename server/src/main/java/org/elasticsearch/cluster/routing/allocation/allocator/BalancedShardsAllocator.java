@@ -1136,7 +1136,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         private static Map<String, Object> canRemainMoveAttributes(
             String canRemainDecision,
-            String canRemainDecider,
+            @Nullable String canRemainDecider,
             @Nullable String canAllocateNotPreferredDecider,
             boolean primary,
             String sourceNode,
@@ -1144,12 +1144,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         ) {
             // Target node is only included when canRemain=NO clashes with canAllocate=NOT_PREFERRED,
             // to keep metric cardinality manageable.
+            final String canRemainDeciderOrNone = canRemainDecider != null ? canRemainDecider : "none";
             if (canAllocateNotPreferredDecider == null) {
                 return Map.of(
                     "es_can_remain_decision",
                     canRemainDecision,
                     "es_can_remain_decider",
-                    canRemainDecider,
+                    canRemainDeciderOrNone,
                     "es_can_allocate_decision",
                     "yes",
                     "es_can_allocate_decider",
@@ -1164,7 +1165,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 "es_can_remain_decision",
                 canRemainDecision,
                 "es_can_remain_decider",
-                canRemainDecider,
+                canRemainDeciderOrNone,
                 "es_can_allocate_decision",
                 "not_preferred",
                 "es_can_allocate_decider",

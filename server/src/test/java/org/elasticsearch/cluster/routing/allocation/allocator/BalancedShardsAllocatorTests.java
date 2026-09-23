@@ -1926,6 +1926,44 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(attributes, hasEntry(equalTo("es_target_node"), allOf(is(Matchers.in(allNodeIds)), not(equalTo(sourceNodeId)))));
     }
 
+    public void testCanRemainIgnoredShardMovesAreCountedWithNoneDeciderLabel() {
+        // When the ignored-shard short-circuit fires, canRemainWithDeciderName returns a null decider name.
+        // canRemainMoveAttributes must not pass that null to Map.of (which rejects null values); it falls back to "none".
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
+        final var projectId = clusterState.metadata().projects().keySet().iterator().next();
+        final var startedShard = clusterState.globalRoutingTable()
+            .routingTable(projectId)
+            .allShards()
+            .filter(ShardRouting::started)
+            .findFirst()
+            .orElseThrow();
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var allocator = new BalancedShardsAllocator(
+            BalancerSettings.DEFAULT,
+            TEST_WRITE_LOAD_FORECASTER,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
+            meterRegistry
+        );
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
+        allocation.addIgnoreShardForNode(startedShard.shardId(), startedShard.currentNodeId());
+
+        allocator.allocate(allocation);
+
+        final var measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocator.CAN_REMAIN_MOVE_METRIC);
+        assertThat(measurements, hasSize(1));
+        final var measurement = measurements.getFirst();
+        assertThat(measurement.getLong(), is(1L));
+        final var attributes = measurement.attributes();
+        assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "none"));
+        assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "none"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+        assertThat(attributes, hasKey("es_source_node"));
+        assertThat(attributes, not(hasKey("es_target_node")));
+    }
+
     private static String startedShardSourceNodeName(ClusterState clusterState) {
         final var projectId = clusterState.metadata().projects().keySet().iterator().next();
         final var sourceNodeId = clusterState.globalRoutingTable()

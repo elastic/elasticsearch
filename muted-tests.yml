@@ -714,3 +714,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
   method: testPreExistingBufferFilesDrainAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/160054
+- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
+  method: testSnapshotWarningEmittedWhenEncryptedDataPresent
+  issue: https://github.com/elastic/elasticsearch/issues/160057

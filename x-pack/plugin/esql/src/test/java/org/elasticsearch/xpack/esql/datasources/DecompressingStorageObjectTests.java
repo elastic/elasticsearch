@@ -204,6 +204,71 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * Public LIMIT / cancel path: callers close the decompressed stream (try-with-resources,
+     * iterator teardown) rather than calling {@code abortStream}. That close must abort the
+     * raw GET instead of draining it.
+     */
+    public void testCloseAfterPrefixReadAbortsRatherThanDrains() throws IOException {
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < 200_000; i++) {
+            csv.append("id_").append(i).append(",name_").append(i).append(",value_").append(i * 1.5).append("\n");
+        }
+        byte[] original = csv.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+        assertThat(
+            "compressed payload must be significantly larger than the prefix we read",
+            compressed.length,
+            Matchers.greaterThan(200_000)
+        );
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
+        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+
+        try (InputStream stream = decompressing.newStream()) {
+            byte[] prefix = new byte[4096];
+            int n = stream.read(prefix);
+            assertThat("expected to read some decompressed bytes", n, Matchers.greaterThan(0));
+        }
+
+        assertTrue("prefix close() must abort the raw GET rather than drain it", tracking.aborted.get());
+        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
+        assertThat(
+            "close() after a prefix read must not drain the raw stream; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + compressed.length
+                + " raw bytes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) compressed.length / 2)
+        );
+    }
+
+    /**
+     * {@code InputStream.close()} is idempotent. A second close after a prefix read must not
+     * abort the raw stream again.
+     */
+    public void testCloseAfterPrefixReadIsIdempotent() throws IOException {
+        byte[] original = "id,name\n1,a\n".repeat(50_000).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(
+            rawObject,
+            new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec()
+        );
+
+        InputStream stream = decompressing.newStream();
+        byte[] prefix = new byte[1024];
+        assertThat(stream.read(prefix), Matchers.greaterThan(0));
+        stream.close();
+        stream.close();
+
+        assertEquals("second close must not abort again", 1, tracking.abortCalls.get());
+    }
+
+    /**
      * Regression guard: a normal {@code close()} on the wrapper stream returned by
      * {@link DecompressingStorageObject#newStream()} must close the underlying raw stream so
      * its connection is released. The decompressor itself sees an {@code UncloseableInputStream}

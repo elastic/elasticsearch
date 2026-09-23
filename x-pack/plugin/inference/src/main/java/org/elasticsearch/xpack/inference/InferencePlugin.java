@@ -68,7 +68,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
@@ -92,6 +91,7 @@ import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
@@ -212,6 +212,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfiguration;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
@@ -229,6 +230,9 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE;
@@ -723,11 +727,12 @@ public class InferencePlugin extends Plugin
         factories.add(context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new TencentCloudService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new NvidiaService(httpFactory.get(), serviceComponents.get(), context));
-        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) && XPackSettings.NLP_ENABLED.get(settings)) {
+        if (ElasticsearchInternalService.isSupported(settings)) {
             factories.add(ElasticsearchInternalService::new);
         }
         factories.add(context -> new CustomService(httpFactory.get(), serviceComponents.get(), context));
@@ -901,6 +906,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(ThrottlerManager.getSettingsDefinitions());
         settings.addAll(RetrySettings.getSettingsDefinitions());
         settings.addAll(Truncator.getSettingsDefinitions());
+        settings.addAll(RecursiveChunkingSettings.getSettingsDefinitions());
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
@@ -1009,12 +1015,22 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Set.of(new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, true));
+        return Set.of(
+            new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, true),
+            new RestHeaderDefinition(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, false),
+            new RestHeaderDefinition(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, false),
+            new RestHeaderDefinition(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, false)
+        );
     }
 
     @Override
     public Collection<String> getTaskHeaders() {
-        return Set.of(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+        return Set.of(
+            X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
+            X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
+            X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
+            X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER
+        );
     }
 
     protected SSLService getSslService() {

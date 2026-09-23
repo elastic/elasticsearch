@@ -214,6 +214,42 @@ setup:
   - is_true: authorization.roles
 
 ---
+"Test put and update datafeed with max_consecutive_extraction_failures":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"],
+            "max_consecutive_extraction_failures": 25
+          }
+  - match: { max_consecutive_extraction_failures: 25 }
+
+  - do:
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "max_consecutive_extraction_failures": -1
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+  - match: { max_consecutive_extraction_failures: -1 }
+
+---
+"Test put datafeed with invalid max_consecutive_extraction_failures":
+  - do:
+      catch: /Invalid\smax_consecutive_extraction_failures\svalue/
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"],
+            "max_consecutive_extraction_failures": 0
+          }
+
+---
 "Test update datafeed to point to different job":
   - do:
       ml.put_datafeed:

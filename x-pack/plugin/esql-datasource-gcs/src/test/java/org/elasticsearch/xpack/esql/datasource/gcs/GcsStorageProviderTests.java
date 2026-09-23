@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.api.gax.paging.Page;
 import com.google.auth.Credentials;
 import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Storage;
 
 import org.elasticsearch.action.ActionListener;
@@ -18,15 +20,20 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration.AuthMode;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for GcsStorageProvider.
@@ -240,4 +247,45 @@ public class GcsStorageProviderTests extends ESTestCase {
         };
         assertSame(injected, provider.buildManagedIdentityCredentials());
     }
+    // -- listChildren: currentDirectory-level splitting into files and subdirectories --
+
+    @SuppressWarnings("unchecked")
+    private GcsStorageProvider providerListing(List<Blob> blobs) {
+        Page<Blob> page = mock(Page.class);
+        when(page.iterateAll()).thenReturn(blobs);
+        Storage storage = mock(Storage.class);
+        when(storage.list(eq("bucket"), any(Storage.BlobListOption[].class))).thenReturn(page);
+        return new GcsStorageProvider(storage);
+    }
+
+    private static Blob blob(String name, long size) {
+        Blob blob = mock(Blob.class);
+        when(blob.getName()).thenReturn(name);
+        when(blob.getSize()).thenReturn(size);
+        when(blob.getUpdateTimeOffsetDateTime()).thenReturn(null);
+        return blob;
+    }
+
+    public void testListChildrenSeparatesFilesFromDirectories() throws IOException {
+        // The listing prefix's own marker object ("data/") is not a child; "/"-terminated pseudo-objects are dirs.
+        GcsStorageProvider provider = providerListing(
+            List.of(blob("data/", 0), blob("data/year=2024/", 0), blob("data/file.parquet", 123))
+        );
+
+        StorageChildren children = provider.listChildren(StoragePath.of("gs://bucket/data"), 10);
+
+        assertEquals(List.of("gs://bucket/data/year=2024"), children.directories().stream().map(StoragePath::toString).toList());
+        assertEquals(1, children.files().size());
+        assertEquals("gs://bucket/data/file.parquet", children.files().get(0).path().toString());
+        assertEquals(123L, children.files().get(0).length());
+    }
+
+    /** A directory wider than {@code limit} withdraws to {@code null} (the flat-listing fallback). */
+    public void testListChildrenPastLimitReturnsNull() throws IOException {
+        GcsStorageProvider provider = providerListing(
+            List.of(blob("data/a.parquet", 1), blob("data/b.parquet", 1), blob("data/c.parquet", 1))
+        );
+        assertNull(provider.listChildren(StoragePath.of("gs://bucket/data"), 2));
+    }
+
 }

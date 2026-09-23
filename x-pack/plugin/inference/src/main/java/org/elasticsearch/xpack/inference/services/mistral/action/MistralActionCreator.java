@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbe
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.mistral.request.embeddings.MistralEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.mistral.response.MistralEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.util.Objects;
 
@@ -43,9 +43,9 @@ public class MistralActionCreator implements MistralActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "Mistral completions";
     public static final String USER_ROLE = "user";
-    public static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+    public static final ResponseHandler COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
         "mistral completions",
-        OpenAiChatCompletionResponseEntity::fromResponse,
+        OpenAiCompletionResponseEntity::fromResponse,
         ErrorResponse::fromResponse
     );
     private static final ResponseHandler EMBEDDINGS_HANDLER = new AzureMistralOpenAiExternalResponseHandler(
@@ -86,7 +86,7 @@ public class MistralActionCreator implements MistralActionVisitor {
             chatCompletionModel,
             COMPLETION_HANDLER,
             inputs -> new MistralChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), chatCompletionModel),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var errorMessage = buildErrorMessage(TaskType.COMPLETION, chatCompletionModel.getInferenceEntityId());

@@ -10,38 +10,58 @@ package org.elasticsearch.xpack.oteldata.otlp;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.common.v1.KeyValue;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfBatchBuilder;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricColumnarBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Transport action for handling OpenTelemetry Protocol (OTLP) Metrics requests.
@@ -49,6 +69,15 @@ import java.util.Map;
  * appropriate Elasticsearch bulk indexing operations to store the metrics.
  * It also handles the response according to the OpenTelemetry Protocol specifications,
  * including success, partial success responses, and errors due to bad data or server errors.
+ *
+ * <p>When {@link BatchIndexingEnabled} is active cluster-wide <em>and</em> all data-point values and
+ * attributes in the request are scalar
+ * (gauges and monotonic sums with string/bool/int/double attributes only), metrics are written
+ * directly into an {@link EscfBatch} without a CBOR intermediate representation, and the coordinator
+ * derives {@code _tsid} column-major via
+ * {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator}. For all other cases
+ * (histograms, summaries, non-scalar attributes, or the setting disabled) the existing XContent path
+ * is used unchanged.
  *
  * @see <a href="https://opentelemetry.io/docs/specs/otlp">OTLP Specification</a>
  */
@@ -60,6 +89,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     // visible for testing
     volatile MappingHints defaultMappingHints;
     private final ClusterService clusterService;
+    private final BatchIndexingEnabled batchIndexingEnabled;
+    private final Recycler<BytesRef> bytesRefRecycler;
 
     @Inject
     public OTLPMetricsTransportAction(
@@ -67,33 +98,19 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         ActionFilters actionFilters,
         ThreadPool threadPool,
         Client client,
-        ClusterService clusterService
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        Settings settings
     ) {
-        super(NAME, transportService, actionFilters, threadPool, client);
+        super(NAME, transportService, actionFilters, threadPool, client, settings);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
         clusterSettings.addSettingsUpdateConsumer(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, histogramFieldTypeSetting -> {
             defaultMappingHints = MappingHints.fromSettings(histogramFieldTypeSetting);
         });
         this.clusterService = clusterService;
-    }
-
-    @Override
-    protected ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder) throws IOException {
-        BufferedByteStringAccessor byteStringAccessor = new BufferedByteStringAccessor();
-        DataPointGroupingContext context = new DataPointGroupingContext(byteStringAccessor, defaultMappingHints);
-        var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.getRequest().streamInput());
-        context.groupDataPoints(metricsServiceRequest);
-        if (context.totalItems() == 0) {
-            return context;
-        }
-        MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
-        ProjectMetadata projectMetadata = clusterService.state().projectState(ProjectId.DEFAULT).metadata();
-        Map<String, IndexVersion> indexVersions = new HashMap<>();
-        context.consume(
-            dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup, projectMetadata, indexVersions)
-        );
-        return context;
+        this.batchIndexingEnabled = new BatchIndexingEnabled(clusterSettings);
+        this.bytesRefRecycler = bigArrays.bytesRefRecycler();
     }
 
     @Override
@@ -105,33 +122,180 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         return ExportMetricsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();
     }
 
-    private static IndexVersion resolveIndexVersion(ProjectMetadata projectMetadata, String dataStreamName) {
-        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
-        if (dataStream == null) {
-            DataStreamAlias alias = projectMetadata.dataStreamAliases().get(dataStreamName);
-            if (alias != null && alias.getWriteDataStream() != null) {
-                dataStream = projectMetadata.dataStreams().get(alias.getWriteDataStream());
-            }
+    @Override
+    protected ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder) throws IOException {
+        BufferedByteStringAccessor byteStringAccessor = new BufferedByteStringAccessor();
+        DataPointGroupingContext context = new DataPointGroupingContext(byteStringAccessor, defaultMappingHints);
+        var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.getRequest().streamInput());
+        context.groupDataPoints(metricsServiceRequest);
+        if (context.totalItems() == 0) {
+            return context;
         }
-        if (dataStream != null && dataStream.getWriteIndex() != null) {
-            return projectMetadata.getIndexSafe(dataStream.getWriteIndex()).getCreationVersion();
+
+        ProjectMetadata projectMetadata = clusterService.state().projectState(ProjectId.DEFAULT).metadata();
+
+        // Collect all groups in a single pass so we can check ESCF eligibility before committing any rows.
+        // A BulkRequest carries at most one pre-built batch (keyed by index-abstraction name), so the ESCF
+        // path requires all groups to target the same data stream. Groups targeting different data streams
+        // fall through to doc-mode. Within a single data stream, BatchModeRouter handles routing to
+        // multiple backing indices automatically via timestamp-based resolution.
+        List<DataPointGroupingContext.DataPointGroup> allGroups = new ArrayList<>();
+        context.consume(allGroups::add);
+
+        String firstTarget = allGroups.isEmpty() ? null : allGroups.get(0).targetIndex().index();
+        boolean singleTarget = firstTarget != null && allGroups.stream().allMatch(g -> firstTarget.equals(g.targetIndex().index()));
+
+        if (singleTarget && resolveEscfEligible(projectMetadata, firstTarget, allGroups) && isEscfEligible(allGroups)) {
+            MetricColumnarBuilder metricColumnarBuilder = new MetricColumnarBuilder(defaultMappingHints);
+            addEscfBatch(bulkRequestBuilder, metricColumnarBuilder, allGroups, firstTarget);
+            return context;
         }
-        // non-existent data-stream will be created with the current index version
-        return IndexVersion.current();
+
+        long totalExpandedBytes = 0;
+        for (DataPointGroupingContext.DataPointGroup group : allGroups) {
+            IndexVersion indexVersion = resolveIndexVersion(projectMetadata, group);
+            MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
+            totalExpandedBytes = addIndexRequestDocMode(bulkRequestBuilder, metricDocumentBuilder, group, indexVersion, totalExpandedBytes);
+        }
+
+        return context;
     }
 
-    private void addIndexRequest(
+    // -------------------------------------------------------------------------
+    // ESCF path
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns {@code true} when every group in the list can be written as scalar ESCF columns, i.e. all
+     * data points support columnar values and all attributes are scalar (no ARRAY/KVLIST/BYTES values).
+     */
+    static boolean isEscfEligible(List<DataPointGroupingContext.DataPointGroup> groups) {
+        for (DataPointGroupingContext.DataPointGroup group : groups) {
+            for (int i = 0; i < group.dataPoints().size(); i++) {
+                if (group.dataPoints().get(i).supportsColumnarValue() == false) {
+                    return false;
+                }
+            }
+            if (MetricColumnarBuilder.hasNonScalarAttributes(group.dataPointAttributes())) {
+                return false;
+            }
+            if (MetricColumnarBuilder.hasNonScalarAttributes(group.resource().getAttributesList())) {
+                return false;
+            }
+            if (MetricColumnarBuilder.hasNonScalarAttributes(group.scope().getAttributesList())) {
+                return false;
+            }
+            // OTel attribute lists allow duplicate keys; EscfRowBuffer rejects them. Detect here to
+            // avoid a mid-batch IllegalArgumentException that would propagate as a 500.
+            if (hasDuplicateAttributeKeys(group.dataPointAttributes())
+                || hasDuplicateAttributeKeys(group.resource().getAttributesList())
+                || hasDuplicateAttributeKeys(group.scope().getAttributesList())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasDuplicateAttributeKeys(List<KeyValue> attributes) {
+        if (attributes.size() <= 1) {
+            return false;
+        }
+        Set<String> seen = new HashSet<>(attributes.size());
+        for (int i = 0; i < attributes.size(); i++) {
+            if (seen.add(attributes.get(i).getKey()) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void addEscfBatch(
+        BulkRequestBuilder bulkRequestBuilder,
+        MetricColumnarBuilder metricColumnarBuilder,
+        List<DataPointGroupingContext.DataPointGroup> groups,
+        String target
+    ) throws IOException {
+        // Collect (rowIndex -> IndexRequest) during the build pass, then attach source rows after buildPartition.
+        Map<Integer, IndexRequest> rowRequests = new LinkedHashMap<>(groups.size());
+        try (EscfBatchBuilder batchBuilder = new EscfBatchBuilder(bytesRefRecycler)) {
+            for (DataPointGroupingContext.DataPointGroup group : groups) {
+                var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(group.dataPoints().size());
+                var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(group.dataPoints().size());
+
+                boolean ok = metricColumnarBuilder.buildMetricRow(batchBuilder, group, dynamicTemplates, dynamicTemplateParams);
+                if (ok == false) {
+                    // Eligibility pre-check should have prevented this; fail loudly.
+                    throw new IllegalStateException(
+                        "ESCF pre-flight check passed but buildMetricRow returned false for target [" + target + "]"
+                    );
+                }
+                int rowIndex = batchBuilder.commit(0);
+
+                Instant tsTimestamp = DataStream.getCanonicalTimestampBound(
+                    Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(group.getTimestampUnixNano()))
+                );
+                IndexRequest indexRequest = new IndexRequest(target).opType(DocWriteRequest.OpType.CREATE)
+                    .setRequireDataStream(true)
+                    .setIncludeSourceOnError(false)
+                    .setDynamicTemplates(dynamicTemplates)
+                    .setDynamicTemplateParams(dynamicTemplateParams)
+                    .setTimeSeriesTimestamp(tsTimestamp);
+                // Source row will be attached after buildPartition below.
+                rowRequests.put(rowIndex, indexRequest);
+                bulkRequestBuilder.add(indexRequest);
+            }
+
+            // Partition 0 is the only partition: EscfBatchBuilder supports multiple keyed partitions
+            // for producers that pre-split rows by shard, but we keep all rows in one flat batch and
+            // let BatchModeRouter / EscfBatchScatterer handle shard scatter downstream.
+            EscfBatch batch = batchBuilder.buildPartition(0);
+
+            // Guard against coordinator heap exhaustion on large fan-out OTLP exports (resource/scope
+            // attributes copied into every row mean the batch can be significantly larger than the
+            // incoming protobuf payload).
+            long batchBytes = batch.ramBytesUsed();
+            if (batchBytes > maxExpandedContentLength) {
+                batch.close();
+                throw new ElasticsearchStatusException(
+                    "OTLP request rejected: ESCF batch ["
+                        + batchBytes
+                        + " b] would exceed expanded content limit ["
+                        + maxExpandedContentLength
+                        + " b]",
+                    RestStatus.REQUEST_ENTITY_TOO_LARGE
+                );
+            }
+
+            // Attach source rows now that the batch object is stable.
+            for (Map.Entry<Integer, IndexRequest> e : rowRequests.entrySet()) {
+                e.getValue().indexSource().setSourceRow(batch, e.getKey(), XContentType.JSON);
+            }
+
+            // Register the pre-built batch. BatchModeRouter will scatter it to shards and invoke
+            // ForIndexDimensions.indexShard(requests, batch), which calls ColumnarTsidCalculator to
+            // derive _tsid column-major (no pre-set tsid required on the IndexRequests).
+            // Ownership of the batch transfers to the bulk request here. EscfBatchBuilder.close() only
+            // releases *unbuilt* partitions (buildPartition nulls the slot), so closing the builder
+            // below does NOT close or invalidate the batch; that is the caller's (router's) responsibility.
+            bulkRequestBuilder.setPreBuiltBatches(Map.of(target, batch));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Doc-mode (XContent) path — unchanged from original implementation
+    // -------------------------------------------------------------------------
+
+    private long addIndexRequestDocMode(
         BulkRequestBuilder bulkRequestBuilder,
         MetricDocumentBuilder metricDocumentBuilder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
-        ProjectMetadata projectMetadata,
-        Map<String, IndexVersion> indexVersions
+        IndexVersion indexVersion,
+        long totalExpandedBytes
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
             var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
             String dataStreamName = dataPointGroup.targetIndex().index();
-            IndexVersion indexVersion = indexVersions.computeIfAbsent(dataStreamName, name -> resolveIndexVersion(projectMetadata, name));
             BytesRef tsid = metricDocumentBuilder.buildMetricDocument(
                 xContentBuilder,
                 dataPointGroup,
@@ -139,17 +303,72 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 dynamicTemplateParams,
                 indexVersion
             );
-            var indexRequest = new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
+            var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
                 .setRequireDataStream(true)
                 .source(xContentBuilder)
                 .setIncludeSourceOnError(false)
                 .setDynamicTemplates(dynamicTemplates)
                 .setDynamicTemplateParams(dynamicTemplateParams);
-            // For old write indices, let the indexing layer compute the TSID — avoids layout mismatch if a rollover occurs mid-request.
             if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
                 indexRequest.tsid(tsid);
             }
+            totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
             bulkRequestBuilder.add(indexRequest);
         }
+        return totalExpandedBytes;
+    }
+
+    private IndexVersion resolveIndexVersion(ProjectMetadata projectMetadata, DataPointGroupingContext.DataPointGroup group) {
+        String dataStreamName = group.targetIndex().index();
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
+        if (dataStream == null) {
+            DataStreamAlias alias = projectMetadata.dataStreamAliases().get(dataStreamName);
+            if (alias != null && alias.getWriteDataStream() != null) {
+                dataStream = projectMetadata.dataStreams().get(alias.getWriteDataStream());
+            }
+        }
+        if (dataStream == null) {
+            return IndexVersion.current();
+        }
+        Instant ts = Instant.ofEpochMilli(group.getTimestampUnixNano() / 1_000_000L);
+        Index index = dataStream.selectTimeSeriesWriteIndex(ts, projectMetadata);
+        if (index == null) {
+            index = dataStream.getWriteIndex();
+        }
+        return projectMetadata.getIndexSafe(index).getCreationVersion();
+    }
+
+    private boolean resolveEscfEligible(
+        ProjectMetadata projectMetadata,
+        String dataStreamName,
+        List<DataPointGroupingContext.DataPointGroup> allGroups
+    ) {
+        if (batchIndexingEnabled.isEnabled() == false) {
+            return false;
+        }
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
+        if (dataStream == null) {
+            DataStreamAlias alias = projectMetadata.dataStreamAliases().get(dataStreamName);
+            if (alias != null && alias.getWriteDataStream() != null) {
+                dataStream = projectMetadata.dataStreams().get(alias.getWriteDataStream());
+            }
+        }
+        // Data stream not yet initialised → fall back to doc-mode so the first export creates it.
+        if (dataStream == null) {
+            return false;
+        }
+        // Determine which backing indices the batch actually targets based on document timestamps,
+        // then verify each one supports ESCF (has dimensions and a recent enough creation version).
+        long[] timestamps = new long[allGroups.size()];
+        for (int i = 0; i < allGroups.size(); i++) {
+            timestamps[i] = allGroups.get(i).getTimestampUnixNano();
+        }
+        for (Index index : dataStream.selectTimeSeriesWriteIndices(timestamps, projectMetadata)) {
+            IndexMetadata im = projectMetadata.getIndexSafe(index);
+            if (im.getTimeSeriesDimensions().isEmpty() || IndexSettings.TIME_SERIES_BATCH_INDEXING.get(im.getSettings()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 }

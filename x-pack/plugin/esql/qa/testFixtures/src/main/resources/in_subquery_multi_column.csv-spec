@@ -1180,6 +1180,83 @@ emp_no:integer | salary:integer
 10001          | 57305
 ;
 
+// Multi-column IN subquery as a direct operand of == and !=
+
+multiColumnInSubqueryInEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| WHERE ((emp_no, salary) IN (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, salary)) == true
+| SORT emp_no
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+multiColumnInSubqueryInNotEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| WHERE ((emp_no, salary) IN (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, salary)) != false
+| SORT emp_no
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+multiColumnInSubqueryOnRightHandSideOfEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| WHERE true == ((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary))
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+multiColumnInSubqueryInEqualsWithNullKeys
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+// The languages key column has nulls on both sides, so employees with a null language get a NULL
+// mark and `NULL == true` drops them; the 90 with a non-null language match themselves.
+FROM employees
+| WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+multiColumnInSubqueryInEqualsNestedInCaseInWhere
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| WHERE CASE(((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)) == true, true, false)
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
 multiColumnInSubqueryWithIsNull
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
@@ -1517,6 +1594,64 @@ emp_no:integer
 10003
 ;
 
+multiColumnInSubqueryInEqualsInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| EVAL m = ((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 1 | KEEP emp_no, salary)) == true
+| WHERE emp_no <= 10003
+| SORT emp_no
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | false
+10003          | false
+;
+
+multiColumnInSubqueryInNotEqualsInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| EVAL m = ((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 1 | KEEP emp_no, salary)) != false
+| WHERE emp_no <= 10003
+| SORT emp_no
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | false
+10003          | false
+;
+
+multiColumnInSubqueryInNotEqualsNestedInCoalesceInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| EVAL m = COALESCE(((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 1 | KEEP emp_no, salary)) != false, false)
+| WHERE emp_no <= 10003
+| SORT emp_no
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | false
+10003          | false
+;
+
 multiColumnInSubqueryNestedInCaseInEval
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
@@ -1689,6 +1824,53 @@ c:long
 1
 ;
 
+multiColumnInSubqueryInEqualsInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| STATS c1 = COUNT(*) WHERE ((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)) == true,
+        c2 = COUNT(*) WHERE ((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)) != false
+;
+
+c1:long | c2:long
+3       | 3
+;
+
+multiColumnInSubqueryInEqualsInStatsWhereWithGrouping
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+// Group `true` holds 10001 and 10002, group `false` holds the rest — of which only 10003 is in the top 3
+FROM employees
+| EVAL g = emp_no <= 10002
+| STATS c = COUNT(*) WHERE ((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)) == true BY g
+| SORT g ASC
+;
+
+c:long | g:boolean
+1      | false
+2      | true
+;
+
+multiColumnInSubqueryInEqualsNestedInToStringInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| STATS c = COUNT(*) WHERE TO_STRING(((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no, salary)) == true) == "true"
+;
+
+c:long
+3
+;
+
 multiColumnInSubqueryInStatsWhereNested
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
@@ -1742,4 +1924,209 @@ ROW cluster = "prod", emp_no = 10001
 
 c:long
 1
+;
+
+// ======== multi-column IN subqueries in INLINE STATS WHERE filters ========
+
+inlineStatsWhereMultiColumnInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE (emp_no, salary) IN (ROW x = 10001, y = 57305)
+| WHERE emp_no == 10001
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 1
+;
+
+inlineStatsWhereMultiColumnInSubqueryWithTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster, pod
+| INLINE STATS c = COUNT(*) WHERE (cluster, pod) IN (TS k8s 
+                                                     | STATS mb = max(to_long(network.total_bytes_in)) BY cluster, pod
+                                                     | WHERE mb > 10500
+                                                     | KEEP cluster, pod)
+| SORT cluster, pod
+| KEEP cluster, pod, c
+;
+
+cluster:keyword | pod:keyword | c:long
+prod            | one         | 1
+prod            | three       | 1
+prod            | two         | 1
+qa              | one         | 1
+qa              | three       | 1
+qa              | two         | 1
+staging         | one         | 1
+staging         | three       | 1
+staging         | two         | 1
+;
+
+inlineStatsWhereMultiColumnInSubqueryInEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: inline_stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| KEEP emp_no, salary
+| INLINE STATS c = COUNT(*) WHERE ((emp_no, salary) IN (FROM employees
+                                                        | SORT emp_no ASC
+                                                        | LIMIT 3
+                                                        | KEEP emp_no, salary)) == true
+| WHERE emp_no <= 10002
+| SORT emp_no
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 3
+10002          | 3
+;
+
+inlineStatsWhereMultiColumnInSubqueryInNotEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: inline_stats_where_in_subquery
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| KEEP emp_no, salary
+| INLINE STATS c = COUNT(*) WHERE ((emp_no, salary) IN (FROM employees
+                                                        | SORT emp_no ASC
+                                                        | LIMIT 3
+                                                        | KEEP emp_no, salary)) != false
+| WHERE emp_no <= 10002
+| SORT emp_no
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 3
+10002          | 3
+;
+
+multiColumnInSubqueryInNotEqualsNestedInCaseInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: inline_stats_where_in_subquery
+required_capability: where_in_subquery_with_case_coalesce_is_null
+required_capability: where_in_subquery_with_equals_not_equals
+
+FROM employees
+| KEEP emp_no, salary
+| INLINE STATS c = COUNT(*) WHERE CASE(((emp_no, salary) IN (FROM employees
+                                                             | SORT emp_no ASC
+                                                             | LIMIT 3
+                                                             | KEEP emp_no, salary)) != false, true, false)
+| WHERE emp_no <= 10002
+| SORT emp_no
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 3
+10002          | 3
+;
+
+inlineStatsWhereCaseMultiColumnInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE CASE((emp_no, salary) IN (ROW x = 10001, y = 57305), true, false)
+| WHERE emp_no == 10001
+| KEEP emp_no, c
+;
+
+emp_no:integer | c:long
+10001          | 1
+;
+
+inlineStatsWhereCoalesceMultiColumnInSubqueryWithTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster, pod
+| INLINE STATS c = COUNT(*) WHERE COALESCE((cluster, pod) IN (TS k8s
+                                                              | STATS r = max(avg_over_time(network.cost)) BY cluster, pod
+                                                              | WHERE r > 5
+                                                              | KEEP cluster, pod),
+                                           false)
+| SORT cluster, pod
+| KEEP cluster, pod, c
+;
+
+cluster:keyword | pod:keyword | c:long
+prod            | one         | 8
+prod            | three       | 8
+prod            | two         | 8
+qa              | one         | 8
+qa              | three       | 8
+qa              | two         | 8
+staging         | one         | 8
+staging         | three       | 8
+staging         | two         | 8
+;
+
+inlineStatsWhereIsNullMultiColumnInSubqueryWithRow
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: inline_stats_where_in_subquery
+
+FROM employees
+| INLINE STATS c = COUNT(*) WHERE ((emp_no, salary) IN (ROW x = null::integer, y = null::integer)) IS NULL
+| STATS c1 = MAX(c)
+;
+
+c1:long
+100
+;
+
+inlineStatsWhereIsNotNullMultiColumnInSubqueryWithTs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster, pod
+| INLINE STATS c = COUNT(*) WHERE ((cluster, pod) IN (TS k8s
+                                                      | STATS r = max(rate(network.total_bytes_in)) BY cluster, pod
+                                                      | WHERE r > 10
+                                                      | KEEP cluster, pod)
+                                  ) IS NOT NULL
+| SORT cluster, pod
+| KEEP cluster, pod, c
+;
+
+cluster:keyword | pod:keyword | c:long
+prod            | one         | 9
+prod            | three       | 9
+prod            | two         | 9
+qa              | one         | 9
+qa              | three       | 9
+qa              | two         | 9
+staging         | one         | 9
+staging         | three       | 9
+staging         | two         | 9
 ;

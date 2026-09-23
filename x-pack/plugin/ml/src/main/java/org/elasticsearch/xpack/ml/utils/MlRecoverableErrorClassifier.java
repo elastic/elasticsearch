@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 
@@ -76,6 +77,12 @@ public final class MlRecoverableErrorClassifier {
         // IllegalIndexShardStateException: shard in wrong state (e.g. RECOVERING) – transient; retry when shard is ready.
         // Overrides NOT_FOUND status; TransportActions treats it as shard-not-available (retryable).
         if (cause instanceof IllegalIndexShardStateException) {
+            return true;
+        }
+
+        // SearchContextMissingException: expired/relocated scroll (or PIT) context — transient under load.
+        // Overrides NOT_FOUND; shortened DBQ keepalive (JobDataDeleter) can expire during bulk rejection backoff (#153260).
+        if (ExceptionsHelper.unwrap(e, SearchContextMissingException.class) != null) {
             return true;
         }
 
@@ -146,5 +153,24 @@ public final class MlRecoverableErrorClassifier {
 
         // Default: irrecoverable. Unknown exception types fail fast for clear diagnostics.
         return false;
+    }
+
+    /**
+     * Returns {@code true} if the exception indicates the cluster is out of a fungible capacity resource
+     * (scroll contexts, transient circuit-breaker memory, or a saturated thread pool) rather than an
+     * availability outage. Such errors are still recoverable, but retrying too fast re-consumes the same
+     * scarce resource; callers should apply a longer backoff. See elastic/elasticsearch#153260.
+     *
+     * @param e the exception to classify; wrapping exceptions are unwrapped before classification
+     */
+    public static boolean isCapacityConstrained(Exception e) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof CircuitBreakingException cbe) {
+            return cbe.getDurability() == CircuitBreaker.Durability.TRANSIENT;
+        }
+        if (cause instanceof EsRejectedExecutionException ere) {
+            return ere.isExecutorShutdown() == false;
+        }
+        return status(cause) == RestStatus.TOO_MANY_REQUESTS;
     }
 }

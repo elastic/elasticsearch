@@ -12,7 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.groq.GroqModel;
@@ -38,7 +38,7 @@ public class GroqChatCompletionModel extends GroqModel {
         return new GroqChatCompletionModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
-    public static GroqChatCompletionModel of(GroqChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static GroqChatCompletionModel of(GroqChatCompletionModel model, UnifiedCompletionRequestBody request) {
         var originalServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new GroqChatCompletionServiceSettings(
             Objects.requireNonNullElse(request.model(), originalServiceSettings.modelId()),

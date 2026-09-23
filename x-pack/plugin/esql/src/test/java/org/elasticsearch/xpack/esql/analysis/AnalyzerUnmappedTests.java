@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -61,7 +62,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunkWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
@@ -82,6 +82,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
+
+    public AnalyzerUnmappedTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * Query suffixes that use the unsupported type-conflict field [message] in different commands.
@@ -427,7 +431,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     // A DROP of an unmapped field materializes it in the sibling branch (#152843); on a multi-FORK plan that new alignment runs before
-    // FORK verification, so this guards that it degrades to the clean single-FORK rejection rather than throwing from resolveFork.
+    // FORK verification, so this guards that it degrades to the clean single-FORK rejection rather than throwing from resolveMergePlan.
     public void testLoadModeRejectsMultipleForksWithDroppedUnmappedField() {
         partialMappingTest().statementError(setUnmappedLoad("""
             FROM partial_mapping_sample_data
@@ -1468,26 +1472,23 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects every other command, naming the one it found.
+     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
         for (var commandAndLabel : List.of(
             Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
-            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
-            Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK"),
-            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN")
+            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND")
         )) {
-            test().addLanguagesLookup()
-                .statementError(
-                    setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                    containsString(
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS and INLINE STATS commands; ["
-                            + commandAndLabel.v2()
-                            + "] is not supported yet"
-                    )
-                );
+            test().statementError(
+                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
+                containsString(
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; ["
+                        + commandAndLabel.v2()
+                        + "] is not supported yet"
+                )
+            );
         }
     }
 
@@ -1524,6 +1525,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(Expressions.names(plan.output()), equalTo(List.of("s")));
     }
 
+    public void testLoadAllToleratesNonMatchingKeepWildcardThatLoadRejects() {
+        String query = "FROM test | KEEP emp_no, _inde*, first_name, * | SORT emp_no";
+
+        LogicalPlan loadAll = test().statement(setUnmappedLoadAll(query));
+        List<String> names = Expressions.names(loadAll.output());
+        assertThat(names.subList(0, 2), equalTo(List.of("emp_no", "first_name")));
+        assertThat(names, not(hasItem("_index")));
+
+        test().statementError(setUnmappedLoad(query), containsString("No matches found for pattern [_inde*]"));
+    }
+
     /**
      * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
      * The error names the source command ({@code TS}), not the internal node type. Tested both with and without a downstream STATS.
@@ -1534,7 +1546,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
@@ -1542,7 +1554,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
                 )
             );
     }
@@ -1557,6 +1569,19 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("PROMQL index=test step=5m avg(network.bytes_in)"),
                 containsString("PROMQL is not supported with unmapped_fields=\"load_all\"")
             );
+    }
+
+    /**
+     * A LOAD_ALL field referenced by EVAL is demand-loaded into the relation's output; a subsequent DROP removes it from scope.
+     * Referencing the same field again in SORT (after the DROP) must fail: the field is no longer visible.
+     */
+    public void testLoadAllModeDroppedFieldReferencedInSort() {
+        partialMappingTest().statementError(setUnmappedLoadAll("""
+            FROM partial_mapping_sample_data
+            | EVAL dur_secs = event_duration / 1000, nested_up = TO_UPPER(unmapped.nested)
+            | DROP event_duration, unmapped.nested
+            | SORT @timestamp, unmapped.nested
+            """), containsString("Unknown column [unmapped.nested]"));
     }
 
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.
@@ -2048,7 +2073,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(field.getUnmappedConversionExpression(), notNullValue());
     }
 
-    private static TestAnalyzer index1() {
+    private TestAnalyzer index1() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
         return analyzer().addIndex(
             new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of())

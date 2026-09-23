@@ -505,4 +505,199 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             closeShards(shard);
         }
     }
+
+    /**
+     * End-to-end through the real driver: a keyword field with a keyword multi-field takes the columnar path, and the sub-field's
+     * Lucene fields are emitted alongside the parent's from the parent's own source column.
+     */
+    public void testMultiFieldSubFieldIsMappedFromTheParentColumn() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "fields": { "raw": { "type": "keyword", "ignore_above": 4 } }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")), new BulkItemRequest(1, indexRequest("doc2")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "abc"), doc("f", "abcdefgh")), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("expected columnar path to succeed for a multi-field mapping", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 10L);
+                mc.setSeqNo(1, 11L);
+                mc.setVersion(0, 1L);
+                mc.setVersion(1, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                List<IndexableField> fields = cursor.fields();
+                assertTrue("parent field f should be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
+                assertTrue("sub-field f.raw should be present", fields.stream().anyMatch(f -> "f.raw".equals(f.name())));
+
+                // "abcdefgh" trips the sub-field's ignore_above but not the parent's, so only f.raw lands in _ignored.
+                cursor.advance();
+                fields = cursor.fields();
+                assertTrue("parent field f should still be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
+                // LuceneBinaryColumn stores field names as BytesRef, so check binaryValue(), not stringValue().
+                final BytesRef rawRef = new BytesRef("f.raw");
+                assertTrue(
+                    "f.raw should be recorded in _ignored",
+                    fields.stream().anyMatch(f -> "_ignored".equals(f.name()) && rawRef.equals(f.binaryValue()))
+                );
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    public void testTextMultiFieldSubFieldIsMappedFromTheParentColumn() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "fields": { "txt": { "type": "text" } }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")), new BulkItemRequest(1, indexRequest("doc2")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "hello"), doc("f", "world")), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("expected columnar path to succeed for a keyword+text multi-field mapping", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 10L);
+                mc.setSeqNo(1, 11L);
+                mc.setVersion(0, 1L);
+                mc.setVersion(1, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                List<IndexableField> fields = cursor.fields();
+                assertTrue("parent keyword field f should be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
+                assertTrue("text sub-field f.txt should be present", fields.stream().anyMatch(f -> "f.txt".equals(f.name())));
+
+                cursor.advance();
+                fields = cursor.fields();
+                assertTrue("parent keyword field f should be present for doc2", fields.stream().anyMatch(f -> "f".equals(f.name())));
+                assertTrue("text sub-field f.txt should be present for doc2", fields.stream().anyMatch(f -> "f.txt".equals(f.name())));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /** A sub-field whose mapper has no columnar support disqualifies the batch, which falls back to the row path. */
+    public void testUnsupportedMultiFieldSubMapperFallsBack() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "fields": { "raw": { "type": "binary" } }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "hello")), XContentType.JSON)) {
+                assertNull("a binary sub-field must force a fallback", mapBatch(shard, items, batch));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * A geo_point mapped as a group mapper can be used as a keyword multi-field, but the base class
+     * gate (group mapper requires no multi-fields) causes a fallback before map time.
+     */
+    public void testGeoPointGroupMapperMultiFieldFallsBack() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "fields": { "geo": { "type": "geo_point" } }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "hello")), XContentType.JSON)) {
+                assertNull("a geo_point group-mapper sub-field must force a fallback", mapBatch(shard, items, batch));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /** Object-form geo_point documents are batched and indexed on the columnar path. */
+    public void testGeoPointObjectBatchMode() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "loc": { "type": "geo_point" }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")), new BulkItemRequest(1, indexRequest("doc2")) };
+            List<BytesReference> sources = List.of(
+                new BytesArray("{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}"),
+                new BytesArray("{\"loc\":{\"lat\":48.9,\"lon\":2.3}}")
+            );
+            try (SourceBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+                assertNotNull("object-form geo_point docs should be batched on the columnar path", mapBatch(shard, items, batch));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * A geo_point spelled at its own path (string form) causes the columnar fast path to fall back
+     * cleanly. The fallback must not emit a partial column and leave the batch in an inconsistent state.
+     */
+    public void testGeoPointOwnPathFallsBack() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "loc": { "type": "geo_point" }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            List<BytesReference> sources = List.of(new BytesArray("{\"loc\":\"51.5,-0.1\"}"));
+            try (SourceBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+                assertNull("a string-form geo_point must fall back from the columnar path", mapBatch(shard, items, batch));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
 }

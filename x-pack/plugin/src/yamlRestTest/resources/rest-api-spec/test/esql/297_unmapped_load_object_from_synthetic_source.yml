@@ -1,0 +1,141 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_fix_unmapped_object_value ]
+      reason: "Loading an unmapped object field as a keyword from synthetic source must return null, not fail (issues #156381, #156433)"
+      #
+      # Synthetic source with dynamic:false stores unmapped fields in _ignored_source. "unmapped" is entirely unmapped, so its whole
+      # object is stored under one parent (the #156433 case). "network" is a mapped object but its bytes_in / eth0.tx leaves are not, so
+      # those land in _ignored_source under different parents - "network" and "network.eth0" - the multi-parent grouping of #156381.
+      # Referencing either object as a keyword must yield null; the scalar leaves still load.
+      #
+  - do:
+      indices.create:
+        index: synthetic_objects
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              network:
+                properties:
+                  eth0:
+                    properties:
+                      rx:
+                        type: integer
+  - do:
+      index:
+        index: synthetic_objects
+        id: "1"
+        refresh: true
+        body:
+          id: "1"
+          unmapped:
+            nested: "a"
+          network:
+            bytes_in: 10
+            eth0:
+              tx: 5
+              rx: 7
+          tags:
+            - "t1"
+            - "t2"
+          samples:
+            - nested: "x"
+            - nested: "y"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: synthetic_objects
+
+---
+'unmapped object field from synthetic source loads as null':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM synthetic_objects | KEEP id, unmapped, unmapped.nested | LIMIT 5'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: unmapped }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: unmapped.nested }
+  - match: { columns.2.type: keyword }
+  - match: { values.0: [ "1", null, "a" ] }
+
+---
+'unmapped multi-parent object field from synthetic source loads as null under load_all':
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: "SET unmapped_fields=\"LOAD_ALL\" resolves the mapped object 'network' to an unmapped keyword"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM synthetic_objects | KEEP id, network, network.eth0.rx | LIMIT 5'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: network }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: network.eth0.rx }
+  - match: { columns.2.type: integer }
+  - match: { values.0: [ "1", null, 7 ] }
+
+---
+'unmapped array fields from synthetic source: scalar elements load as multivalue, object elements drop':
+  # tags is an unmapped array of scalars -> multivalue keyword; samples is an unmapped array of objects -> null, while its scalar leaf
+  # samples.nested still loads as a multivalue. This exercises the array-of-scalars vs array-of-objects projection of an unmapped field.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM synthetic_objects | KEEP id, tags, samples, samples.nested | LIMIT 5'
+  - length: { columns: 4 }
+  - length: { values: 1 }
+  - match: { columns.1.name: tags }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: samples }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: samples.nested }
+  - match: { columns.3.type: keyword }
+  - match: { values.0: [ "1", [ "t1", "t2" ], null, [ "x", "y" ] ] }
+
+---
+'load_all auto-expands a partially-mapped object without colliding with the mapped leaf':
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: "Flattening a partially-mapped object under LOAD_ALL must drop the leaf that duplicates a mapped column, not fail"
+  # network.eth0.rx is mapped; network.bytes_in and network.eth0.tx are not. Under LOAD_ALL the whole network object reaches
+  # _unmapped_fields (the data node filters by top-level key), so flattening re-derives network.eth0.rx. That leaf must yield to the
+  # mapped integer column (which keeps its value) while the unmapped siblings expand as keyword - and the query must not error.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM synthetic_objects | DROP unmapped*, tags, samples* | SORT id | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: network.eth0.rx }
+  - match: { columns.1.type: integer }
+  - match: { columns.2.name: network.bytes_in }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: network.eth0.tx }
+  - match: { columns.3.type: keyword }
+  - match: { values.0: [ "1", 7, "10", "5" ] }

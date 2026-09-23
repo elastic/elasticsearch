@@ -335,21 +335,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final String target = requestedIndices.length == 0
             ? concreteLocalIndicesMetadata.keySet().stream().map(Index::getName).collect(Collectors.joining(","))
             : Strings.arrayToCommaDelimitedString(requestedIndices);
-        if (searchRequest.pointInTimeBuilder() != null && anySliceEnabled) {
-            throw new IllegalArgumentException(
-                "[point in time] is not supported when [index.slice.enabled] is true for search request targeting [" + target + "]"
-            );
-        }
-        searchRequest.routing(
-            SliceIndexing.validateAndResolveSliceRoutingRequirement(
-                anySliceEnabled,
-                fromSlice,
-                searchRequest.routing(),
-                requestedSlice,
-                "search request",
-                target,
-                hasRemoteIndices
-            )
+        SliceIndexing.validateAndResolveSliceRoutingRequirement(
+            anySliceEnabled,
+            fromSlice,
+            searchRequest.routing(),
+            requestedSlice,
+            "search request",
+            target,
+            hasRemoteIndices
         );
         return requestedSlice;
     }
@@ -702,7 +695,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewritten.indicesOptions(),
                         rewritten.preference(),
                         rewritten.routing(),
-                        rewritten.searchSlice(),
                         rewritten.isRoutingFromSlice(),
                         rewritten.source() != null ? rewritten.source().query() : null,
                         Objects.requireNonNullElse(rewritten.allowPartialSearchResults(), searchService.defaultAllowPartialSearchResults()),
@@ -839,8 +831,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(indices).indicesOptions(request.indicesOptions())
             .preference(request.preference())
-            .routing(request.routing())
             .keepAlive(TimeValue.timeValueMillis(keepAliveMillis));
+        pitReq.routing(request.routing()).setRoutingFromSlice(request.isRoutingFromSlice());
         pitReq.projectRouting(request.getProjectRouting());
 
         client.execute(TransportOpenPointInTimeAction.TYPE, pitReq, listener);
@@ -1437,7 +1429,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions originalIdxOpts,
         String preference,
         String routing,
-        String searchSlice,
         boolean routingFromSlice,
         QueryBuilder query,
         boolean allowPartialResults,
@@ -1531,7 +1522,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchShardsIdxOpts,
                         query,
                         routing,
-                        searchSlice,
                         routingFromSlice,
                         preference,
                         allowPartialResults,
@@ -1551,7 +1541,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         indices
-                    ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference).routing(routing);
+                    ).indicesOptions(searchShardsIdxOpts)
+                        .local(true)
+                        .preference(preference)
+                        .routing(routing)
+                        .setRoutingFromSlice(routingFromSlice);
 
                     searchShardsRequest.setParentTask(parentTaskId);
                     transportService.sendRequest(

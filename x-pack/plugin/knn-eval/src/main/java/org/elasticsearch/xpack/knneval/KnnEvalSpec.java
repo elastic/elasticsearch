@@ -83,8 +83,10 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         validateBounds(field, k);
         validateQuerySource(queries, sample);
         baseline = normalizeBaseline(baseline);
-        validateNumCandidates(baseline, k);
-        validateCandidates(knnSettings, k);
+        // a sampled query also retrieves its own document, so it searches one extra candidate
+        int maxNumCandidates = sample == null ? KnnEvalRescore.MAX_NUM_CANDIDATES : KnnEvalRescore.MAX_NUM_CANDIDATES - 1;
+        validateNumCandidates(baseline, k, maxNumCandidates);
+        validateCandidates(knnSettings, k, maxNumCandidates);
         this.field = field;
         this.k = k;
         this.queries = queries == null ? null : List.copyOf(queries);
@@ -137,7 +139,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         return baseline;
     }
 
-    private static void validateCandidates(List<KnnEvalSettings> knnSettings, int k) {
+    private static void validateCandidates(List<KnnEvalSettings> knnSettings, int k, int maxNumCandidates) {
         if (knnSettings == null || knnSettings.isEmpty() || knnSettings.size() > MAX_KNN_SETTINGS) {
             throw new IllegalArgumentException(
                 "[" + KNN_SETTINGS_FIELD.getPreferredName() + "] must contain between 1 and " + MAX_KNN_SETTINGS + " entries"
@@ -145,7 +147,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         }
         Set<KnnEvalSettings> uniqueCandidates = new HashSet<>();
         for (KnnEvalSettings candidate : knnSettings) {
-            validateNumCandidates(candidate, k);
+            validateNumCandidates(candidate, k, maxNumCandidates);
             if (uniqueCandidates.add(candidate) == false) {
                 throw new IllegalArgumentException("duplicate entry in [" + KNN_SETTINGS_FIELD.getPreferredName() + "]: " + candidate);
             }
@@ -159,7 +161,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     }
 
     /** The kNN query rejects this too, but here the error can name the offending settings entry rather than one failed query. */
-    private static void validateNumCandidates(KnnEvalSettings knnSettings, int k) {
+    private static void validateNumCandidates(KnnEvalSettings knnSettings, int k, int maxNumCandidates) {
         Integer numCandidates = knnSettings.getNumCandidates();
         if (numCandidates != null && numCandidates < k) {
             throw new IllegalArgumentException(
@@ -171,12 +173,13 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
                     + knnSettings
             );
         }
-        if (numCandidates != null && numCandidates > KnnEvalRescore.MAX_NUM_CANDIDATES) {
+        if (numCandidates != null && numCandidates > maxNumCandidates) {
             throw new IllegalArgumentException(
                 "["
                     + KnnEvalSettings.NUM_CANDIDATES_FIELD.getPreferredName()
                     + "] cannot exceed "
-                    + KnnEvalRescore.MAX_NUM_CANDIDATES
+                    + maxNumCandidates
+                    + (maxNumCandidates < KnnEvalRescore.MAX_NUM_CANDIDATES ? " with [" + SAMPLE_FIELD.getPreferredName() + "]" : "")
                     + " in "
                     + knnSettings
             );

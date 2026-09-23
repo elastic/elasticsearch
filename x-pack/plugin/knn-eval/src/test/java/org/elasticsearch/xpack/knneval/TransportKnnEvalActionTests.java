@@ -50,6 +50,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
@@ -251,6 +252,22 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertThat(request.source().query(), instanceOf(FunctionScoreQueryBuilder.class));
         assertEquals(QueryBuilders.existsQuery("emb"), ((FunctionScoreQueryBuilder) request.source().query()).query());
         assertEquals(sample.getSize(), request.source().size());
+    }
+
+    /** A sampled query spends one hit and one candidate on its own document, so both grow by one to leave it the requested budget. */
+    public void testSampledQuerySearchesOneExtraCandidate() {
+        KnnEvalSettings settings = new KnnEvalSettings(5.0f, 50, null, false);
+        KnnEvalSpec spec = new KnnEvalSpec("emb", K, null, new KnnEvalSample(10, null), settings, List.of(settings));
+        KnnEvalQuery query = new KnnEvalQuery("q0", VectorData.fromFloats(new float[] { 0 }));
+        BytesReference pit = new BytesArray("test-pit");
+
+        KnnSearchBuilder supplied = KnnEvalSearches.buildSearch(spec, query, settings, K, pit).source().knnSearch().get(0);
+        assertEquals(K, supplied.k());
+        assertEquals(50, supplied.getNumCands());
+
+        KnnSearchBuilder sampled = KnnEvalSearches.buildSearch(spec, query, settings, K + 1, pit).source().knnSearch().get(0);
+        assertEquals(K + 1, sampled.k());
+        assertEquals(51, sampled.getNumCands());
     }
 
     /** A shard dropped from a pass would change the corpus the recall number describes, so partial results are refused. */

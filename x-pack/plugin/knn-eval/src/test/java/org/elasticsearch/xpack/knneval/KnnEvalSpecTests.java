@@ -252,12 +252,23 @@ public class KnnEvalSpecTests extends ESTestCase {
                 .getMessage(),
             containsString("[k] must be between 1 and 1000")
         );
+        List<KnnEvalQuery> queries = List.of(new KnnEvalQuery("q0", VectorData.fromFloats(new float[] { 0 })));
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, null, sample, baseline, List.of(new KnnEvalSettings(5.0f, 10_001, null, false)))
+                () -> new KnnEvalSpec("emb", 10, queries, null, baseline, List.of(new KnnEvalSettings(5.0f, 10_001, null, false)))
             ).getMessage(),
-            containsString("[num_candidates] cannot exceed 10000")
+            containsString("[num_candidates] cannot exceed 10000 in")
+        );
+        KnnEvalSettings atLimit = new KnnEvalSettings(5.0f, 10_000, null, false);
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, null, sample, baseline, List.of(atLimit)))
+                .getMessage(),
+            containsString("[num_candidates] cannot exceed 9999 with [sample]")
+        );
+        assertEquals(
+            10_000,
+            (int) new KnnEvalSpec("emb", 10, queries, null, baseline, List.of(atLimit)).getKnnSettings().get(0).getNumCandidates()
         );
         assertThat(
             expectThrows(

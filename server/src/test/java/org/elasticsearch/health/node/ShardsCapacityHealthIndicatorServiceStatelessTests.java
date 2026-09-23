@@ -17,6 +17,9 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -75,12 +78,14 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
 
     private ClusterService clusterService;
     private Set<ProjectId> projectIds;
+    private boolean multiProject;
 
     @Before
     public void startClusterService() {
-        projectIds = randomBoolean()
+        multiProject = randomBoolean();
+        projectIds = multiProject
             ? IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> randomUniqueProjectId()).collect(toSet())
-            : Set.of(randomProjectIdOrDefault());
+            : Set.of(Metadata.DEFAULT_PROJECT_ID);
 
         clusterService = ClusterServiceUtils.createClusterService(threadPool, Settings.builder().put("stateless.enabled", true).build());
     }
@@ -102,8 +107,8 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
 
     public void testIndicatorYieldsGreenInCaseThereIsRoom() throws IOException {
         int maxShardsPerNode = randomValidMaxShards();
-        var clusterService = createClusterService(maxShardsPerNode, 1, 1, () -> new IndexMetadata.Builder[] { createIndex(1) });
-        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        createClusterService(maxShardsPerNode, 1, 1, () -> new IndexMetadata.Builder[] { createIndex(1) });
+        var indicatorResult = newIndicatorService().calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(HealthStatus.GREEN, indicatorResult.status());
         assertTrue(indicatorResult.impacts().isEmpty());
@@ -124,14 +129,14 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
 
     public void testNoShardsCapacityMetadata() throws IOException {
         int maxShardsPerNode = randomValidMaxShards();
-        var clusterService = createClusterService(
+        createClusterService(
             maxShardsPerNode,
             1,
             1,
             new HealthMetadata(DISK_METADATA, null),
             () -> new IndexMetadata.Builder[] { createIndex(100) }
         );
-        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        var indicatorResult = newIndicatorService().calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(HealthStatus.UNKNOWN, indicatorResult.status());
         assertTrue(indicatorResult.impacts().isEmpty());
@@ -157,13 +162,13 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
     public void testSkippingFieldsWhenVerboseIsFalse() {
         int primariesPerProject = randomValidMaxShards();
         int maxShardsPerNode = primariesPerProject * projectIds.size() + 4;
-        var clusterService = createClusterService(
+        createClusterService(
             maxShardsPerNode,
             1,
             1,
             () -> new IndexMetadata.Builder[] { createIndex(primariesPerProject) }
         );
-        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(false, HealthInfo.EMPTY_HEALTH_INFO);
+        var indicatorResult = newIndicatorService().calculate(false, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(RED, indicatorResult.status());
         assertEquals(
@@ -183,13 +188,13 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         // The three projects will have 20+10+5 primaries (and the same number of replicas).
         // Setting the limit to 44 (only 9 shards of room) will make the indicator YELLOW
         int maxShardsPerNode = 44;
-        var clusterService = createClusterService(
+        createClusterService(
             maxShardsPerNode,
             1,
             1,
             Map.of(mostUsed, List.of(createIndex(20)), middleUsed, List.of(createIndex(10)), leastUsed, List.of(createIndex(5)))
         );
-        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        var indicatorResult = newIndicatorService(TestProjectResolvers.allProjects()).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(YELLOW, indicatorResult.status());
         Map<String, Object> expectedProjects = Map.of(
@@ -218,21 +223,24 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         );
     }
 
-    // If the `size` query parameter is less than the number of projects then we should only include
-    // the top `size` projects
+    /**
+     * {@code size} caps the per-project breakdown.
+     * {@code size=0} should still report the aggregated shard counts but omit {@code projects}.
+     */
     @SuppressWarnings("unchecked")
     public void testDetailsProjectsHonorsSize() throws IOException {
         ProjectId mostUsed = ProjectId.fromId("proja");
         ProjectId middleUsed = ProjectId.fromId("projb");
         ProjectId leastUsed = ProjectId.fromId("projc");
         int maxShardsPerNode = 44;
-        var clusterService = createClusterService(
+        createClusterService(
             maxShardsPerNode,
             1,
             1,
             Map.of(mostUsed, List.of(createIndex(20)), middleUsed, List.of(createIndex(10)), leastUsed, List.of(createIndex(5)))
         );
-        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, 2, HealthInfo.EMPTY_HEALTH_INFO);
+        var indicatorService = newIndicatorService(TestProjectResolvers.allProjects());
+        var indicatorResult = indicatorService.calculate(true, 2, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(YELLOW, indicatorResult.status());
         Map<String, Object> expectedTopProjects = Map.of(
@@ -250,39 +258,19 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
             containsString("\"projects\":{\"proja\":{\"current_used_shards\":20},\"projb\":{\"current_used_shards\":10}}")
         );
         assertThat(detailsJson, not(containsString("projc")));
-    }
 
-    /**
-     * {@code size=0} still reports aggregate shard counts but omits the {@code projects} field.
-     */
-    @SuppressWarnings("unchecked")
-    public void testSizeZeroOmitsProjects() throws IOException {
-        int maxShardsPerNode = 44;
-        var clusterService = createClusterService(
-            maxShardsPerNode,
-            1,
-            1,
-            Map.of(
-                ProjectId.fromId("proja"),
-                List.of(createIndex(20)),
-                ProjectId.fromId("projb"),
-                List.of(createIndex(10)),
-                ProjectId.fromId("projc"),
-                List.of(createIndex(5))
-            )
-        );
-        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, 0, HealthInfo.EMPTY_HEALTH_INFO);
-
-        assertEquals(YELLOW, indicatorResult.status());
-        Map<String, Object> details = xContentToMap(indicatorResult.details());
-        Map<String, Object> index = (Map<String, Object>) details.get("index");
-        Map<String, Object> search = (Map<String, Object>) details.get("search");
-        assertThat(index.get("current_used_shards"), is(35));
-        assertThat(search.get("current_used_shards"), is(35));
-        assertThat(index, not(hasKey("projects")));
-        assertThat(search, not(hasKey("projects")));
-        assertThat(Strings.toString(indicatorResult.details()), not(containsString("\"projects\"")));
-        assertThat(Strings.toString(indicatorResult.details()), not(containsString("proja")));
+        var sizeZeroResult = indicatorService.calculate(true, 0, HealthInfo.EMPTY_HEALTH_INFO);
+        assertEquals(YELLOW, sizeZeroResult.status());
+        Map<String, Object> sizeZeroDetails = xContentToMap(sizeZeroResult.details());
+        Map<String, Object> sizeZeroIndex = (Map<String, Object>) sizeZeroDetails.get("index");
+        Map<String, Object> sizeZeroSearch = (Map<String, Object>) sizeZeroDetails.get("search");
+        assertThat(sizeZeroIndex.get("current_used_shards"), is(35));
+        assertThat(sizeZeroSearch.get("current_used_shards"), is(35));
+        assertThat(sizeZeroIndex, not(hasKey("projects")));
+        assertThat(sizeZeroSearch, not(hasKey("projects")));
+        String sizeZeroJson = Strings.toString(sizeZeroResult.details());
+        assertThat(sizeZeroJson, not(containsString("\"projects\"")));
+        assertThat(sizeZeroJson, not(containsString("proja")));
     }
 
     private void assertNotEnoughRoom(HealthStatus status, int maxShardsPerNode, int indexNumShards) throws IOException {
@@ -294,13 +282,13 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
 
         {
             // Only index nodes do not have enough space
-            var clusterService = createClusterService(
+            createClusterService(
                 maxShardsPerNode,
                 1,
                 2,
                 () -> new IndexMetadata.Builder[] { createIndex(indexNumShards) }
             );
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+            var indicatorResult = newIndicatorService().calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(status, indicatorResult.status());
             assertEquals(
@@ -324,13 +312,13 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         }
         {
             // Only search nodes do not have enough space
-            var clusterService = createClusterService(
+            createClusterService(
                 maxShardsPerNode,
                 2,
                 1,
                 () -> new IndexMetadata.Builder[] { createIndex(indexNumShards) }
             );
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+            var indicatorResult = newIndicatorService().calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(status, indicatorResult.status());
             assertEquals(
@@ -354,13 +342,13 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         }
         {
             // Both index and search nodes do not have enough space
-            var clusterService = createClusterService(
+            createClusterService(
                 maxShardsPerNode,
                 1,
                 1,
                 () -> new IndexMetadata.Builder[] { createIndex(indexNumShards) }
             );
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+            var indicatorResult = newIndicatorService().calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(status, indicatorResult.status());
             assertEquals(
@@ -384,6 +372,14 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         }
     }
 
+    private ShardsCapacityHealthIndicatorService newIndicatorService() {
+        return newIndicatorService(multiProject ? TestProjectResolvers.allProjects() : DefaultProjectResolver.INSTANCE);
+    }
+
+    private ShardsCapacityHealthIndicatorService newIndicatorService(ProjectResolver projectResolver) {
+        return new ShardsCapacityHealthIndicatorService(clusterService, projectResolver);
+    }
+
     private static int randomValidMaxShards() {
         return randomIntBetween(15, 100);
     }
@@ -400,7 +396,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         Map<String, Object> details = new HashMap<>();
         details.put("max_shards_in_cluster", maxShardsInCluster);
         details.put("current_used_shards", currentUsedShards);
-        if (projectIds.size() > 1) {
+        if (multiProject) {
             Map<String, Object> projects = new LinkedHashMap<>();
             projectIds.stream()
                 .sorted(Comparator.comparing(ProjectId::id))
@@ -410,7 +406,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         return details;
     }
 
-    private ClusterService createClusterService(
+    private void createClusterService(
         int maxShardsPerNode,
         int numIndexNodes,
         int numSearchNodes,
@@ -420,7 +416,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         for (ProjectId projectId : projectIds) {
             indicesByProject.put(projectId, List.of(perProjectIndices.get()));
         }
-        return createClusterService(
+        createClusterService(
             maxShardsPerNode,
             numIndexNodes,
             numSearchNodes,
@@ -429,13 +425,13 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         );
     }
 
-    private ClusterService createClusterService(
+    private void createClusterService(
         int maxShardsPerNode,
         int numIndexNodes,
         int numSearchNodes,
         Map<ProjectId, List<IndexMetadata.Builder>> indicesByProject
     ) {
-        return createClusterService(
+        createClusterService(
             maxShardsPerNode,
             numIndexNodes,
             numSearchNodes,
@@ -444,7 +440,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         );
     }
 
-    private ClusterService createClusterService(
+    private void createClusterService(
         int maxShardsPerNode,
         int numIndexNodes,
         int numSearchNodes,
@@ -455,10 +451,10 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         for (ProjectId projectId : projectIds) {
             indicesByProject.put(projectId, List.of(perProjectIndices.get()));
         }
-        return createClusterService(maxShardsPerNode, numIndexNodes, numSearchNodes, healthMetadata, indicesByProject);
+        createClusterService(maxShardsPerNode, numIndexNodes, numSearchNodes, healthMetadata, indicesByProject);
     }
 
-    private ClusterService createClusterService(
+    private void createClusterService(
         int maxShardsPerNode,
         int numIndexNodes,
         int numSearchNodes,
@@ -472,7 +468,6 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
             indicesByProject
         );
         ClusterServiceUtils.setState(clusterService, clusterState);
-        return clusterService;
     }
 
     private ClusterState createClusterState(

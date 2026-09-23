@@ -12,6 +12,7 @@ package org.elasticsearch.health.node;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
@@ -171,10 +172,12 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     );
 
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final List<ShardLimitValidator.LimitGroup> shardLimitGroups;
 
-    public ShardsCapacityHealthIndicatorService(ClusterService clusterService) {
+    public ShardsCapacityHealthIndicatorService(ClusterService clusterService, ProjectResolver projectResolver) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.shardLimitGroups = ShardLimitValidator.applicableLimitGroups(DiscoveryNode.isStateless(clusterService.getSettings()));
     }
 
@@ -255,7 +258,12 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             finalStatus,
             symptomBuilder.toString(),
             verbose
-                ? buildDetails(statusResults.stream().map(StatusResult::result).toList(), metadata, maxAffectedResourcesCount)
+                ? buildDetails(
+                    statusResults.stream().map(StatusResult::result).toList(),
+                    metadata,
+                    maxAffectedResourcesCount,
+                    projectResolver.supportsMultipleProjects()
+                )
                 : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
             verbose ? List.copyOf(diagnoses) : List.of()
@@ -283,7 +291,12 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return new StatusResult(HealthStatus.GREEN, result);
     }
 
-    static HealthIndicatorDetails buildDetails(List<ShardLimitValidator.Result> results, Metadata metadata, int maxAffectedResourcesCount) {
+    static HealthIndicatorDetails buildDetails(
+        List<ShardLimitValidator.Result> results,
+        Metadata metadata,
+        int maxAffectedResourcesCount,
+        boolean supportsMultipleProjects
+    ) {
         return (builder, params) -> {
             builder.startObject();
             for (var result : results) {
@@ -292,7 +305,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
                 if (result.currentUsedShards().isPresent()) {
                     // Sum open shards in this group across all projects.
                     builder.field("current_used_shards", result.group().countShards(metadata));
-                    if (metadata.projects().size() > 1
+                    if (supportsMultipleProjects
                         && (result.group() == ShardLimitValidator.LimitGroup.INDEX
                             || result.group() == ShardLimitValidator.LimitGroup.SEARCH)) {
                         writeProjects(builder, metadata, result.group(), maxAffectedResourcesCount);

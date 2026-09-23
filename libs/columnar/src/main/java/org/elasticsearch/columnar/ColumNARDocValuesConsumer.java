@@ -42,6 +42,7 @@ import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
+import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
@@ -174,8 +175,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {
-                final DictionaryPolicy policy = stringSelector.select(field.name, type).dictionary();
-                final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, policy).terms();
+                final StringColumnOptions options = stringSelector.select(field.name, type);
+                final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
                 writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary), vocabulary);
             }
         }
@@ -292,13 +293,18 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * The result is the same either way; which one runs is what a merge costs, so it is a value here rather
      * than a shape of the control flow.
      */
-    MergedVocabulary mergedVocabulary(FieldInfo field, MergeState mergeState, DictionaryPolicy dictionaryPolicy) throws IOException {
+    MergedVocabulary mergedVocabulary(
+        FieldInfo field,
+        MergeState mergeState,
+        DictionaryPolicy dictionaryPolicy,
+        SummaryPolicy summaryPolicy
+    ) throws IOException {
         final Vocabulary.Terms union = unionOfDictionaries(field, mergeState, dictionaryPolicy);
         if (union != null) {
             return new MergedVocabulary(MergedVocabulary.Source.DICTIONARY_UNION, union);
         }
         // No union to take, but the segments may have recorded what they surveyed.
-        final Vocabulary.Terms summaries = combinedSummaries(field, mergeState, dictionaryPolicy);
+        final Vocabulary.Terms summaries = combinedSummaries(field, mergeState, dictionaryPolicy, summaryPolicy);
         if (summaries != null) {
             return new MergedVocabulary(MergedVocabulary.Source.COMBINED_SUMMARIES, summaries);
         }
@@ -367,8 +373,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * bound as a survey trims, so a term the merged column holds often enough survives; the coverage is an
      * under-estimate because each summed count was.
      */
-    private Vocabulary.Terms combinedSummaries(FieldInfo field, MergeState mergeState, DictionaryPolicy dictionaryPolicy)
-        throws IOException {
+    private Vocabulary.Terms combinedSummaries(
+        FieldInfo field,
+        MergeState mergeState,
+        DictionaryPolicy dictionaryPolicy,
+        SummaryPolicy summaryPolicy
+    ) throws IOException {
         if (dictionaryPolicy.enabled() == false) {
             return null;
         }
@@ -417,37 +427,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         if (combined.isEmpty() || numValues == 0) {
             return null;
         }
-        // Keep the terms seen most; the rest escape. Ties break by term, so the same inputs always yield
-        // the same column.
-        final List<Map.Entry<BytesRef, Long>> ranked = new ArrayList<>(combined.entrySet());
-        ranked.sort(Map.Entry.<BytesRef, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey));
-        final TreeSet<BytesRef> kept = new TreeSet<>();
-        long bytes = 0;
-        long covered = 0;
-        final long budget = dictionaryPolicy.budgetFor(columnBytes);
-        for (Map.Entry<BytesRef, Long> entry : ranked) {
-            // As at flush: a term the merged column holds once does not repay a dictionary entry.
-            if (entry.getValue() <= 1) {
-                break;
-            }
-            if (bytes + entry.getKey().length > budget) {
-                break;
-            }
-            kept.add(entry.getKey());
-            bytes += entry.getKey().length;
-            covered += entry.getValue();
-        }
-        if (kept.isEmpty()) {
-            return null;
-        }
         // Worth a dictionary or not is left to the gate a surveyed vocabulary passes; either way the merged
-        // column keeps a summary.
-        final List<BytesRef> sorted = new ArrayList<>(kept);
-        final long[] countsPerTerm = new long[sorted.size()];
-        for (int t = 0; t < sorted.size(); t++) {
-            countsPerTerm[t] = combined.get(sorted.get(t));
-        }
-        return Vocabulary.known(sorted, columnBytes, (double) covered / numValues, countsPerTerm);
+        // column keeps a summary, selected by its own quota rather than by the dictionary's.
+        return Vocabulary.combined(combined, columnBytes, numValues, dictionaryPolicy, summaryPolicy);
     }
 
     /** Drops the least frequent terms until the terms held fit {@code bound}, and returns what they weigh. */

@@ -111,7 +111,7 @@ final class KnnEvalSearches {
             .size(searchSize)
             .fetchSource(false)
             // exact_knn is not profiled, so matched documents are the full-precision operation count
-            .trackTotalHitsUpTo(Integer.MAX_VALUE)
+            .trackTotalHits(true)
             .pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
         return searchRequest(source);
     }

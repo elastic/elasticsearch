@@ -165,12 +165,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         return preUpdateValue < maxRunningTasks;
     }
 
-    // exposed for testing
     int runningTasks() {
         return runningTasks.get();
     }
 
-    // exposed for testing
     int queuedTasks() {
         return tasks.size();
     }

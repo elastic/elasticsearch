@@ -94,12 +94,10 @@ public class InstrumentedThrottledTaskRunner<T extends ActionListener<Releasable
         runner.runSyncTasksEagerly(executor);
     }
 
-    // exposed for testing
     int runningTasks() {
         return runner.runningTasks();
     }
 
-    // exposed for testing
     int queuedTasks() {
         return runner.queuedTasks();
     }

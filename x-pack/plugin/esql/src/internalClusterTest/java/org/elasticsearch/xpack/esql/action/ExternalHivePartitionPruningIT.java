@@ -757,8 +757,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     /**
      * Registers {@code d=-0e0}, {@code d=0e0} and {@code d=1e5}, one single-row file each, with ids 0, 1 and 2. The
      * zeros are spelled in exponent form because a Hive segment containing a dot is not a partition; that spelling is
-     * also what types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*} in the glob so the listing walk
-     * prunes too.
+     * also what types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*} in the glob, which takes the textual
+     * rewrite instead of the listing walk; the default {@code **} glob is the one the walk narrows.
      */
     private String registerSignedZeroTree(String name, String format, boolean keyedGlob) throws IOException {
         Path root = createTempDir().resolve(name);

@@ -101,9 +101,14 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
      * these tests are about.
      */
     protected static Settings codecSettings() {
+        return columnarSettings(true);
+    }
+
+    /** A strictly columnar index, with the ColumNAR codec writing the doc values or the in-order column doing it. */
+    protected static Settings columnarSettings(boolean withCodec) {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), withCodec)
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
     }
@@ -113,6 +118,58 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
             codecSettings(),
             mapping(b -> b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject())
         );
+    }
+
+    /**
+     * Asserts that {@code doc} comes back out of synthetic source as {@code expected}, in a strictly columnar index both with the
+     * ColumNAR codec and without it.
+     *
+     * <p>Which nulls survive is a property of the index mode, not of the format writing the doc values, so the two layouts have to
+     * give the same answer. Asserting them together rather than one per run is what would catch them drifting apart.
+     */
+    protected void assertSourceUnderBothCodecs(String expected, CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {
+        for (boolean withCodec : new boolean[] { true, false }) {
+            MapperService mapperService = createMapperService(
+                columnarSettings(withCodec),
+                mapping(b -> b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject())
+            );
+            // Otherwise a setting that quietly stopped taking effect would leave both halves running the same layout, and the
+            // agreement this asserts would be worth nothing.
+            assertEquals(
+                "the codec setting has to take effect for this to compare anything",
+                withCodec,
+                ColumnarDocValuesFormatSelector.useColumnarCodec(mapperService.getIndexSettings())
+            );
+            assertEquals("codec=" + withCodec, expected, syntheticSource(mapperService.documentMapper(), doc));
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // What a null means, read back through synthetic source. The rule is the index mode's, so each of these holds whichever format
+    // is writing; the sections below are about the ColumNAR payload in particular.
+    // ---------------------------------------------------------------------------------------------------------------------------
+
+    public void testBareNullIsAbsent() throws IOException {
+        assertSourceUnderBothCodecs("{}", b -> b.nullField(FIELD));
+    }
+
+    public void testEmptyArrayIsAbsent() throws IOException {
+        assertSourceUnderBothCodecs("{}", b -> b.startArray(FIELD).endArray());
+    }
+
+    public void testNullInArrayKeepsItsPlace() throws IOException {
+        assertSourceUnderBothCodecs("""
+            {"field":[null]}""", b -> b.startArray(FIELD).nullValue().endArray());
+    }
+
+    public void testAllNullArrayKeepsEverySlot() throws IOException {
+        assertSourceUnderBothCodecs("""
+            {"field":[null,null]}""", b -> b.startArray(FIELD).nullValue().nullValue().endArray());
+    }
+
+    public void testNullBetweenValuesKeepsItsPlace() throws IOException {
+        assertSourceUnderBothCodecs("""
+            {"field":["a",null,"b"]}""", b -> b.startArray(FIELD).value("a").nullValue().value("b").endArray());
     }
 
     private List<IndexableField> fieldsFor(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> doc)

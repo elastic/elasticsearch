@@ -740,6 +740,51 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(converted.get(0).id(), converted.get(1).id());
     }
 
+    /**
+     * With {@code unmapped_fields="nullify"} the unmapped {@code does_not_exist} only resolves once {@code ResolveUnmapped} has run,
+     * so the {@code EVAL} above the {@code WHERE} resolves one Resolution pass later than the {@code WHERE}'s own conversion.
+     * {@code ResolveUnionTypesInUnionAll} has already pushed {@code TO_STRING(client_ip)} into the branches by then; the later,
+     * equal conversion must be replaced with that same union output attribute instead of pushing another same-named alias.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify() {
+        requireNullifySupport();
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("nullify");
+    }
+
+    /**
+     * Same as {@link #testSameConversionResolvedOnLaterPassOverSubqueryUnionNullify}, with the unmapped field loaded instead.
+     */
+    public void testSameConversionResolvedOnLaterPassOverSubqueryUnionLoad() {
+        assertSameConversionResolvedOnLaterPassOverSubqueryUnion("load");
+    }
+
+    private void assertSameConversionResolvedOnLaterPassOverSubqueryUnion(String unmappedFields) {
+        LogicalPlan plan = analyzer().addSampleData().statement(LoggerMessageFormat.format(null, """
+            SET unmapped_fields="{}";
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) == "172.21.3.15" OR does_not_exist IS NOT NULL
+            | EVAL ip = TO_STRING(client_ip)
+            | LIMIT 5
+            """, unmappedFields));
+
+        List<Attribute> converted = new ArrayList<>();
+        plan.forEachDown(p -> {
+            if ((p instanceof Filter || p instanceof Eval) && p.anyMatch(UnionAll.class::isInstance)) {
+                p.forEachExpression(
+                    AbstractConvertFunction.class,
+                    convert -> fail("conversion left unreplaced above the subquery union: " + convert)
+                );
+                p.forEachExpression(Attribute.class, attribute -> {
+                    if (attribute.name().contains("converted_to")) {
+                        converted.add(attribute);
+                    }
+                });
+            }
+        });
+        assertThat(converted, hasSize(2));
+        assertEquals(converted.get(0).id(), converted.get(1).id());
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_Project[[!client_ip]]

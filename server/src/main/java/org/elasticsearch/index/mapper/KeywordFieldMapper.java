@@ -2159,10 +2159,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 switch (fieldType().diskFormat()) {
                     case BINARY_COLUMNAR_PAYLOAD -> {
                         // A bare null is dropped outright: it has no array position to keep, and recording a slot for it would carry
-                        // the field on a document that indexed nothing. Inside an array the slot is kept so synthetic source can put
-                        // the null back where it was; if the document turns out to hold no value at all, the payload says so itself
-                        // by reporting payloadTypeWhenValueless.
-                        if (context.isPartOfArray()) {
+                        // the field on a document that indexed nothing. An element of the field's own array keeps its slot so
+                        // synthetic source can put the null back where it was; if the document turns out to hold no value at all,
+                        // the payload says so itself by reporting payloadTypeWhenValueless.
+                        //
+                        // The immediate parent, not isPartOfArray(): that is also true of a null inside an array of objects, and
+                        // flattening `obj: [{f: null}, {f: "a"}]` into `f: [null, "a"]` is not an order this promises to keep.
+                        if (context.isImmediateParentAnArray()) {
                             ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name(), payloadTypeWhenValueless);
                         }
                     }

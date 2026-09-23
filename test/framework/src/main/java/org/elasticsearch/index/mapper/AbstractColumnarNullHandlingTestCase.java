@@ -234,6 +234,33 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         }
     }
 
+    /**
+     * A null inside an array of objects is a bare null, not an element of the field's own array: the position it would be kept in
+     * belongs to the objects, and flattening {@code obj: [{f: null}, {f: "a"}]} into {@code f: [null, "a"]} is not an order this
+     * promises to keep. So it is dropped, like any other bare null.
+     *
+     * <p>Strict columnar has no object mappers to put the parser in an array scope, so this is what the broader
+     * {@code isPartOfArray()} resolves to there anyway; the test is here to keep the two from drifting apart.
+     */
+    public void testBareNullInObjectArrayIsDropped() throws IOException {
+        MapperService mapperService = createMapperService(
+            codecSettings(),
+            mapping(b -> b.startObject("outer." + FIELD).field("type", fieldTypeName()).field("index", true).endObject())
+        );
+        String source = "{\"outer\":[{\"" + FIELD + "\":null},{\"" + FIELD + "\":\"" + sampleValue() + "\"}]}";
+        List<IndexableField> fields = new ArrayList<>();
+        for (IndexableField field : mapperService.documentMapper()
+            .parse(new SourceToParse("1", new BytesArray(source), XContentType.JSON))
+            .rootDoc()
+            .getFields()) {
+            if (field.name().equals("outer." + FIELD)) {
+                fields.add(field);
+            }
+        }
+        assertEquals("the value is indexed", 1, postings(fields).size());
+        assertEquals("and carried once in the doc values, with no slot for the null", 1, docValues(fields).size());
+    }
+
     /** A field written as two valueless arrays shares one payload, so it still carries the field once. */
     public void testObjectArrayWritesFieldTwiceWithNoValue() throws IOException {
         MapperService mapperService = createMapperService(

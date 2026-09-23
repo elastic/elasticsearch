@@ -32,9 +32,9 @@ import java.util.Map;
  * A helper class for {@link FlattenedFieldMapper} parses a JSON object
  * and produces a pair of indexable fields for each leaf value.
  */
-class FlattenedFieldParser {
-    static final String SEPARATOR = "\0";
-    static final byte SEPARATOR_BYTE = '\0';
+public class FlattenedFieldParser {
+    public static final String SEPARATOR = "\0";
+    public static final byte SEPARATOR_BYTE = '\0';
 
     private final String rootFieldFullPath;
     private final String keyedFieldFullPath;
@@ -57,7 +57,7 @@ class FlattenedFieldParser {
 
     private final boolean writeDimensionRouting;
 
-    FlattenedFieldParser(
+    public FlattenedFieldParser(
         String rootFieldFullPath,
         String keyedFieldFullPath,
         String keyedIgnoredValuesFieldFullPath,
@@ -316,11 +316,11 @@ class FlattenedFieldParser {
         }
     }
 
-    static String createKeyedValue(String key, String value) {
+    public static String createKeyedValue(String key, String value) {
         return key + SEPARATOR + value;
     }
 
-    static BytesRef extractKey(BytesRef keyedValue) {
+    public static BytesRef extractKey(BytesRef keyedValue) {
         int length;
         for (length = 0; length < keyedValue.length; length++) {
             if (keyedValue.bytes[keyedValue.offset + length] == SEPARATOR_BYTE) {
@@ -330,7 +330,7 @@ class FlattenedFieldParser {
         return new BytesRef(keyedValue.bytes, keyedValue.offset, length);
     }
 
-    static BytesRef extractValue(BytesRef keyedValue) {
+    public static BytesRef extractValue(BytesRef keyedValue) {
         int length;
         for (length = 0; length < keyedValue.length; length++) {
             if (keyedValue.bytes[keyedValue.offset + length] == SEPARATOR_BYTE) {

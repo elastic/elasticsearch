@@ -19,11 +19,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from
@@ -47,44 +49,38 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     public static final int DEFAULT_PRECISION = 14;
 
-    // Mode bits in the top 2 bits of bucketState entries.
-    private static final long MODE_MASK = 3L << 62;
-    private static final long PAYLOAD_MASK = ~MODE_MASK;
-
-    /** Extracts the payload bits (low 62) from a raw bucketState entry. */
-    private static long payload(long state) {
-        return state & PAYLOAD_MASK;
-    }
-
     enum Mode {
-        EMPTY,      // 00: no data, never actually stored
-        LC_SINGLE,  // 01: single hash in low 32 bits, no LC cell
-        LC_HASH,    // 10: LC cell in lc.cells[bucketOrd]
-        HLL;        // 11: HLL ordinal in low 62 bits
+        EMPTY,      // 00
+        LC_SINGLE,  // 01
+        LC_HASH,    // 10
+        HLL;        // 11
 
-        private static final Mode[] VALUES = values();
-
-        /** Decode mode from a raw bucketState entry. */
-        static Mode of(long state) {
-            return VALUES[(int) (state >>> 62)];
-        }
-
-        /** The bit pattern for this mode in the top 2 bits of a bucketState entry. */
-        long bits() {
-            return (long) ordinal() << 62;
-        }
-
-        long bits(long payload) {
-            return bits() | (payload & PAYLOAD_MASK);
-        }
+        static final Mode[] VALUES = values();
     }
 
     private final BigArrays bigArrays;
-    // Per-bucket state: top 2 bits encode Mode, remaining 62 bits hold the payload
-    // (encoded hash for LC_SINGLE, nothing for LC_HASH, HLL ordinal for HLL).
+    // 2 bits per bucket packed 4-per-byte; plain array so mode reads bypass BigArray VarHandle overhead.
+    private byte[] modeTags;
+    // Payload per bucket: encoded hash for LC_SINGLE, hllOrd for HLL; unread for EMPTY/LC_HASH.
     private LongArray bucketState;
     final HyperLogLog hll;
     private final LinearCounting lc;
+
+    private Mode getMode(long bucket) {
+        int b = Math.toIntExact(bucket);
+        int byteIdx = b >>> 2;
+        return byteIdx < modeTags.length ? Mode.VALUES[(modeTags[byteIdx] >>> ((b & 3) << 1)) & 3] : Mode.EMPTY;
+    }
+
+    private void setMode(long bucket, Mode mode) {
+        int b = Math.toIntExact(bucket);
+        int byteIdx = b >>> 2;
+        if (byteIdx >= modeTags.length) {
+            modeTags = Arrays.copyOf(modeTags, Math.max(byteIdx + 1, modeTags.length << 1));
+        }
+        int shift = (b & 3) << 1;
+        modeTags[byteIdx] = (byte) ((modeTags[byteIdx] & ~(3 << shift)) | (mode.ordinal() << shift));
+    }
 
     /**
      * Compute the required precision so that <code>count</code> distinct entries would be counted with linear counting.
@@ -139,6 +135,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         this.hll = hll;
         this.lc = lc;
         this.bucketState = bucketState;
+        this.modeTags = new byte[1];
     }
 
     public long maxOrd() {
@@ -148,26 +145,23 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     public long cardinality(long bucketOrd) {
-        final long state = bucketOrd < bucketState.size() ? bucketState.get(bucketOrd) : 0L;
-        return switch (Mode.of(state)) {
+        return switch (getMode(bucketOrd)) {
             case EMPTY -> 0L;
             case LC_SINGLE -> 1L;
             case LC_HASH -> lc.cardinality(bucketOrd);
-            case HLL -> hll.cardinality(payload(state));
+            case HLL -> hll.cardinality(bucketState.get(bucketOrd));
         };
     }
 
     @Override
     protected boolean getAlgorithm(long bucketOrd) {
-        final long state = bucketOrd < bucketState.size() ? bucketState.get(bucketOrd) : 0L;
-        return Mode.of(state) == Mode.HLL;
+        return getMode(bucketOrd) == Mode.HLL;
     }
 
     @Override
     protected AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd) {
-        final long state = bucketOrd < bucketState.size() ? bucketState.get(bucketOrd) : 0L;
-        return switch (Mode.of(state)) {
-            case LC_SINGLE -> new SingleHashIterator((int) (payload(state)));
+        return switch (getMode(bucketOrd)) {
+            case LC_SINGLE -> new SingleHashIterator((int) bucketState.get(bucketOrd));
             case LC_HASH -> lc.values(bucketOrd);
             default -> AbstractLinearCounting.HashesIterator.EMPTY;
         };
@@ -175,16 +169,16 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     protected AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
-        return hll.getRunLens(payload(bucketState.get(bucketOrd)));
+        return hll.getRunLens(bucketState.get(bucketOrd));
     }
 
     @Override
     public void collect(long bucket, long hash) {
-        final long state = bucket < bucketState.size() ? bucketState.get(bucket) : 0L;
-        if (Mode.of(state) == Mode.HLL) {
-            hll.collect(payload(state), hash);
+        final Mode mode = getMode(bucket);
+        if (mode == Mode.HLL) {
+            hll.collect(bucketState.get(bucket), hash);
         } else {
-            addEncodedToLcWithState(bucket, state, AbstractLinearCounting.encodeHash(hash, precision()));
+            addEncodedToLcWithMode(bucket, mode, AbstractLinearCounting.encodeHash(hash, precision()));
         }
     }
 
@@ -203,52 +197,53 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     long upgradeToHll(long bucketOrd) {
-        final long state = bucketOrd < bucketState.size() ? bucketState.get(bucketOrd) : 0L;
-        Mode mode = Mode.of(state);
-        if (mode == Mode.HLL) return payload(state);
+        final Mode mode = getMode(bucketOrd);
+        if (mode == Mode.HLL) return bucketState.get(bucketOrd);
         final long hllOrd = hll.newBucket();
         switch (mode) {
-            case LC_SINGLE -> hll.collectEncoded(hllOrd, (int) (payload(state)));
+            case LC_SINGLE -> hll.collectEncoded(hllOrd, (int) bucketState.get(bucketOrd));
             case LC_HASH -> lc.copyToHll(bucketOrd, hll, hllOrd);
             default -> {
             }
         }
+        setMode(bucketOrd, Mode.HLL);
         bucketState = bigArrays.grow(bucketState, bucketOrd + 1);
-        bucketState.set(bucketOrd, Mode.HLL.bits(hllOrd));
+        bucketState.set(bucketOrd, hllOrd);
         return hllOrd;
     }
 
     /** Inserts a pre-encoded hash into a bucket, routing to HLL or LC depending on current mode. */
     private void addEncoded(long bucket, int encoded) {
-        final long state = bucket < bucketState.size() ? bucketState.get(bucket) : 0L;
-        if (Mode.of(state) == Mode.HLL) {
-            hll.collectEncoded(payload(state), encoded);
+        final Mode mode = getMode(bucket);
+        if (mode == Mode.HLL) {
+            hll.collectEncoded(bucketState.get(bucket), encoded);
         } else {
-            addEncodedToLcWithState(bucket, state, encoded);
+            addEncodedToLcWithMode(bucket, mode, encoded);
         }
     }
 
-    /** Shared core for LC-mode insertions; state must already be read by the caller. HLL is a no-op. */
-    private void addEncodedToLcWithState(long bucket, long state, int encoded) {
-        switch (Mode.of(state)) {
+    /** Shared core for LC-mode insertions; mode must already be read by the caller. HLL is a no-op. */
+    private void addEncodedToLcWithMode(long bucket, Mode mode, int encoded) {
+        switch (mode) {
             case EMPTY -> {
+                setMode(bucket, Mode.LC_SINGLE);
                 bucketState = bigArrays.grow(bucketState, bucket + 1);
-                bucketState.set(bucket, Mode.LC_SINGLE.bits(encoded));
+                bucketState.set(bucket, encoded);
             }
             case LC_SINGLE -> {
                 assert bucket < bucketState.size() : "LC_SINGLE bucket must already be in bucketState";
-                final int prevEncoded = (int) (payload(state));
+                final int prevEncoded = (int) bucketState.get(bucket);
                 if (encoded == prevEncoded) return;
                 lc.addEncoded(bucket, prevEncoded);
                 final int newSize = lc.addEncoded(bucket, encoded);
-                bucketState.set(bucket, Mode.LC_HASH.bits());
+                setMode(bucket, Mode.LC_HASH);
                 assert newSize <= lc.threshold : "two elements cannot exceed LC threshold";
             }
             case LC_HASH -> {
                 final int newSize = lc.addEncoded(bucket, encoded);
                 if (newSize > lc.threshold) upgradeToHll(bucket);
             }
-            case HLL -> throw new AssertionError("HLL state must be handled by caller before routing to addEncodedToLcWithState");
+            case HLL -> throw new AssertionError("HLL state must be handled by caller before routing to addEncodedToLcWithMode");
         }
     }
 
@@ -260,15 +255,15 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         if (algorithm == LINEAR_COUNTING && getAlgorithm(bucket) == LINEAR_COUNTING) {
             final int length = Math.toIntExact(in.readVLong());
             for (int i = 0; i < length; i++) {
-                final long state = bucket < bucketState.size() ? bucketState.get(bucket) : 0L;
-                if (Mode.of(state) == Mode.HLL) {
-                    final long hllOrd = payload(state);
+                final Mode curMode = getMode(bucket);
+                if (curMode == Mode.HLL) {
+                    final long hllOrd = bucketState.get(bucket);
                     do {
                         hll.collectEncoded(hllOrd, in.readInt());
                     } while (++i < length);
                     return;
                 }
-                addEncodedToLcWithState(bucket, state, in.readInt());
+                addEncodedToLcWithMode(bucket, curMode, in.readInt());
             }
             return;
         }
@@ -285,6 +280,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
         if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {
             merge(thisBucket, other.getLinearCounting(otherBucket));
+        } else if (other instanceof HyperLogLogPlusPlus o) {
+            // Fast path: bulk register max-merge directly on the backing byte arrays,
+            // bypassing the per-register RunLenIterator.
+            final long destHllOrd = upgradeToHll(thisBucket);
+            hll.mergeRunLens(destHllOrd, o.hll, o.bucketState.get(otherBucket));
         } else {
             merge(thisBucket, other.getHyperLogLog(otherBucket));
         }
@@ -363,6 +363,35 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             long bucket = totalBuckets++;
             runLens = bigArrays.grow(runLens, totalBuckets << p);
             return bucket;
+        }
+
+        /**
+         * Bulk register max-merge: sets dest[destOrd][i] = max(dest[destOrd][i], src[srcOrd][i]) for all m registers.
+         * Processes in page-aligned chunks so ByteArray.get() is always zero-copy.
+         */
+        void mergeRunLens(long destOrd, HyperLogLog src, long srcOrd) {
+            final long destStart = destOrd << p;
+            final long srcStart = srcOrd << p;
+            final int m = this.m;
+            final int chunkSize = Math.min(m, PageCacheRecycler.BYTE_PAGE_SIZE);
+            final BytesRef srcRef = new BytesRef();
+            final BytesRef destRef = new BytesRef();
+            for (int done = 0; done < m; done += chunkSize) {
+                src.runLens.get(srcStart + done, chunkSize, srcRef);
+                boolean destCopied = runLens.get(destStart + done, chunkSize, destRef);
+                final byte[] s = srcRef.bytes;
+                final byte[] d = destRef.bytes;
+                final int so = srcRef.offset;
+                final int doff = destRef.offset;
+                for (int i = 0; i < chunkSize; i++) {
+                    if (s[so + i] > d[doff + i]) {
+                        d[doff + i] = s[so + i];
+                    }
+                }
+                if (destCopied) {
+                    runLens.set(destStart + done, destRef.bytes, destRef.offset, chunkSize);
+                }
+            }
         }
 
         @Override

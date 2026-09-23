@@ -14,11 +14,16 @@ import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.result.ResolvedComponentResult;
+import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
+
+import java.util.LinkedHashSet;
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -59,7 +64,7 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
             });
 
         project.getTasks().register(UPLOAD_TASK_NAME, UploadSnykDependenciesGraph.class, t -> {
-            t.getInputFile().set(generateTaskProvider.get().getOutputFile());
+            t.getInputFile().set(generateTaskProvider.flatMap(GenerateSnykDependencyGraph::getOutputFile));
             t.getToken().set(providerFactory.environmentVariable("SNYK_TOKEN"));
             // the snyk org to target
             t.getSnykOrganisation().set(providerFactory.gradleProperty("snykOrganisation"));
@@ -71,8 +76,39 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
                 .getSourceSets()
                 .getByName(SourceSet.MAIN_SOURCE_SET_NAME);
             Configuration runtimeConfiguration = project.getConfigurations().getByName(main.getRuntimeClasspathConfigurationName());
-            generateSnykDependencyGraph.getConfiguration().set(runtimeConfiguration);
+            generateSnykDependencyGraph.getDependencyEdges().set(
+                providerFactory.provider(() -> dependencyEdges(runtimeConfiguration.getIncoming().getResolutionResult().getRootComponent().get()))
+            );
         }));
+    }
+
+    private static List<String> dependencyEdges(ResolvedComponentResult rootComponent) {
+        LinkedHashSet<String> edges = new LinkedHashSet<>();
+        dependencyEdges("root-node", rootComponent, edges, new LinkedHashSet<>());
+        return List.copyOf(edges);
+    }
+
+    private static void dependencyEdges(
+        String parentNodeId,
+        ResolvedComponentResult parentComponent,
+        LinkedHashSet<String> edges,
+        LinkedHashSet<String> visited
+    ) {
+        parentComponent.getDependencies().stream().filter(ResolvedDependencyResult.class::isInstance).map(ResolvedDependencyResult.class::cast).forEach(
+            dependency -> {
+                ResolvedComponentResult childComponent = dependency.getSelected();
+                String childNodeId = childNodeId(childComponent);
+                edges.add(parentNodeId + "->" + childNodeId);
+                if (visited.add(childNodeId)) {
+                    dependencyEdges(childNodeId, childComponent, edges, visited);
+                }
+            }
+        );
+    }
+
+    private static String childNodeId(ResolvedComponentResult component) {
+        var moduleVersion = component.getModuleVersion();
+        return moduleVersion.getGroup() + ":" + moduleVersion.getName() + "@" + moduleVersion.getVersion();
     }
 
 }

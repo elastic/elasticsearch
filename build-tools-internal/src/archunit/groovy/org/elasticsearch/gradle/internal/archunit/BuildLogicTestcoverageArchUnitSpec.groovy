@@ -84,7 +84,6 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         "InternalBwcGitPluginFuncTest",
         "InternalDistributionBwcSetupPluginFuncTest",
         "JdkDownloadPluginFuncTest",
-        "SnykDependencyMonitoringGradlePluginFuncTest",
     ] as Set
 
     private static final Set<String> KNOWN_UNCOVERED = [

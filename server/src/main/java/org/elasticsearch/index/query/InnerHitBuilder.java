@@ -474,20 +474,24 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         long estimate = 256L;
         if (name != null) estimate += name.length() * 2L + 64L;
         if (storedFieldsContext != null && storedFieldsContext.fieldNames() != null) {
-            for (String f : storedFieldsContext.fieldNames())
+            for (String f : storedFieldsContext.fieldNames()) {
                 estimate += f.length() * 2L + 64L;
+            }
         }
         if (docValueFields != null) {
-            for (FieldAndFormat f : docValueFields)
+            for (FieldAndFormat f : docValueFields) {
                 estimate += f.field.length() * 2L + 64L;
+            }
         }
         if (fetchFields != null) {
-            for (FieldAndFormat f : fetchFields)
+            for (FieldAndFormat f : fetchFields) {
                 estimate += f.field.length() * 2L + 64L;
+            }
         }
         if (scriptFields != null) {
-            for (ScriptField sf : scriptFields)
+            for (ScriptField sf : scriptFields) {
                 estimate += sf.fieldName().length() * 2L + 128L;
+            }
         }
         if (sorts != null) estimate += (long) sorts.size() * 256L;
         if (highlightBuilder != null) estimate += 512L;

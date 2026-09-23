@@ -54,7 +54,6 @@ class GradleApiUsageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.NoticeTask",
         "org.elasticsearch.gradle.internal.ResolveAllDependencies",
         "org.elasticsearch.gradle.internal.SymbolicLinkPreservingTar",
-        "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
         "org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin",
         "org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin",

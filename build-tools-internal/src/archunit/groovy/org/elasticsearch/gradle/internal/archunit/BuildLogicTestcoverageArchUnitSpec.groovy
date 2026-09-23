@@ -77,13 +77,6 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
      * first filing a follow-up to fix the underlying incompatibility.
      */
     private static final Set<String> KNOWN_CC_INCOMPATIBLE = [
-        "BuildPluginFuncTest",
-        "DraResolvePluginFuncTest",
-        "ElasticsearchDistributionPluginFuncTest",
-        "GlobalBuildInfoPluginFuncTest",
-        "InternalBwcGitPluginFuncTest",
-        "InternalDistributionBwcSetupPluginFuncTest",
-        "JdkDownloadPluginFuncTest",
         "SnykDependencyMonitoringGradlePluginFuncTest",
     ] as Set
 

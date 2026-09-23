@@ -2226,11 +2226,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             switch (fieldType().diskFormat()) {
                 case BINARY_COLUMNAR_PAYLOAD -> {
                     // The ColumNAR codec splits a document's values apart, so the count has to travel in the blob;
-                    // see ColumnarBinaryDocValuesField. A field that keeps array order collects unsorted for the same
-                    // reason the in-order path does; one that does not still collects the way it always did.
-                    final MultiValuedBinaryDocValuesField.ValueOrdering ordering = fieldType().preservesArrayOrder()
-                        ? MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
-                        : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE;
+                    // see ColumnarBinaryDocValuesField. The slots are collected in the order they arrive because that
+                    // is how this format is read back, whatever the field asked for; see SortableBinaryDocValues.
+                    final MultiValuedBinaryDocValuesField.ValueOrdering ordering = MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED;
                     if (context.isPartOfArray() == false) {
                         ColumnarBinaryDocValuesField.recordSingleValue(context.doc(), fieldType().name(), binaryValue, ordering);
                     } else {

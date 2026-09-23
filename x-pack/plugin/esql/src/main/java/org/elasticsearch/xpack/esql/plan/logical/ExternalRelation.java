@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -61,7 +60,7 @@ import java.util.Set;
  * carries all necessary information for the operator factory to create the appropriate
  * source operator via the SPI.
  */
-public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator {
+public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator, ClassifiedAs.Dataset {
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
     private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");
@@ -86,8 +85,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     /**
      * METADATA-clause expressions threaded through from the parser for the verifier to discover
      * if any remain unresolvable after analysis. Mirrors the indexed {@code EsRelation} pattern:
-     * resolved standard / {@code _file.*} names are bound into {@link #output}; any name absent
-     * from {@code MetadataAttribute.ATTRIBUTES_MAP} and {@code FileMetadataColumns} stays here
+     * resolved standard / {@code _file.*} names are bound into {@link #output}; any name absent from
+     * both {@code ExternalMetadataColumns.STANDARD_NAMES} and {@code FileMetadataColumns} stays here
      * as an {@code UnresolvedMetadataAttributeExpression} so the verifier's
      * {@code checkUnresolvedAttributes} walk fires its native {@code "Unresolved metadata pattern
      * [...]"} error — same diagnostic users see on indexed {@code FROM x METADATA _typo}.
@@ -98,9 +97,10 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      */
     private final List<? extends NamedExpression> metadataFields;
     /**
-     * The declared mapping's read-instructions (logical&rarr;physical renames, {@code _id.path}), or
+     * The declared mapping's read-instructions (logical&rarr;physical renames, per-column date formats), or
      * {@link DeclaredReadSpec#NONE}. Threaded to {@link ExternalSourceExec} via {@link #toPhysicalExec} and consumed on
-     * the data node (physicalization + {@code _id} stamping); rides the wire gated on {@code dataset_declared_schema}.
+     * the data node (physicalization of declared column names and date formats); rides the wire gated on
+     * {@code dataset_declared_schema}.
      */
     private final DeclaredReadSpec declaredReadSpec;
 
@@ -213,7 +213,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             declaredReadSpec.writeTo(out);
         } else if (declaredReadSpec.isEmpty() == false) {
             // Silently dropping a non-empty spec toward an older data node would return wrong rows (physical names,
-            // synthetic _id, unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
+            // unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
             throw new IllegalArgumentException(
                 "declared dataset read-instructions are not supported on all nodes in the cluster; retry after the upgrade"
             );
@@ -267,7 +267,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     /**
-     * The declared mapping's read-instructions (renames, {@code _id.path}, per-column date formats), or {@link DeclaredReadSpec#NONE}.
+     * The declared mapping's read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}.
      * Carried to {@link ExternalSourceExec} via {@link #toPhysicalExec}.
      */
     public DeclaredReadSpec declaredReadSpec() {
@@ -321,9 +321,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        ).withUnifiedSchema(new ExternalSchema(dataOnlyUnifiedSchema()))
-            .withDatasetName(datasetName)
-            .withDeclaredReadSpec(declaredReadSpec);
+        ).withUnifiedSchema(dataOnlyUnifiedSchema()).withDatasetName(datasetName).withDeclaredReadSpec(declaredReadSpec);
     }
 
     /**
@@ -349,13 +347,15 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * Partition names come from the serialized stamp ({@link #partitionColumnNames()}), NOT the fileList, so
      * this produces the same narrow schema on a data node (where the fileList is {@code UNRESOLVED}) as on the
      * coordinator — previously the data-node build silently kept the wider, partition-inclusive view.
+     * <p>
+     * Delegates to {@link ExternalSchema#dataAttributesOf(List, Set)}. {@code metadata.schema()} is
+     * constrained to {@code ReferenceAttribute}, so the virtual-column arm is a no-op: the metadata
+     * bind appends to the relation's {@code output}, not to {@code metadata.schema()}. A bound
+     * metadata name can therefore leave this unified view wider than the query schema;
+     * {@code ColumnMapping.pruneToPerFileQuery} drops the extra output slot.
      */
-    private List<Attribute> dataOnlyUnifiedSchema() {
-        Set<String> partitionNames = partitionColumnNames();
-        return metadata.schema()
-            .stream()
-            .filter(a -> a instanceof VirtualAttribute == false && partitionNames.contains(a.name()) == false)
-            .toList();
+    private ExternalSchema dataOnlyUnifiedSchema() {
+        return ExternalSchema.dataAttributesOf(metadata.schema(), partitionColumnNames());
     }
 
     @Override

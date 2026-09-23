@@ -7,6 +7,9 @@
 
 package org.elasticsearch.blobcache.shared;
 
+import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.common.time.TimeProvider;
+
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -19,6 +22,9 @@ import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 public final class SharedBlobCacheServiceTestUtils {
 
     private SharedBlobCacheServiceTestUtils() {}
+
+    /** A no-op {@link TimeProvider} for tests that do not exercise time-based bucketing. */
+    public static final TimeProvider NOOP_TIME_PROVIDER = BlobCacheMetrics.NOOP_TIME_PROVIDER;
 
     /**
      * A cache-region timestamp for tests that do not care about timestamp semantics: either

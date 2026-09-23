@@ -2182,7 +2182,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     case Update -> () -> {
                         try {
                             int docIndex;
-                            while ((docIndex = nextDocIndex.getAndIncrement()) < 100) {
+                            // need enough updates to be sure to hollow every shard
+                            while ((docIndex = nextDocIndex.getAndIncrement()) < Math.min(docsIds.size(), 100)) {
                                 final var upsertOrUpdate = randomBoolean();
                                 final var docId = upsertOrUpdate ? docIdSupplier.get() : shuffledDocIds.get(docIndex);
                                 final var response = client().prepareUpdate(indexName, docId)
@@ -2205,8 +2206,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                             var client = client();
                             var bulkUpdates = client.prepareBulk();
                             int docIndex;
-                            while ((docIndex = nextDocIndex.getAndIncrement()) < 100) { // need enough updates to be sure to hollow every
-                                                                                        // shard
+                            // need enough updates to be sure to hollow every shard
+                            while ((docIndex = nextDocIndex.getAndIncrement()) < Math.min(docsIds.size(), 100)) {
                                 var docId = shuffledDocIds.get(docIndex);
                                 bulkUpdates.add(client.prepareUpdate(indexName, docId).setDoc("field", randomUnicodeOfLength(10)));
                             }

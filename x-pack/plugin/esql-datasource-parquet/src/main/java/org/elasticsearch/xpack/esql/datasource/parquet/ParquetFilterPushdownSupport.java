@@ -205,8 +205,37 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         return false;
     }
 
+    /**
+     * Returns {@code true} when {@code e} is a LIKE-family expression ({@link WildcardLike},
+     * {@link StartsWith}, {@link Contains}, or {@link EndsWith}) whose field is a non-virtual
+     * {@link NamedExpression}.
+     *
+     * <p>The virtual-column guard mirrors the equivalent check in {@link #canConvert}: virtual
+     * columns ({@code _file.*}) are materialized downstream by {@code VirtualColumnIterator} with
+     * real values, not nulls. They never receive a predicate block in the late-mat evaluator, so a
+     * conjunct on such a column must not be promoted to
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#YES}
+     * — doing so drops the {@code FilterExec} while the evaluator silently passes all rows.
+     * {@link #canConvert}'s {@code And} arm is disjunctive ({@code left || right}), so
+     * {@code And(realColLike, virtualColLike)} passes {@code canConvert} via the left arm even
+     * though the right arm fails it; {@code isFullyEvaluable}'s {@code And} arm is conjunctive
+     * ({@code left && right}), so without this guard the whole {@code And} would reach YES and
+     * drop {@code FilterExec} for the virtual-column conjunct. See elastic/esql-planning#2052.
+     */
     private static boolean isLikeFamily(Expression e) {
-        return e instanceof WildcardLike || e instanceof StartsWith || e instanceof Contains || e instanceof EndsWith;
+        Expression field;
+        if (e instanceof WildcardLike wl) {
+            field = wl.field();
+        } else if (e instanceof StartsWith sw) {
+            field = sw.singleValueField();
+        } else if (e instanceof Contains c) {
+            field = c.singleValueField();
+        } else if (e instanceof EndsWith ew) {
+            field = ew.singleValueField();
+        } else {
+            return false;
+        }
+        return field instanceof NamedExpression ne && PushdownPredicates.isVirtualColumn(ne) == false;
     }
 
     /**

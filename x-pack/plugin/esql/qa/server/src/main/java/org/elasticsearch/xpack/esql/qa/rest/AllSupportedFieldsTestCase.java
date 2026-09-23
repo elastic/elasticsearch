@@ -67,8 +67,10 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -1519,7 +1521,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
      * generally not backwards compatible, so we should only run this in the
      * single-node case.
      */
-    private void assertProfile(Map<?, ?> profile) {
+    private void assertProfile(Map<?, ?> profile) throws IOException {
         List<?> drivers = (List<?>) profile.get("drivers");
         boolean atleastOneDataDriver = false;
         for (Object d : drivers) {
@@ -1532,7 +1534,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertTrue("at least one data driver found", atleastOneDataDriver);
     }
 
-    private void assertDataDriverProfile(List<?> operators) {
+    private void assertDataDriverProfile(List<?> operators) throws IOException {
         int readerCount = 0;
         for (Object o : operators) {
             Map<?, ?> operator = (Map<?, ?>) o;
@@ -1546,7 +1548,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertThat(readerCount, equalTo(1));
     }
 
-    private void assertReadersBuilt(Map<?, ?> readersBuilt) {
+    private void assertReadersBuilt(Map<?, ?> readersBuilt) throws IOException {
         Map<String, List<String>> found = new TreeMap<>();
         for (Object k : readersBuilt.keySet()) {
             String key = k.toString();
@@ -1589,7 +1591,42 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(found, expected);
     }
 
-    ListMatcher loadersFor(DataType type) {
+    /**
+     * The loader a string field gets, which follows the binary layout the index writes its doc values in: the in-order column, or
+     * the ColumNAR codec's payload. Read off the index rather than assumed, since the setting's default has moved and it is not
+     * registered at all on a build where the feature flag is off.
+     */
+    private String columnarStringLoader() throws IOException {
+        return usesColumnarCodec() ? "column_at_a_time:BytesRefsFromColumnarPayload" : "column_at_a_time:BlockDocValuesReader.Bytes";
+    }
+
+    private Boolean usesColumnarCodec;
+
+    private boolean usesColumnarCodec() throws IOException {
+        if (usesColumnarCodec == null) {
+            // Every index this run reads, since they are named after the mode and, where a run has one per node, after the node too.
+            // Only the single-node run asserts the loaders, so there is one answer to find.
+            Request request = new Request("GET", "/" + indexName(indexMode, null) + "*/_settings/index.columnar_codec.enabled");
+            request.addParameter("flat_settings", "true");
+            request.addParameter("include_defaults", "true");
+            Map<?, ?> response = entityAsMap(client().performRequest(request));
+            assertThat("no index to read the codec setting off", response.keySet(), not(empty()));
+            usesColumnarCodec = false;
+            for (Object forIndex : response.values()) {
+                for (String section : new String[] { "settings", "defaults" }) {
+                    Map<?, ?> settings = (Map<?, ?>) ((Map<?, ?>) forIndex).get(section);
+                    Object enabled = settings == null ? null : settings.get("index.columnar_codec.enabled");
+                    if (enabled != null) {
+                        usesColumnarCodec |= Boolean.parseBoolean(enabled.toString());
+                        break;
+                    }
+                }
+            }
+        }
+        return usesColumnarCodec;
+    }
+
+    ListMatcher loadersFor(DataType type) throws IOException {
         return switch (type) {
             case AGGREGATE_METRIC_DOUBLE -> matchesList().item("column_at_a_time:BlockDocValuesReader.AggregateMetricDouble");
             case BOOLEAN -> matchesList().item("column_at_a_time:BooleansFromDocValues.Singleton");
@@ -1629,7 +1666,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case KEYWORD -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
-                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
+                : indexMode.isStrictColumnar() ? matchesList().item(columnarStringLoader())
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")
@@ -1640,8 +1677,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> indexMode.isStrictColumnar() || syntheticSourceByDefault()
-                ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
+            case TEXT -> indexMode.isStrictColumnar() ? matchesList().item(columnarStringLoader())
+                : syntheticSourceByDefault() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             default -> matchesList();

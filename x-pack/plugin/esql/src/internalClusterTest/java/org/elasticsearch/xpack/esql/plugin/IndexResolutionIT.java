@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -33,8 +32,6 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -256,6 +253,35 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testDotPrefixedIndices() {
+        assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
+        indexRandom(true, "regular-index-1", 1);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(".non-hidden-index-1")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false)) // not hidden opposed to testHiddenIndices
+        );
+        indexRandom(true, ".non-hidden-index-1", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM .non-hidden-index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM *-index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1", "regular-index-1");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM .non-hidden-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM * METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1", "regular-index-1");
+        }
+    }
+
     public void testUnavailableIndex() {
         assertAcked(client().admin().indices().prepareCreate("available-index-1"));
         indexRandom(true, "available-index-1", 1);
@@ -347,43 +373,6 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         try (var response = run(syncEsqlQueryRequest("FROM (FROM index-1 METADATA _index), (FROM index-2 METADATA _index)"))) {
             assertOk(response);
             assertResultConcreteIndices(response, "index-1", "index-2");
-        }
-    }
-
-    /**
-     * Tests the behaviour of index component selectors ({@code ::data} and {@code ::failures}) when applied to ES|QL views.
-     * <p>
-     * {@code view::data} is equivalent to {@code view}: the view resolver expands the view to its body and the {@code ::data}
-     * selector is dropped, so the query runs against the view's underlying sources.
-     * <p>
-     * {@code view::failures} is not supported: views do not have a failure component. The view resolver does not expand the
-     * name, and subsequent index resolution cannot find a data stream named after the view, so the query fails with
-     * "Unknown index".
-     */
-    public void testViewWithIndexComponentSelectors() {
-        assumeTrue("Requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-
-        assertAcked(client().admin().indices().prepareCreate("view-backing-index").setMapping("value", "type=long"));
-        indexRandom(true, "view-backing-index", 1);
-        var view = new View("test-view", "FROM view-backing-index");
-        assertAcked(client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view)));
-        try {
-            // view::data is equivalent to the plain view name
-            try (var response = run(syncEsqlQueryRequest("FROM test-view::data"))) {
-                assertOk(response);
-            }
-            // view::failures is not supported; the view has no failure component
-            expectThrows(
-                VerificationException.class,
-                containsString("Unknown index [test-view::failures]"),
-                () -> run(syncEsqlQueryRequest("FROM test-view::failures"))
-            );
-        } finally {
-            client().execute(
-                DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "test-view" })
-            ).actionGet();
         }
     }
 

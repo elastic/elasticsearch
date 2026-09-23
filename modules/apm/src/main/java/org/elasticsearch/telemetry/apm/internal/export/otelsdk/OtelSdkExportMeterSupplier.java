@@ -50,13 +50,11 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
 
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
 /**
  * A {@link MeterSupplier} that supplies meters that export telemetry using the OTel SDK.
  *
  * @see OtelSdkSettings
- * @see org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier
  */
 public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
@@ -238,10 +236,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             if (resources == null) {
                 String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
                 if (endpoint == null || endpoint.isEmpty()) {
-                    logger.warn(
-                        "{}=true but [telemetry.export.endpoint] is not configured; OTel SDK metrics export is disabled",
-                        OTEL_METRICS_ENABLED_SYSTEM_PROPERTY
-                    );
+                    logger.warn("[telemetry.export.endpoint] is not configured; metrics export is disabled");
                     return MeterProvider.noop();
                 }
                 resources = createMeteringResources();

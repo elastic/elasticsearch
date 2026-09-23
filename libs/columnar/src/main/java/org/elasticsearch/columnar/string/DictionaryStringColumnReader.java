@@ -47,6 +47,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     /** Set when any value escaped the dictionary: their bytes, and where each one's is. */
     private final ValueStream.Reader escapes;
     private final LongValues escapeRanks;
+    /** Values between entries in {@link #escapeRanks}, as the column recorded it. */
+    private final int escapeRankBlockSize;
 
     private final int dictionarySize;
     /** The ordinal marking a value no term names, one past the last term. */
@@ -74,16 +76,18 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         if (column.hasEscapes()) {
             this.escapes = column.escapes().open(data);
             this.escapeCount = column.escapes().numValues();
+            this.escapeRankBlockSize = column.escapeRankBlockSize();
             this.escapeRanks = MonotonicReader.open(
                 data,
                 column.escapeRanks().meta(),
-                StringColumnWriter.escapeRankEntries(column.numValues()),
+                StringColumnWriter.escapeRankEntries(column.numValues(), escapeRankBlockSize),
                 column.escapeRanks().dataOffset(),
                 column.escapeRanks().dataLength()
             );
         } else {
             this.escapes = null;
             this.escapeCount = 0;
+            this.escapeRankBlockSize = 0;
             this.escapeRanks = null;
         }
     }
@@ -163,8 +167,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
      * is nearer.
      */
     private long escapeRankOf(long valueAddress) throws IOException {
-        final long block = valueAddress / StringColumnWriter.ESCAPE_RANK_BLOCK;
-        final long blockStart = block * StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final long block = valueAddress / escapeRankBlockSize;
+        final long blockStart = block * escapeRankBlockSize;
         long at;
         long rank;
         if (escapeCursorAddress >= blockStart && escapeCursorAddress <= valueAddress) {

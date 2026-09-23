@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /** Reports each candidate setting's recall and cost against a common baseline. */
 final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
@@ -127,6 +128,29 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         builder.endObject();
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        KnnEvalResponse that = (KnnEvalResponse) o;
+        return baselineTookMs == that.baselineTookMs
+            && baselineVectorOps == that.baselineVectorOps
+            && baseline.equals(that.baseline)
+            && baselineVectorOpsKind.equals(that.baselineVectorOpsKind)
+            && results.equals(that.results)
+            && failureMessages().equals(that.failureMessages());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(baseline, baselineTookMs, baselineVectorOps, baselineVectorOpsKind, results, failureMessages());
+    }
+
+    // Exceptions lack value equality, so failures compare by message.
+    private Map<String, String> failureMessages() {
+        return failures.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> String.valueOf(e.getValue().getMessage())));
     }
 
     @Override

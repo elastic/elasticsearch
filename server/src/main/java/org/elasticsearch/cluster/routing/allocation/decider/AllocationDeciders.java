@@ -120,7 +120,7 @@ public class AllocationDeciders {
      * Equivalent to {@link #canRemain(ShardRouting, RoutingNode, RoutingAllocation)} but also returns the
      * {@link Class#getSimpleName()} of the first {@link AllocationDecider} that produced the most-negative result
      * (either {@link Decision.Type#NO} or {@link Decision.Type#NOT_PREFERRED}), or {@code null} when the overall
-     * decision is {@link Decision.Type#YES} or {@link Decision.Type#THROTTLE}.
+     * decision is {@link Decision.Type#YES}.
      */
     public CanRemainWithDeciderName canRemainWithDeciderName(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         final String[] deciderNameHolder = { null };

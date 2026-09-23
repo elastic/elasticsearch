@@ -456,6 +456,24 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     /**
+     * Charges {@code bytes} directly to the parse-time circuit breaker and registers the release with
+     * {@code trackTo}. Use this for non-{@link QueryBuilder} parse-time allocations — such as raw float
+     * or byte arrays — that are not automatically covered by the {@link #parseTopLevelQuery} namedObject
+     * hook. If the breaker is not configured or {@code bytes} is non-positive, this is a no-op.
+     */
+    public static void chargeRawBytes(long bytes, QueryParsingReservation trackTo) {
+        if (bytes <= 0L) return;
+        CircuitBreaker breaker = queryParsingBreaker.get();
+        if (breaker == null) return;
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "query-parsing");
+        if (trackTo != null) {
+            trackTo.addCharges(List.of(() -> breaker.addWithoutBreaking(-bytes)));
+        } else {
+            breaker.addWithoutBreaking(-bytes);
+        }
+    }
+
+    /**
      * Estimated heap bytes this QueryBuilder contributes at parse time, charged to the REQUEST
      * circuit breaker immediately after construction. Every clause in the tree — including the root
      * query — is charged this amount. Subclasses whose parse-time representation includes large value

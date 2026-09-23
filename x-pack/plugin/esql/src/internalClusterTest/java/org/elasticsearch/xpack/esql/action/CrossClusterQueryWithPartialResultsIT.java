@@ -169,7 +169,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             Set<String> returnedIds = new HashSet<>();
             for (List<Object> row : rows) {
                 assertThat(row.size(), equalTo(2));
-                assertTrue(returnedIds.add((String) row.getFirst()));
+                assertTrue(returnedIds.add((String) row.get(0)));
             }
             assertThat(returnedIds, equalTo(allIds));
             assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);

@@ -77,6 +77,20 @@ class ProblemsTrackerTests {
         assertEquals(3, report.severities().get(0).count());
     }
 
+    @Test
+    void mapsKnownSeverityByValueNotIdentity() {
+        ProblemsTracker tracker = new ProblemsTracker();
+        ProblemId problemId = problemId("value-based-error", "Value based error", problemGroup("validation", null));
+
+        tracker.statusChanged(singleProblemEvent(problem(problemId, severity(Severity.ERROR.getSeverity(), true))));
+
+        ProblemsReport report = tracker.buildReport();
+        assertEquals(1, report.totalProblems());
+        assertEquals("ERROR", report.problems().get(0).severity());
+        assertEquals("ERROR", report.severities().get(0).severity());
+        assertEquals(1, report.severities().get(0).count());
+    }
+
     private static SingleProblemEvent singleProblemEvent(Problem problem) {
         return proxy(SingleProblemEvent.class, name -> switch (name) {
             case "getProblem" -> problem;
@@ -111,6 +125,14 @@ class ProblemsTrackerTests {
             case "getContextualLabel", "getDetails", "getFailure", "getAdditionalData" -> null;
             case "getOriginLocations", "getContextualLocations", "getSolutions" -> List.of();
             default -> unsupported(name);
+        });
+    }
+
+    private static Severity severity(int value, boolean known) {
+        return proxy(Severity.class, methodName -> switch (methodName) {
+            case "getSeverity" -> value;
+            case "isKnown" -> known;
+            default -> unsupported(methodName);
         });
     }
 

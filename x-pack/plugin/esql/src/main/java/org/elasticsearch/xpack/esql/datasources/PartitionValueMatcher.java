@@ -218,7 +218,16 @@ public final class PartitionValueMatcher {
         if (isIntegral(a) && isIntegral(b)) {
             return Long.compare(a.longValue(), b.longValue());
         }
-        return Double.compare(a.doubleValue(), b.doubleValue());
+        double da = a.doubleValue();
+        double db = b.doubleValue();
+        // The query's own evaluators compare primitives, where IEEE 754 equates -0.0 and 0.0; Double.compare orders
+        // -0.0 first. The matcher answers for files it drops unread, so it must agree with the evaluator or a file
+        // whose every row matches is pruned. NaN, the other place the two disagree, cannot arrive: the partition
+        // detector's parseDouble rejects it and types that column as a keyword.
+        if (da == 0.0 && db == 0.0) {
+            return 0;
+        }
+        return Double.compare(da, db);
     }
 
     private static boolean isIntegral(Number n) {

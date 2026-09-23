@@ -267,18 +267,6 @@ tests:
 - class: org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdateTests
   method: testIsUserInitiatedProjectRoutingChangeWhenRoutingWidensShouldReturnTrue
   issue: https://github.com/elastic/elasticsearch/issues/154911
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: falls back to local gradle build when DRA manifest returns 404
-  issue: https://github.com/elastic/elasticsearch/issues/154979
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: builds distribution from branches via archives extractedAssemble
-  issue: https://github.com/elastic/elasticsearch/issues/154980
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: supports linux aarch distributions
-  issue: https://github.com/elastic/elasticsearch/issues/154982
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: falls back to local build when mode=auto and DRA manifest commit does not match remote tracking ref
-  issue: https://github.com/elastic/elasticsearch/issues/154983
 - class: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPluginFuncTest
   method: selects launcher when minimum runtime differs from current jvm
   issue: https://github.com/elastic/elasticsearch/issues/154984
@@ -569,18 +557,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/159460
-- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
-  method: testErrorRecordingOnRollover
-  issue: https://github.com/elastic/elasticsearch/issues/159525
 - class: org.elasticsearch.index.shard.IndexShardIT
   method: testNodeWriteLoadsArePresent
   issue: https://github.com/elastic/elasticsearch/issues/159553
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567
-- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
-  method: testTranslogIsolatedNodeOnlyStressRecoveryTest
-  issue: https://github.com/elastic/elasticsearch/issues/159687
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159710
@@ -620,9 +602,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.No empty buckets}
   issue: https://github.com/elastic/elasticsearch/issues/159812
-- class: org.elasticsearch.compute.aggregation.BytesRefArrayStatePartitionTests
-  method: testPagedRoundTrip
-  issue: https://github.com/elastic/elasticsearch/issues/159813
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159814
@@ -723,3 +702,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalDistributedNodeUnavailableIT
   method: testUnreachableNodeAtDispatchIsReassignedWhenPartialResultsDisallowed
   issue: https://github.com/elastic/elasticsearch/issues/159983
+- class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
+  method: test {p0=search/340_flattened/Test flattened mapped sub-field as index sort field}
+  issue: https://github.com/elastic/elasticsearch/issues/160031
+- class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
+  method: testFeatureImportanceValues
+  issue: https://github.com/elastic/elasticsearch/issues/155327
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
+  method: testPreExistingBufferFilesDrainAfterRestart
+  issue: https://github.com/elastic/elasticsearch/issues/160054
+- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
+  method: testSnapshotWarningEmittedWhenEncryptedDataPresent
+  issue: https://github.com/elastic/elasticsearch/issues/160057
+- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
+  method: testNoSnapshotWarningWhenIncludeGlobalStateFalse
+  issue: https://github.com/elastic/elasticsearch/issues/160058
+- class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
+  method: testReadLatestBccPopulatesCache
+  issue: https://github.com/elastic/elasticsearch/issues/160077

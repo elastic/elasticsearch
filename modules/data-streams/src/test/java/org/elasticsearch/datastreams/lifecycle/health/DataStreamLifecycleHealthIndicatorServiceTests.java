@@ -142,6 +142,69 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.diagnosisList().isEmpty(), is(true));
     }
 
+    public void testLimitNumberOfAffectedResources() {
+        ProjectId projectId = projectIds.iterator().next();
+        int errorCount = 5;
+        List<DslErrorInfo> errors = new ArrayList<>();
+        List<String> displayNames = new ArrayList<>();
+        for (int i = 0; i < errorCount; i++) {
+            String indexName = DataStream.getDefaultBackingIndexName("index", i + 1L);
+            errors.add(new DslErrorInfo(indexName, i, 100 + i, projectId));
+            displayNames.add(multiProject ? new ProjectIndexName(projectId, indexName).toString(true) : indexName);
+        }
+        int totalBackingIndicesInError = 15;
+        HealthInfo healthInfo = constructHealthInfo(new DataStreamLifecycleHealthInfo(errors, totalBackingIndicesInError));
+        String symptom = errorCount + " backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle";
+
+        {
+            // With size = 0, the diagnosis resource list should be empty.
+            // `status` should stay yellow, `symptom` should still say 5 indices, and `impact` should be unchanged.
+            HealthIndicatorResult result = service.calculate(true, 0, healthInfo);
+            assertThat(result.status(), is(HealthStatus.YELLOW));
+            assertThat(result.symptom(), is(symptom));
+            assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
+            Diagnosis diagnosis = result.diagnosisList().get(0);
+            assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
+            assertThat(diagnosis.affectedResources().get(0).getValues(), is(List.of()));
+            assertDetailsIncludeEveryError(result, displayNames, errorCount, totalBackingIndicesInError);
+        }
+        {
+            // With size = 2, we should only have the first two index names in `diagnosis`, in error-list order.
+            int limit = 2;
+            HealthIndicatorResult result = service.calculate(true, limit, healthInfo);
+            assertThat(result.status(), is(HealthStatus.YELLOW));
+            assertThat(result.symptom(), is(symptom));
+            assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
+            assertThat(result.diagnosisList().get(0).affectedResources().get(0).getValues(), is(displayNames.subList(0, limit)));
+            assertDetailsIncludeEveryError(result, displayNames, errorCount, totalBackingIndicesInError);
+        }
+        {
+            // When size > number of error indices, all should be returned
+            HealthIndicatorResult result = service.calculate(true, errorCount + 5, healthInfo);
+            assertThat(result.diagnosisList().get(0).affectedResources().get(0).getValues(), is(displayNames));
+            assertDetailsIncludeEveryError(result, displayNames, errorCount, totalBackingIndicesInError);
+        }
+    }
+
+    private static void assertDetailsIncludeEveryError(
+        HealthIndicatorResult result,
+        List<String> displayNames,
+        int stagnatingCount,
+        int totalBackingIndicesInError
+    ) {
+        String detailsAsString = Strings.toString(result.details());
+        assertThat(detailsAsString, containsString("\"total_backing_indices_in_error\":" + totalBackingIndicesInError));
+        assertThat(detailsAsString, containsString("\"stagnating_backing_indices_count\":" + stagnatingCount));
+        for (int i = 0; i < displayNames.size(); i++) {
+            assertThat(
+                detailsAsString,
+                containsString(
+                    "\"index_name\":\"" + displayNames.get(i) + "\",\"first_occurrence_timestamp\":" + i + ",\"retry_count\":" + (100 + i)
+                )
+            );
+        }
+    }
+
     private List<DslErrorInfo> stagnatingErrors(String secondGenerationIndex, String firstGenerationIndex) {
         List<DslErrorInfo> errors = new ArrayList<>();
         for (ProjectId projectId : projectIds) {

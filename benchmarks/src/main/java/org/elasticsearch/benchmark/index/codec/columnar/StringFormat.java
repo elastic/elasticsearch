@@ -50,6 +50,7 @@ import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -238,6 +239,17 @@ public enum StringFormat {
         };
     }
 
+    /** What each shape leaves behind, chosen to match what it names: a forced shape is not told to hold back. */
+    private SummaryPolicy summaryPolicy() {
+        return switch (this) {
+            case COLUMNAR -> ColumNARDocValuesFormat.DEFAULT_SUMMARY_POLICY;
+            case COLUMNAR_DICTIONARY -> new SummaryPolicy(4 << 20);
+            // Nothing is surveyed where no dictionary is allowed, so there is nothing to leave behind either.
+            case COLUMNAR_PLAIN -> SummaryPolicy.NONE;
+            default -> throw new IllegalStateException("not a columnar format: " + this);
+        };
+    }
+
     private Codec codecFor() {
         final DocValuesFormat dv = switch (this) {
             case LUCENE_SORTED -> new Lucene90DocValuesFormat();
@@ -248,7 +260,8 @@ public enum StringFormat {
                 (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
                 field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                dictionaryPolicy()
+                dictionaryPolicy(),
+                summaryPolicy()
             );
         };
         return new Elasticsearch96Codec() {
@@ -267,7 +280,8 @@ public enum StringFormat {
             (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            dictionaryPolicy()
+            dictionaryPolicy(),
+            summaryPolicy()
         );
         final Codec codec = new Elasticsearch96Codec() {
             @Override

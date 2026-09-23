@@ -385,10 +385,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        // Route requested standard metadata names through VirtualColumnIterator's constant-block path by
-        // unioning them into the partition-column set. Analyzer.bindMetadataFields builds every
-        // ExternalMetadataAttribute from exactly two registries, so a third kind would fall through both
-        // arms below and silently become an all-null column — fail loud instead.
+        // Route bound ExternalMetadataAttribute names through VirtualColumnIterator's constant-block
+        // path by unioning them into the partition-column set. Analyzer.bindMetadataFields builds
+        // every ExternalMetadataAttribute from exactly two registries, so a third kind would fall
+        // through both arms below and silently become an all-null column. Fail loud instead.
         Set<String> metadataNames = ExternalMetadataColumns.metadataNames(attributes);
         Set<String> stdMetaNames = new LinkedHashSet<>(metadataNames);
         stdMetaNames.retainAll(ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES);
@@ -400,20 +400,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
         }
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
-        if (stdMetaNames.isEmpty()) {
+        if (metadataNames.isEmpty()) {
             this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         } else {
-            // Union the standard metadata names into the effective partition-column set so
-            // VirtualColumnIterator routes them through its constant-block path. Hive partition columns
-            // and {@code _file.*} always take precedence on key collision (they overlay last in
-            // the per-file merge).
-            Set<String> union = new LinkedHashSet<>(stdMetaNames);
+            // Union every bound metadata name (per-file constants and {@code _file.*}) so
+            // VirtualColumnIterator materialises them. Hive partition columns overlay last in
+            // the per-file value merge; a physical column with the same name is already dropped
+            // at bind time when METADATA requested the engine name.
+            Set<String> union = new LinkedHashSet<>(metadataNames);
             if (partitionColumnNames != null) {
                 union.addAll(partitionColumnNames);
             }
             this.partitionColumnNames = Collections.unmodifiableSet(union);
         }
-        // Resolve queryDataSchema AFTER the effective partitionColumnNames (including any standard
+        // Resolve queryDataSchema AFTER the effective partitionColumnNames (including any bound
         // metadata names unioned above) is final: the data-only schema must exclude
         // partition and virtual/metadata columns so its width matches the file-backed ColumnMapping
         // (a partition key may shadow a same-named physical column). See
@@ -1359,24 +1359,43 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
             if (adapted != pushedExpressions) {
                 if (adapted.isEmpty()) {
-                    reader = formatReader.withPushedFilter(null);
+                    // Every adapted conjunct was dropped — typically because this file has a one-way
+                    // widening cast (e.g. int32→KEYWORD) and every conjunct referenced that column.
+                    // Do NOT clear the filter entirely: YES-pushed conjuncts (LIKE-family) were
+                    // removed from FilterExec and must still be enforced by the reader. Re-push only
+                    // the YES conjuncts from the original list so they reach the evaluator, while the
+                    // RECHECK conjuncts remain in FilterExec. See elastic/esql-planning#2052.
+                    List<Expression> yesConjuncts = pushedExpressions.stream()
+                        .filter(e -> pushdownSupport.canPush(e) == FilterPushdownSupport.Pushability.YES)
+                        .toList();
+                    reader = applyPushedFilter(yesConjuncts);
                 } else {
                     // adapted is logical (mapFilters + queryDataSchema); physicalize it so the re-minted opaque
                     // predicate references the file's physical columns, matching the plan-time mint.
-                    List<Expression> physicalAdapted = PhysicalNames.translateExpressionNames(adapted, renames);
-                    // Same invariant as the plan-time mint: no logical rename-source name may reach the reader's filter.
-                    assert PhysicalNames.noLogicalNamesRemain(
-                        physicalAdapted.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
-                        renames
-                    ) : "logical rename-source name leaked into the re-minted pushed filter: " + physicalAdapted;
-                    FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(physicalAdapted);
-                    reader = result.hasPushedFilter()
-                        ? formatReader.withPushedFilter(result.pushedFilter())
-                        : formatReader.withPushedFilter(null);
+                    reader = applyPushedFilter(adapted);
                 }
             }
         }
         return readerWithDynamicThreshold(reader);
+    }
+
+    /**
+     * Physicalizes {@code logicalExprs}, re-mints them through {@link #pushdownSupport}, and
+     * returns a reader variant carrying the resulting pushed filter, or one with no filter when
+     * nothing pushes. Shared by both branches of {@link #readerForMapping}.
+     */
+    private FormatReader applyPushedFilter(List<Expression> logicalExprs) {
+        if (logicalExprs.isEmpty()) {
+            return formatReader.withPushedFilter(null);
+        }
+        List<Expression> physical = PhysicalNames.translateExpressionNames(logicalExprs, renames);
+        // Same invariant as the plan-time mint: no logical rename-source name may reach the reader's filter.
+        assert PhysicalNames.noLogicalNamesRemain(
+            physical.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+            renames
+        ) : "logical rename-source name leaked into the re-minted pushed filter: " + physical;
+        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(physical);
+        return result.hasPushedFilter() ? formatReader.withPushedFilter(result.pushedFilter()) : formatReader.withPushedFilter(null);
     }
 
     /**
@@ -1388,7 +1407,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // Stamp how THIS file is read, from the split's own coordinator-minted schema. Deliberately not from the
         // schema handed to the reader below: that one is physicalized and narrowed to the per-file projection, so a
         // value derived from it would not match the coordinator's.
-        FormatReader reader = readerForMapping(fileSplit.columnMapping()).withReadConfig(
+        // Filter adaptation uses the query-width mapping. An empty queryDataSchema (COUNT(*),
+        // metadata-only) skips adaptSchema and must not hand mapFilters a unified-width mapping.
+        FormatReader reader = readerForMapping(queryDataSchema.isEmpty() ? null : fileSplit.columnMapping()).withReadConfig(
             readConfigFingerprinter.apply(fileSplit.readSchema())
         );
         return wrapForObject(reader, fileSplit.path().objectName());

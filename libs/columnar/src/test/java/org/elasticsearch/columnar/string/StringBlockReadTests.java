@@ -204,7 +204,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
     }
 
     /**
-     * Runs longer than a {@link ValueStream#VALUES_PER_BLOCK} block. A run is staged a block at a time, so a
+     * Runs longer than one block. A run is staged a block at a time, so a
      * run reaching into the next block is stored again and read at an address the one before it did not have.
      * Coalescing what arrives together cannot tell that from a new value, so this is the shape that takes a
      * slot a block rather than a slot a value, and it is the shape a column in term order has most of.

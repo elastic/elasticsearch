@@ -513,6 +513,21 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertFalse(taskQueue.hasRunnableTasks());
     }
 
+    public void testPerHeapGbSettingRejectsZero() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(
+                Settings.builder()
+                    .put(
+                        StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
+                            .getKey(),
+                        0.0
+                    )
+                    .build()
+            )
+        );
+    }
+
     public void testHeapBasedLimitThrottlesOutgoingRelocations() {
         final var taskQueue = new DeterministicTaskQueue();
         // 2 GB heap, ratio 1.5 -> ceil(2 * 1.5) = 3 concurrent relocations
@@ -749,21 +764,6 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat(throttle.activeRelocationCount(), equalTo(0));
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
-    }
-
-    public void testPerHeapGbSettingRejectsZero() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(
-                Settings.builder()
-                    .put(
-                        StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
-                            .getKey(),
-                        0.0
-                    )
-                    .build()
-            )
-        );
     }
 
     private static StatelessPrimaryRelocationAction.Request createStartRelocationRequest(DiscoveryNode targetNode, ShardId shardId) {

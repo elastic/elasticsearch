@@ -22,13 +22,19 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -4558,6 +4564,25 @@ public class FieldNameUtilsTests extends ESTestCase {
         List<NamedExpression> aggregates = List.of(new Alias(Source.EMPTY, "m", max), gender);
         Aggregate agg = new Aggregate(Source.EMPTY, eval, groupings, aggregates);
         return FieldNameUtils.resolveFieldNames(agg, false, includePrefixFields).fieldNames();
+    }
+
+    /**
+     * A cross-project view union: one branch is the view body, column-constrained by {@code KEEP a}; the other is the
+     * {@link ViewShadowRelation} standing in for a same-named index in a linked project. The namesake's columns are not known until index
+     * resolution, so the sibling {@code KEEP} must not narrow the field-caps request - otherwise the namesake index under-collects and
+     * comes back missing fields.
+     */
+    public void testViewUnionAllWithUnconstrainedShadowBranchRequestsAllFields() {
+        LogicalPlan viewBody = new Keep(
+            Source.EMPTY,
+            new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, "local"), false, List.of(), IndexMode.STANDARD, null),
+            List.of(new UnresolvedAttribute(Source.EMPTY, "a"))
+        );
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("v", new NamedSubquery(Source.EMPTY, viewBody, "v"));
+        branches.put("v#shadow", new ViewShadowRelation(Source.EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v"));
+        ViewUnionAll plan = new ViewUnionAll(Source.EMPTY, branches, Set.of("v"), List.of());
+        assertThat(FieldNameUtils.resolveFieldNames(plan, false, includePrefixFields).fieldNames(), equalTo(ALL_FIELDS));
     }
 
     public void testDenseVectorFieldNames() {

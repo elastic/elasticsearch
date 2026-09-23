@@ -351,12 +351,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    /**
-     * A subquery whose own FROM references multiple datasets produces a {@code UnionAll} nested inside the outer
-     * {@code UnionAll}'s branch (outer: real_employees + subquery; inner: employees + employees_alt). Nested
-     * subqueries are supported: the result is the same flat union as spelling each dataset as its own subquery,
-     * see {@link #testIndexInMainDatasetInSubquery}.
-     */
     public void testIndexInMainMultipleDatasetInSubquery() {
         createRealEmployees();
         registerEmployees();
@@ -381,6 +375,15 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(9).get(0), equalTo(101));
             assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
         }
+    }
+
+    public void testForkAfterMultipleDatasetInSubquery() {
+        registerEmployees();
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
+            FROM employees, (FROM employees, employees, employees, employees, employees, employees, employees, employees, employees)
+            | FORK (WHERE true) (WHERE true)
+            """), TIMEOUT));
+        assertCauseMessageContains(ex, "FORK after subquery is not supported");
     }
 
     // With basic(WHERE/STATS/KEEP/EVAL) processing command in subqueries or main query

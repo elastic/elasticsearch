@@ -57,12 +57,13 @@ public class LogicalOptimizerContext {
         var that = (LogicalOptimizerContext) obj;
         return this.configuration.equals(that.configuration)
             && this.foldCtx.equals(that.foldCtx)
-            && Objects.equals(this.minimumVersion, that.minimumVersion);
+            && Objects.equals(this.minimumVersion, that.minimumVersion)
+            && Objects.equals(this.flags, that.flags);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(configuration, foldCtx, minimumVersion);
+        return Objects.hash(configuration, foldCtx, minimumVersion, flags);
     }
 
     @Override
@@ -73,6 +74,8 @@ public class LogicalOptimizerContext {
             + foldCtx
             + ", minimumVersion="
             + minimumVersion
+            + ", flags="
+            + flags
             + ']';
     }
 

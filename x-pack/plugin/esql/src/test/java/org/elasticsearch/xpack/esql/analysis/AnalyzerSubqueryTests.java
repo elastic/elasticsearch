@@ -1748,6 +1748,13 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
     }
 
+    public void testForkAfterNineSubqueryBranches() {
+        analyzer().addDefaultIndex().error("""
+            FROM test, (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test)
+            | FORK (WHERE true) (WHERE true)
+            """, containsString("FORK after subquery is not supported"));
+    }
+
     /**
      * Analyzes a subquery query over two external datasets ({@code salaries_int}/{@code salaries_long}) that share
      * {@code emp_no}/{@code name} but type {@code salary} differently ({@code integer} vs {@code long}). Mirrors the

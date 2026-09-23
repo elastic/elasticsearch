@@ -21,7 +21,8 @@ import java.util.Map;
  * The settings are those {@link SchemaCacheKey#affectsIdentity} names: the same identity the per-file cache already
  * keys each file's schema and statistics on. The entry holds a schema, but the settings it depends on are the ones
  * that change what is READ rather than only what is inferred — an error mode changes a row count without changing a
- * column — and sharing that rule means a changed setting misses here exactly where it would for a per-file statistic.
+ * column — and sharing that rule means a changed setting misses here as it would for a per-file statistic. Not
+ * identically: a setting present with a null value is skipped here and rendered as the string "null" there.
  * <p>
  * A plain value. Which files identify the result is decided where the discovery modes live —
  * {@code DatasetSchemaKeys} in the parent package — and handed in, so this package keeps its dependency on that one

@@ -605,9 +605,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.No empty buckets}
   issue: https://github.com/elastic/elasticsearch/issues/159812
-- class: org.elasticsearch.compute.aggregation.BytesRefArrayStatePartitionTests
-  method: testPagedRoundTrip
-  issue: https://github.com/elastic/elasticsearch/issues/159813
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159814
@@ -711,3 +708,15 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
   method: test {p0=search/340_flattened/Test flattened mapped sub-field as index sort field}
   issue: https://github.com/elastic/elasticsearch/issues/160031
+- class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
+  method: testFeatureImportanceValues
+  issue: https://github.com/elastic/elasticsearch/issues/155327
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
+  method: testPreExistingBufferFilesDrainAfterRestart
+  issue: https://github.com/elastic/elasticsearch/issues/160054
+- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
+  method: testSnapshotWarningEmittedWhenEncryptedDataPresent
+  issue: https://github.com/elastic/elasticsearch/issues/160057
+- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
+  method: testNoSnapshotWarningWhenIncludeGlobalStateFalse
+  issue: https://github.com/elastic/elasticsearch/issues/160058

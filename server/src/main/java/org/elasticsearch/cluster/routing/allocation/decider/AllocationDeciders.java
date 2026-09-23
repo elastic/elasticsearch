@@ -117,13 +117,6 @@ public class AllocationDeciders {
     }
 
     /**
-     * Pairs a {@link Decision} with the name of the first {@link AllocationDecider} that produced the overall
-     * (most-negative) result — populated when the result is {@link Decision.Type#NO} or
-     * {@link Decision.Type#NOT_PREFERRED}, {@code null} otherwise.
-     */
-    public record CanRemainWithDeciderName(Decision decision, @Nullable String deciderName) {}
-
-    /**
      * Equivalent to {@link #canRemain(ShardRouting, RoutingNode, RoutingAllocation)} but also returns the
      * {@link Class#getSimpleName()} of the first {@link AllocationDecider} that produced the most-negative result
      * (either {@link Decision.Type#NO} or {@link Decision.Type#NOT_PREFERRED}), or {@code null} when the overall
@@ -348,4 +341,11 @@ public class AllocationDeciders {
         }
         return result;
     }
+
+    /**
+     * Pairs a {@link Decision} with the name of the first {@link AllocationDecider} that produced the overall
+     * (most-negative) result — populated when the result is {@link Decision.Type#NO} or
+     * {@link Decision.Type#NOT_PREFERRED}, {@code null} otherwise.
+     */
+    public record CanRemainWithDeciderName(Decision decision, @Nullable String deciderName) {}
 }

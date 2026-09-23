@@ -384,5 +384,4 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         assert storesArrayValuesInOrder() : "only an in-order mapper records an empty array this way";
         MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(doc, fullPath());
     }
-
 }

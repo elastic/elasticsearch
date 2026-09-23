@@ -1964,29 +1964,29 @@ public final class TextFieldMapper extends FieldMapper {
             boolean hasNonNull = false;
             // The documents that carry the field but indexed nothing under it, and so need its index options stated separately.
             final FixedBitSet valuelessDocs = columnar && payloadTypeWhenValueless != null ? new FixedBitSet(docCount) : null;
+            final boolean strictColumnar = indexSettings.getMode().isStrictColumnar();
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc != currentDoc) {
                     if (binaryDvs != null && docSlotCount > 0) {
+                        // A bare null is the field being absent, matching the row path, and whichever layout is writing: the
+                        // document keeps no slot for it. Only a null written inside the field's own array keeps its place.
+                        final boolean bareNull = strictColumnar && hasNonNull == false && source.isNull(currentDoc);
                         if (columnar) {
-                            // A bare null is dropped outright, matching the row path: the document keeps no slot for it and so
-                            // does not carry the field at all. Only a null written inside an array keeps its place.
-                            if (source.isNull(currentDoc) && hasNonNull == false) {
-                                payload.reset();
-                            } else {
+                            if (bareNull == false) {
                                 // An all-null document is a payload like any other, which is why no companion count
                                 // column is emitted alongside.
                                 final BytesRef blob = payload.build();
                                 binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
-                                payload.reset();
                                 // A document that indexed nothing states the field's index options through its payload, the same
                                 // way the row path has ColumnarBinaryDocValuesField report them.
                                 if (hasNonNull == false && valuelessDocs != null) {
                                     valuelessDocs.set(currentDoc);
                                 }
                             }
-                        } else {
+                            payload.reset();
+                        } else if (bareNull == false) {
                             dvCounts.setLong(currentDoc, docSlotCount);
                             if (hasNonNull) {
                                 final int length = docSlotCount == 1 ? lastValueLength : pos;
@@ -2124,19 +2124,15 @@ public final class TextFieldMapper extends FieldMapper {
 
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
+            final boolean keepsNullSlot = MultiValuedBinaryDocValuesField.keepsNullSlot(context, indexSettings.getMode());
             if (fieldType().usesColumnarPayload()) {
-                // A bare null is dropped outright: it has no array position to keep, and recording a slot for it would carry the
-                // field on a document that indexed nothing. An element of the field's own array keeps its slot so synthetic source
-                // can put the null back where it was; if the document turns out to hold no value at all, the payload says so itself
-                // by reporting payloadTypeWhenValueless.
-                //
-                // The immediate parent, not isPartOfArray(): that is also true of a null inside an array of objects, and flattening
-                // `obj: [{f: null}, {f: "a"}]` into `f: [null, "a"]` is not an order this promises to keep.
-                if (context.isImmediateParentAnArray()) {
+                if (keepsNullSlot) {
                     ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name(), payloadTypeWhenValueless);
                 }
             } else if (fieldType().usesArrayOrderBinaryDocValues()) {
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+                if (keepsNullSlot) {
+                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+                }
             } else if (recordOffsets) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }

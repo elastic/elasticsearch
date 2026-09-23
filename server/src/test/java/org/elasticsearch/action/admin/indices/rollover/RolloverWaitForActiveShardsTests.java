@@ -30,6 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
@@ -150,7 +151,8 @@ public class RolloverWaitForActiveShardsTests extends ESSingleNodeTestCase {
                 final ShardsAllocator delegate = new BalancedShardsAllocator(
                     balancerSettings,
                     WriteLoadForecaster.DEFAULT,
-                    new GlobalBalancingWeightsFactory(balancerSettings)
+                    new GlobalBalancingWeightsFactory(balancerSettings),
+                    MeterRegistry.NOOP
                 );
 
                 @Override

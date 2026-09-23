@@ -176,14 +176,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public BalancedShardsAllocator(
         BalancerSettings balancerSettings,
         WriteLoadForecaster writeLoadForecaster,
-        BalancingWeightsFactory balancingWeightsFactory
-    ) {
-        this(balancerSettings, writeLoadForecaster, balancingWeightsFactory, MeterRegistry.NOOP);
-    }
-
-    public BalancedShardsAllocator(
-        BalancerSettings balancerSettings,
-        WriteLoadForecaster writeLoadForecaster,
         BalancingWeightsFactory balancingWeightsFactory,
         MeterRegistry meterRegistry
     ) {

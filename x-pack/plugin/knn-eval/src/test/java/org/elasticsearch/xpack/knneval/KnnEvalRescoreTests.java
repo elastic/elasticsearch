@@ -40,11 +40,11 @@ public class KnnEvalRescoreTests extends ESTestCase {
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> KnnEvalRescore.fromFieldMapping("emb", Map.of("type", "dense_vector")))
                 .getMessage(),
-            containsString("field [emb] must use [index_options.type=bbq_disk], found [null]")
+            containsString("field [emb] must use [index_options.type=bbq_disk], found no [index_options] in mapping [{type=dense_vector}]")
         );
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> KnnEvalRescore.fromFieldMapping("emb", null)).getMessage(),
-            containsString("field [emb] must use [index_options.type=bbq_disk], found [null]")
+            containsString("field [emb] must use [index_options.type=bbq_disk], found no [index_options] in mapping [null]")
         );
     }
 

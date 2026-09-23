@@ -27,7 +27,7 @@ record KnnEvalRescore(@Nullable Float mappingOversample, boolean autoCalibrate) 
         Object indexOptionsValue = fieldMapping == null ? null : fieldMapping.get(INDEX_OPTIONS_FIELD);
         if (indexOptionsValue instanceof Map<?, ?> == false) {
             throw new IllegalArgumentException(
-                "field [" + field + "] must use [index_options.type=bbq_disk], found [" + indexOptionsValue + "]"
+                "field [" + field + "] must use [index_options.type=bbq_disk], found no [index_options] in mapping [" + fieldMapping + "]"
             );
         }
         Map<?, ?> indexOptions = (Map<?, ?>) indexOptionsValue;

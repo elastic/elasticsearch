@@ -15,6 +15,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.FormatVersion;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
@@ -45,13 +46,19 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                 numValues(docSlots),
                 numNullSlots(docSlots),
                 () -> cursor(docSlots),
-                randomValidBlockSize(),
-                randomChunkCodec(),
-                randomTargetChunkBytes(),
-                randomTargetChunkBytes(),
-                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
-                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
-                ROOMY,
+                new StringColumnOptions(
+                    ROOMY,
+                    randomChunkCodec(),
+                    new StringColumnOptions.Sizes(
+                        randomValidBlockSize(),
+                        ChunkBounds.ofBytes(randomTargetChunkBytes()),
+                        ChunkBounds.ofBytes(randomTargetChunkBytes()),
+                        StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
+                        StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                        StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
+                        StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+                    )
+                ),
                 null,
                 dir,
                 IOContext.DEFAULT,

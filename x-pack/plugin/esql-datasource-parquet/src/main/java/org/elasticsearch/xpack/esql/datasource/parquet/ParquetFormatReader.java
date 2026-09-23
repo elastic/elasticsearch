@@ -328,8 +328,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * Resolves the {@link ColumnInfo} for a column by name within a parquet {@link MessageType},
      * applying the same primitive-type mapping that the iterator uses (see
      * {@link #convertParquetTypeToEsql}). Returns {@code null} when the column is absent or maps
-     * to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}. The returned descriptor carries
-     * {@code maxRepetitionLevel} so callers can route flat vs list paths off of it.
+     * to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}. A {@code null} result is not a
+     * caller error: {@link ParquetColumnExtractor} emits a constant-null block for that column
+     * rather than throwing. The returned descriptor carries {@code maxRepetitionLevel} so callers
+     * can route flat vs list paths off of it.
      * <p>
      * {@code columnName} may be a dotted struct-leaf path (e.g. {@code "event.action"}) — the
      * same D2 resolution rule as {@link #resolveFieldType} applies: literal top-level match wins

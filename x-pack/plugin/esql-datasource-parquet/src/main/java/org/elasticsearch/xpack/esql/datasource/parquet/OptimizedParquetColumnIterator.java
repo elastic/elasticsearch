@@ -897,9 +897,21 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
             }
-            case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
-                ? (long) ((Number) value).intValue()
-                : null;
+            case INT -> {
+                if (sortColumnPrimitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT32) {
+                    yield null;
+                }
+                // Decline when the annotation rescales: the raw stat lives in a different unit than the decoded bound.
+                // Mirrors the same gate in the LONG arm; rawDecodeRelation returns nothing for INT32, so no mapping
+                // is ever resolvable and declining is the only correct answer.
+                if (sortColumnAnnotationScales) {
+                    yield null;
+                }
+                int raw = ((Number) value).intValue();
+                // UINT_32 footer statistics are ordered unsigned, so sign-extension would produce a negative long for
+                // values above Integer.MAX_VALUE. Widen unsigned to match normalizeStatValue's treatment.
+                yield ParquetColumnDecoding.isUnsignedInt32(sortColumnPrimitiveType) ? Integer.toUnsignedLong(raw) : (long) raw;
+            }
             case DOUBLE -> {
                 if (sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE
                     || sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
@@ -939,9 +951,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
             }
-            case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
-                ? (long) ordered.getInt()
-                : null;
+            case INT -> {
+                // Same rescale-decline and unsigned-widening gates as rawValueFromStats.
+                if (sortColumnPrimitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT32) {
+                    yield null;
+                }
+                if (sortColumnAnnotationScales) {
+                    yield null;
+                }
+                int raw = ordered.getInt();
+                yield ParquetColumnDecoding.isUnsignedInt32(sortColumnPrimitiveType) ? Integer.toUnsignedLong(raw) : (long) raw;
+            }
             case DOUBLE -> switch (sortColumnPrimitiveType.getPrimitiveTypeName()) {
                 case FLOAT -> {
                     float f = ordered.getFloat();

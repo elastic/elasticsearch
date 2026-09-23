@@ -2446,16 +2446,16 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
     /// un-hollowing scenario:
     ///
     /// - A single-shard index holding N documents is built on index node A and relocated to index node B as a
-    /// hollow shard (the shard's data lives in the object store; B keeps only a stub that still reports N docs).
+    ///   hollow shard (the shard's data lives in the object store; B keeps only a stub that still reports N docs).
     /// - N further documents are indexed directly into B. This forces B to un-hollow: it pulls its N original
-    /// documents back and applies the N new ones, so the shard is expected to hold 2N documents. B's upload of
-    /// the resulting un-hollow commit is stalled, and B is then isolated from the cluster and dropped.
+    ///   documents back and applies the N new ones, so the shard is expected to hold 2N documents. B's upload of
+    ///   the resulting un-hollow commit is stalled, and B is then isolated from the cluster and dropped.
     /// - Because B left before publishing its un-hollow commit, the shard is re-assigned to A, which recovers
-    /// from the newest commit visible on the object store (still the hollow one) and becomes the new primary.
-    /// The isolated B is then allowed to finish un-hollowing and to upload its newer commits (the un-hollow
-    /// commit and the commit carrying the new documents) to the object store.
+    ///   from the newest commit visible on the object store (still the hollow one) and becomes the new primary.
+    ///   The isolated B is then allowed to finish un-hollowing and to upload its newer commits (the un-hollow
+    ///   commit and the commit carrying the new documents) to the object store.
     /// - A search shard is added for the index. During its recovery it registers the newest commit it finds on
-    /// the object store - the one uploaded by B - which is newer than the commit A is serving.
+    ///   the object store - the one uploaded by B - which is newer than the commit A is serving.
     ///
     /// The test asserts that this registration causes A's primary to be failed and to reload the newer un-hollow
     /// commit from the object store: A ends up un-hollow, at a primary term greater than that of B's un-hollow

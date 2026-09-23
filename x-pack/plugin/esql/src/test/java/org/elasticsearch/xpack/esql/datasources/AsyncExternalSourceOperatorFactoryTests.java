@@ -23,7 +23,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,10 +35,12 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -45,9 +51,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -176,6 +184,50 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 1000, -1, executor).build()
         );
+    }
+
+    /**
+     * Bound metadata names are unioned into {@code partitionColumnNames} so VirtualColumnIterator
+     * materializes them. A physical {@code _file.*} column is not engine-owned and stays out of
+     * that set, as does {@code _rowPosition} (a {@link MetadataAttribute}).
+     */
+    public void testPartitionColumnNamesUnionEngineOwnedAndExcludeRowPosition() {
+        Attribute value = new FieldAttribute(
+            Source.EMPTY,
+            "value",
+            new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Attribute boundIndex = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        Attribute physicalFileSize = new ReferenceAttribute(Source.EMPTY, FileMetadataColumns.SIZE, DataType.LONG);
+        Attribute rowPosition = SyntheticColumns.newRowPositionMetadataAttribute(Source.EMPTY);
+
+        AsyncExternalSourceOperatorFactory factory = factoryWithAttributes(List.of(value, boundIndex, physicalFileSize, rowPosition));
+
+        assertTrue(rowPosition instanceof MetadataAttribute);
+        assertThat(factory.partitionColumnNames(), Matchers.contains("_index"));
+        assertFalse(factory.partitionColumnNames().contains(FileMetadataColumns.SIZE));
+        assertFalse(factory.partitionColumnNames().contains(ColumnExtractor.ROW_POSITION_COLUMN));
+    }
+
+    public void testBoundFileMetadataEntersPartitionColumnNames() {
+        Attribute path = new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.PATH, DataType.KEYWORD);
+        AsyncExternalSourceOperatorFactory factory = factoryWithAttributes(List.of(path));
+        assertThat(factory.partitionColumnNames(), Matchers.contains(FileMetadataColumns.PATH));
+    }
+
+    private static AsyncExternalSourceOperatorFactory factoryWithAttributes(List<Attribute> attributes) {
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
+        return AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            StoragePath.of("file:///test.csv"),
+            attributes,
+            1000,
+            10,
+            Runnable::run
+        ).build();
     }
 
     public void testDescribeSyncWrapperMode() {
@@ -1203,6 +1255,69 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     // ===== Slice Queue tests =====
+
+    /**
+     * A metadata-only projection leaves {@code queryDataSchema} empty, the same shape as
+     * {@code COUNT(*)}. The slice-queue path must not hand {@code mapFilters} a unified-width
+     * mapping in that case: the mapping indexes the query schema by slot, and an empty schema
+     * with a missing-column mapping would throw.
+     */
+    public void testSliceQueueEmptyQuerySchemaDoesNotMapFiltersAgainstUnifiedMapping() throws Exception {
+        ColumnMapping unifiedWidth = new ColumnMapping(new int[] { 0, -1 }, null);
+        List<FileSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f1.parquet"), 0, 100, "parquet", Map.of(), Map.of(), unifiedWidth),
+            new FileSplit("test", StoragePath.of("s3://bucket/f2.parquet"), 0, 200, "parquet", Map.of(), Map.of(), unifiedWidth)
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
+
+        FormatReader formatReader = new SinglePageReader(() -> new Page(2));
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        Attribute value = new FieldAttribute(
+            Source.EMPTY,
+            "value",
+            new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression pushed = new Equals(Source.EMPTY, value, new Literal(Source.EMPTY, 1, DataType.INTEGER));
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            StoragePath.of("s3://bucket/f1.parquet"),
+            List.of(new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD)),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        )
+            .sliceQueue(sliceQueue)
+            .pushedExpressions(List.of(pushed))
+            .pushdownSupport(filters -> FilterPushdownSupport.PushdownResult.all("opaque"))
+            .build();
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            assertThat(pages, Matchers.not(Matchers.empty()));
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
 
     public void testSliceQueueReadsSplitsSequentially() throws Exception {
         List<FileSplit> splits = List.of(
@@ -4252,6 +4367,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             throw new UnsupportedOperationException();
         }
@@ -4359,6 +4479,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class StubMultiFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             return new StubMultiFileStorageObject(path);
@@ -4629,6 +4754,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class LargeStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final long fileSize;
 
         LargeStorageProvider(long fileSize) {

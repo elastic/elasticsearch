@@ -1283,6 +1283,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Arrays.asList(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-" + randomAlphaOfLength(randomIntBetween(0, 13)))
             .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
 
+        // Context Engine AI index views: Kibana system user creates and deletes them
+        {
+            final IndexAbstraction view = mockIndexAbstraction("v-ai-index-" + randomAlphaOfLength(randomIntBetween(1, 13)));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(view), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME).test(view), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(view), is(false));
+        }
+
         // Context Engine feedback-loop signals: per-space, regular (non-system)
         // user indices that Kibana creates and manages via the storage adapter.
         assertReadWriteAndManage(kibanaRole, "context-engine-signals-" + randomAlphaOfLength(randomIntBetween(0, 13)));

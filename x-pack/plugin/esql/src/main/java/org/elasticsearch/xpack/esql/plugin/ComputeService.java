@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -99,6 +100,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
@@ -1229,7 +1231,10 @@ public class ComputeService {
             return;
         }
 
-        if (exchangeSinkSupplier == null) {
+        final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
+            ? streaming.pageStream()
+            : null;
+        if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
             coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
         }
 
@@ -1336,7 +1341,10 @@ public class ComputeService {
             // A non-null sink means this executePlan is one FORK / UNION ALL / FROM-subquery branch. Skip the query-wide all-targets check
             // and markEndQuery; the root merge listener runs both after every branch has reported.
             if (exchangeSinkSupplier == null) {
-                failIfAllShardsFailed(execInfo, collectedPages);
+                // Streaming does not collect pages; treat already-published rows as a successful result.
+                if (streamPublisher == null || streamPublisher.rowsPublished() == 0) {
+                    failIfAllShardsFailed(execInfo, collectedPages);
+                }
                 execInfo.markEndQuery();
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));

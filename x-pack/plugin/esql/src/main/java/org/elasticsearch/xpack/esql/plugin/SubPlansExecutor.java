@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -148,7 +149,7 @@ final class SubPlansExecutor {
         this.rootExecution = new ExecutionMerge(
             null,
             rootPlan,
-            new OutputExec(rootPlan.plan(), collectedPages::add),
+            rootPlan.plan() instanceof StreamingOutputExec ? rootPlan.plan() : new OutputExec(rootPlan.plan(), collectedPages::add),
             "main.final",
             rootPlanTimeProfile,
             null,

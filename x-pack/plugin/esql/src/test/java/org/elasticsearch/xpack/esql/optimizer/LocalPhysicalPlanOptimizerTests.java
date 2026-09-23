@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -143,7 +144,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
-import static org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests.metricsAnalyzer;
+import static org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests.metricsAnalyzerAt;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
@@ -3095,7 +3096,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testTranslateMetricsGroupedByTwoDimension() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, pod";
-        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
         var project = as(plan, ProjectExec.class);
         var limit = as(project.child(), LimitExec.class);
         var unpack = as(limit.child(), UnpackDimsExec.class);
@@ -3129,7 +3134,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testNonMultipleWindowInsertsPartialAggregate() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)";
-        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
         List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
         plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
         assertThat(tsAggs, hasSize(2));
@@ -3173,7 +3182,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var query = "TS k8s"
             + " | STATS sum(rate(network.total_bytes_in, 7 minute)), avg(rate(network.total_bytes_in, 12 minute))"
             + " BY TBUCKET(5 minute)";
-        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
         List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
         plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
         assertThat(tsAggs, hasSize(2));
@@ -3214,7 +3227,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var query = "TS k8s"
             + " | STATS min(max_over_time(network.bytes_in, 2 minute)), avg(max_over_time(network.bytes_in, 7 minute))"
             + " BY TBUCKET(5 minute)";
-        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
         List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
         plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
         assertThat(tsAggs, hasSize(2));
@@ -3246,7 +3263,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testNonMultipleWindowWithFilteredAggregate() {
         var query = "TS k8s" + " | STATS sum(rate(network.total_bytes_in, 7 minute)) WHERE pod == \"one\"" + " BY TBUCKET(5 minute)";
-        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
         List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
         plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
         assertThat(tsAggs, hasSize(2));
@@ -3279,7 +3300,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testExactMultipleWindowPlansNoPartialAggregate() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY TBUCKET(5 minute)";
-        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
         List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
         plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
         assertThat(tsAggs, hasSize(2));

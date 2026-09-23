@@ -133,7 +133,6 @@ import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.Federation;
-import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -153,6 +152,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -231,7 +231,6 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -346,7 +345,8 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         PhysicalPlan localPhysicalPlan,
-        IndexedByShardId<? extends ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean singleNodeOptimizations
     ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
@@ -364,7 +364,8 @@ public class LocalExecutionPlanner {
             physicalOperationProviders.analysisRegistry(),
             new Holder<>(),
             new Holder<>(),
-            new Holder<>()
+            new Holder<>(),
+            singleNodeOptimizations
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -397,7 +398,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
         if (node instanceof AggregateExec aggregate) {
-            return planAggregation(aggregate, context);
+            return planAggregation(aggregate, context, false);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
         } else if (node instanceof ReadDimsExec readDimsExec) {
@@ -689,7 +690,11 @@ public class LocalExecutionPlanner {
         throw new EsqlIllegalArgumentException("unknown FUSE score method [" + fuse.fuseConfig() + "]");
     }
 
-    private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planAggregation(
+        AggregateExec aggregate,
+        LocalExecutionPlannerContext context,
+        boolean allowPartitionedOutput
+    ) {
         var source = plan(aggregate.child(), context);
         HashAggregationOperator.ParallelConfig parallelConfig = null;
         if (parallelWorkerExecutor != null) {
@@ -701,7 +706,7 @@ public class LocalExecutionPlanner {
                     .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold())
             );
         }
-        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, context);
+        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, allowPartitionedOutput, context);
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
@@ -932,7 +937,13 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
         Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
-        PhysicalOperation source = plan(child, context);
+        PhysicalOperation source;
+        if (child instanceof AggregateExec aggregate) {
+            // allow partitioned output if both partial and final on the same node
+            source = planAggregation(aggregate, context, context.singleNodeOptimizations());
+        } else {
+            source = plan(child, context);
+        }
         if (Assertions.ENABLED) {
             List<Attribute> inputAttributes = exchangeSink.child().output();
             for (Attribute attr : inputAttributes) {
@@ -2241,33 +2252,22 @@ public class LocalExecutionPlanner {
                 instanceCount = Math.min(splitCount, maxParallelism);
             }
         }
-        // Carries every name VirtualColumnIterator should materialise: Hive-style partition columns
-        // plus the _file.* metadata columns the user actually requested (these reach the relation
-        // output only via METADATA, or the temporary EXTERNAL shim — they are no longer auto-attached
-        // to every external schema). Passed through SourceOperatorContext.partitionColumnNames
-        // (legacy method name kept to avoid an SPI rename on this PR).
-        // Partition column names come from the serialized PARTITION_COLUMNS_KEY stamp via the node-safe
-        // accessor, NOT the fileList: on a data node the resolved FileList is not serialized (see the
-        // slice-queue note above), so reading it there yields nothing, whereas the stamp travels with the
-        // relation. VirtualColumnIterator materialises each as a constant block even when ONLY a partition
-        // column is projected (e.g. COUNT(p) that safe-missed to a scan): otherwise the operator treats it as
-        // a data column, the reader emits a 0-block page, and the downstream aggregator reads a non-existent
-        // block. The assert checks — rather than trusts — that on the coordinator (where the fileList IS
-        // resolved) the stamp already covers every fileList partition name, so dropping the fileList read
-        // here is a strict no-op.
-        Set<String> virtualColumnNames = new LinkedHashSet<>(externalSource.partitionColumnNames());
+        // Hive-style partition column names from the serialized PARTITION_COLUMNS_KEY stamp via the
+        // node-safe accessor, not the fileList: on a data node the resolved FileList is not serialized
+        // (see the slice-queue note above), so reading it there yields nothing, whereas the stamp
+        // travels with the relation. VirtualColumnIterator materialises each as a constant block even
+        // when only a partition column is projected (e.g., COUNT(p) that safe-missed to a scan):
+        // otherwise the operator treats it as a data column, the reader emits a 0-block page, and the
+        // downstream aggregator reads a non-existent block. The assert checks that on the coordinator
+        // (where the fileList is resolved) the stamp already covers every fileList partition name.
+        Set<String> partitionColumnNames = externalSource.partitionColumnNames();
         assert fileList == null
             || fileList.partitionMetadata() == null
-            || virtualColumnNames.containsAll(fileList.partitionMetadata().partitionColumns().keySet())
+            || partitionColumnNames.containsAll(fileList.partitionMetadata().partitionColumns().keySet())
             : "partition stamp "
-                + virtualColumnNames
+                + partitionColumnNames
                 + " is missing resolved fileList partition columns "
                 + fileList.partitionMetadata().partitionColumns().keySet();
-        for (Attribute attr : externalSource.output()) {
-            if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
-                virtualColumnNames.add(attr.name());
-            }
-        }
 
         SourceOperatorContext operatorContext = SourceOperatorContext.builder()
             .sourceType(externalSource.sourceType())
@@ -2289,13 +2289,12 @@ public class LocalExecutionPlanner {
             .pushedExpressions(externalSource.pushedExpressions())
             .fileList(fileList)
             .schemaMap(externalSource.schemaMap())
-            .partitionColumnNames(virtualColumnNames)
+            .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
-            .datasetName(externalSource.datasetName())
             .deferredExtraction(externalSource.deferredExtraction())
             .build();
 
@@ -2348,8 +2347,9 @@ public class LocalExecutionPlanner {
             ),
             source.layout
         );
-        // Add ScoreOperator only on data nodes. Data nodes are able to calculate scores running queries on the resulting docs.
-        if (context.shardContexts.isEmpty() == false && PlannerUtils.usesScoring(filter)) {
+        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
+        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
+        if (PlannerUtils.usesScoring(filter) && (context.shardContexts.isEmpty() == false || scoresWithoutShards(filter.condition()))) {
             // Add scorer operator to add the filter expression scores to the overall scores
             Attribute scoreAttribute = null;
 
@@ -2379,6 +2379,14 @@ public class LocalExecutionPlanner {
             );
         }
         return filterOperation;
+    }
+
+    /**
+     * Whether {@code condition} contains a scoring contributor that can be evaluated without a shard context, which
+     * today means a runtime full-text search.
+     */
+    private static boolean scoresWithoutShards(Expression condition) {
+        return condition.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch() && ftf.contributesToScore());
     }
 
     private PhysicalOperation planInsertEmptyBuckets(InsertEmptyBucketsExec insertEmptyBuckets, LocalExecutionPlannerContext context) {
@@ -2532,7 +2540,7 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation withOperator = source.with(
             new SparklineGenerateEmptyBucketsOperator.Factory(
-                sparkline.values().size(),
+                sparkline.values().stream().map(value -> PlannerUtils.toElementType(value.dataType())).toArray(ElementType[]::new),
                 sparkline.dateBucketRounding(),
                 sparkline.minDate(),
                 sparkline.maxDate()
@@ -2694,7 +2702,8 @@ public class LocalExecutionPlanner {
         @Nullable AnalysisRegistry analysisRegistry,
         Holder<TopNExec> lastVisitedTopN,
         Holder<LimitExec> lastVisitedLimit,
-        Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot
+        Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
+        boolean singleNodeOptimizations
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

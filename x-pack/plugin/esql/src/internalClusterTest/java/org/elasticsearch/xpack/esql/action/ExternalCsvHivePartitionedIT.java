@@ -34,13 +34,14 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Regression test: {@code hive_partitioning} and {@code partition_path} * were not included in
+ * Regression test: {@code partition_path} (and formerly {@code hive_partitioning}) were not included in
  * {@code FileSourceFactory.COORDINATOR_KEYS}, causing the strict query-time validator
  * (added by elastic/elasticsearch#148327) to reject every external-source query that specified
  * either key with an "unknown option" error.
  *
  * <p>Each test here exercises a key that was previously blocked so that any regression in
  * the coordinator-key wiring fails with a clear "unknown option" exception rather than silently.
+ * Acceptance coverage for {@code hive_partitioning} itself lives in {@code S3DataSourceValidatorTests}.
  */
 public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
@@ -51,23 +52,22 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
     /**
      * Writes a two-level Hive-style partition tree ({@code year=YYYY/month=MM/data.csv}),
-     * queries it with {@code hive_partitioning: true}, and asserts that the query succeeds
-     * (i.e., {@code hive_partitioning} is a known coordinator key) and that the partition
-     * columns {@code year} and {@code month} are present in the result schema.
+     * queries it with {@code partition_detection: hive}, and asserts that the query succeeds and
+     * that the partition columns {@code year} and {@code month} are present in the result schema.
      *
      * <p>The glob uses {@code **} (double-star) rather than {@code year=*} because the local
      * filesystem storage provider only performs a shallow {@code DirectoryStream} listing for
      * non-recursive globs (single {@code *} has no {@code /} in its match); multi-level Hive
      * directories require recursive walking, which {@code **} triggers.
      */
-    public void testHivePartitioningValidatesAndParses() throws Exception {
+    public void testHiveDetectionParsesPartitionColumns() throws Exception {
         Path root = createTempDir().resolve("hive_csv");
         writePartitionedCsvFiles(root);
 
         // The '**' pattern triggers recursive listing so LocalStorageProvider descends into year=/month= dirs.
         @SuppressWarnings("checkstyle:EmptyJavadoc") // checkstyle thinks this is Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
-        String dataset = registerDataset("hive_csv", glob, Map.of("hive_partitioning", true));
+        String dataset = registerDataset("hive_csv", glob, Map.of("partition_detection", "hive"));
         String query = "FROM " + dataset + " | LIMIT 1";
 
         try (var response = run(syncEsqlQueryRequest(query))) {
@@ -145,7 +145,7 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
         @SuppressWarnings("checkstyle:EmptyJavadoc") // checkstyle thinks this is Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
-        String dataset = registerDataset("hive_collision_csv", glob, Map.of("hive_partitioning", true));
+        String dataset = registerDataset("hive_collision_csv", glob, Map.of("partition_detection", "hive"));
 
         // KEEP id, year, value: the colliding 'year' must surface the path-derived 2024, not 1999.
         String query = "FROM " + dataset + " | KEEP id, year, value | LIMIT 5";
@@ -200,7 +200,7 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
-        String dataset = registerDataset("hive_collision_multifile_csv", glob, Map.of("hive_partitioning", true));
+        String dataset = registerDataset("hive_collision_multifile_csv", glob, Map.of("partition_detection", "hive"));
         String query = "FROM " + dataset + " | KEEP id, year, value | LIMIT 10";
         try (var response = run(syncEsqlQueryRequest(query))) {
             List<String> columnNames = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
@@ -232,7 +232,7 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
-        String dataset = registerDataset("hive_collision_warning_csv", glob, Map.of("hive_partitioning", true));
+        String dataset = registerDataset("hive_collision_warning_csv", glob, Map.of("partition_detection", "hive"));
         String query = "FROM " + dataset + " | KEEP id, year, value | LIMIT 10";
 
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
@@ -308,7 +308,7 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         String dataset = registerDataset(
             "aws_vpcflow_csv",
             glob,
-            Map.of("hive_partitioning", true, "schema_resolution", "first_file_wins")
+            Map.of("partition_detection", "hive", "schema_resolution", "first_file_wins")
         );
 
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, val"))) {

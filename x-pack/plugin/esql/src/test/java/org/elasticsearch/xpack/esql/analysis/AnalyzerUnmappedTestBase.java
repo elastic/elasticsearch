@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -20,13 +20,16 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 
-abstract class AnalyzerUnmappedTestBase extends ESTestCase {
+public abstract class AnalyzerUnmappedTestBase extends AnalyzerTestCase {
 
-    static TestAnalyzer test() {
+    AnalyzerUnmappedTestBase(VersionMode versionMode) {
+        super(versionMode);
+    }
+
+    TestAnalyzer test() {
         return analyzer().addEmployees("test");
     }
 
@@ -73,7 +76,7 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
         );
     }
 
-    static TestAnalyzer partialMappingTest() {
+    TestAnalyzer partialMappingTest() {
         return analyzer().addIndex("partial_mapping_sample_data", "mapping-partial_mapping_sample_data.json")
             .addLookupIndex("partial_message_types_lookup", "mapping-partial_message_types_lookup.json");
     }

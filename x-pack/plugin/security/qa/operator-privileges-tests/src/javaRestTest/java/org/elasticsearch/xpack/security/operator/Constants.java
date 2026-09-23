@@ -308,6 +308,7 @@ public class Constants {
         "cluster:admin/xpack/security/saml/logout",
         "cluster:admin/xpack/security/saml/prepare",
         "cluster:admin/xpack/security/service_account/get",
+        "cluster:admin/xpack/security/service_account/query",
         "cluster:admin/xpack/security/service_account/credential/get",
         "cluster:admin/xpack/security/service_account/credential/get[n]",
         "cluster:admin/xpack/security/service_account/token/create",

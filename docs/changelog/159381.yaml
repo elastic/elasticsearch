@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 159381
+summary: "[Native] Widen bf16 with ZIP instead of SHLL on NEON"
+type: enhancement

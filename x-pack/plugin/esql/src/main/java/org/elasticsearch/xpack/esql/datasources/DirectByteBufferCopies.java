@@ -12,7 +12,7 @@ import java.nio.ByteBuffer;
 /**
  * Utilities for copying streaming {@link ByteBuffer} chunks into a pre-sized destination buffer.
  */
-public final class DirectByteBufferCopies {
+final class DirectByteBufferCopies {
 
     private DirectByteBufferCopies() {}
 
@@ -20,7 +20,7 @@ public final class DirectByteBufferCopies {
      * Copies {@code chunk}'s remaining bytes into {@code destination} at {@code offset} without
      * changing the destination's caller-visible position.
      */
-    public static void copyChunkIntoDestination(ByteBuffer destination, int offset, ByteBuffer chunk) {
+    static void copyChunkIntoDestination(ByteBuffer destination, int offset, ByteBuffer chunk) {
         int remaining = chunk.remaining();
         if (chunk.hasArray()) {
             int savedPosition = destination.position();

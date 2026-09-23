@@ -20,6 +20,7 @@ import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -770,31 +771,21 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
-        float[] c = new float[m * n];
-        multiplyAccumulate(a, k, 1, b, c, m, k, n);
-        return c;
-    }
-
-    @Override
-    public float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
-        float[] c = new float[k * n];
-        multiplyAccumulate(aT, 1, k, b, c, k, m, n);
-        return c;
+    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+        Arrays.fill(result, 0);
+        multiplyAccumulate(a, k, b, result, m, k, n);
     }
 
     /**
-     * Accumulates {@code C += A @ B}, where element (i, l) of the left operand is
-     * {@code a[i * aRowStride + l * aInnerStride]}. The strides let {@code A @ B} and
-     * {@code A^T @ B} share this method; the transposed form only swaps them.
+     * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
+     * {@code a[i * aRowStride + l]}.
      *
-     * @param aRowStride   distance in {@code a} between consecutive rows of the left operand
-     * @param aInnerStride distance in {@code a} between consecutive steps
-     * @param cRows        rows of C, and of the left operand
-     * @param inner        inner dimension of the multiplication
-     * @param n            columns of C, and of B
+     * @param aRowStride distance in {@code a} between consecutive rows of the left operand
+     * @param cRows      rows of C, and of the left operand
+     * @param inner      inner dimension of the multiplication
+     * @param n          columns of C, and of B
      */
-    private void multiplyAccumulate(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int cRows, int inner, int n) {
+    private void multiplyAccumulate(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
         // unroll 4x, so 4 values are accumulated into each c cell at once
         final int innerLimit = inner - inner % 4;
         for (int i = 0; i < cRows; i++) {
@@ -802,7 +793,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             int cBase = i * n;
             int l = 0;
             for (; l < innerLimit; l += 4) {
-                int aOffset = aBase + l * aInnerStride;
+                int aOffset = aBase + l;
                 int b0 = l * n;
                 int b1 = b0 + n;
                 int b2 = b0 + n * 2;
@@ -810,16 +801,52 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
                 for (int j = 0; j < n; j++) {
                     float acc = c[cBase + j];
                     acc = fma(a[aOffset], b[b0 + j], acc);
-                    acc = fma(a[aOffset + aInnerStride], b[b1 + j], acc);
-                    acc = fma(a[aOffset + aInnerStride * 2], b[b2 + j], acc);
-                    acc = fma(a[aOffset + aInnerStride * 3], b[b3 + j], acc);
+                    acc = fma(a[aOffset + 1], b[b1 + j], acc);
+                    acc = fma(a[aOffset + 2], b[b2 + j], acc);
+                    acc = fma(a[aOffset + 3], b[b3 + j], acc);
                     c[cBase + j] = acc;
                 }
             }
             // tail
             for (; l < inner; l++) {
-                linearCombination(a[aBase + l * aInnerStride], b, l * n, c, cBase, n);
+                linearCombination(a[aBase + l], b, l * n, c, cBase, n);
             }
+        }
+    }
+
+    @Override
+    public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        // unroll x4
+        int i = 0;
+        for (; i + 4 <= rows; i += 4) {
+            int a0 = i * cols;
+            int a1 = a0 + cols;
+            int a2 = a0 + cols * 2;
+            int a3 = a0 + cols * 3;
+            float s0 = 0;
+            float s1 = 0;
+            float s2 = 0;
+            float s3 = 0;
+            for (int j = 0; j < cols; j++) {
+                float vj = v[j];
+                s0 = fma(a[a0 + j], vj, s0);
+                s1 = fma(a[a1 + j], vj, s1);
+                s2 = fma(a[a2 + j], vj, s2);
+                s3 = fma(a[a3 + j], vj, s3);
+            }
+            result[i] = s0;
+            result[i + 1] = s1;
+            result[i + 2] = s2;
+            result[i + 3] = s3;
+        }
+        // tail
+        for (; i < rows; i++) {
+            int ai = i * cols;
+            float sum = 0;
+            for (int j = 0; j < cols; j++) {
+                sum = fma(a[ai + j], v[j], sum);
+            }
+            result[i] = sum;
         }
     }
 }

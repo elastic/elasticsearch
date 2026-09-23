@@ -796,7 +796,7 @@ public class IndexModuleTests extends ESTestCase {
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
             indexShard.markAsRecovering("test");
 
-            final PlainActionFuture<Boolean> recoveryFuture = new PlainActionFuture<>();
+            final PlainActionFuture<Void> recoveryFuture = new PlainActionFuture<>();
             indexShard.recoverFromStore(recoveryFuture);
             recoveryFuture.get();
 

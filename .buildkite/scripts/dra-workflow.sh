@@ -84,7 +84,7 @@ echo --- Building release artifacts
   buildReleaseArtifacts \
   exportCompressedDockerImages \
   exportDockerContexts \
-  :zipAggregation \
+  :nmcpZipAggregation \
   :prepareDraSnapshotMavenAggregation \
   :distribution:generateDependenciesReport
 

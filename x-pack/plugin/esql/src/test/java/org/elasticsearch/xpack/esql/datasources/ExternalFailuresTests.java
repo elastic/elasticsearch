@@ -16,6 +16,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 
@@ -97,6 +99,40 @@ public class ExternalFailuresTests extends ESTestCase {
             assertSame(io, classified.getCause());
             assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
         }
+    }
+
+    public void testInflaterPrematureEofIsMalformedInput() {
+        EOFException inflater = new EOFException("Unexpected end of ZLIB input stream");
+        RuntimeException classified = ExternalFailures.classify(inflater);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertSame(inflater, classified.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+
+        RuntimeException surfaced = ExternalFailures.surface(inflater, "Streaming parallel parsing failed");
+        assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Streaming parallel parsing failed"));
+
+        UncheckedIOException wrapped = new UncheckedIOException(inflater);
+        RuntimeException classifiedWrapped = ExternalFailures.classify(wrapped);
+        assertThat(classifiedWrapped, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classifiedWrapped));
+    }
+
+    public void testCredentialsExpiredPassesThroughAs400() {
+        var expired = new ExternalCredentialsExpiredException("Session credentials expired reading [s3://b/k]");
+        assertSame(expired, ExternalFailures.classify(expired));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(expired)));
+        assertSame(expired, ExternalFailures.surface(expired, "ctx"));
+        assertNotNull(ExceptionsHelper.unwrap(new ExecutionException(expired), ExternalCredentialsExpiredException.class));
+        assertNull(ExceptionsHelper.unwrap(new IOException("HTTP 400 ExpiredToken"), ExternalCredentialsExpiredException.class));
+    }
+
+    public void testObjectChangedPassesThroughAs503() {
+        var changed = new ExternalObjectChangedException("Object changed during read of [s3://b/k]");
+        assertSame(changed, ExternalFailures.classify(changed));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(changed)));
+        assertSame(changed, ExternalFailures.surface(changed, "ctx"));
     }
 
     public void testRetryableStatusPolicy() {

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -68,7 +69,10 @@ public final class AggregateMapper {
         if (aggregate instanceof AggregateFunction aggregateFunction) {
             return entryForAgg(aggAlias, aggregateFunction, grouping);
         }
-        if (aggregate instanceof FieldAttribute || aggregate instanceof MetadataAttribute || aggregate instanceof ReferenceAttribute) {
+        if (aggregate instanceof FieldAttribute
+            || aggregate instanceof MetadataAttribute
+            || aggregate instanceof ReferenceAttribute
+            || aggregate instanceof ExternalMetadataAttribute) {
             // This condition is a little pedantic, but do we expect other expressions here? if so, then add them
             return List.of();
         }

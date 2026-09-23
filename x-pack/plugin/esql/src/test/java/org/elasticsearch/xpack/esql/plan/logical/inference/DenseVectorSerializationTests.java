@@ -33,16 +33,19 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
     protected DenseVector createTestInstance() {
         Source source = randomSource();
         List<NamedExpression> fields = randomFields();
+        DenseVector.OutputNaming naming = randomNaming(fields);
         return new DenseVector(
             source,
             randomChild(0),
             randomInferenceId(),
             randomRowLimit(),
             fields,
-            DenseVector.generatedAttributesFor(source, fields),
+            DenseVector.generatedAttributesFor(source, fields, naming),
+            naming,
             randomTimeout(),
             randomInputType(),
-            randomEndpointTaskType()
+            randomEndpointTaskType(),
+            randomBoolean()
         );
     }
 
@@ -53,22 +56,31 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
         Expression rowLimit = instance.rowLimit();
         List<NamedExpression> fields = instance.fields();
         List<Attribute> generatedFields = instance.generatedAttributes();
+        DenseVector.OutputNaming naming = instance.naming();
         TimeValue timeout = instance.timeout();
         org.elasticsearch.inference.DataType inputType = instance.inputType();
         org.elasticsearch.inference.TaskType endpointTaskType = instance.endpointTaskType();
+        boolean inferenceIdIsFallback = instance.inferenceIdIsFallback();
 
-        switch (between(0, 6)) {
+        switch (between(0, 8)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
             case 2 -> rowLimit = randomValueOtherThan(rowLimit, this::randomRowLimit);
             case 3 -> {
                 // Keep generatedFields consistent with fields (1:1), as produced during analysis.
                 fields = randomValueOtherThan(fields, this::randomFields);
-                generatedFields = DenseVector.generatedAttributesFor(instance.source(), fields);
+                naming = randomNaming(fields);
+                generatedFields = DenseVector.generatedAttributesFor(instance.source(), fields, naming);
             }
             case 4 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
             case 5 -> inputType = randomValueOtherThan(inputType, this::randomInputType);
             case 6 -> endpointTaskType = randomValueOtherThan(endpointTaskType, this::randomEndpointTaskType);
+            case 7 -> inferenceIdIsFallback = inferenceIdIsFallback == false;
+            case 8 -> {
+                List<NamedExpression> currentFields = fields;
+                naming = randomValueOtherThan(naming, () -> randomNaming(currentFields));
+                generatedFields = DenseVector.generatedAttributesFor(instance.source(), currentFields, naming);
+            }
         }
         return new DenseVector(
             instance.source(),
@@ -77,9 +89,11 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
             rowLimit,
             fields,
             generatedFields,
+            naming,
             timeout,
             inputType,
-            endpointTaskType
+            endpointTaskType,
+            inferenceIdIsFallback
         );
     }
 
@@ -97,15 +111,74 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
             randomRowLimit(),
             List.of(),
             List.of(),
+            DenseVector.OutputNaming.DEFAULT,
             randomTimeout(),
             org.elasticsearch.inference.DataType.IMAGE,
-            org.elasticsearch.inference.TaskType.EMBEDDING
+            org.elasticsearch.inference.TaskType.EMBEDDING,
+            false
         );
 
         DenseVector roundTripped = copyInstance(original, before);
 
         assertThat(roundTripped.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
         assertThat(roundTripped.endpointTaskType(), equalTo(org.elasticsearch.inference.TaskType.TEXT_EMBEDDING));
+    }
+
+    /**
+     * Plans from a node without the {@code esql_dense_vector_fallback_inference_id} transport version carry no fallback marker,
+     * so the endpoint they name is read as chosen. Reading it as a fallback would let this node substitute an endpoint the
+     * sending node had already settled on.
+     */
+    public void testOlderTransportVersionMeansInferenceIdIsNotFallback() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(InferencePlan.ESQL_DENSE_VECTOR_FALLBACK_INFERENCE_ID);
+        DenseVector original = new DenseVector(
+            randomSource(),
+            new EsRelation(randomSource(), randomIdentifier(), IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of()),
+            randomInferenceId(),
+            randomRowLimit(),
+            List.of(),
+            List.of(),
+            DenseVector.OutputNaming.DEFAULT,
+            randomTimeout(),
+            org.elasticsearch.inference.DataType.TEXT,
+            org.elasticsearch.inference.TaskType.TEXT_EMBEDDING,
+            true
+        );
+
+        DenseVector roundTripped = copyInstance(original, before);
+
+        assertFalse(roundTripped.inferenceIdIsFallback());
+    }
+
+    /**
+     * A node without the {@code esql_dense_vector_output_naming} transport version only ever produced the derived
+     * {@code <field>_dense_vector} names, so a plan read from one must come back with the default naming. The generated
+     * attributes travel separately and already spell out the resolved names, so nothing is lost by not re-deriving them.
+     */
+    public void testOlderTransportVersionMeansDefaultNaming() throws IOException {
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(InferencePlan.ESQL_DENSE_VECTOR_OUTPUT_NAMING);
+        Source source = randomSource();
+        List<NamedExpression> fields = List.of((NamedExpression) randomReferenceAttribute(randomBoolean()));
+        DenseVector.OutputNaming naming = DenseVector.OutputNaming.explicit("my_vector");
+        DenseVector original = new DenseVector(
+            source,
+            new EsRelation(randomSource(), randomIdentifier(), IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of()),
+            randomInferenceId(),
+            randomRowLimit(),
+            fields,
+            DenseVector.generatedAttributesFor(source, fields, naming),
+            naming,
+            randomTimeout(),
+            org.elasticsearch.inference.DataType.TEXT,
+            org.elasticsearch.inference.TaskType.TEXT_EMBEDDING,
+            false
+        );
+
+        DenseVector roundTripped = copyInstance(original, before);
+
+        assertThat(roundTripped.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+        // The already-resolved generated column keeps the explicit name, so the plan still describes the same output.
+        assertThat(roundTripped.generatedAttributes().getFirst().name(), equalTo("my_vector"));
     }
 
     private org.elasticsearch.inference.DataType randomInputType() {
@@ -126,6 +199,17 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
 
     private List<NamedExpression> randomFields() {
         return randomList(0, 5, () -> (NamedExpression) randomReferenceAttribute(randomBoolean()));
+    }
+
+    /**
+     * An explicit output name is only offered for a single input field, matching the grammar: one name cannot serve several
+     * generated columns.
+     */
+    private DenseVector.OutputNaming randomNaming(List<NamedExpression> fields) {
+        if (fields.size() == 1 && randomBoolean()) {
+            return DenseVector.OutputNaming.explicit(randomIdentifier());
+        }
+        return randomBoolean() ? DenseVector.OutputNaming.DEFAULT : DenseVector.OutputNaming.suffixed("_" + randomIdentifier());
     }
 
     private TimeValue randomTimeout() {

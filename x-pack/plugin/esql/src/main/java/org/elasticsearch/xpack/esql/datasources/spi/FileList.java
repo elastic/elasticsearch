@@ -153,6 +153,22 @@ public interface FileList {
     long estimatedBytes();
 
     /**
+     * Whether listing stopped at a caller-supplied bound rather than reaching the end of the glob, so this
+     * list is a prefix of the files the pattern matches and {@link #fileCount()} is a floor, not a total.
+     * <p>
+     * Only a schema discovery resolution ever asks for a bound. Two invariants keep a truncated list away from
+     * everything else: it is never written to the shared listing cache, where a reading query would later find
+     * it and scan a fraction of the dataset, and it is never built for a query that reads rows. Both are
+     * {@code ExternalSourceResolver#listingBoundFor}'s alone — the cache itself does not check, and omitting the
+     * fingerprint and refusing to compact do not prevent caching. A new call site asking for a bound must
+     * establish both for itself; nothing downstream catches a mistake, and a reader reached by a truncated list
+     * returns silently wrong results. Correctness invariants, not optimisations.
+     */
+    default boolean isTruncated() {
+        return false;
+    }
+
+    /**
      * The 128-bit fingerprint identifying the resolved file SET: a commutative fold over every file's
      * {@code (path, mtime, size)} plus the file count, computed once when the listing is built. The same
      * set listed in any order yields the same fingerprint; any file added, removed, or modified (mtime
@@ -170,18 +186,19 @@ public interface FileList {
     }
 
     /**
-     * {@code file_exclusions} warnings produced while this listing was built. Empty when nothing was
-     * dropped. Cached listings carry these so a cache hit can emit the same headers as a cold expand.
+     * Notices raised while this listing was built: {@code file_exclusions} drops and reserved partition-name
+     * renames. Empty when neither happened. Nothing is emitted from here; cached listings carry these so a cache
+     * hit hands the resolver the same notices as a cold expand.
      */
-    default List<String> exclusionWarnings() {
+    default List<String> listingWarnings() {
         return List.of();
     }
 
-    default long exclusionWarningBytes() {
-        List<String> warnings = exclusionWarnings();
+    default long listingWarningBytes() {
+        List<String> warnings = listingWarnings();
         long bytes = 0;
         for (int i = 0; i < warnings.size(); i++) {
-            bytes += 40 + warnings.get(i).length() * (long) Character.BYTES;
+            bytes += HeapEstimates.stringBytes(warnings.get(i));
         }
         return bytes;
     }

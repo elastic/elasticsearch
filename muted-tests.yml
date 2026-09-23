@@ -557,9 +557,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/159460
-- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
-  method: testErrorRecordingOnRollover
-  issue: https://github.com/elastic/elasticsearch/issues/159525
 - class: org.elasticsearch.index.shard.IndexShardIT
   method: testNodeWriteLoadsArePresent
   issue: https://github.com/elastic/elasticsearch/issues/159553
@@ -714,9 +711,15 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
   method: testPreExistingBufferFilesDrainAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/160054
-- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
-  method: testSnapshotWarningEmittedWhenEncryptedDataPresent
-  issue: https://github.com/elastic/elasticsearch/issues/160057
-- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
-  method: testNoSnapshotWarningWhenIncludeGlobalStateFalse
-  issue: https://github.com/elastic/elasticsearch/issues/160058
+- class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
+  method: testReadLatestBccPopulatesCache
+  issue: https://github.com/elastic/elasticsearch/issues/160077
+- class: org.elasticsearch.xpack.esql.action.ExternalRequestFilterRowGroupPruningIT
+  method: testWhereAndRequestFilterPruneIdentically
+  issue: https://github.com/elastic/elasticsearch/issues/160084
+- class: org.elasticsearch.indices.IndicesLifecycleListenerIT
+  method: testRelocationFailureNotRetriedForever
+  issue: https://github.com/elastic/elasticsearch/issues/160100
+- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
+  method: testStopNestedSubquery
+  issue: https://github.com/elastic/elasticsearch/issues/160115

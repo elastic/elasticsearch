@@ -40,6 +40,10 @@ public class LogsDBColumnarInfoTransportAction extends XPackInfoFeatureTransport
 
     @Override
     public boolean enabled() {
+        // cluster.columnar.enabled is a cluster setting that controls whether all columnar index modes are enabled. If this is disabled,
+        // then creating any new indices with columnar index modes will fail.
+        // The cluster.logsdb_columnar.enabled is a setting that controls whether data steams with logs-*-* use logsdb_columnar index mode,
+        // but only for snapshot builds.
         return clusterService.getClusterSettings().get(LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED);
     }
 }

@@ -203,21 +203,15 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
 
 * Repository analyses of snapshot repositories based on AWS S3 include some checks that the APIs which relate to multipart uploads have linearizable (strongly-consistent) semantics, based on guarantees offered by representatives from AWS on this subject. Further investigation has determined that these guarantees do not hold under all conditions as previously claimed. If you are analyzing a snapshot repository based on AWS S3 using a version of {{es}} prior to 9.3.0 and you encounter a failure related to linearizable register operations, you may work around the issue and suppress these checks by setting the query parameter `?register_operation_count=1` and running the analysis using a one-node cluster. This issue is fixed in {{es}} version 9.3.0 by [#138663](https://github.com/elastic/elasticsearch/pull/138663).
 
-* Vector search performance can degrade on Ubuntu 24.04 when Multi-Gen LRU (MGLRU) is enabled. Elasticsearch 9.0.0 and 9.0.1 can experience significant vector search slowdowns and delayed Lucene index merges. Ubuntu 24.04 enables MGLRU by default. An interaction between MGLRU and Lucene's read advice behavior in affected Elasticsearch versions can result in excessive major page faults and I/O activity during vector operations. See [#124499](https://github.com/elastic/elasticsearch/issues/124499).
-
-  The [fix](https://github.com/elastic/elasticsearch/pull/127921) is included in 9.0.2. Upgrade to 9.0.4 or later.
-
-  If you cannot upgrade immediately, temporarily turn off MGLRU on affected Ubuntu 24.04 hosts:
-
+* Vector search performance can degrade on Linux systems running kernel 6.1 or later when Multi-Gen LRU (MGLRU) is enabled.
+  Affected {{es}} versions can experience significant vector search slowdowns and delayed Lucene index merges.
+  MGLRU was introduced in Linux kernel 6.1 and is enabled by default in some Linux distributions, including Ubuntu 24.04.
+  An interaction between MGLRU and Lucene's read advice behavior can result in excessive major page faults and I/O activity during vector operations.
+  To determine whether MGLRU is enabled, run:
+  
   ```bash
-  sudo sh -c 'echo n > /sys/kernel/mm/lru_gen/enabled'
+  cat /sys/kernel/mm/lru_gen/enabled`
   ```
-
-  After you upgrade, turn on MGLRU:
-
-  ```bash
-  sudo sh -c 'echo y > /sys/kernel/mm/lru_gen/enabled'
-  ```
-
-  Turning off MGLRU is only a temporary workaround.
-  Turn it on after you upgrade {{es}} because it provides memory management benefits for other workloads.
+  
+  A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled.
+  For more information, refer to [elasticsearch#124499](https://github.com/elastic/elasticsearch/issues/124499).

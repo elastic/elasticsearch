@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -96,6 +98,11 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         throws IOException {
         assert indexShard.store().refCount() > 0 : indexShard.shardId();
         assert blobContainer != null : indexShard.routingEntry();
+
+        final ClusterState clusterState = clusterService.state();
+        if (ShardWarmVolumes.shouldFetch(indexShard.routingEntry(), clusterState)) {
+            warmingService.maybeFetchWarmVolumes(clusterState, indexShard.routingEntry().relocatingNodeId());
+        }
 
         final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
         final boolean timestampBackfillEnabled = useInternalFilesReplicatedContentForSearchShards

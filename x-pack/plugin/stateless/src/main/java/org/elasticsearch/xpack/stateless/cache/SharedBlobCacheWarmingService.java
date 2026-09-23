@@ -137,6 +137,9 @@ public class SharedBlobCacheWarmingService {
     public static final String BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC = "es.blob_cache_warming.bcc_blobs.enqueued.current";
     public static final String BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC = "es.blob_cache_warming.bcc_blobs.running.current";
     public static final String BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC = "es.blob_cache_warming.bcc_blobs.done.total";
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC =
+        "es.blob_cache_warming.search_recovery.drain_timeout_heuristic.total";
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY = "es_drain_timeout_heuristic";
 
     /**
      * Why {@link #warmCacheForSearchShardRecovery} stopped waiting and resumed recovery, recorded as an attribute on
@@ -357,6 +360,18 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    /**
+     * When true, drain-path search recovery warming timeouts may use per-shard warm volumes fetched from the
+     * shutting-down source node. Default false until every search pod runs a build that serves the fetch action
+     * and recovery warming re-evaluates on a short tick that can shorten the wait.
+     */
+    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING = Setting.boolSetting(
+        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".warm_volumes.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<ByteSizeValue> UPLOAD_PREWARM_MAX_SIZE_SETTING = Setting.byteSizeSetting(
         "stateless.blob_cache_warming.upload_prewarm_max_size",
         ByteSizeValue.ofMb(16),
@@ -424,6 +439,8 @@ public class SharedBlobCacheWarmingService {
     private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
     private volatile double searchRecoveryWarmingCacheRatio;
+    private volatile ShardWarmVolumes shardWarmVolumes;
+    private final LongCounter drainTimeoutHeuristicTotalMetric;
 
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
@@ -432,7 +449,19 @@ public class SharedBlobCacheWarmingService {
         ClusterSettings clusterSettings,
         WarmingRatioProvider warmingRatioProvider
     ) {
+        this(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider, ShardWarmVolumes.NOOP);
+    }
+
+    public SharedBlobCacheWarmingService(
+        StatelessSharedBlobCacheService cacheService,
+        ThreadPool threadPool,
+        TelemetryProvider telemetryProvider,
+        ClusterSettings clusterSettings,
+        WarmingRatioProvider warmingRatioProvider,
+        ShardWarmVolumes shardWarmVolumes
+    ) {
         this.cacheService = cacheService;
+        this.shardWarmVolumes = Objects.requireNonNull(shardWarmVolumes);
         this.threadPool = threadPool;
         this.warmingRatioProvider = warmingRatioProvider;
         this.fetchExecutor = threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL);
@@ -535,6 +564,14 @@ public class SharedBlobCacheWarmingService {
                     + BCC_SIZE_ATTRIBUTE_KEY
                     + "] size bucket",
                 "bytes"
+            );
+        this.drainTimeoutHeuristicTotalMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(
+                SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC,
+                "Drain-path search recovery warming timeouts, broken down by the ["
+                    + SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY
+                    + "] heuristic that produced the timeout",
+                "count"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
         clusterSettings.initializeAndWatch(
@@ -1052,7 +1089,13 @@ public class SharedBlobCacheWarmingService {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), totalBytesToWarm);
+                return computeRelocationSourceShutdownWarmingTimeout(
+                    state,
+                    sourceNodeId,
+                    shardRouting.currentNodeId(),
+                    indexShard.shardId(),
+                    totalBytesToWarm
+                );
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
                 return new SearchRecoveryTimeout(
@@ -1227,20 +1270,34 @@ public class SharedBlobCacheWarmingService {
     }
 
     /**
-     * Returns the warming timeout for a shard whose relocation source is shutting down, as the maximum of two heuristics:
+     * Fire-and-forget fetch of per-shard warm volumes from {@code sourceNodeId}. Recovery must not wait on the result.
+     */
+    public void maybeFetchWarmVolumes(ClusterState state, String sourceNodeId) {
+        shardWarmVolumes.maybeFetch(state, sourceNodeId);
+    }
+
+    public void setShardWarmVolumes(ShardWarmVolumes shardWarmVolumes) {
+        this.shardWarmVolumes = Objects.requireNonNull(shardWarmVolumes);
+    }
+
+    /**
+     * Returns the warming timeout for a shard whose relocation source is shutting down, as the maximum of three
+     * per-shard heuristics times {@code ongoingRelocations}, capped at remaining grace:
      * <ol>
-     *   <li><em>Equal-share</em>: {@code factor * (deadline - now) / shardsOnSource * relocationsFromSourceToTarget}, ensuring every
-     *   shard on the shutting-down source gets a fair slice of the remaining grace period.</li>
-     *   <li><em>Data-volume-proportional</em> (contributes only when {@code totalBytesToWarm} is greater than zero): the fraction of the
-     *   node's warming cache budget consumed by this shard's data multiplied by the remaining time,
-     *   i.e. {@code (totalBytesToWarm / (cacheSize * cacheRatio)) * remaining}.</li>
+     *   <li><em>Equal-share</em>: {@code factor * remaining / shardsOnSource}.</li>
+     *   <li><em>Data-volume-proportional</em> (contributes only when {@code totalBytesToWarm} is greater than zero):
+     *   {@code (totalBytesToWarm / (cacheSize * cacheRatio)) * remaining}.</li>
+     *   <li><em>Warm-volume share</em> (when a completed {@link ShardWarmVolumes.Entry} exists and this shard's index is
+     *   not resharding): {@code (w_i / S) * remaining} over searchable shards still on the source that are in the map.
+     *   Missing this shard uses the mean of that set.</li>
      * </ol>
-     * with {@code deadline = start + min(metadata grace, cap)}.
+     * with {@code deadline = start + min(metadata grace, cap)} and {@code remaining = deadline - now}.
      */
     private SearchRecoveryTimeout computeRelocationSourceShutdownWarmingTimeout(
         ClusterState state,
         String sourceNodeId,
         String targetNodeId,
+        ShardId shardId,
         long totalBytesToWarm
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
@@ -1269,27 +1326,84 @@ public class SharedBlobCacheWarmingService {
         // Instead, this uses the same fixed baseline (which itself is of dubious inspiration).
         // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
+        final double warmVolumeMs = warmVolumeShareMs(state, sourceNodeId, shardId, remaining);
         int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
         // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
         if (ongoingRelocations <= 0) {
             ongoingRelocations = 1;
         }
 
-        final double timeoutMs;
-        final String context;
-        // The decision below is per-shard whereas the two heuristics above assume all shards opt with the same heuristic
+        // The decision below is per-shard whereas the heuristics above assume all shards opt with the same heuristic
         // this is an inherent problem of the fact that, during relocation, we don't know apriori all the shards that are going
-        // to be relocated between two given nodes, so we can't know which of the two heuristics is more suitable overall.
+        // to be relocated between two given nodes, so we can't know which of the heuristics is more suitable overall.
         // Though the per-shard local decision here is OKish, because it's all relative to the remaining deadline and shards,
         // so the impact of currently choosing a different heuristic from previous (or future) relocating shards is partially mitigated
-        if (dataVolumeMs > equalShareMs) {
-            timeoutMs = Math.min(remaining, dataVolumeMs * ongoingRelocations);
+        final double timeoutHeuristicMs;
+        final String context;
+        final String heuristic;
+        if (warmVolumeMs > equalShareMs && warmVolumeMs > dataVolumeMs) {
+            timeoutHeuristicMs = warmVolumeMs;
+            heuristic = "warm_volume";
+            context = "relocation source shutting down (warm volume share of remaining time to capped grace deadline)";
+        } else if (dataVolumeMs > equalShareMs) {
+            timeoutHeuristicMs = dataVolumeMs;
+            heuristic = "data_volume";
             context = "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)";
         } else {
-            timeoutMs = Math.min(remaining, equalShareMs * ongoingRelocations);
+            timeoutHeuristicMs = equalShareMs;
+            heuristic = "equal_share";
             context = "relocation source shutting down (equal share of remaining time to capped grace deadline)";
         }
-        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(timeoutMs)), context);
+        drainTimeoutHeuristicTotalMetric.incrementBy(1, Map.of(SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY, heuristic));
+        return new SearchRecoveryTimeout(
+            TimeValue.timeValueMillis(Math.round(Math.min(remaining, timeoutHeuristicMs * ongoingRelocations))),
+            context
+        );
+    }
+
+    /**
+     * Per-shard warm-volume share of {@code remaining}, or {@code 0} when the map cannot be used for this shard.
+     */
+    private double warmVolumeShareMs(ClusterState state, String sourceNodeId, ShardId shardId, long remaining) {
+        if (state.nodes().get(sourceNodeId) == null || isResharding(state, shardId)) {
+            return 0;
+        }
+        var entry = shardWarmVolumes.get(state, sourceNodeId);
+        if (entry == null) {
+            return 0;
+        }
+        final var sourceNode = state.getRoutingNodes().node(sourceNodeId);
+        if (sourceNode == null) {
+            return 0;
+        }
+        long sourceWarmVolumeSum = 0L;
+        int shardsWithVolumeOnSource = 0;
+        boolean sourceHasThisShard = false;
+        for (ShardRouting routing : sourceNode) {
+            if (routing.isSearchable() == false || isResharding(state, routing.shardId())) {
+                continue;
+            }
+            Long volume = entry.volumes().get(routing.shardId());
+            if (volume == null) {
+                continue;
+            }
+            sourceWarmVolumeSum += volume;
+            shardsWithVolumeOnSource++;
+            if (routing.shardId().equals(shardId)) {
+                sourceHasThisShard = true;
+            }
+        }
+        if (shardsWithVolumeOnSource == 0 || sourceWarmVolumeSum <= 0L) {
+            return 0;
+        }
+        final double shardVolume = sourceHasThisShard
+            ? entry.volumes().get(shardId)
+            : sourceWarmVolumeSum / (double) shardsWithVolumeOnSource;
+        return (shardVolume / (double) sourceWarmVolumeSum) * remaining;
+    }
+
+    private static boolean isResharding(ClusterState state, ShardId shardId) {
+        return state.metadata().findIndex(shardId.getIndex()).map(imd -> imd.getReshardingMetadata() != null).orElse(false);
     }
 
     /**

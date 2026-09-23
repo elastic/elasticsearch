@@ -126,6 +126,7 @@ public class AllocationDeciders {
         final String[] deciderNameHolder = { null };
         final Decision.Type[] worstSeen = { Decision.Type.YES };
         final var canRemainDecision = canRemain(shardRouting, node, allocation, (decider, decision) -> {
+            assert decision.type() != Decision.Type.THROTTLE : "We don't expect to see THROTTLE returned from canRemain";
             if ((decision.type() == Decision.Type.NOT_PREFERRED || decision.type() == Decision.Type.NO)
                 && worstSeen[0].compareToBetweenDecisions(decision.type()) > 0) {
                 worstSeen[0] = decision.type();
@@ -133,8 +134,7 @@ public class AllocationDeciders {
             }
         });
 
-        final boolean relevant = canRemainDecision.type() == Decision.Type.NOT_PREFERRED || canRemainDecision.type() == Decision.Type.NO;
-        return new CanRemainWithDeciderName(canRemainDecision, relevant ? deciderNameHolder[0] : null);
+        return new CanRemainWithDeciderName(canRemainDecision, deciderNameHolder[0]);
     }
 
     /**

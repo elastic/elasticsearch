@@ -1,0 +1,22 @@
+config:
+  any-included-regions:
+    - ^\.buildkite/scripts/gradle-isolated-projects-validation\.sh$
+    - ^\.ci/.*
+    - ^build-conventions/.*
+    - ^build-tools/.*
+    - ^build-tools-internal/.*
+    - ^gradle/.*
+    - ^server/.*
+    - ^settings\.gradle$
+    - ^build\.gradle$
+steps:
+  - label: isolated-projects
+    command: |
+      .buildkite/scripts/gradle-isolated-projects-validation.sh
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk

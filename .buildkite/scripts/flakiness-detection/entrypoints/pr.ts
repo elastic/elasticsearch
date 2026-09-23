@@ -2,7 +2,7 @@ import { execSync } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
-import { findUnmutedRefs } from "../detectors/unmutes.ts";
+import { findUnmutedRefs } from "../collectors/unmutes.ts";
 import { uploadResolvePipeline } from "../runners/buildkite.ts";
 import { DEFAULT_AGENT_CONFIG, type FlakinessRef, type FlakinessRefsFile } from "../domain.ts";
 
@@ -55,8 +55,8 @@ export function mayBeTestSource(path: string): boolean {
   return /(^|\/)src\//.test(path);
 }
 
-// Gather `unmute` refs from the muted-tests.yml diff.
-function gatherUnmuteRefs(mergeBase: string, projectRoot: string): FlakinessRef[] {
+// Collect `unmute` refs from the muted-tests.yml diff.
+function collectUnmuteRefs(mergeBase: string, projectRoot: string): FlakinessRef[] {
   console.log(`  Reading muted-tests.yml at ${mergeBase}...`);
   let oldYaml = "";
   try {
@@ -104,8 +104,8 @@ export function run(): void {
   // silently ignores the rest. No path-shape classification lives here - see mayBeTestSource.
   const changedRefs: FlakinessRef[] = sourceFiles.map((path) => ({ source: "changed-file", path }));
 
-  console.log("Gathering unmuted refs...");
-  const unmuteRefs = gatherUnmuteRefs(mergeBase, PROJECT_ROOT);
+  console.log("Collecting unmuted refs...");
+  const unmuteRefs = collectUnmuteRefs(mergeBase, PROJECT_ROOT);
   console.log(`Found ${unmuteRefs.length} unmuted refs`);
 
   const refs: FlakinessRef[] = [...changedRefs, ...unmuteRefs];

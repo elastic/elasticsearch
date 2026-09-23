@@ -113,7 +113,7 @@ public abstract class FlakinessScanTask extends DefaultTask {
             throw new GradleException(
                 "flakiness-refs.json not found at "
                     + getRefsPath().getOrElse("flakiness-refs.json")
-                    + "; the scan step expects the gather/bootstrap step to have written it. For a "
+                    + "; the scan step expects the bootstrap step to have written it. For a "
                     + "standalone run, pass -Pflakiness.refs=<path> pointing at a refs file."
             );
         }

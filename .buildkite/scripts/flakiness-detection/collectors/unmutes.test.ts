@@ -144,7 +144,7 @@ describe("findUnmutedRefs", () => {
   method: testFoo
 `;
     const after = "tests:\n";
-    // Note: resolution to project/sourceSet/kind is now the Java resolver's job; the gatherer just emits
+    // Note: resolution to project/sourceSet/kind is now the Java resolver's job; the collector just emits
     // the ref verbatim, whether or not the class still exists.
     expect(findUnmutedRefs(before, after)).toEqual([
       { source: "unmute", className: "org.elasticsearch.index.IndexTests", method: "testFoo" },

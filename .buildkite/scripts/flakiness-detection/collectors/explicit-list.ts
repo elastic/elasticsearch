@@ -9,7 +9,7 @@ import type { FlakinessRef } from "../domain.ts";
  *   - `org.foo.YamlIT.test {yaml=...}`   - specific yaml case
  *
  * Parsing the spec into (class, method) and mapping it to a source set is now the Java resolver's job
- * (`RefResolver.parseSpec`); this gatherer only trims and wraps, so the spec grammar lives in exactly one
+ * (`RefResolver.parseSpec`); this collector only trims and wraps, so the spec grammar lives in exactly one
  * place. Blank specs are dropped.
  */
 export function explicitRefs(specs: string[]): FlakinessRef[] {

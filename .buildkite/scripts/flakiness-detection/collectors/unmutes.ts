@@ -56,7 +56,7 @@ export function diffMutedEntries(before: MutedEntry[], after: MutedEntry[]): Mut
 /**
  * Diff two `muted-tests.yml` texts and emit an `unmute` {@link FlakinessRef} for every entry that was
  * removed. Resolution of these refs to a project/sourceSet/kind (including whether an unmuted base class
- * is abstract and should expand to subclasses) is now the Java resolver's job - this gatherer no longer
+ * is abstract and should expand to subclasses) is now the Java resolver's job - this collector no longer
  * needs the repo file list at all, which is a nice simplification of the bootstrap step.
  */
 export function findUnmutedRefs(oldYamlText: string, newYamlText: string): FlakinessRef[] {

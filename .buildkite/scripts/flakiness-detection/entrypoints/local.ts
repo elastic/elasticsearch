@@ -2,7 +2,7 @@ import { execSync } from "child_process";
 import { readFileSync, rmSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
-import { explicitRefs } from "../detectors/explicit-list.ts";
+import { explicitRefs } from "../collectors/explicit-list.ts";
 import { planCommandsToRunnable } from "../commands.ts";
 import { runLocally } from "../runners/local.ts";
 import { COMPILE_TASKS, FLAKINESS_TARGETS_DIR, type FlakinessPlan, type FlakinessRefsFile } from "../domain.ts";

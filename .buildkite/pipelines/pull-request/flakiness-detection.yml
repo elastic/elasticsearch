@@ -9,7 +9,7 @@ config:
 steps:
   - group: "flakiness-detection"
     steps:
-      # Step 1 (bootstrap): gather refs (changed files + muted-tests.yml unmutes) into
+      # Step 1 (bootstrap): collect refs (changed files + muted-tests.yml unmutes) into
       # flakiness-refs.json, then dynamically upload TWO steps: an orchestration step
       # (resolve → compile → scan on a single gradle agent) and a separate generate step
       # (TS, on the default node-capable agent, since the gradle image lacks node). The

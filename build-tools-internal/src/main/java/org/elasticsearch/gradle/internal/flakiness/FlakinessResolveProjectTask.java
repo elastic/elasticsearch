@@ -130,7 +130,7 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
             throw new GradleException(
                 "flakiness-refs.json not found at "
                     + path
-                    + "; the resolve step expects the gather/bootstrap step to have written it. For a "
+                    + "; the resolve step expects the bootstrap step to have written it. For a "
                     + "standalone run, pass -Pflakiness.refs=<path> pointing at a refs file."
             );
         }

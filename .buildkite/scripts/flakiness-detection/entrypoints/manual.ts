@@ -1,7 +1,7 @@
 import { writeFileSync } from "fs";
 import { resolve } from "path";
 
-import { explicitRefs } from "../detectors/explicit-list.ts";
+import { explicitRefs } from "../collectors/explicit-list.ts";
 import { uploadResolvePipeline } from "../runners/buildkite.ts";
 import { DEFAULT_AGENT_CONFIG, type FlakinessRefsFile } from "../domain.ts";
 

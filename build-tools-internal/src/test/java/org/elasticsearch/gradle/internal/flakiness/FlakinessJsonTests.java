@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class FlakinessJsonTests {
 
-    /** Every ref shape the TypeScript detectors can emit has to parse into its typed field. */
+    /** Every ref shape the TypeScript collectors can emit has to parse into its typed field. */
     @Test
     public void testParsesEveryRefShapeFromTheRefsFile() {
         String refsJson = """

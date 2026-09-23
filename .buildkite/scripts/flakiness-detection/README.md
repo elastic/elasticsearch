@@ -2,12 +2,12 @@
 
 Detects test flakiness by repeatedly running a focused subset of tests and producing a summary report.
 
-The package gathers input references from one of three sources, hands them to a Java/Gradle resolver that turns them into a plan carrying ready batch commands, then either uploads those commands as a Buildkite sub-pipeline or executes them locally. A JUnit XML analyzer summarises the run as a markdown report.
+The package collects input references from one of three sources, hands them to a Java/Gradle resolver that turns them into a plan carrying ready batch commands, then either uploads those commands as a Buildkite sub-pipeline or executes them locally. A JUnit XML analyzer summarises the run as a markdown report.
 
 > **Resolution of inputs to concrete test targets** - which Gradle project / source set / kind a file or class belongs to, whether a class is abstract (and its concrete subclasses), and **which Gradle task actually re-runs it** - is done by a **Java/Gradle resolver** in `build-tools-internal` (`org.elasticsearch.gradle.internal.flakiness`, tasks `flakinessResolveProject` / `flakinessScan`), not by TypeScript.
 > **Batch-command generation** (dedupe, yaml-suite collapse, per-cap batching, and assembly of the per-batch Gradle command string) also lives in Java: the `flakinessScan` task emits ready commands into `flakiness-plan.json`'s `commands` array.
 > Each command carries the literal token `__GRADLE__` wherever the gradle binary belongs; the TS runner layer substitutes it with `.ci/scripts/run-gradle.sh` (Buildkite) or `./gradlew` (local), so Java stays target neutral.
-> TS owns only input gathering, gradle-binary substitution, Buildkite orchestration, and JUnit analysis.
+> TS owns only input collection, gradle-binary substitution, Buildkite orchestration, and JUnit analysis.
 
 ## How to use it
 
@@ -17,7 +17,7 @@ There are three ways to trigger flakiness detection. All of them share the same 
 
 Runs on every pull request. No action needed — the PR build includes the `flakiness-detection` sub-pipeline.
 
-The detector compares the PR branch against its merge base and selects:
+The pipeline compares the PR branch against its merge base and selects:
 - **Changed tests** — every test file (`*Tests.java`, `*IT.java`, `*.yml` under `src/yamlRestTest/resources/`) added or modified in the PR.
 - **Unmuted tests** — every entry **removed** from `muted-tests.yml`.
 
@@ -55,7 +55,7 @@ Tips:
 ## How it works
 
 The pipeline topology is `bootstrap → [orchestration + generate] → batch + analyze`.
-Step 1 (bootstrap, TS) gathers `FlakinessRef[]` into `flakiness-refs.json` and uploads two steps: an orchestration step and a separate generate step.
+Step 1 (bootstrap, TS) collects `FlakinessRef[]` into `flakiness-refs.json` and uploads two steps: an orchestration step and a separate generate step.
 The orchestration step runs three phases sequentially on ONE gradle agent: `resolve` (refs → one `<project>.json` per project under `build/flakiness/project-targets/`, carrying its resolved targets and its class directories), `compile` (a plain, unqualified invocation of `compileTestJava compileInternalClusterTestJava compileJavaRestTestJava compileYamlRestTestJava`, i.e. every test source set in the repo - its non-zero exit is the only `build_failed` signal), and `scan` (ASM-scans the union of every project's class directories into `flakiness-plan.json`, including the ready batch `commands`).
 
 The compile phase reads nothing from resolve except one guard: it is skipped entirely when resolve produced no targets, so a PR whose changes resolve to nothing runnable does not pay a whole-repo test compile to produce an empty plan. This is the second of two gates. The first is in `pr.ts`, which only makes a ref of a changed file under a source directory and does not upload the orchestration step at all when nothing qualifies, so a docs-only PR never reaches this step; the guard here catches what that coarse filter lets through, such as a change confined to `src/main/java`. The scan still runs either way, because it is what reports refs no project could claim. Compiling everything is what lets the scan connect an abstract test base to concrete subclasses in *other* Gradle projects, which a subset compile cannot: the ASM scan can only report a class abstract if it visited that class's own `.class` file. Measured on a real CI agent: ~65s with the remote build cache warm (1227 of 1676 tasks from cache), ~2m30s with `--no-build-cache`; the ASM scan that follows is ~9s.
@@ -95,15 +95,15 @@ Only the actual test batch steps (`KIND_KEYS`, e.g. `flakiness-detection:unit`) 
                               └──────────────────────────────────────┘
 ```
 
-### Module 1: gatherers
+### Module 1: collectors
 
-Each gatherer takes an input shape specific to its trigger and emits `FlakinessRef[]`. They no longer classify/resolve - that moved to the Java resolver - so they are tiny and need no repo file listing.
+Each collector takes an input shape specific to its trigger and emits `FlakinessRef[]`.
 
-| File                         | Input                                                 | Emits                         | Used by                                         |
-|------------------------------|-------------------------------------------------------|-------------------------------|-------------------------------------------------|
-| (inline in `pr.ts`)          | `git diff --name-only` paths                          | `changed-file` refs           | `entrypoints/pr.ts`                             |
-| `detectors/unmutes.ts`       | Old + new `muted-tests.yml` text                      | `unmute` refs                 | `entrypoints/pr.ts`                             |
-| `detectors/explicit-list.ts` | Array of spec strings                                 | `explicit` refs               | `entrypoints/manual.ts`, `entrypoints/local.ts` |
+| File                          | Input                                                 | Emits                         | Used by                                         |
+|-------------------------------|-------------------------------------------------------|-------------------------------|-------------------------------------------------|
+| (inline in `pr.ts`)           | `git diff --name-only` paths                          | `changed-file` refs           | `entrypoints/pr.ts`                             |
+| `collectors/unmutes.ts`       | Old + new `muted-tests.yml` text                      | `unmute` refs                 | `entrypoints/pr.ts`                             |
+| `collectors/explicit-list.ts` | Array of spec strings                                 | `explicit` refs               | `entrypoints/manual.ts`, `entrypoints/local.ts` |
 
 A `FlakinessRef` (defined in `domain.ts`) is one of: `{source:"changed-file", path}`, `{source:"unmute", className, method?}`, or `{source:"explicit", spec}`.
 
@@ -256,7 +256,7 @@ been removed.
 flakiness-detection/
   README.md
   domain.ts              types (FlakinessRef, FlakinessPlan, PlanCommand, ClassifiedTest, ...), KIND_* tables, AGENTS/DEFAULT_AGENT_CONFIG
-  detectors/
+  collectors/
     unmutes.ts           muted-tests.yml diff → unmute refs (parse/diff kept; locate removed)
     explicit-list.ts     spec strings → explicit refs
   commands.ts            planEntryToClassifiedTest + withGradleBinary + planCommandsToRunnable (__GRADLE__ swap)
@@ -269,7 +269,7 @@ flakiness-detection/
     render.ts                   FlakinessReport → markdown + severity
     outcome.ts                  rc + JUnit counts → outcome taxonomy (deriveOutcome)
   entrypoints/
-    pr.ts                bootstrap: gather changed-file + unmute refs → refs.json → upload resolve pipeline
+    pr.ts                bootstrap: collect changed-file + unmute refs → refs.json → upload resolve pipeline
     manual.ts            bootstrap: FLAKINESS_CLASSES → explicit refs → refs.json → upload resolve pipeline
     local.ts             argv driven: refs → flakinessResolveProject → compile tasks → flakinessScan → planCommandsToRunnable → runLocally
     generate.ts          reads flakiness-plan.json → planCommandsToRunnable + upload batches/analyze; folds skip/buildFailed

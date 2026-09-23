@@ -19,7 +19,7 @@
 # batch-command generation).
 # Topology: bootstrap → [orchestration (gradle agent) + generate (node agent)] → batch + analyze.
 steps:
-  - label: "gather refs from FLAKINESS_CLASSES (bootstrap)"
+  - label: "collect refs from FLAKINESS_CLASSES (bootstrap)"
     # Not a test batch, so it stays out of the flakiness-detection: prefix (see the PR pipeline for why).
     key: "flakiness-orchestration:bootstrap"
     command: |

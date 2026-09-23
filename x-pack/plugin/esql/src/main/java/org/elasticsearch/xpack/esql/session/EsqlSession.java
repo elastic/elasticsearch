@@ -187,6 +187,45 @@ public class EsqlSession {
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
 
     /**
+     * Distinguishes between the main plan and the different kinds of re-planning subplan executions.
+     * Passed through {@link PlanRunner#run} so the execution engine applies correct per-kind behavior
+     * without relying on shared mutable state in {@link EsqlExecutionInfo}.
+     */
+    public enum SubPlanKind {
+        /** The main (outer) plan, or the final plan after all subplans have completed. */
+        MAIN,
+        /**
+         * An IN-subquery ({@code SemiJoin} / {@code AntiJoin} / {@code MarkJoin} via
+         * {@link org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin}) subplan.
+         * The right side is an independent uncorrelated subquery that needs an exchange wrapper.
+         */
+        SUBQUERY_JOIN,
+        /**
+         * A PromQL-style {@link org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin} subplan.
+         * Like {@link #SUBQUERY_JOIN}, the right side is a standalone uncorrelated subquery.
+         */
+        INNER_JOIN,
+        /** An {@code INLINE STATS} ({@code InlineJoin}) subplan. */
+        INLINE_JOIN,
+        /** An approximation-calibration subplan used by the sampling executor. */
+        APPROXIMATION
+    }
+
+    /**
+     * Per-invocation context passed to {@link PlanRunner#run}. Carries the subplan kind so the
+     * execution engine can route behavior (child session creation, shard-count updates, status
+     * transitions) without reading global mutable state from {@link EsqlExecutionInfo}.
+     * {@code null} is equivalent to {@link #MAIN_PLAN}.
+     *
+     * @param kind              what is being executed
+     * @param profileQualifier  optional prefix for profile descriptions (e.g. {@code "rsub-0"})
+     */
+    public record PlanRunContext(SubPlanKind kind, @Nullable String profileQualifier) {
+        /** Singleton context for all main (non-subplan) executions. */
+        public static final PlanRunContext MAIN_PLAN = new PlanRunContext(SubPlanKind.MAIN, null);
+    }
+
+    /**
      * Interface for running the underlying plan.
      * Abstracts away the underlying execution engine.
      */
@@ -196,6 +235,7 @@ public class EsqlSession {
             Configuration configuration,
             FoldContext foldContext,
             PlanTimeProfile planTimeProfile,
+            PlanRunContext context,
             ActionListener<Result> listener
         );
     }
@@ -892,7 +932,7 @@ public class EsqlSession {
     ) {
         var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
         PhysicalPlan resultPlan = new LocalSourceExec(Source.EMPTY, Explain.OUTPUT_ATTRIBUTES, LocalSupplier.of(new Page(blocks)));
-        planRunner.run(resultPlan, configuration, foldContext, planTimeProfile, listener);
+        planRunner.run(resultPlan, configuration, foldContext, planTimeProfile, PlanRunContext.MAIN_PLAN, listener);
     }
 
     private void executeSubPlans(
@@ -929,8 +969,7 @@ public class EsqlSession {
                 subPlansResults,
                 physicalPlanOptimizer,
                 planTimeProfile,
-                // Ensure we don't have subplan flag stuck in there on failure
-                ActionListener.runAfter(listener, executionInfo::finishSubPlans)
+                listener
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
@@ -940,12 +979,19 @@ public class EsqlSession {
             // execute main plan. Collect pinned reads only after execution so planning-time heap is
             // not held for every file through discovery. Reconcile data-node-captured source stats
             // into ExternalSourceCacheService before delivering Result.
-            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-                Map<String, PinnedColumns> pinnedReads = new HashMap<>();
-                collectPinnedReads(optimizedPlan, pinnedReads);
-                reconcileCapturedSourceStats(result.completionInfo(), pinnedReads);
-                next.onResponse(result);
-            }));
+            runner.run(
+                physicalPlan,
+                configuration,
+                foldContext,
+                planTimeProfile,
+                PlanRunContext.MAIN_PLAN,
+                listener.delegateFailureAndWrap((next, result) -> {
+                    Map<String, PinnedColumns> pinnedReads = new HashMap<>();
+                    collectPinnedReads(optimizedPlan, pinnedReads);
+                    reconcileCapturedSourceStats(result.completionInfo(), pinnedReads);
+                    next.onResponse(result);
+                })
+            );
         }
     }
 
@@ -1098,14 +1144,22 @@ public class EsqlSession {
      * @param subPlan     first subplan that needs to be executed
      * @param newMainPlan callback to build the new main plan based on the subplan results
      * @param cleanup     callback to release any resources hold by the subplan results
+     * @param kind        the kind of subplan, used to route execution-engine behavior
      */
     private record SubPlanAndCallback(
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
-        boolean isSubqueryJoinSubPlan,
-        boolean isApproximationCalibration
-    ) {};
+        SubPlanKind kind
+    ) {
+        boolean isSubqueryJoinSubPlan() {
+            return kind == SubPlanKind.SUBQUERY_JOIN || kind == SubPlanKind.INNER_JOIN;
+        }
+
+        boolean isApproximationCalibration() {
+            return kind == SubPlanKind.APPROXIMATION;
+        }
+    };
 
     private SubPlanAndCallback firstSubPlan(
         LogicalPlan mainPlan,
@@ -1138,7 +1192,7 @@ public class EsqlSession {
                     blockFactory,
                     localRelationPage
                 );
-            }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
+            }, () -> releaseLocalRelationBlocks(localRelationPage), SubPlanKind.SUBQUERY_JOIN);
         } else if (firstJoin instanceof InnerJoin ej) {
             InnerJoin.LogicalPlanTuple subPlans = InnerJoin.subPlanFor(ej);
             AtomicReference<Page> localRelationPage = new AtomicReference<>();
@@ -1147,7 +1201,7 @@ public class EsqlSession {
                 localRelationPage.set(resultWrapper.supplier().get());
                 subPlansResults.add(resultWrapper);
                 return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-            }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
+            }, () -> releaseLocalRelationBlocks(localRelationPage), SubPlanKind.INNER_JOIN);
         } else if (firstJoin instanceof InlineJoin ij) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.subPlanFor(ij);
             AtomicReference<Page> localRelationPage = new AtomicReference<>();
@@ -1156,7 +1210,7 @@ public class EsqlSession {
                 localRelationPage.set(resultWrapper.supplier().get());
                 subPlansResults.add(resultWrapper);
                 return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-            }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
+            }, () -> releaseLocalRelationBlocks(localRelationPage), SubPlanKind.INLINE_JOIN);
         }
 
         LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan() : mainPlan;
@@ -1170,8 +1224,7 @@ public class EsqlSession {
                     subPlan,
                     result -> approximation.get().newMainPlan(mainPlan, result),
                     () -> {},
-                    false,
-                    true
+                    SubPlanKind.APPROXIMATION
                 );
             }
         }
@@ -1235,80 +1288,85 @@ public class EsqlSession {
             recordExplainSubPlan(subPlan.subPlan, physicalSubPlan);
         }
 
-        executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
+        runner.run(
+            physicalSubPlan,
+            configuration,
+            foldContext,
+            planTimeProfile,
+            new PlanRunContext(subPlan.kind(), null),
+            listener.delegateFailureAndWrap((next, result) -> {
+                // Approximation subplans (to get the sample probability) may approximate internally to estimate
+                // the result count. This does not affect whether the final result is approximate or not.
+                DriverCompletionInfo subPlanCompletionInfo = subPlan.isApproximationCalibration()
+                    ? result.completionInfo().withoutApproximationApplied()
+                    : result.completionInfo();
+                completionInfoAccumulator.accumulate(subPlanCompletionInfo);
+                try {
+                    var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
+                    LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
+                    LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
 
-        runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-            // Approximation subplans (to get the sample probability) may approximate internally to estimate
-            // the result count. This does not affect whether the final result is approximate or not.
-            DriverCompletionInfo subPlanCompletionInfo = subPlan.isApproximationCalibration()
-                ? result.completionInfo().withoutApproximationApplied()
-                : result.completionInfo();
-            completionInfoAccumulator.accumulate(subPlanCompletionInfo);
-            try {
-                var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
-                LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
-                LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
+                    // Pins for this subplan are only consumed at the final reconcile. Collect after
+                    // execution so they are not live through this subplan's discovery.
+                    collectPinnedReads(subPlan.subPlan, pinnedReads);
 
-                // Pins for this subplan are only consumed at the final reconcile. Collect after
-                // execution so they are not live through this subplan's discovery.
-                collectPinnedReads(subPlan.subPlan, pinnedReads);
+                    // look for the next inlinejoin plan
+                    var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
+                    LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
 
-                // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
-                LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
-
-                if (newSubPlan == null) {
-                    executionInfo.finishSubPlans();
-                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
-                    if (explainContext != null) {
-                        // Capture the post-substitution physical plan — the one that actually runs. For
-                        // InlineJoin and similar the plan is only meaningful after all subplans have resolved
-                        // StubRelations into real LocalRelation data, so this is the earliest correct point.
-                        recordExplainCoordinatorPlan(newPhysicalPlan);
+                    if (newSubPlan == null) {
+                        var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
+                        if (explainContext != null) {
+                            // Capture the post-substitution physical plan — the one that actually runs. For
+                            // InlineJoin and similar the plan is only meaningful after all subplans have resolved
+                            // StubRelations into real LocalRelation data, so this is the earliest correct point.
+                            recordExplainCoordinatorPlan(newPhysicalPlan);
+                        }
+                        runner.run(
+                            newPhysicalPlan,
+                            configuration,
+                            foldContext,
+                            planTimeProfile,
+                            PlanRunContext.MAIN_PLAN,
+                            releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
+                                completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                                DriverCompletionInfo merged = completionInfoAccumulator.finish();
+                                collectPinnedReads(newMainPlan, pinnedReads);
+                                reconcileCapturedSourceStats(merged, pinnedReads);
+                                EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
+                                finalListener.onResponse(
+                                    new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo, null)
+                                );
+                            })
+                        );
+                    } else {
+                        executeSubPlan(
+                            completionInfoAccumulator,
+                            pinnedReads,
+                            newSubPlan,
+                            configuration,
+                            foldContext,
+                            approximation,
+                            executionInfo,
+                            runner,
+                            request,
+                            subPlansResults,
+                            physicalPlanOptimizer,
+                            planTimeProfile,
+                            releasingNext
+                        );
                     }
-                    runner.run(
-                        newPhysicalPlan,
-                        configuration,
-                        foldContext,
-                        planTimeProfile,
-                        releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
-                            completionInfoAccumulator.accumulate(finalResult.completionInfo());
-                            DriverCompletionInfo merged = completionInfoAccumulator.finish();
-                            collectPinnedReads(newMainPlan, pinnedReads);
-                            reconcileCapturedSourceStats(merged, pinnedReads);
-                            EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
-                            finalListener.onResponse(
-                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo, null)
-                            );
-                        })
-                    );
-                } else {
-                    executeSubPlan(
-                        completionInfoAccumulator,
-                        pinnedReads,
-                        newSubPlan,
-                        configuration,
-                        foldContext,
-                        approximation,
-                        executionInfo,
-                        runner,
-                        request,
-                        subPlansResults,
-                        physicalPlanOptimizer,
-                        planTimeProfile,
-                        releasingNext
-                    );
+                } catch (Exception e) {
+                    // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks
+                    // off
+                    // the current thread, but with the blocks still referenced
+                    subPlan.cleanup.run();
+                    throw e;
+                } finally {
+                    Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
                 }
-            } catch (Exception e) {
-                // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks
-                // off
-                // the current thread, but with the blocks still referenced
-                subPlan.cleanup.run();
-                throw e;
-            } finally {
-                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
-            }
-        }));
+            })
+        );
     }
 
     private LocalRelation resultToPlan(Source planSource, Result result) {

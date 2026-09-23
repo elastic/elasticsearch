@@ -431,7 +431,7 @@ public class EsqlCCSUtils {
     /**
      * Finalize remote clusters that were only involved in sub-plan execution (e.g. an IN-subquery running on a remote cluster while
      * the outer FROM is local). During sub-plan execution, {@code ClusterComputeHandler.updateExecutionInfo} accumulates shard counts
-     * and took time but never advances a cluster's status past {@code RUNNING} because {@code isMainPlan()} is {@code false}. After the
+     * and took time but never advances a cluster's status past {@code RUNNING} because the sub-plan kind is not MAIN. After the
      * main plan completes, any cluster still in {@code RUNNING} state was not touched by the main plan; set its final status based on
      * accumulated failures from the sub-plan (PARTIAL if there were failures, SUCCESSFUL otherwise).
      */

@@ -91,11 +91,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public final ConcurrentMap<String, Cluster> clusterInfo;
     // Is the clusterInfo map initialization in progress? If so, we should not try to serialize it.
     private transient volatile boolean clusterInfoInitializing;
-    // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
-    private transient boolean inSubplan = false;
-    // Is the current subplan a subquery-join (IN-subquery) subplan? Used to distinguish from INLINE STATS subplans.
-    private transient boolean isSubqueryJoinSubPlan = false;
-
     // fields that are not Writeable since they are only needed on the primary CCS coordinator
     private final transient Predicate<String> skipOnFailurePredicate; // Predicate to determine if we should skip a cluster on failure
     private volatile boolean isPartial; // Does this request have partial results?
@@ -174,7 +169,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             queryProfile.writeTo(out);
         }
 
-        assert inSubplan == false : "Should not be serializing execution info while in subplans";
     }
 
     // this is still here for testing only, use includeExecutionMetadata() in production code
@@ -205,9 +199,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * Call when ES|QL execution is complete in order to set the overall took time for an ES|QL query.
      */
     public void markEndQuery() {
-        if (isMainPlan()) {
-            queryProfile.stopAllStartedMarkers();
-        }
+        queryProfile.stopAllStartedMarkers();
     }
 
     public TimeValue overallTook() {
@@ -444,24 +436,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public void clusterInfoInitializing(boolean clusterInfoInitializing) {
         this.clusterInfoInitializing = clusterInfoInitializing;
-    }
-
-    public boolean isMainPlan() {
-        return inSubplan == false;
-    }
-
-    public void startSubPlans(boolean isSubqueryJoin) {
-        this.inSubplan = true;
-        this.isSubqueryJoinSubPlan = isSubqueryJoin;
-    }
-
-    public boolean isSubqueryJoinSubPlan() {
-        return isSubqueryJoinSubPlan;
-    }
-
-    public void finishSubPlans() {
-        this.inSubplan = false;
-        this.isSubqueryJoinSubPlan = false;
     }
 
     /**

@@ -111,6 +111,14 @@ public class TermSelectionTests extends ESTestCase {
         assertEquals(List.of("aaaaaaaa", "zz"), fixture.forDictionary(new DictionaryPolicy(10, 0.5, 1.0), 10_000));
     }
 
+    public void testATermTooLargeForTheBudgetDoesNotEndTheWalk() {
+        // NOTE: by density the ten byte term held a thousand times leads the four byte term held two
+        // hundred, and a budget of eight pays for neither of them together nor the leader alone. Stopping
+        // at the first term that does not fit would leave the column no dictionary at all.
+        final Fixture fixture = fixture(Map.of("t".repeat(10), 1000, "s".repeat(4), 200));
+        assertEquals(List.of("s".repeat(4)), fixture.forDictionary(new DictionaryPolicy(8, 0.5, 1.0), 10_000));
+    }
+
     public void testATermTheQuotaRefusesDoesNotEndTheWalk() {
         // NOTE: by density the single byte term held once leads the two hundred byte term held a hundred
         // times, and the dictionary admits no term held once. Stopping at the first term it refuses would

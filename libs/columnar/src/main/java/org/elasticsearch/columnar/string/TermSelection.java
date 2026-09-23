@@ -61,14 +61,16 @@ final class TermSelection {
         long bytes = 0;
         final BytesRef scratch = new BytesRef();
         for (int id : byDensity) {
-            // NOTE: density ranks a short term held once ahead of a long one held often, so a term the quota
-            // will not admit is stepped over. Ending the walk there would refuse the terms behind it.
+            // NOTE: density ranks a short term held once ahead of a long one held often, so neither the
+            // count a quota asks for nor the bytes it has left fall away along the ranking. A term either
+            // refuses is stepped over; ending the walk there would refuse every term behind it. The walk
+            // is therefore always a full one, and the budget is spent exactly rather than nearly.
             if (counts[id] < quota.minCount()) {
                 continue;
             }
             terms.get(id, scratch);
             if (bytes + TermQuota.cost(scratch) > quota.budget()) {
-                break;
+                continue;
             }
             bytes += TermQuota.cost(scratch);
             admitted[keptCount++] = id;

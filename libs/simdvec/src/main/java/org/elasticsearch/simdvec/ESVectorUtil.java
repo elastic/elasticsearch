@@ -1208,7 +1208,7 @@ public class ESVectorUtil {
      */
     public static void matrixMultiplyFloat(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result) {
         /*
-         * only native segments can be used here - using a mapped segment pins the GC,
+         * only native segments can be used here - using a heap segment pins the GC,
          * and matrix multiply can run for several hundred ms
          */
         assert a.isNative();

@@ -792,9 +792,9 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void matrixMultiplyFloat(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result) {
-        // allocate into a float[], then copy over. It's a lot quicker to access arrays than segments in a loop
+        // copy/allocate float[], do the thing, then copy back. It's a lot quicker to access arrays than segments in a tight scalar loop
         float[] r = new float[m * n];
-        multiply(a, k, b, r, m, k, n);
+        multiply(a.toArray(JAVA_FLOAT), k, b.toArray(JAVA_FLOAT), r, m, k, n);
         MemorySegment.copy(r, 0, result, JAVA_FLOAT, 0, m * n);
     }
 
@@ -807,33 +807,33 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * @param inner      inner dimension of the multiplication, at least one
      * @param n          columns of C, and of B
      */
-    private void multiply(MemorySegment a, int aRowStride, MemorySegment b, float[] c, int cRows, int inner, int n) {
+    private void multiply(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
         for (int i = 0; i < cRows; i++) {
             int aBase = i * aRowStride;
             int cBase = i * n;
             // unroll 4x, so 4 values are accumulated into each c cell at once
             int l = 0;
             for (; l + 4 <= inner; l += 4) {
-                long aOffset = aBase + l;
+                int aOffset = aBase + l;
                 int b0 = l * n;
                 int b1 = b0 + n;
                 int b2 = b0 + n * 2;
                 int b3 = b0 + n * 3;
                 for (int j = 0; j < n; j++) {
                     float acc = c[cBase + j];
-                    acc = fma(a.getAtIndex(JAVA_FLOAT, aOffset), b.getAtIndex(JAVA_FLOAT, b0 + j), acc);
-                    acc = fma(a.getAtIndex(JAVA_FLOAT, aOffset + 1), b.getAtIndex(JAVA_FLOAT, b1 + j), acc);
-                    acc = fma(a.getAtIndex(JAVA_FLOAT, aOffset + 2), b.getAtIndex(JAVA_FLOAT, b2 + j), acc);
-                    acc = fma(a.getAtIndex(JAVA_FLOAT, aOffset + 3), b.getAtIndex(JAVA_FLOAT, b3 + j), acc);
+                    acc = fma(a[aOffset], b[b0 + j], acc);
+                    acc = fma(a[aOffset + 1], b[b1 + j], acc);
+                    acc = fma(a[aOffset + 2], b[b2 + j], acc);
+                    acc = fma(a[aOffset + 3], b[b3 + j], acc);
                     c[cBase + j] = acc;
                 }
             }
             // tail
             for (; l < inner; l++) {
-                float al = a.getAtIndex(JAVA_FLOAT, aBase + l);
+                float al = a[aBase + l];
                 int bBase = l * n;
                 for (int j = 0; j < n; j++) {
-                    c[cBase + j] = fma(al, b.getAtIndex(JAVA_FLOAT, bBase + j), c[cBase + j]);
+                    c[cBase + j] = fma(al, b[bBase + j], c[cBase + j]);
                 }
             }
         }

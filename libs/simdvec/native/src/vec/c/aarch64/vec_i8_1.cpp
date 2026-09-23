@@ -303,8 +303,7 @@ static inline void call_i8_bulk(
             acc[I] = acc_ops<TAcc>::zero();
         });
 
-        int i=0;
-        for (; i < blk; i += stride) {
+        for (int i = 0; i < blk; i += stride) {
             int8x16_t vb = vld1q_s8(b + i);
 
             apply_indexed<batches>([&](auto I) {
@@ -317,8 +316,9 @@ static inline void call_i8_bulk(
         apply_indexed<batches>([&](auto I) {
             res[I] = acc_ops<TAcc>::reduce(acc[I]);
         });
-        // scalar tail
-        for (; i < dims; i++) {
+        // indexed from the loop-invariant block end: reusing the main loop's counter makes clang keep a second
+        // set of per-vector pointers alive in the main loop to feed the tail
+        for (int i = blk; i < dims; i++) {
             const int8_t bb = b[i];
             apply_indexed<batches>([&](auto I) {
                 res[I] += scalar_op(as[I][i], bb);

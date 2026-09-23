@@ -45,8 +45,10 @@
         index: test-numeric-offsets-empty-array
         id: "1"
 
-  # "other" must be present — its absence would indicate the builder was left in VALUE_EXPECTED state
-  # after writing "id", which is the exact failure mode of the original bug.
-  # Note: _source.obj is reconstructed as a list (index-level synthetic_source_keep:arrays captures
-  # object arrays as blobs), so we don't assert on obj.id here.
+  # All three fields must round-trip correctly. "other" is the critical one: if the builder were
+  # left in VALUE_EXPECTED state after writing "id", this field would cause "Can not write a field
+  # name, expecting a value". obj.1.id is the scalar element; obj.0.id ([[]], the pathological
+  # empty array) is not asserted because its exact reconstructed form is implementation-defined.
+  - match: { _source.@timestamp: "2024-01-01T10:00:00.000Z" }
+  - match: { _source.obj.1.id: 42 }
   - match: { _source.other: "z" }

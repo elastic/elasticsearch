@@ -48,10 +48,6 @@ public class DataGenerationHelper {
     private final Template template;
     private final Mapping mapping;
 
-    public DataGenerationHelper() {
-        this(b -> {});
-    }
-
     public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator) {
         this(builderConfigurator, true);
     }
@@ -61,7 +57,6 @@ public class DataGenerationHelper {
         // With this combination, mapped dotted fields (e.g. "objarr.k") must be indexed from
         // array-of-objects form ("objarr":[{"k":"v"}]) in the same way as plain objects.
         final boolean forceSubobjectsFalseArrays = ESTestCase.randomBoolean();
-
         this.keepArraySource = ESTestCase.randomBoolean();
 
         var specificationBuilder = DataGeneratorSpecification.builder()
@@ -178,7 +173,6 @@ public class DataGenerationHelper {
 
         this.template = new TemplateGenerator(specification).generate();
         this.mapping = new MappingGenerator(specification).generate(template);
-
     }
 
     Mapping mapping() {

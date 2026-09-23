@@ -3507,9 +3507,6 @@ id:keyword | a.b:keyword | _source:_source
 9          | null        | "{""id"":""9""}"
 ;
 
-// With the parseArrayDynamic fix, unmapped_source_mapped (subobjects:false + dynamic:false with objarr.k, objarr.j,
-// nest.inner.leaf mapped as literal dotted fields) now indexes values that arrive via JSON object arrays, consistent
-// with the plain-object path. The results for unmapped_source_mapped now match unmapped_source_stored.
 storedobjectsFalse_For_unmapped_source_mapped_Highlight
 required_capability: optional_fields_load_all_v2
 required_capability: optional_fields_fix_unmapped_object_value

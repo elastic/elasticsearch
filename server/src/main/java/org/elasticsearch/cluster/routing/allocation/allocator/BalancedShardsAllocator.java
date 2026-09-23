@@ -1242,7 +1242,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             if (shardRouting.started() == false) {
                 // we can only move started shards
-                return NOT_TAKEN;
+                return MoveDecisionWithDeciderNames.NOT_TAKEN;
             }
 
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
@@ -1251,12 +1251,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final var canRemainResult = allocation.deciders().canRemainWithDeciderName(shardRouting, routingNode, allocation);
             final Decision canRemainDecision = canRemainResult.decision();
             if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
-                return new MoveDecisionWithDeciderNames(MoveDecision.createRemainYesDecision(canRemainDecision), null, null);
+                return MoveDecisionWithDeciderNames.createRemainYesDecision(canRemainDecision);
             }
 
             // Check predicate to decide whether to assess movement options
             if (canRemainDecision.type() == Type.NOT_PREFERRED && nonPreferredPredicate.test(shardRouting) == false) {
-                return NOT_TAKEN;
+                return MoveDecisionWithDeciderNames.NOT_TAKEN;
             }
 
             sorter.reset(index);
@@ -2284,7 +2284,26 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         MoveDecision moveDecision,
         @Nullable String canRemainDeciderName,
         @Nullable String canAllocateNotPreferredDeciderName
-    ) {}
+    ) {
 
-    private static final MoveDecisionWithDeciderNames NOT_TAKEN = new MoveDecisionWithDeciderNames(MoveDecision.NOT_TAKEN, null, null);
+        static final MoveDecisionWithDeciderNames NOT_TAKEN = new MoveDecisionWithDeciderNames(MoveDecision.NOT_TAKEN, null, null);
+        static final MoveDecisionWithDeciderNames CACHED_STAY_DECISION = new MoveDecisionWithDeciderNames(
+            MoveDecision.CACHED_STAY_DECISION,
+            null,
+            null
+        );
+
+        /**
+         * Creates a move decision for the shard being able to remain on its current node, so the shard won't
+         * be forced to move to another node.
+         */
+        public static MoveDecisionWithDeciderNames createRemainYesDecision(Decision canRemainDecision) {
+            assert canRemainDecision.type() != Type.NO;
+            assert canRemainDecision.type() != Type.NOT_PREFERRED;
+            if (canRemainDecision == Decision.YES) {
+                return CACHED_STAY_DECISION;
+            }
+            return new MoveDecisionWithDeciderNames(MoveDecision.createRemainYesDecision(canRemainDecision), null, null);
+        }
+    }
 }

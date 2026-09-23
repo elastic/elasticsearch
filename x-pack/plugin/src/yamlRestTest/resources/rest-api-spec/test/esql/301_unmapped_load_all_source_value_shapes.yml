@@ -156,7 +156,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "1" | LIMIT 5'
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "1"'
   - length: { columns: 2 }
   - length: { values: 1 }
   - match: { columns.0.name: id }
@@ -170,7 +170,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "2" | KEEP id, l1.* | LIMIT 5'
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "2" | KEEP id, l1.*'
   - length: { columns: 2 }
   - match: { columns.1.name: l1.l2.l3.l4.l5 }
   - match: { columns.1.type: keyword }
@@ -181,7 +181,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "3" | KEEP id, mixed* | LIMIT 5'
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "3" | KEEP id, mixed*'
   - length: { columns: 3 }
   - match: { columns.1.name: mixed }
   - match: { columns.1.type: keyword }
@@ -194,7 +194,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "4" | LIMIT 5'
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "4"'
   - length: { columns: 5 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: Case }

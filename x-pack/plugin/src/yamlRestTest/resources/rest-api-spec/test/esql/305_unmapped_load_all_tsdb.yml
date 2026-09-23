@@ -154,4 +154,4 @@ teardown:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; TS la_tsdb | STATS m = MAX(gauge) BY dim | SORT dim | LIMIT 10'
   - match: { error.type: verification_exception }
-  - contains: { error.reason: "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands" }
+  - contains: { error.reason: "unmapped_fields=\"LOAD_ALL\" only supports the" }

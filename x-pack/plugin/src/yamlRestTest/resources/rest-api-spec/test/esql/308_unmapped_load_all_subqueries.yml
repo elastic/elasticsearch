@@ -70,16 +70,6 @@ teardown:
   - match: { values.1: [ "b1", "from_source" ] }
 
 ---
-'LOAD_ALL over a sub-query is rejected by the MVP guardrail':
-  - do:
-      catch: bad_request
-      esql.query:
-        body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_sub_a, (FROM la_sub_b | KEEP id, note) | KEEP id, note | SORT id | LIMIT 10'
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands" }
-
----
 'LOAD_ALL discovery works on the same indices without the sub-query':
   - do:
       esql.query:

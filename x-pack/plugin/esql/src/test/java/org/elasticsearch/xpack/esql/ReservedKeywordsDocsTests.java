@@ -47,9 +47,10 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
      */
     private static final Set<String> TOKENS_WHITELIST = Set.of();
     /**
-     * Tokens to omit from the generated list.
+     * Generated keywords to omit from the docs.
+     * {@code INLINESTATS} is the deprecated spelling of {@code INLINE STATS}.
      */
-    private static final Set<String> TOKENS_BLACKLIST = Set.of("UNKNOWN_CMD");
+    private static final Set<String> TOKENS_BLACKLIST = Set.of("INLINESTATS", "UNKNOWN_CMD");
     /**
      * Keywords grouped by introduction version, in display order.
      * {@code null} is unversioned.
@@ -81,7 +82,6 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
                 "IN",
                 "INFO",
                 "INLINE",
-                "INLINESTATS",
                 "IP_LOCATION",
                 "IS",
                 "JOIN",
@@ -127,9 +127,13 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
     }
 
     /**
-     * Identifier-shaped keywords from the tokenizer, plus {@code TOKENS_WHITELIST}.
+     * Identifier-shaped keywords from the tokenizer, before whitelist and blacklist.
      */
-    private static final List<String> RESERVED_KEYWORDS = detectReservedKeywords();
+    private static final List<String> GENERATED_KEYWORDS = detectGeneratedKeywords();
+    /**
+     * {@code GENERATED_KEYWORDS}, minus {@code TOKENS_BLACKLIST}, plus {@code TOKENS_WHITELIST}.
+     */
+    private static final List<String> RESERVED_KEYWORDS = applyKeywordLists();
 
     public void testReservedKeywordsAreIdentifierShapedAndSorted() {
         assertFalse("lexer vocabulary should yield identifier-shaped keywords", RESERVED_KEYWORDS.isEmpty());
@@ -137,7 +141,6 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         assertTrue("command name FROM should be in the dump", RESERVED_KEYWORDS.contains("FROM"));
         assertTrue("STATS is recovered by lexing its symbolic name", RESERVED_KEYWORDS.contains("STATS"));
         assertFalse("WS is not a keyword", RESERVED_KEYWORDS.contains("WS"));
-        assertFalse("UNKNOWN_CMD is a catch-all regex, not a keyword", RESERVED_KEYWORDS.contains("UNKNOWN_CMD"));
         for (int i = 0; i < RESERVED_KEYWORDS.size(); i++) {
             String keyword = RESERVED_KEYWORDS.get(i);
             assertTrue("not identifier-shaped: " + keyword, IDENTIFIER_SHAPED.matcher(keyword).matches());
@@ -164,6 +167,18 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
             }
             String word = unquoteAntlrLiteral(literal).toUpperCase(Locale.ROOT);
             assertFalse(symbolic + " is snapshot-only", RESERVED_KEYWORDS.contains(word));
+        }
+    }
+
+    public void testWhitelistAndBlacklistMatchGeneratedKeywords() {
+        Set<String> generated = new TreeSet<>(GENERATED_KEYWORDS);
+        for (String token : TOKENS_WHITELIST) {
+            String word = token.toUpperCase(Locale.ROOT);
+            assertFalse(word + " is already generated; remove it from TOKENS_WHITELIST", generated.contains(word));
+        }
+        for (String token : TOKENS_BLACKLIST) {
+            String word = token.toUpperCase(Locale.ROOT);
+            assertTrue(word + " is not generated; remove it from TOKENS_BLACKLIST", generated.contains(word));
         }
     }
 
@@ -211,18 +226,26 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         new ReservedKeywordsDocsSupport().renderDocs();
     }
 
-    private static List<String> detectReservedKeywords() {
+    private static List<String> detectGeneratedKeywords() {
         Vocabulary vocabulary = EsqlBaseLexer.VOCABULARY;
         Set<String> keywords = new TreeSet<>();
         for (int tokenType = 0; tokenType <= vocabulary.getMaxTokenType(); tokenType++) {
             String symbolic = vocabulary.getSymbolicName(tokenType);
-            if (symbolic != null && (DEV_TOKEN.matcher(symbolic).matches() || TOKENS_BLACKLIST.contains(symbolic))) {
+            if (symbolic != null && DEV_TOKEN.matcher(symbolic).matches()) {
                 continue;
             }
             String word = keywordText(vocabulary, tokenType, symbolic);
             if (word != null && IDENTIFIER_SHAPED.matcher(word).matches()) {
                 keywords.add(word.toUpperCase(Locale.ROOT));
             }
+        }
+        return new ArrayList<>(keywords);
+    }
+
+    private static List<String> applyKeywordLists() {
+        Set<String> keywords = new TreeSet<>(GENERATED_KEYWORDS);
+        for (String blocked : TOKENS_BLACKLIST) {
+            keywords.remove(blocked.toUpperCase(Locale.ROOT));
         }
         for (String extra : TOKENS_WHITELIST) {
             keywords.add(extra.toUpperCase(Locale.ROOT));

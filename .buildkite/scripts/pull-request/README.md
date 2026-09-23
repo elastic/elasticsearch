@@ -79,6 +79,15 @@ Only include the pipeline if all of the changed files in the PR match at least o
 
 This is particularly useful for having a step that only runs, for example, when all of the other steps get filtered out because of the `excluded-regions` property.
 
+Note that this is "all", not "any". Use `any-included-regions` if you want a step that runs whenever a PR touches certain files, even if it changes other files too.
+
+#### `any-included-regions`
+
+- Type: `string|string[]` - must be JavaScript regexes
+- Example: `["^x-pack/plugin/esql/.*"]`
+
+Only include the pipeline if at least one of the changed files in the PR matches at least one regex. E.g. for the example above, run the step for any PR that touches ES|QL, whether or not it also changes other files.
+
 #### `trigger-phrase`
 
 - Type: `string` - must be a JavaScript regex

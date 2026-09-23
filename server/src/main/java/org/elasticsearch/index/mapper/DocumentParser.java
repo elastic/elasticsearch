@@ -168,6 +168,7 @@ public final class DocumentParser {
             context.enforceRequiredFields();
 
             context.processArrayOffsets(context);
+            context.processArraysWithoutIndexedValue();
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
@@ -776,9 +777,10 @@ public final class DocumentParser {
             }
         }
         if (mapper != null && valueElements == 0) {
-            // The array held nothing to index, so whatever the mapper wrote for it — a null slot, an empty array — stands alone in
-            // the document. Only the mapper knows whether that leaves the field needing its index options stated separately.
-            mapper.recordArrayWithoutIndexedValue(context.doc());
+            // The array held nothing to index, so whatever the mapper wrote for it — a null slot, an empty array — may stand alone in
+            // the document. Only the mapper knows whether that leaves the field needing its index options stated separately, and only
+            // once the whole document has been read, since another array may yet write a value to the same field.
+            context.recordArrayWithoutIndexedValue(mapper, context.doc());
         }
         postProcessDynamicArrayMapping(context, lastFieldName, valueElements);
     }

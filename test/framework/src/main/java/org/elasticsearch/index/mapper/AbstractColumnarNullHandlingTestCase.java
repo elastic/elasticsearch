@@ -207,6 +207,33 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         return false;
     }
 
+    /**
+     * An array of objects flattens every element's leaf onto one field, so a field can be written more than once in a document, and
+     * the all-null array may come first. Whether the document indexed anything is therefore only settled once the whole document has
+     * been read — not when an individual array ends.
+     */
+    public void testObjectArrayWritesFieldTwice() throws IOException {
+        MapperService mapperService = createMapperService(
+            codecSettings(),
+            mapping(b -> b.startObject("outer." + FIELD).field("type", fieldTypeName()).field("index", true).endObject())
+        );
+        for (String source : List.of(
+            "{\"outer\":[{\"" + FIELD + "\":[\"" + sampleValue() + "\"]},{\"" + FIELD + "\":[null]}]}",
+            "{\"outer\":[{\"" + FIELD + "\":[null]},{\"" + FIELD + "\":[\"" + sampleValue() + "\"]}]}"
+        )) {
+            List<IndexableField> fields = new ArrayList<>();
+            for (IndexableField field : mapperService.documentMapper()
+                .parse(new SourceToParse("1", new BytesArray(source), XContentType.JSON))
+                .rootDoc()
+                .getFields()) {
+                if (field.name().equals("outer." + FIELD)) {
+                    fields.add(field);
+                }
+            }
+            assertEquals(source + " indexes only the value, whichever order it arrives in", 1, postings(fields).size());
+        }
+    }
+
     public void testAllNullArrayIndexesAlongsideValue() throws IOException {
         indexAlongsideValue(codecMapperService(), b -> b.startArray(FIELD).nullValue().endArray());
     }

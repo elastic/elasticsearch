@@ -128,6 +128,16 @@ public abstract class DocumentParserContext {
         }
 
         @Override
+        public void recordArrayWithoutIndexedValue(Mapper mapper, LuceneDocument doc) {
+            in.recordArrayWithoutIndexedValue(mapper, doc);
+        }
+
+        @Override
+        public void processArraysWithoutIndexedValue() {
+            in.processArraysWithoutIndexedValue();
+        }
+
+        @Override
         public FieldArrayContext getOffSetContext() {
             FieldArrayContext offsetContext = in.getOffSetContext();
             offsetContext.setCurrentDoc(doc());
@@ -217,6 +227,8 @@ public abstract class DocumentParserContext {
 
     private final Set<String> ignoredFields;
     private final Set<String> ignoredFieldsView;
+    // Arrays that produced no value to index, resolved once the document is complete; see recordArrayWithoutIndexedValue.
+    private List<ArrayWithoutIndexedValue> arraysWithoutIndexedValue;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final Set<String> singleValuedFields;
     private final Map<String, BytesRef> pendingMultiValueViolations;
@@ -774,6 +786,33 @@ public abstract class DocumentParserContext {
             }
         }
     }
+
+    /**
+     * Records that {@code mapper}'s array produced no value to index into {@code doc}. Held until the document is complete rather
+     * than acted on here, because the same field can be written more than once — an array of objects flattens every element's leaf
+     * onto one field — and a later array may index a value the earlier one did not.
+     */
+    public void recordArrayWithoutIndexedValue(Mapper mapper, LuceneDocument doc) {
+        if (arraysWithoutIndexedValue == null) {
+            arraysWithoutIndexedValue = new ArrayList<>();
+        }
+        arraysWithoutIndexedValue.add(new ArrayWithoutIndexedValue(mapper, doc));
+    }
+
+    /**
+     * Hands each array recorded by {@link #recordArrayWithoutIndexedValue} back to its mapper, now that everything the document had
+     * to say about the field has been written.
+     */
+    public void processArraysWithoutIndexedValue() {
+        if (arraysWithoutIndexedValue == null) {
+            return;
+        }
+        for (ArrayWithoutIndexedValue entry : arraysWithoutIndexedValue) {
+            entry.mapper().recordArrayWithoutIndexedValue(entry.doc());
+        }
+    }
+
+    private record ArrayWithoutIndexedValue(Mapper mapper, LuceneDocument doc) {}
 
     public FieldArrayContext getOffSetContext() {
         if (fieldArrayContext == null) {

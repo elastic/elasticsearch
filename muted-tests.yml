@@ -462,3 +462,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
   method: testEsqlTermsAggregationByMethod
   issue: https://github.com/elastic/elasticsearch/issues/160062
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/160063

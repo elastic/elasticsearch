@@ -62,6 +62,30 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testDotPrefixedViews() {
+        assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
+        indexRandom(true, false, prepareIndex("regular-index-1").setSource(Map.of("id", randomIdentifier(), "source", "regular-index-1")));
+
+        try (var view = createView(".non-hidden-view", "FROM regular-index-1")) {
+            try (var response = run(syncEsqlQueryRequest("FROM .non-hidden-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "regular-index-1");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "regular-index-1");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM .non-hidden-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "regular-index-1");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "regular-index-1", "regular-index-1");// matched index and view
+            }
+        }
+    }
+
     public void testViewWithIndexComponentSelectors() {
         assumeTrue("Requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
         assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());

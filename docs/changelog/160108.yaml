@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160108
+summary: Remove the DENSE_VECTOR command snapshot gate
+type: feature

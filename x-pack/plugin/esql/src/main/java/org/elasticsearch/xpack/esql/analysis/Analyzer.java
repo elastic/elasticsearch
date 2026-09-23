@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -180,6 +181,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -313,6 +315,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Resolution",
                 new ResolveRefs(),
+                // Must run in a fixpoint batch, right after ResolveRefs: it inspects the child's output, which is only
+                // trustworthy once ResolveRefs has resolved the child (e.g. expanded wildcard projections such as KEEP *),
+                // and it must strip the wrapper before the union-type rules below inspect the UnionAll's parent.
+                new InjectOuterMetadataForSubqueries(),
                 new ImplicitCasting(),
                 new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
                 new ResolveUnionTypesInUnionAll(),
@@ -446,7 +452,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
+        private static List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
             LinkedHashMap<String, NamedExpression> resolved = new LinkedHashMap<>();
             Set<String> allTags = null;
             for (NamedExpression item : metadata) {
@@ -475,7 +481,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved.values().stream().toList();
         }
 
-        private List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, Set<String> allowedTags) {
+        private static List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, Set<String> allowedTags) {
             Pattern pattern = Pattern.compile(StringUtils.wildcardToJavaPattern(um.pattern(), '\\'));
             List<String> matchingMetadata = allowedTags.stream().filter(x -> pattern.matcher(x).matches()).sorted().toList();
             List<NamedExpression> result = new ArrayList<>();
@@ -1197,6 +1203,89 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             scope.addAll(destinations);
             return scope;
+        }
+    }
+
+    /**
+     * Consumes {@link UnresolvedMetadata} nodes emitted by the parser and null-injects any
+     * outer {@code METADATA} field that is absent from a branch's output.
+     * Includes fields with wildcard patterns.
+     * <p>
+     * The wrapper is only consumed once its child is fully resolved: deciding whether a field is "absent" requires the
+     * child's final output, and before {@code ResolveRefs} has run a child ending in e.g. {@code KEEP *} still reports
+     * an unresolved star in its output. Until then the wrapper is left in place. While a requested field is missing it
+     * is unresolved and keeps its parents from resolving against an output that will still gain columns; once nothing
+     * is left to inject it is transparent (see {@link UnresolvedMetadata#expressionsResolved()}) and is stripped here,
+     * which is why this rule does not skip resolved nodes. If it is never consumed the {@link Verifier} reports it,
+     * being {@link Unresolvable}, instead of the plan reaching the physical planner.
+     */
+    private static class InjectOuterMetadataForSubqueries extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
+            LogicalPlan child = unresolvedMetadata.child();
+
+            // ExternalRelation owns its METADATA binding end-to-end; strip the wrapper and let it stand.
+            if (child instanceof ExternalRelation) {
+                return child;
+            }
+
+            List<NamedExpression> metadataFields = ResolveTable.resolveMetadata(unresolvedMetadata.metadataFields(), context);
+            // If anything remains unresolved, skip injection so the Verifier can throw an error.
+            if (metadataFields.stream().anyMatch(f -> f.resolved() == false)) {
+                return unresolvedMetadata;
+            }
+
+            // The child's output is not final yet (e.g. wildcard projections still unexpanded); try again on the next pass.
+            // Keep the resolved fields so the wrapper can tell whether it is transparent in the meantime.
+            if (child.resolved() == false) {
+                return metadataFields.equals(unresolvedMetadata.metadataFields())
+                    ? unresolvedMetadata
+                    : new UnresolvedMetadata(unresolvedMetadata.source(), child, metadataFields);
+            }
+
+            if (metadataFields.isEmpty()) {
+                // Nothing to inject; just strip the wrapper.
+                return child;
+            }
+
+            Source src = unresolvedMetadata.source();
+            if (child instanceof UnionAll unionAll) {
+                // Multi-source: inject into each branch that is missing the field.
+                List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+                boolean changed = false;
+                for (LogicalPlan branch : unionAll.children()) {
+                    LogicalPlan injected = injectMissing(branch, metadataFields, src);
+                    newChildren.add(injected);
+                    if (injected != branch) {
+                        changed = true;
+                    }
+                }
+                return changed ? unionAll.replaceChildren(newChildren) : child;
+            } else {
+                // Single source: inject directly.
+                return injectMissing(child, metadataFields, src);
+            }
+        }
+
+        /** Wraps {@code plan} in {@code Eval(null AS field, ...)} for each metadata field absent from its output. */
+        private static LogicalPlan injectMissing(LogicalPlan plan, List<NamedExpression> metadataFields, Source src) {
+            Set<String> present = plan.output().stream().map(Attribute::name).collect(Collectors.toSet());
+            List<Alias> nullFills = new ArrayList<>();
+            for (NamedExpression field : metadataFields) {
+                if (field.resolved() == false) {
+                    continue;
+                }
+                if (present.contains(field.name()) == false) {
+                    nullFills.add(new Alias(src, field.name(), new Literal(src, null, field.dataType())));
+                }
+            }
+            return nullFills.isEmpty() ? plan : new Eval(src, plan, nullFills);
         }
     }
 
@@ -2416,16 +2505,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output(), UnmatchedPatterns.FAIL);
-            // Provenance for the external-metadata surfacing rule: when an explicit KEEP names an
-            // engine-synthesized virtual column (external metadata: _file.*, _index, ...), keep the
-            // result as a Keep node — NOT a bare Project — so planWithoutSyntheticAttributes can tell
-            // "the user kept this virtual column" apart from "a DROP carried it forward". A DROP
-            // resolves to a plain Project (resolveDrop) and a KEEP * routes through
-            // excludeExternalMetadata, so neither produces a Keep that lists a VirtualAttribute.
+            // Provenance for the external-metadata surfacing rule: when a Keep projection lists an
+            // engine-synthesized virtual column (ExternalMetadataAttribute), emit a Keep node, not
+            // a bare Project, so planWithoutSyntheticAttributes can tell "the user kept this
+            // virtual column" apart from "a DROP carried it forward". A DROP resolves to a plain
+            // Project (resolveDrop). KEEP * keeps ExternalMetadataAttribute, so a dataset KEEP *
+            // that includes METADATA-bound columns also emits Keep.
             //
-            // This Keep node is emitted ONLY when a virtual column was explicitly kept; every other
-            // KEEP (the overwhelmingly common regular-index case) still resolves to a plain Project,
-            // so the regular-index plan shape — and its golden snapshots — are unchanged.
+            // Regular-index KEEP has no ExternalMetadataAttribute and resolves to a plain Project.
             boolean keptVirtual = false;
             for (NamedExpression ne : resolved) {
                 if (ne instanceof VirtualAttribute) {
@@ -2436,16 +2523,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return keptVirtual ? new Keep(keep.source(), keep.child(), resolved) : new Project(keep.source(), keep.child(), resolved);
         }
 
-        // Engine-synthesized columns (today: {@code _file.*}) are never expanded by {@code KEEP *}
-        // or implicit projections — users must request them by name. Identification is type-based
-        // through the {@link VirtualAttribute} marker so future virtual attributes opt in by
-        // class hierarchy rather than name convention.
-        private static <T extends NamedExpression> List<T> excludeExternalMetadata(List<T> attributes) {
+        // Star expansion keeps concrete attributes and {@link ExternalMetadataAttribute}
+        // (METADATA-bound on FROM <dataset>). Any other {@link VirtualAttribute} is hidden,
+        // identified by type so a new virtual attribute is omitted from {@code *} without a
+        // name check. {@link ExternalMetadataAttribute} is the only {@link VirtualAttribute},
+        // so the skip matches nothing until another implementation exists.
+        private static <T extends NamedExpression> List<T> withoutHiddenVirtualAttributes(List<T> attributes) {
             List<T> filtered = new ArrayList<>(attributes.size());
             for (T attr : attributes) {
-                if (attr instanceof VirtualAttribute == false) {
-                    filtered.add(attr);
+                if (attr instanceof VirtualAttribute && attr instanceof ExternalMetadataAttribute == false) {
+                    continue;
                 }
+                filtered.add(attr);
             }
             return filtered;
         }
@@ -2470,7 +2559,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (projections.isEmpty() || (projections.size() == 1 && projections.getFirst() instanceof UnresolvedStar)) {
                 // Widen List<Attribute> to List<NamedExpression> via copy; safe because every
                 // Attribute is a NamedExpression and the result is a fresh, mutable list.
-                resolvedProjections = new ArrayList<>(excludeExternalMetadata(childOutput));
+                resolvedProjections = new ArrayList<>(withoutHiddenVirtualAttributes(childOutput));
             }
             // otherwise resolve them
             else {
@@ -2482,7 +2571,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final List<Attribute> resolved;
                     final int priority;
                     if (proj instanceof UnresolvedStar) {
-                        resolved = excludeExternalMetadata(childOutput);
+                        resolved = withoutHiddenVirtualAttributes(childOutput);
                         priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         List<Attribute> matched = resolveAgainstList(up, childOutput);
@@ -3883,19 +3972,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
-            // Virtual columns (today: _file.* and the standard metadata names on external datasets)
-            // are kept out of default output, the same way the implicit `*` expansion drops them via
-            // excludeExternalMetadata. But once the user names one explicitly — KEEP _index,
-            // KEEP _file.path — it must reach the result, even when later commands (SORT, LIMIT, ...)
-            // sit above the KEEP and make the relation's output, not the projection, the plan's top
-            // node. We therefore strip a virtual attribute only when no explicit KEEP named it.
-            //
-            // Provenance matters: a DROP also resolves to a Project that carries surviving virtual
-            // columns forward via childOutput, but that is NOT the user keeping them — so we scan
-            // only Keep nodes (resolveKeep emits a Keep; resolveDrop emits a plain Project). A
-            // `KEEP *` runs its projections through excludeExternalMetadata, so its Keep node never
-            // lists a virtual column either. This is why we key off the Keep node identity rather
-            // than the namespace of the column name.
+            // Virtual columns on the EXTERNAL command path stay out of default output unless a Keep
+            // projection lists them. A DROP also resolves to a Project that carries surviving virtual
+            // columns forward via childOutput, but that is not the user keeping them, so we scan only
+            // Keep nodes (resolveKeep emits a Keep; resolveDrop emits a plain Project). KEEP * keeps
+            // ExternalMetadataAttribute, so a Keep from that expansion lists those columns and they
+            // count as kept.
             Set<String> explicitlyKept = explicitlyKeptVirtualNames(plan);
             // External metadata is hidden from default output (and surfaced via KEEP) ONLY for the
             // EXTERNAL command. Its shim auto-injects the whole _file.* family because EXTERNAL has
@@ -3932,15 +4014,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Names of every {@link VirtualAttribute} that appears in the projections of some
-         * {@link Keep} node — i.e. the virtual columns the user pulled in by name
-         * (KEEP _index, KEEP _file.path). Used to decide which virtual columns survive into the
-         * final output instead of being hidden as default-output noise.
+         * {@link Keep} node: the virtual columns a KEEP listed, including {@code KEEP *} which
+         * keeps {@link ExternalMetadataAttribute}. Used to decide which virtual columns survive
+         * into the final output instead of being hidden as default-output noise.
          * <p>
          * Scanning {@link Keep} specifically (not every {@link Project}) is the provenance gate: a
-         * DROP resolves to a plain {@link Project} that carries surviving virtual columns forward —
+         * DROP resolves to a plain {@link Project} that carries surviving virtual columns forward;
          * that must not count as "the user kept it". {@code resolveKeep} emits {@link Keep};
-         * {@code resolveDrop} emits {@link Project}. A {@code KEEP *} expansion routes through
-         * {@code excludeExternalMetadata}, so its {@link Keep} lists no {@link VirtualAttribute}.
+         * {@code resolveDrop} emits {@link Project}.
          */
         private static Set<String> explicitlyKeptVirtualNames(LogicalPlan plan) {
             Set<String> names = new HashSet<>();

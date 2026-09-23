@@ -63,7 +63,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -123,10 +122,20 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
      * unreadable. Callers must not fall through to the stock SDK provider; see {@link #isMisconfigured()}.
      */
     private final String misconfigurationMessage;
+    /**
+     * Guards read-modify-write of {@link #credentialsCache} / {@link #closed} between
+     * {@link #close()} and the token-file watcher, so a post-close cache cannot be installed.
+     */
+    private final Object cacheLock = new Object();
     private volatile CachedSupplier<AwsCredentials> credentialsCache;
     private WatcherHandle<FileWatcher> watcherHandle;
     /** Set by {@link #close()}; watcher callbacks must not install a new cache after close. */
     private volatile boolean closed;
+    /**
+     * Lazily validated once from {@link #credentialsUri}. Host allow-list checks can involve DNS;
+     * the URI is immutable for the provider lifetime so re-validating on every refresh is wasteful.
+     */
+    private volatile URI validatedCredentialsEndpoint;
 
     public EsqlContainerCredentialsProvider(Environment environment, ResourceWatcherService resourceWatcherService) {
         this(environment, resourceWatcherService, System::getenv);
@@ -266,18 +275,21 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
 
             @Override
             public void onFileChanged(Path file) {
-                if (file.equals(tokenSymlink) == false || closed) {
+                if (file.equals(tokenSymlink) == false) {
                     return;
                 }
                 LOGGER.debug("EKS Pod Identity token file [{}] changed, refreshing credentials", file);
                 // Bust the cache so the next resolve re-reads the token and re-exchanges it.
-                CachedSupplier<AwsCredentials> previous = credentialsCache;
-                if (closed) {
-                    return;
+                CachedSupplier<AwsCredentials> previous;
+                synchronized (cacheLock) {
+                    if (closed) {
+                        return;
+                    }
+                    previous = credentialsCache;
+                    credentialsCache = CachedSupplier.builder(EsqlContainerCredentialsProvider.this::refreshCredentials)
+                        .cachedValueName(EsqlContainerCredentialsProvider.this.toString())
+                        .build();
                 }
-                credentialsCache = CachedSupplier.builder(EsqlContainerCredentialsProvider.this::refreshCredentials)
-                    .cachedValueName(EsqlContainerCredentialsProvider.this.toString())
-                    .build();
                 if (previous != null) {
                     previous.close();
                 }
@@ -295,15 +307,38 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
             // HttpResourcesUtils / ResourcesEndpointProvider are @SdkProtectedApi; check on AWS SDK bumps.
             String body = HttpResourcesUtils.instance().readResource(new EntitledTokenEndpointProvider());
             ParsedCredentials parsed = parseCredentialsResponse(body);
+            Instant now = Instant.now();
             Instant expiration = parsed.expiration();
             Instant staleTime = expiration == null ? null : expiration.minus(1, ChronoUnit.MINUTES);
-            Instant prefetchTime = expiration == null
-                ? Instant.now().plus(1, ChronoUnit.HOURS)
-                : min(Instant.now().plus(1, ChronoUnit.HOURS), expiration.minus(15, ChronoUnit.MINUTES));
-            return RefreshResult.builder(parsed.credentials()).staleTime(staleTime).prefetchTime(prefetchTime).build();
+            return RefreshResult.builder(parsed.credentials()).staleTime(staleTime).prefetchTime(prefetchTime(now, expiration)).build();
         } catch (IOException e) {
             throw SdkClientException.builder().message("Failed to load EKS Pod Identity credentials.").cause(e).build();
         }
+    }
+
+    /**
+     * Prefetch schedule matching the AWS SDK {@code ContainerCredentialsProvider}, with a floor for
+     * short-lived tokens. The stock formula {@code min(now+1h, expiration-15min)} is ≤ {@code now}
+     * when credential lifetime is ≤ 15 minutes, which would make {@link CachedSupplier} schedule an
+     * immediate tight refresh loop. In that case prefetch at half the remaining lifetime instead.
+     * (Production EKS Pod Identity credentials last six hours by default, so they use the stock
+     * formula; the floor matters for short-lived fixtures and any other short TTL.)
+     */
+    static Instant prefetchTime(Instant now, Instant expiration) {
+        Instant oneHourFromNow = now.plus(1, ChronoUnit.HOURS);
+        if (expiration == null) {
+            return oneHourFromNow;
+        }
+        Instant fifteenMinutesBeforeExpiration = expiration.minus(15, ChronoUnit.MINUTES);
+        Instant candidate = min(oneHourFromNow, fifteenMinutesBeforeExpiration);
+        if (candidate.isAfter(now)) {
+            return candidate;
+        }
+        long remainingMillis = ChronoUnit.MILLIS.between(now, expiration);
+        if (remainingMillis <= 0) {
+            return now;
+        }
+        return now.plusMillis(remainingMillis / 2);
     }
 
     private static Instant min(Instant a, Instant b) {
@@ -353,10 +388,11 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
 
     /**
      * {@code true} when the provider was successfully wired (Pod Identity env present and entitled
-     * token readable). Callers gate inclusion in the credentials chain on this signal.
+     * token readable) and has not been {@link #close() closed}. Callers gate inclusion in the
+     * credentials chain on this signal.
      */
     public boolean isActive() {
-        return credentialsCache != null;
+        return closed == false && credentialsCache != null;
     }
 
     /**
@@ -376,13 +412,18 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
 
     @Override
     public void close() {
-        closed = true;
-        if (watcherHandle != null) {
-            watcherHandle.stop();
+        WatcherHandle<FileWatcher> handle;
+        CachedSupplier<AwsCredentials> cache;
+        synchronized (cacheLock) {
+            closed = true;
+            handle = watcherHandle;
             watcherHandle = null;
+            cache = credentialsCache;
+            credentialsCache = null;
         }
-        CachedSupplier<AwsCredentials> cache = credentialsCache;
-        credentialsCache = null;
+        if (handle != null) {
+            handle.stop();
+        }
         if (cache != null) {
             cache.close();
         }
@@ -405,16 +446,6 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
     }
 
     @Override
-    public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity(Consumer<ResolveIdentityRequest.Builder> consumer) {
-        return resolveIdentity();
-    }
-
-    @Override
-    public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
-        return CompletableFuture.completedFuture(resolveCredentials());
-    }
-
-    @Override
     public String toString() {
         return PROVIDER_NAME + "[" + tokenFileLocation + " -> " + credentialsUri + "]";
     }
@@ -427,7 +458,13 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
     private final class EntitledTokenEndpointProvider implements ResourcesEndpointProvider {
         @Override
         public URI endpoint() {
-            return validateCredentialsEndpoint(URI.create(credentialsUri));
+            URI cached = validatedCredentialsEndpoint;
+            if (cached != null) {
+                return cached;
+            }
+            URI validated = validateCredentialsEndpoint(URI.create(credentialsUri));
+            validatedCredentialsEndpoint = validated;
+            return validated;
         }
 
         @Override

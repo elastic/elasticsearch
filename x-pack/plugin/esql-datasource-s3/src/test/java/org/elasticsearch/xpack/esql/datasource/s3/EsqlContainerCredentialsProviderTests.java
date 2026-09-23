@@ -182,6 +182,41 @@ public class EsqlContainerCredentialsProviderTests extends ESTestCase {
         }
     }
 
+    public void testIsActiveFalseAfterClose() throws IOException {
+        Path tokenFile = environment.configDir().resolve(POD_IDENTITY_TOKEN_FILE_LOCATION);
+        Files.writeString(tokenFile, TOKEN_CONTENTS);
+        EsqlContainerCredentialsProvider provider = new EsqlContainerCredentialsProvider(
+            environment,
+            resourceWatcherService,
+            podIdentityEnv("http://127.0.0.1:1/creds")
+        );
+        assertTrue(provider.isActive());
+        provider.close();
+        assertFalse(provider.isActive());
+    }
+
+    public void testPrefetchTimeUsesSdkFormulaForLongLivedCredentials() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        Instant expiration = now.plus(1, ChronoUnit.HOURS);
+        // min(now+1h, expiration-15min) = expiration-15min, which is still after now
+        assertThat(EsqlContainerCredentialsProvider.prefetchTime(now, expiration), equalTo(expiration.minus(15, ChronoUnit.MINUTES)));
+    }
+
+    public void testPrefetchTimeFloorsToHalfLifeForShortLivedCredentials() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        Instant expiration = now.plus(15, ChronoUnit.MINUTES);
+        // Stock formula yields now (or earlier); floor to half remaining lifetime to avoid a tight loop
+        assertThat(
+            EsqlContainerCredentialsProvider.prefetchTime(now, expiration),
+            equalTo(now.plus(7, ChronoUnit.MINUTES).plus(30, ChronoUnit.SECONDS))
+        );
+    }
+
+    public void testPrefetchTimeWithoutExpirationUsesOneHour() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        assertThat(EsqlContainerCredentialsProvider.prefetchTime(now, null), equalTo(now.plus(1, ChronoUnit.HOURS)));
+    }
+
     private void startCredentialsServer() throws IOException {
         credentialsServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         credentialsServer.createContext("/creds", exchange -> {

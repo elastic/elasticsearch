@@ -44,9 +44,10 @@ import java.util.function.Supplier;
  * {@code newCredentialsConsumer} (so the S3 fixture can authorize the resulting signed S3
  * requests). Mirrors the structure of {@code AwsStsHttpFixture} but for container credentials.
  *
- * <p>Credential lifetime defaults to fifteen minutes (matching the real EKS agent). Tests that need
- * to force a refresh after an intervening ES|QL query pass a shorter {@link Duration} so the SDK's
- * stale-time (expiry minus one minute) is already in the past when credentials are first issued.
+ * <p>Credential lifetime defaults to fifteen minutes for ordinary tests. Real EKS Pod Identity
+ * credentials last six hours by default; tests that need to force a refresh after an intervening
+ * ES|QL query pass a shorter {@link Duration} so the SDK's stale-time (expiry minus one minute) is
+ * already in the past when credentials are first issued.
  */
 @SuppressForbidden(reason = "test fixture uses HttpServer to emulate the EKS Pod Identity / ECS credentials endpoint")
 public final class PodIdentityCredentialsHttpFixture extends ExternalResource {

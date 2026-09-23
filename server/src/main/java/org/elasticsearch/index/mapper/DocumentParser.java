@@ -775,6 +775,11 @@ public final class DocumentParser {
                 mapper.recordEmptyArrayInOrder(context.doc());
             }
         }
+        if (mapper != null && valueElements == 0) {
+            // The array held nothing to index, so whatever the mapper wrote for it — a null slot, an empty array — stands alone in
+            // the document. Only the mapper knows whether that leaves the field needing its index options stated separately.
+            mapper.recordArrayWithoutIndexedValue(context.doc());
+        }
         postProcessDynamicArrayMapping(context, lastFieldName, valueElements);
     }
 

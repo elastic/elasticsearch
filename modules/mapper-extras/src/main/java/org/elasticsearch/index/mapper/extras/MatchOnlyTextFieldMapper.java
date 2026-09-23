@@ -1185,12 +1185,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     public void recordEmptyArrayInOrder(LuceneDocument doc) {
         if (fieldType().usesColumnarPayload()) {
             ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name());
-            // The empty payload carries the field, so an indexed field needs its index options here too.
-            if (emptyPostingsFieldType != null) {
-                EmptyPostingsField.record(doc, fieldType().name(), emptyPostingsFieldType);
-            }
         } else {
             super.recordEmptyArrayInOrder(doc);
+        }
+    }
+
+    @Override
+    public void recordArrayWithoutIndexedValue(LuceneDocument doc) {
+        // Only when the array left a payload behind: an array the mapper wrote nothing for leaves the field absent, which needs no
+        // index options of its own.
+        if (emptyPostingsFieldType != null && fieldType().usesColumnarPayload() && doc.getByKey(fieldType().name()) != null) {
+            EmptyPostingsField.record(doc, fieldType().name(), emptyPostingsFieldType);
         }
     }
 
@@ -1299,10 +1304,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             int lastValueLength = 0;
             // True when the current doc has at least one non-null slot; gates binary dv blob emission.
             boolean hasNonNull = false;
-            // True when the current doc has at least one null slot: that document carries the field with the null in it, so an
-            // indexed field has to be given its index options even though the slot produces no term. Mirrors the row path.
-            boolean hasNull = false;
-            // The documents needing that empty postings field, collected as the batch is walked.
+            // The documents that carry the field but indexed nothing under it, and so need its index options stated separately.
             final FixedBitSet emptyPostings = columnar && emitTerms && emptyPostingsFieldType != null ? new FixedBitSet(docCount) : null;
 
             while (true) {
@@ -1322,7 +1324,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                                 final BytesRef blob = payload.build();
                                 binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
                                 payload.reset();
-                                if (hasNull && emptyPostings != null) {
+                                // Only a document that indexed nothing needs the field's index options stated separately; one that
+                                // indexed a value alongside its nulls already has them. Mirrors recordArrayWithoutIndexedValue.
+                                if (hasNonNull == false && emptyPostings != null) {
                                     emptyPostings.set(currentDoc);
                                 }
                             }
@@ -1336,7 +1340,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                         pos = 0;
                         docSlotCount = 0;
                         hasNonNull = false;
-                        hasNull = false;
                     }
                     if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
                         break;
@@ -1356,7 +1359,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                             pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
                         }
                         docSlotCount++;
-                        hasNull = true;
                         // hasNonNull stays false: null slots do not produce a binary dv blob.
                     }
                     continue;
@@ -1472,12 +1474,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 // A bare null is dropped outright. The payload joins the document as soon as it exists, so recording a slot for a
                 // null that stands on its own would carry the field as doc values alone, disagreeing with the index options a
                 // document holding a value gives it. Inside an array the slot has to be kept for synthetic source to put the null
-                // back where it was, so the field is registered as indexed instead, with no term to show for it.
+                // back where it was; whether the field then needs its index options stated is settled once the array is done, in
+                // recordArrayWithoutIndexedValue.
                 if (context.isPartOfArray()) {
                     ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
-                    if (emptyPostingsFieldType != null) {
-                        EmptyPostingsField.record(context.doc(), fieldType().name(), emptyPostingsFieldType);
-                    }
                 }
             } else if (fieldType().usesArrayOrderBinaryDocValues()) {
                 MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());

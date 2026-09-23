@@ -163,6 +163,19 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         assertEquals("an indexed field contributes an empty postings field", 1, postings(fields).size());
     }
 
+    /**
+     * A document that indexed a value alongside its nulls already has the field's index options, so it gets no empty postings field:
+     * a second indexed field for the same name would be dead weight on every document with a null in an array.
+     */
+    public void testArrayWithValueAndNullGetsNoEmptyPostings() throws IOException {
+        MapperService mapperService = codecMapperService();
+        List<IndexableField> fields = fieldsFor(
+            mapperService,
+            b -> b.startArray(FIELD).value(sampleValue()).nullValue().value(sampleValue()).endArray()
+        );
+        assertEquals("only the two values are indexed", 2, postings(fields).size());
+    }
+
     public void testAllNullArrayIndexesAlongsideValue() throws IOException {
         indexAlongsideValue(codecMapperService(), b -> b.startArray(FIELD).nullValue().endArray());
     }

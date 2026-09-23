@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -136,7 +137,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
 
     /**
      * When suffix-range GET and the bytes=0-0 fallback both return 403, the error
-     * is a client-class {@link IOException} (not retryable).
+     * is a client-class error (not retryable), and includes the object name.
      */
     public void testHeadFallbackRangeGetAlsoFails() {
         when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
@@ -148,8 +149,8 @@ public class S3AnonymousAccessTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
 
-        IOException e = expectThrows(IOException.class, obj::length);
-        assertThat(e.getMessage(), containsString("Access denied reading external data"));
+        ExternalClientException e = expectThrows(ExternalClientException.class, obj::length);
+        assertThat(e.getMessage(), containsString("Access denied reading [" + PATH.objectName() + "]"));
         assertThat(e.getMessage(), containsString("HTTP 403"));
         // The message has to say what to change, not only what was refused: S3 answers a wrong key and an
         // anonymous request against an authenticated bucket identically, so both remedies are named.

@@ -1,6 +1,0 @@
-pr: 160143
-summary: Run ES|QL exchange cancellation on the driver thread pool
-area: ES|QL
-type: bug
-issues:
-  - 159931

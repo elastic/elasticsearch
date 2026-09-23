@@ -1,0 +1,6 @@
+pr: 160157
+summary: Resume cancelled ES|QL drivers on their executor
+area: ES|QL
+type: bug
+issues:
+  - 159931

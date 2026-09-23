@@ -36,25 +36,21 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
     static final ParseField BASELINE_TOOK_MS_FIELD = new ParseField("baseline_took_ms");
     static final ParseField BASELINE_VECTOR_OPS_FIELD = new ParseField("baseline_vector_ops");
     static final ParseField BASELINE_VECTOR_OPS_KIND_FIELD = new ParseField("baseline_vector_ops_kind");
-    static final ParseField MAX_QUERIES_PER_BATCH_FIELD = new ParseField("max_queries_per_batch");
     static final ParseField RESULTS_FIELD = new ParseField("results");
     static final ParseField FAILURES_FIELD = new ParseField("failures");
 
-    private final ReportedKnobs baseline;
+    private final ReportedSettings baseline;
     private final long baselineTookMs;
     private final long baselineVectorOps;
     private final String baselineVectorOpsKind;
-    private final int maxQueriesPerBatch;
     private final List<KnnSettingsResult> results;
     private final Map<String, Exception> failures;
 
-    /** Creates an immutable snapshot of evaluation results. */
     KnnEvalResponse(
-        ReportedKnobs baseline,
+        ReportedSettings baseline,
         long baselineTookMs,
         long baselineVectorOps,
         String baselineVectorOpsKind,
-        int maxQueriesPerBatch,
         List<KnnSettingsResult> results,
         Map<String, Exception> failures
     ) {
@@ -62,22 +58,20 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         this.baselineTookMs = baselineTookMs;
         this.baselineVectorOps = baselineVectorOps;
         this.baselineVectorOpsKind = Objects.requireNonNull(baselineVectorOpsKind);
-        this.maxQueriesPerBatch = maxQueriesPerBatch;
         this.results = List.copyOf(results);
         this.failures = Map.copyOf(failures);
     }
 
     KnnEvalResponse(StreamInput in) throws IOException {
-        this.baseline = new ReportedKnobs(in);
+        this.baseline = new ReportedSettings(in);
         this.baselineTookMs = in.readVLong();
         this.baselineVectorOps = in.readVLong();
         this.baselineVectorOpsKind = in.readString();
-        this.maxQueriesPerBatch = in.readVInt();
         this.results = in.readCollectionAsList(KnnSettingsResult::new);
         this.failures = in.readMap(StreamInput::readException);
     }
 
-    public ReportedKnobs getBaseline() {
+    public ReportedSettings getBaseline() {
         return baseline;
     }
 
@@ -91,10 +85,6 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
 
     public String getBaselineVectorOpsKind() {
         return baselineVectorOpsKind;
-    }
-
-    public int getMaxQueriesPerBatch() {
-        return maxQueriesPerBatch;
     }
 
     public List<KnnSettingsResult> getResults() {
@@ -111,7 +101,6 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         out.writeVLong(baselineTookMs);
         out.writeVLong(baselineVectorOps);
         out.writeString(baselineVectorOpsKind);
-        out.writeVInt(maxQueriesPerBatch);
         out.writeCollection(results);
         out.writeMap(failures, StreamOutput::writeException);
     }
@@ -124,7 +113,6 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         builder.field(BASELINE_TOOK_MS_FIELD.getPreferredName(), baselineTookMs);
         builder.field(BASELINE_VECTOR_OPS_FIELD.getPreferredName(), baselineVectorOps);
         builder.field(BASELINE_VECTOR_OPS_KIND_FIELD.getPreferredName(), baselineVectorOpsKind);
-        builder.field(MAX_QUERIES_PER_BATCH_FIELD.getPreferredName(), maxQueriesPerBatch);
         builder.startArray(RESULTS_FIELD.getPreferredName());
         for (KnnSettingsResult result : results) {
             result.toXContent(builder, params);
@@ -146,9 +134,9 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         return Strings.toString(this);
     }
 
-    /** How one knob set compared with the baseline. */
+    /** How one settings entry compared with the baseline. */
     public record KnnSettingsResult(
-        ReportedKnobs knnSettings,
+        ReportedSettings knnSettings,
         @Nullable Double recall,
         long includedQueries,
         long excludedQueries,
@@ -168,7 +156,7 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         }
 
         KnnSettingsResult(StreamInput in) throws IOException {
-            this(new ReportedKnobs(in), in.readOptionalDouble(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+            this(new ReportedSettings(in), in.readOptionalDouble(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
         }
 
         @Override
@@ -196,34 +184,33 @@ final class KnnEvalResponse extends ActionResponse implements ToXContentObject {
         }
     }
 
-    /** Requested knobs plus whether full-precision rescoring hit its 10,000-vector limit. */
-    public record ReportedKnobs(KnnEvalKnobs knobs, boolean rescoreWindowCapped) implements Writeable, ToXContentObject {
+    /** The requested settings plus whether full-precision rescoring hit its 10,000-vector limit. */
+    public record ReportedSettings(KnnEvalSettings knnSettings, boolean rescoreWindowCapped) implements Writeable, ToXContentObject {
 
         static final ParseField RESCORE_WINDOW_CAPPED_FIELD = new ParseField("rescore_window_capped");
 
-        /** Creates knobs whose rescore window is not capped. */
-        public static ReportedKnobs of(KnnEvalKnobs knobs) {
-            return new ReportedKnobs(knobs, false);
+        public static ReportedSettings of(KnnEvalSettings knnSettings) {
+            return new ReportedSettings(knnSettings, false);
         }
 
-        public ReportedKnobs {
-            knobs = Objects.requireNonNull(knobs);
+        public ReportedSettings {
+            knnSettings = Objects.requireNonNull(knnSettings);
         }
 
-        ReportedKnobs(StreamInput in) throws IOException {
-            this(new KnnEvalKnobs(in), in.readBoolean());
+        ReportedSettings(StreamInput in) throws IOException {
+            this(new KnnEvalSettings(in), in.readBoolean());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            knobs.writeTo(out);
+            knnSettings.writeTo(out);
             out.writeBoolean(rescoreWindowCapped);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            knobs.innerToXContent(builder, params);
+            knnSettings.innerToXContent(builder, params);
             if (rescoreWindowCapped) {
                 builder.field(RESCORE_WINDOW_CAPPED_FIELD.getPreferredName(), true);
             }

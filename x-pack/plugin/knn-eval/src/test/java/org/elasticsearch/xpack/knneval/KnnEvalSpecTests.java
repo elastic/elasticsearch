@@ -25,13 +25,12 @@ import java.util.List;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 
-/** Tests parsing, validation, serialization, and equality of evaluation specifications. */
 public class KnnEvalSpecTests extends ESTestCase {
 
     static final NamedWriteableRegistry NAMED_WRITEABLE_REGISTRY = new NamedWriteableRegistry(List.of());
 
-    static KnnEvalKnobs createTestKnobs() {
-        return new KnnEvalKnobs(
+    static KnnEvalSettings createTestSettings() {
+        return new KnnEvalSettings(
             randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
             randomBoolean() ? null : randomIntBetween(50, 200),
             randomBoolean() ? null : randomFloatBetween(1.0f, 20.0f, true),
@@ -56,7 +55,7 @@ public class KnnEvalSpecTests extends ESTestCase {
     }
 
     static KnnEvalSpec createTestItem() {
-        // num_candidates must be at least k, and createTestKnobs() draws it from [50, 200]. Leave room for mutateTestItem's k + 1.
+        // num_candidates must be at least k, and createTestSettings() draws it from [50, 200]. Leave room for mutateTestItem's k + 1.
         int k = randomIntBetween(1, 40);
         boolean sampled = randomBoolean();
         List<KnnEvalQuery> queries = null;
@@ -70,17 +69,16 @@ public class KnnEvalSpecTests extends ESTestCase {
                 queries.add(createTestQuery("query_" + i));
             }
         }
-        List<KnnEvalKnobs> candidates = new ArrayList<>();
+        List<KnnEvalSettings> candidates = new ArrayList<>();
         int numCandidates = randomIntBetween(1, 4);
         while (candidates.size() < numCandidates) {
-            KnnEvalKnobs candidate = createTestKnobs();
+            KnnEvalSettings candidate = createTestSettings();
             if (candidates.contains(candidate) == false) {
                 candidates.add(candidate);
             }
         }
-        int maxQueriesPerBatch = randomIntBetween(2, KnnEvalSpec.MAX_QUERIES_PER_BATCH - 1);
-        KnnEvalKnobs baseline = randomBoolean() ? new KnnEvalKnobs(null, null, null, true) : createTestKnobs();
-        return new KnnEvalSpec(randomAlphaOfLengthBetween(1, 10), k, queries, sample, baseline, candidates, maxQueriesPerBatch);
+        KnnEvalSettings baseline = randomBoolean() ? new KnnEvalSettings(null, null, null, true) : createTestSettings();
+        return new KnnEvalSpec(randomAlphaOfLengthBetween(1, 10), k, queries, sample, baseline, candidates);
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -115,17 +113,16 @@ public class KnnEvalSpecTests extends ESTestCase {
         int k = original.getK();
         List<KnnEvalQuery> queries = original.getQueries() == null ? null : new ArrayList<>(original.getQueries());
         KnnEvalSample sample = original.getSample();
-        KnnEvalKnobs baseline = original.getBaseline();
-        List<KnnEvalKnobs> candidates = new ArrayList<>(original.getKnnSettings());
-        int maxQueriesPerBatch = original.getMaxQueriesPerBatch();
+        KnnEvalSettings baseline = original.getBaseline();
+        List<KnnEvalSettings> candidates = new ArrayList<>(original.getKnnSettings());
 
-        switch (randomIntBetween(0, 4)) {
+        switch (randomIntBetween(0, 3)) {
             case 0 -> field = field + "_mutated";
             case 1 -> k = k + 1;
             case 2 -> {
-                KnnEvalKnobs candidate;
+                KnnEvalSettings candidate;
                 do {
-                    candidate = new KnnEvalKnobs(randomFloatBetween(0.0f, 100.0f, true), null, null, false);
+                    candidate = new KnnEvalSettings(randomFloatBetween(0.0f, 100.0f, true), null, null, false);
                 } while (candidates.contains(candidate));
                 candidates.add(candidate);
             }
@@ -137,27 +134,26 @@ public class KnnEvalSpecTests extends ESTestCase {
                     queries.add(createTestQuery("mutation"));
                 }
             }
-            case 4 -> maxQueriesPerBatch = maxQueriesPerBatch + 1;
             default -> throw new AssertionError("unreachable");
         }
-        return new KnnEvalSpec(field, k, queries, sample, baseline, candidates, maxQueriesPerBatch);
+        return new KnnEvalSpec(field, k, queries, sample, baseline, candidates);
     }
 
     public void testQueriesAndSampleAreMutuallyExclusive() {
-        KnnEvalKnobs knobs = new KnnEvalKnobs(100.0f, null, null, false);
-        List<KnnEvalKnobs> candidates = List.of(new KnnEvalKnobs(5.0f, null, null, false));
+        KnnEvalSettings knnSettings = new KnnEvalSettings(100.0f, null, null, false);
+        List<KnnEvalSettings> candidates = List.of(new KnnEvalSettings(5.0f, null, null, false));
         List<KnnEvalQuery> queries = List.of(createTestQuery("q1"));
         KnnEvalSample sample = new KnnEvalSample(10, 42);
 
         Exception both = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnEvalSpec("emb", 10, queries, sample, knobs, candidates, 50)
+            () -> new KnnEvalSpec("emb", 10, queries, sample, knnSettings, candidates)
         );
         assertThat(both.getMessage(), containsString("exactly one of [queries] and [sample] must be provided"));
 
         Exception neither = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnEvalSpec("emb", 10, null, null, knobs, candidates, 50)
+            () -> new KnnEvalSpec("emb", 10, null, null, knnSettings, candidates)
         );
         assertThat(neither.getMessage(), containsString("exactly one of [queries] and [sample] must be provided"));
     }
@@ -174,61 +170,62 @@ public class KnnEvalSpecTests extends ESTestCase {
                 10,
                 queries,
                 null,
-                new KnnEvalKnobs(100.0f, null, null, false),
-                List.of(new KnnEvalKnobs(5.0f, null, null, false)),
-                50
+                new KnnEvalSettings(100.0f, null, null, false),
+                List.of(new KnnEvalSettings(5.0f, null, null, false))
             )
         );
-        assertThat(e.getMessage(), containsString("[queries] must contain at most 10000 entries"));
+        assertThat(e.getMessage(), containsString("[queries] must contain at most " + KnnEvalSpec.MAX_QUERIES + " entries"));
     }
 
     public void testInvalidValuesAreRejected() {
-        KnnEvalKnobs knobs = new KnnEvalKnobs(100.0f, null, null, false);
-        List<KnnEvalKnobs> candidates = List.of(new KnnEvalKnobs(5.0f, null, null, false));
+        KnnEvalSettings knnSettings = new KnnEvalSettings(100.0f, null, null, false);
+        List<KnnEvalSettings> candidates = List.of(new KnnEvalSettings(5.0f, null, null, false));
         KnnEvalSample sample = new KnnEvalSample(10, null);
 
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 0, null, sample, knobs, candidates, 50)).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 0, null, sample, knnSettings, candidates))
+                .getMessage(),
             containsString("[k] must be between 1 and 1000")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, null, sample, knobs, List.of(), 50)).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, null, sample, knnSettings, List.of()))
+                .getMessage(),
             containsString("[knn_settings] must contain between 1 and 32 entries")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("", 10, null, sample, knobs, candidates, 50)).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("", 10, null, sample, knnSettings, candidates)).getMessage(),
             containsString("[field] must be a non-empty field name")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, List.of(), null, knobs, candidates, 50))
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, List.of(), null, knnSettings, candidates))
                 .getMessage(),
             containsString("[queries] must not be empty")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, List.of(createTestQuery("q1"), createTestQuery("q1")), null, knobs, candidates, 50)
+                () -> new KnnEvalSpec("emb", 10, List.of(createTestQuery("q1"), createTestQuery("q1")), null, knnSettings, candidates)
             ).getMessage(),
             containsString("duplicate query id [q1]")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, null, sample, knobs, List.of(new KnnEvalKnobs(5.0f, 9, null, false)), 50)
+                () -> new KnnEvalSpec("emb", 10, null, sample, knnSettings, List.of(new KnnEvalSettings(5.0f, 9, null, false)))
             ).getMessage(),
             containsString("[num_candidates] cannot be less than [k]")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalKnobs(null, null, 0.5f, false)).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSettings(null, null, 0.5f, false)).getMessage(),
             containsString("[rescore_vector.oversample] must be at least 1.0")
         );
         // 0 is what the mapping uses to turn rescoring off, but a reference run with quantized scores is not useful
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalKnobs(null, null, 0.0f, false)).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSettings(null, null, 0.0f, false)).getMessage(),
             containsString("[rescore_vector.oversample] must be at least 1.0")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalKnobs(100.1f, null, null, false)).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSettings(100.1f, null, null, false)).getMessage(),
             containsString("[visit_percentage] must be between 0.0 and 100.0")
         );
         assertThat(
@@ -246,40 +243,35 @@ public class KnnEvalSpecTests extends ESTestCase {
     }
 
     public void testResourceLimitsAndRedundantSettingsAreRejected() {
-        KnnEvalKnobs baseline = new KnnEvalKnobs(100.0f, null, null, false);
-        KnnEvalKnobs candidate = new KnnEvalKnobs(5.0f, null, null, false);
+        KnnEvalSettings baseline = new KnnEvalSettings(100.0f, null, null, false);
+        KnnEvalSettings candidate = new KnnEvalSettings(5.0f, null, null, false);
         KnnEvalSample sample = new KnnEvalSample(10, null);
 
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 1_001, null, sample, baseline, List.of(candidate), 1))
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 1_001, null, sample, baseline, List.of(candidate)))
                 .getMessage(),
             containsString("[k] must be between 1 and 1000")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, null, sample, baseline, List.of(new KnnEvalKnobs(5.0f, 10_001, null, false)), 1)
+                () -> new KnnEvalSpec("emb", 10, null, sample, baseline, List.of(new KnnEvalSettings(5.0f, 10_001, null, false)))
             ).getMessage(),
             containsString("[num_candidates] cannot exceed 10000")
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new KnnEvalSpec("emb", 10, null, sample, baseline, List.of(candidate, candidate), 1)
+                () -> new KnnEvalSpec("emb", 10, null, sample, baseline, List.of(candidate, candidate))
             ).getMessage(),
             containsString("duplicate entry in [knn_settings]")
         );
-        assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, null, sample, baseline, List.of(candidate), 101))
-                .getMessage(),
-            containsString("[max_queries_per_batch] must be between 1 and 100")
-        );
-        List<KnnEvalKnobs> tooManyCandidates = new ArrayList<>();
+        List<KnnEvalSettings> tooManyCandidates = new ArrayList<>();
         for (int i = 1; i <= KnnEvalSpec.MAX_KNN_SETTINGS + 1; i++) {
-            tooManyCandidates.add(new KnnEvalKnobs((float) i, null, null, false));
+            tooManyCandidates.add(new KnnEvalSettings((float) i, null, null, false));
         }
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, null, sample, baseline, tooManyCandidates, 1))
+            expectThrows(IllegalArgumentException.class, () -> new KnnEvalSpec("emb", 10, null, sample, baseline, tooManyCandidates))
                 .getMessage(),
             containsString("[knn_settings] must contain between 1 and 32 entries")
         );
@@ -301,7 +293,6 @@ public class KnnEvalSpecTests extends ESTestCase {
             assertNull(spec.getSample().getSeed());
             assertEquals(100.0f, spec.getBaseline().getVisitPercentage(), 0.0f);
             assertNull(spec.getBaseline().getNumCandidates());
-            assertEquals(1, spec.getMaxQueriesPerBatch());
         }
     }
 
@@ -320,27 +311,8 @@ public class KnnEvalSpecTests extends ESTestCase {
                 assertFalse(spec.getBaseline().isExact());
                 assertEquals(20.0f, spec.getBaseline().getVisitPercentage(), 0.0f);
                 assertEquals(100.0f, spec.getBaseline().getRescoreOversample(), 0.0f);
-                assertEquals(1, spec.getMaxQueriesPerBatch());
             }
         }
-    }
-
-    public void testMaxQueriesPerBatchMustBePositive() {
-        assertThat(
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> new KnnEvalSpec(
-                    "emb",
-                    10,
-                    null,
-                    new KnnEvalSample(10, null),
-                    new KnnEvalKnobs(100.0f, null, null, false),
-                    List.of(new KnnEvalKnobs(5.0f, null, null, false)),
-                    0
-                )
-            ).getMessage(),
-            containsString("[max_queries_per_batch] must be between 1 and 100")
-        );
     }
 
     public void testQueryVectorAcceptsArraysAndEncodedStrings() throws IOException {

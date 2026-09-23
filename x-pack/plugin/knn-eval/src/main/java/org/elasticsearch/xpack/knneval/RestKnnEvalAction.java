@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.INTERNAL)
 final class RestKnnEvalAction extends BaseRestHandler {
 
-    private static final String ENDPOINT = "_knn_eval";
+    static final String ENDPOINT = "_knn_eval";
 
     @Override
     public List<Route> routes() {

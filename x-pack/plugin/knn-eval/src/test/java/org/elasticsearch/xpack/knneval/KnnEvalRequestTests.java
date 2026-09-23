@@ -19,7 +19,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.Map;
 
-/** Tests request validation, task behavior, and wire serialization. */
 public class KnnEvalRequestTests extends AbstractWireSerializingTestCase<KnnEvalRequest> {
 
     @Override
@@ -74,7 +73,11 @@ public class KnnEvalRequestTests extends AbstractWireSerializingTestCase<KnnEval
                     )
                 )
             );
-            case 2 -> mutation.setKnnEvalSpec(KnnEvalSpecTests.mutateTestItem(instance.getKnnEvalSpec()));
+            case 2 -> {
+                // the spec is immutable once constructed, so mutating it means building a new request around it
+                mutation = new KnnEvalRequest(KnnEvalSpecTests.mutateTestItem(instance.getKnnEvalSpec()), instance.indices());
+                mutation.indicesOptions(instance.indicesOptions());
+            }
             default -> throw new AssertionError("unreachable");
         }
         return mutation;
@@ -85,12 +88,6 @@ public class KnnEvalRequestTests extends AbstractWireSerializingTestCase<KnnEval
         assertNotNull(request.validate());
         assertEquals(1, request.validate().validationErrors().size());
         assertEquals("at least one index must be specified", request.validate().validationErrors().get(0));
-    }
-
-    public void testMissingSpecIsRejected() {
-        KnnEvalRequest request = new KnnEvalRequest();
-        assertNotNull(request.validate());
-        assertTrue(request.validate().validationErrors().contains("missing knn evaluation specification"));
     }
 
     public void testTaskIsCancellableAndCancelsChildren() {

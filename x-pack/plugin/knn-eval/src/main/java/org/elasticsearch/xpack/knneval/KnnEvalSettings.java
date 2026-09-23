@@ -23,7 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /** Search settings varied between evaluation runs. A {@code null} value preserves the kNN search default. */
-record KnnEvalKnobs(@Nullable Float visitPercentage, @Nullable Integer numCandidates, @Nullable Float rescoreOversample, boolean exact)
+record KnnEvalSettings(@Nullable Float visitPercentage, @Nullable Integer numCandidates, @Nullable Float rescoreOversample, boolean exact)
     implements
         Writeable,
         ToXContentObject {
@@ -33,9 +33,9 @@ record KnnEvalKnobs(@Nullable Float visitPercentage, @Nullable Integer numCandid
     static final ParseField RESCORE_VECTOR_FIELD = KnnSearchBuilder.RESCORE_VECTOR_FIELD;
     static final ParseField EXACT_FIELD = new ParseField("exact");
 
-    private static final ConstructingObjectParser<KnnEvalKnobs, Void> PARSER = new ConstructingObjectParser<>(
-        "knn_eval_knobs",
-        args -> new KnnEvalKnobs(
+    private static final ConstructingObjectParser<KnnEvalSettings, Void> PARSER = new ConstructingObjectParser<>(
+        "knn_eval_settings",
+        args -> new KnnEvalSettings(
             (Float) args[0],
             (Integer) args[1],
             args[2] == null ? null : ((RescoreVectorBuilder) args[2]).oversample(),
@@ -54,8 +54,7 @@ record KnnEvalKnobs(@Nullable Float visitPercentage, @Nullable Integer numCandid
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), EXACT_FIELD);
     }
 
-    /** Creates and validates one baseline or candidate configuration. */
-    KnnEvalKnobs {
+    KnnEvalSettings {
         if (visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
             throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0.0 and 100.0");
         }
@@ -88,18 +87,15 @@ record KnnEvalKnobs(@Nullable Float visitPercentage, @Nullable Integer numCandid
         }
     }
 
-    KnnEvalKnobs(StreamInput in) throws IOException {
+    KnnEvalSettings(StreamInput in) throws IOException {
         this(in.readOptionalFloat(), in.readOptionalVInt(), in.readOptionalFloat(), in.readBoolean());
     }
 
-    static KnnEvalKnobs fromXContent(XContentParser parser) {
+    static KnnEvalSettings fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    /**
-     * Percentage of DiskBBQ postings to visit. An explicit {@code 0} selects the codec's automatic visit calculation; it does not mean
-     * that no vectors are visited.
-     */
+    /** Percentage of DiskBBQ postings to visit. An explicit {@code 0} selects the codec's automatic calculation, not "visit none". */
     @Nullable
     public Float getVisitPercentage() {
         return visitPercentage;
@@ -116,7 +112,6 @@ record KnnEvalKnobs(@Nullable Float visitPercentage, @Nullable Integer numCandid
         return rescoreOversample;
     }
 
-    /** Whether the baseline scores every vector exactly. */
     public boolean isExact() {
         return exact;
     }

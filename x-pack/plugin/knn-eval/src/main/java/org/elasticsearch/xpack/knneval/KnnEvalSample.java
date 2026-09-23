@@ -23,8 +23,8 @@ import java.io.IOException;
 /** Selects indexed query vectors. An optional seed makes the sample reproducible. */
 record KnnEvalSample(int size, @Nullable Integer seed) implements Writeable, ToXContentObject {
 
-    /** Each sampled query costs one baseline plus one search per knob set, so this bounds fan-out. */
-    static final int MAX_SAMPLE_SIZE = 10_000;
+    /** Each sampled query costs one baseline plus one search per settings entry, so this bounds fan-out. */
+    static final int MAX_SAMPLE_SIZE = 1_000;
 
     static final ParseField SIZE_FIELD = new ParseField("size");
     static final ParseField SEED_FIELD = new ParseField("seed");
@@ -39,7 +39,6 @@ record KnnEvalSample(int size, @Nullable Integer seed) implements Writeable, ToX
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), SEED_FIELD);
     }
 
-    /** Creates a bounded seeded or unseeded sample. */
     KnnEvalSample {
         if (size < 1 || size > MAX_SAMPLE_SIZE) {
             throw new IllegalArgumentException("[" + SIZE_FIELD.getPreferredName() + "] must be between 1 and " + MAX_SAMPLE_SIZE);

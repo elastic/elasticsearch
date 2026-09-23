@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.knneval;
 
-import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,17 +35,7 @@ final class KnnEvalSearches {
     /** Any positive value makes an exact query score on the real vectors rather than the quantized ones. */
     private static final float EXACT_SCORING_OVERSAMPLE = 1.0f;
 
-    static MultiSearchRequest newMultiSearchRequest() {
-        MultiSearchRequest msearchRequest = new MultiSearchRequest();
-        // Keep each reported took to one search's shard time rather than contention with its siblings.
-        msearchRequest.maxConcurrentSearchRequests(1);
-        return msearchRequest;
-    }
-
-    /**
-     * Samples documents that have the vector field, which keeps the query distribution matched to the indexed vector corpus. It runs
-     * through the same point-in-time, so a sampled document is searchable in every pass.
-     */
+    /** Matching on the vector field keeps the query distribution matched to the corpus; the shared PIT keeps samples searchable. */
     static SearchRequest buildSampleRequest(KnnEvalSpec spec, KnnEvalSample sample, BytesReference pointInTimeId) {
         RandomScoreFunctionBuilder randomScore = new RandomScoreFunctionBuilder();
         if (sample.getSeed() != null) {
@@ -56,7 +45,7 @@ final class KnnEvalSearches {
         SearchSourceBuilder source = new SearchSourceBuilder().query(
             QueryBuilders.functionScoreQuery(QueryBuilders.existsQuery(spec.getField()), randomScore)
         ).size(sample.getSize()).fetchSource(false).fetchField(spec.getField()).pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
-        return new SearchRequest().source(source);
+        return searchRequest(source);
     }
 
     static SearchRequest buildVectorCountRequest(KnnEvalSpec spec, BytesReference pointInTimeId) {
@@ -65,7 +54,7 @@ final class KnnEvalSearches {
             .trackTotalHits(true)
             .fetchSource(false)
             .pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
-        return new SearchRequest().source(source);
+        return searchRequest(source);
     }
 
     /** Copies sampled vectors before the pooled search response is released. */
@@ -81,7 +70,6 @@ final class KnnEvalSearches {
         return queries;
     }
 
-    /** Returns the document vector, or {@code null} when the document cannot supply a query vector. */
     @Nullable
     private static float[] extractVector(SearchHit hit, String field) {
         DocumentField documentField = hit.field(field);
@@ -109,13 +97,13 @@ final class KnnEvalSearches {
     static SearchRequest buildSearch(
         KnnEvalSpec spec,
         KnnEvalQuery query,
-        KnnEvalKnobs knobs,
+        KnnEvalSettings knnSettings,
         int searchSize,
         BytesReference pointInTimeId
     ) {
-        return knobs.isExact()
+        return knnSettings.isExact()
             ? buildExactSearch(spec, query, searchSize, pointInTimeId)
-            : buildApproximateSearch(spec, query, knobs, searchSize, pointInTimeId);
+            : buildApproximateSearch(spec, query, knnSettings, searchSize, pointInTimeId);
     }
 
     private static SearchRequest buildExactSearch(KnnEvalSpec spec, KnnEvalQuery query, int searchSize, BytesReference pointInTimeId) {
@@ -125,25 +113,27 @@ final class KnnEvalSearches {
             // exact_knn is not profiled, so matched documents are the full-precision operation count
             .trackTotalHitsUpTo(Integer.MAX_VALUE)
             .pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
-        return new SearchRequest().source(source);
+        return searchRequest(source);
     }
 
     private static SearchRequest buildApproximateSearch(
         KnnEvalSpec spec,
         KnnEvalQuery query,
-        KnnEvalKnobs knobs,
+        KnnEvalSettings knnSettings,
         int searchSize,
         BytesReference pointInTimeId
     ) {
         // num_candidates is validated against k, but a sampled query's extra hit pushes the window one past it
-        Integer numCandidates = knobs.getNumCandidates() == null ? null : Math.max(knobs.getNumCandidates(), searchSize);
+        Integer numCandidates = knnSettings.getNumCandidates() == null ? null : Math.max(knnSettings.getNumCandidates(), searchSize);
         KnnSearchBuilder.Builder knnSearch = new KnnSearchBuilder.Builder().field(spec.getField())
             .queryVector(query.getQueryVector())
             .k(searchSize)
             .numCandidates(numCandidates)
-            .visitPercentage(knobs.getVisitPercentage())
+            .visitPercentage(knnSettings.getVisitPercentage())
             // null leaves the field mapping's own rescoring in force
-            .rescoreVectorBuilder(knobs.getRescoreOversample() == null ? null : new RescoreVectorBuilder(knobs.getRescoreOversample()));
+            .rescoreVectorBuilder(
+                knnSettings.getRescoreOversample() == null ? null : new RescoreVectorBuilder(knnSettings.getRescoreOversample())
+            );
         // The knn section rather than the equivalent knn query: only the dfs-phase path records vector_operations_count, which is why
         // profile is on. Builder.build(size) applies the same 1.5 * k num_candidates default the query form would.
         SearchSourceBuilder source = new SearchSourceBuilder().knnSearch(List.of(knnSearch.build(searchSize)))
@@ -151,7 +141,12 @@ final class KnnEvalSearches {
             .fetchSource(false)
             .profile(true)
             .pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
-        return new SearchRequest().source(source);
+        return searchRequest(source);
+    }
+
+    /** A dropped shard must fail its search: partial results would silently shrink the corpus the recall describes. */
+    private static SearchRequest searchRequest(SearchSourceBuilder source) {
+        return new SearchRequest().source(source).allowPartialSearchResults(false);
     }
 
     /** Builds a full-precision brute-force query even when mapping-level rescoring is disabled. */

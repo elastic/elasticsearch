@@ -24,16 +24,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- * Defines queries, a baseline, and candidate settings for one recall-versus-cost evaluation. Exactly one explicit or sampled query
- * source is required.
- */
+/** One recall-versus-cost evaluation: queries or a sample, a baseline, and the settings measured against it. */
 final class KnnEvalSpec implements Writeable, ToXContentObject {
 
-    static final int MAX_QUERIES = 10_000;
+    static final int MAX_QUERIES = 1_000;
     static final int MAX_K = 1_000;
     static final int MAX_KNN_SETTINGS = 32;
-    static final int MAX_QUERIES_PER_BATCH = 100;
 
     static final ParseField FIELD_FIELD = new ParseField("field");
     static final ParseField K_FIELD = new ParseField("k");
@@ -41,16 +37,9 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     static final ParseField SAMPLE_FIELD = new ParseField("sample");
     static final ParseField BASELINE_FIELD = new ParseField("baseline");
     static final ParseField KNN_SETTINGS_FIELD = new ParseField("knn_settings");
-    static final ParseField MAX_QUERIES_PER_BATCH_FIELD = new ParseField("max_queries_per_batch");
 
-    /**
-     * A bounded default keeps an omitted baseline from unexpectedly scanning every full-precision vector. Exact remains available
-     * explicitly for certification runs.
-     */
-    private static final KnnEvalKnobs DEFAULT_BASELINE = new KnnEvalKnobs(20.0f, null, 100.0f, false);
-
-    /** The coordinator holds every sub-search response of an msearch until the last lands, so batch size, not concurrency, bounds heap. */
-    private static final int DEFAULT_MAX_QUERIES_PER_BATCH = 1;
+    /** Bounded so an omitted baseline cannot unexpectedly scan every full-precision vector; exact stays available explicitly. */
+    private static final KnnEvalSettings DEFAULT_BASELINE = new KnnEvalSettings(20.0f, null, 100.0f, false);
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<KnnEvalSpec, Void> PARSER = new ConstructingObjectParser<>(
@@ -60,9 +49,8 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
             (Integer) args[1],
             (List<KnnEvalQuery>) args[2],
             (KnnEvalSample) args[3],
-            args[4] == null ? DEFAULT_BASELINE : (KnnEvalKnobs) args[4],
-            (List<KnnEvalKnobs>) args[5],
-            args[6] == null ? DEFAULT_MAX_QUERIES_PER_BATCH : (Integer) args[6]
+            args[4] == null ? DEFAULT_BASELINE : (KnnEvalSettings) args[4],
+            (List<KnnEvalSettings>) args[5]
         )
     );
 
@@ -71,9 +59,8 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), K_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalQuery.fromXContent(p), QUERIES_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalSample.fromXContent(p), SAMPLE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalKnobs.fromXContent(p), BASELINE_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> KnnEvalKnobs.fromXContent(p), KNN_SETTINGS_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_QUERIES_PER_BATCH_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> KnnEvalSettings.fromXContent(p), BASELINE_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> KnnEvalSettings.fromXContent(p), KNN_SETTINGS_FIELD);
     }
 
     private final String field;
@@ -82,21 +69,18 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     private final List<KnnEvalQuery> queries;
     @Nullable
     private final KnnEvalSample sample;
-    private final KnnEvalKnobs baseline;
-    private final List<KnnEvalKnobs> knnSettings;
-    private final int maxQueriesPerBatch;
+    private final KnnEvalSettings baseline;
+    private final List<KnnEvalSettings> knnSettings;
 
-    /** Creates and validates an evaluation specification with one query source and at least one candidate setting. */
     KnnEvalSpec(
         String field,
         int k,
         @Nullable List<KnnEvalQuery> queries,
         @Nullable KnnEvalSample sample,
-        KnnEvalKnobs baseline,
-        List<KnnEvalKnobs> knnSettings,
-        int maxQueriesPerBatch
+        KnnEvalSettings baseline,
+        List<KnnEvalSettings> knnSettings
     ) {
-        validateBounds(field, k, maxQueriesPerBatch);
+        validateBounds(field, k);
         validateQuerySource(queries, sample);
         baseline = normalizeBaseline(baseline);
         validateNumCandidates(baseline, k);
@@ -107,20 +91,14 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         this.sample = sample;
         this.baseline = baseline;
         this.knnSettings = List.copyOf(knnSettings);
-        this.maxQueriesPerBatch = maxQueriesPerBatch;
     }
 
-    private static void validateBounds(String field, int k, int maxQueriesPerBatch) {
+    private static void validateBounds(String field, int k) {
         if (Strings.hasText(field) == false) {
             throw new IllegalArgumentException("[" + FIELD_FIELD.getPreferredName() + "] must be a non-empty field name");
         }
         if (k < 1 || k > MAX_K) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be between 1 and " + MAX_K);
-        }
-        if (maxQueriesPerBatch < 1 || maxQueriesPerBatch > MAX_QUERIES_PER_BATCH) {
-            throw new IllegalArgumentException(
-                "[" + MAX_QUERIES_PER_BATCH_FIELD.getPreferredName() + "] must be between 1 and " + MAX_QUERIES_PER_BATCH
-            );
         }
     }
 
@@ -148,7 +126,7 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         }
     }
 
-    private static KnnEvalKnobs normalizeBaseline(KnnEvalKnobs baseline) {
+    private static KnnEvalSettings normalizeBaseline(KnnEvalSettings baseline) {
         Objects.requireNonNull(baseline, "[" + BASELINE_FIELD.getPreferredName() + "] must not be null");
         if (baseline.isExact() == false
             && baseline.getVisitPercentage() == null
@@ -159,14 +137,14 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         return baseline;
     }
 
-    private static void validateCandidates(List<KnnEvalKnobs> knnSettings, int k) {
+    private static void validateCandidates(List<KnnEvalSettings> knnSettings, int k) {
         if (knnSettings == null || knnSettings.isEmpty() || knnSettings.size() > MAX_KNN_SETTINGS) {
             throw new IllegalArgumentException(
                 "[" + KNN_SETTINGS_FIELD.getPreferredName() + "] must contain between 1 and " + MAX_KNN_SETTINGS + " entries"
             );
         }
-        Set<KnnEvalKnobs> uniqueCandidates = new HashSet<>();
-        for (KnnEvalKnobs candidate : knnSettings) {
+        Set<KnnEvalSettings> uniqueCandidates = new HashSet<>();
+        for (KnnEvalSettings candidate : knnSettings) {
             validateNumCandidates(candidate, k);
             if (uniqueCandidates.add(candidate) == false) {
                 throw new IllegalArgumentException("duplicate entry in [" + KNN_SETTINGS_FIELD.getPreferredName() + "]: " + candidate);
@@ -174,33 +152,33 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
             if (candidate.isExact()) {
                 // it would be measuring the reference against itself
                 throw new IllegalArgumentException(
-                    "[" + KnnEvalKnobs.EXACT_FIELD.getPreferredName() + "] is only supported on the baseline, not in [knn_settings]"
+                    "[" + KnnEvalSettings.EXACT_FIELD.getPreferredName() + "] is only supported on the baseline, not in [knn_settings]"
                 );
             }
         }
     }
 
-    /** The kNN query rejects this too, but here the error can name the offending knob set rather than one failed query. */
-    private static void validateNumCandidates(KnnEvalKnobs knobs, int k) {
-        Integer numCandidates = knobs.getNumCandidates();
+    /** The kNN query rejects this too, but here the error can name the offending settings entry rather than one failed query. */
+    private static void validateNumCandidates(KnnEvalSettings knnSettings, int k) {
+        Integer numCandidates = knnSettings.getNumCandidates();
         if (numCandidates != null && numCandidates < k) {
             throw new IllegalArgumentException(
                 "["
-                    + KnnEvalKnobs.NUM_CANDIDATES_FIELD.getPreferredName()
+                    + KnnEvalSettings.NUM_CANDIDATES_FIELD.getPreferredName()
                     + "] cannot be less than ["
                     + K_FIELD.getPreferredName()
                     + "] in "
-                    + knobs
+                    + knnSettings
             );
         }
         if (numCandidates != null && numCandidates > KnnEvalRescore.MAX_NUM_CANDIDATES) {
             throw new IllegalArgumentException(
                 "["
-                    + KnnEvalKnobs.NUM_CANDIDATES_FIELD.getPreferredName()
+                    + KnnEvalSettings.NUM_CANDIDATES_FIELD.getPreferredName()
                     + "] cannot exceed "
                     + KnnEvalRescore.MAX_NUM_CANDIDATES
                     + " in "
-                    + knobs
+                    + knnSettings
             );
         }
     }
@@ -211,13 +189,11 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
             in.readVInt(),
             in.readOptionalCollectionAsList(KnnEvalQuery::new),
             in.readOptionalWriteable(KnnEvalSample::new),
-            new KnnEvalKnobs(in),
-            in.readCollectionAsList(KnnEvalKnobs::new),
-            in.readVInt()
+            new KnnEvalSettings(in),
+            in.readCollectionAsList(KnnEvalSettings::new)
         );
     }
 
-    /** Parses and validates an evaluation specification. */
     public static KnnEvalSpec parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
@@ -243,18 +219,12 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
     }
 
     /** Never {@code null}: an omitted baseline uses the bounded DiskBBQ proxy. */
-    public KnnEvalKnobs getBaseline() {
+    public KnnEvalSettings getBaseline() {
         return baseline;
     }
 
-    /** The knob sets being measured against the baseline, in request order. */
-    public List<KnnEvalKnobs> getKnnSettings() {
+    public List<KnnEvalSettings> getKnnSettings() {
         return knnSettings;
-    }
-
-    /** Batches run strictly one after another, so this trades wall-clock time against coordinator heap. */
-    public int getMaxQueriesPerBatch() {
-        return maxQueriesPerBatch;
     }
 
     @Override
@@ -265,7 +235,6 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(sample);
         baseline.writeTo(out);
         out.writeCollection(knnSettings);
-        out.writeVInt(maxQueriesPerBatch);
     }
 
     @Override
@@ -287,11 +256,10 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         builder.field(BASELINE_FIELD.getPreferredName());
         baseline.toXContent(builder, params);
         builder.startArray(KNN_SETTINGS_FIELD.getPreferredName());
-        for (KnnEvalKnobs candidate : knnSettings) {
+        for (KnnEvalSettings candidate : knnSettings) {
             candidate.toXContent(builder, params);
         }
         builder.endArray();
-        builder.field(MAX_QUERIES_PER_BATCH_FIELD.getPreferredName(), maxQueriesPerBatch);
         builder.endObject();
         return builder;
     }
@@ -311,7 +279,6 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
         }
         KnnEvalSpec other = (KnnEvalSpec) obj;
         return k == other.k
-            && maxQueriesPerBatch == other.maxQueriesPerBatch
             && Objects.equals(field, other.field)
             && Objects.equals(queries, other.queries)
             && Objects.equals(sample, other.sample)
@@ -321,6 +288,6 @@ final class KnnEvalSpec implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, queries, sample, baseline, knnSettings, maxQueriesPerBatch);
+        return Objects.hash(field, k, queries, sample, baseline, knnSettings);
     }
 }

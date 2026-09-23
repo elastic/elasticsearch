@@ -21,7 +21,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-/** Tests response serialization and JSON rendering. */
 public class KnnEvalResponseTests extends ESTestCase {
 
     public void testResponseSerialization() throws IOException {
@@ -32,7 +31,6 @@ public class KnnEvalResponseTests extends ESTestCase {
         assertEquals(original.getBaselineTookMs(), copy.getBaselineTookMs());
         assertEquals(original.getBaselineVectorOps(), copy.getBaselineVectorOps());
         assertEquals(original.getBaselineVectorOpsKind(), copy.getBaselineVectorOpsKind());
-        assertEquals(original.getMaxQueriesPerBatch(), copy.getMaxQueriesPerBatch());
         assertEquals(original.getResults(), copy.getResults());
         assertEquals(original.getFailures().keySet(), copy.getFailures().keySet());
     }
@@ -44,7 +42,6 @@ public class KnnEvalResponseTests extends ESTestCase {
               "baseline_took_ms": 5,
               "baseline_vector_ops": 600,
               "baseline_vector_ops_kind": "quantized_visit_plus_rescore",
-              "max_queries_per_batch": 7,
               "results": [
                 {
                   "knn_settings": {
@@ -76,14 +73,13 @@ public class KnnEvalResponseTests extends ESTestCase {
 
     private static KnnEvalResponse response() {
         return new KnnEvalResponse(
-            KnnEvalResponse.ReportedKnobs.of(new KnnEvalKnobs(100.0f, null, null, false)),
+            KnnEvalResponse.ReportedSettings.of(new KnnEvalSettings(100.0f, null, null, false)),
             5,
             600,
             KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
-            7,
             List.of(
                 new KnnEvalResponse.KnnSettingsResult(
-                    new KnnEvalResponse.ReportedKnobs(new KnnEvalKnobs(20.0f, 200, null, false), true),
+                    new KnnEvalResponse.ReportedSettings(new KnnEvalSettings(20.0f, 200, null, false), true),
                     0.5,
                     1,
                     0,

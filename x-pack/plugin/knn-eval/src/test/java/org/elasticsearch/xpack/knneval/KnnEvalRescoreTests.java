@@ -14,7 +14,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-/** Tests candidate and rescore window resolution for DiskBBQ mappings. */
 public class KnnEvalRescoreTests extends ESTestCase {
 
     private static KnnEvalRescore rescoreFor(String indexType) {

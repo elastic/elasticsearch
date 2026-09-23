@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.knneval;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 
 import java.util.Map;
 
@@ -18,8 +19,6 @@ record KnnEvalRescore(@Nullable Float mappingOversample, boolean autoCalibrate) 
 
     static final String TYPE_FIELD = "type";
     static final String INDEX_OPTIONS_FIELD = "index_options";
-    private static final String RESCORE_VECTOR_FIELD = "rescore_vector";
-    private static final String OVERSAMPLE_FIELD = "oversample";
     private static final String AUTO_CALIBRATE_FIELD = "auto_calibrate";
 
     static final int MAX_NUM_CANDIDATES = KnnSearchBuilder.NUM_CANDS_LIMIT;
@@ -38,20 +37,20 @@ record KnnEvalRescore(@Nullable Float mappingOversample, boolean autoCalibrate) 
             );
         }
         Float mappingOversample = null;
-        if (indexOptions.get(RESCORE_VECTOR_FIELD) instanceof Map<?, ?> rescoreVector
-            && rescoreVector.get(OVERSAMPLE_FIELD) instanceof Number oversample) {
+        if (indexOptions.get(KnnSearchBuilder.RESCORE_VECTOR_FIELD.getPreferredName()) instanceof Map<?, ?> rescoreVector
+            && rescoreVector.get(RescoreVectorBuilder.OVERSAMPLE_FIELD.getPreferredName()) instanceof Number oversample) {
             mappingOversample = oversample.floatValue();
         }
         return new KnnEvalRescore(mappingOversample, Boolean.TRUE.equals(indexOptions.get(AUTO_CALIBRATE_FIELD)));
     }
 
-    boolean isRescoreWindowCapped(int searchSize, @Nullable Float knobOversample) {
-        Float oversample = effectiveOversample(knobOversample);
+    boolean isRescoreWindowCapped(int searchSize, @Nullable Float requestedOversample) {
+        Float oversample = effectiveOversample(requestedOversample);
         return oversample != null && Math.ceil(searchSize * oversample) > DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
     }
 
     @Nullable
-    private Float effectiveOversample(@Nullable Float knobOversample) {
-        return knobOversample == null ? mappingOversample : knobOversample;
+    private Float effectiveOversample(@Nullable Float requestedOversample) {
+        return requestedOversample == null ? mappingOversample : requestedOversample;
     }
 }

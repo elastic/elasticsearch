@@ -129,14 +129,13 @@ teardown:
   - match: { results.0.recall: 1.0 }
   - match: { results.0.included_queries: 10 }
   - match: { baseline_vector_ops_kind: "quantized_visit_plus_rescore" }
-  - match: { max_queries_per_batch: 1 }
   - length: { failures: 0 }
   - gte: { baseline_took_ms: 0 }
   - gte: { results.0.took_ms: 0 }
   - set: { baseline_vector_ops: baseline_vector_ops }
   - gt: { results.0.vector_ops: 0 }
   - gt: { baseline_vector_ops: 0 }
-  # the knob set re-runs the baseline, so it must do exactly the same work
+  # the settings entry re-runs the baseline, so it must do exactly the same work
   - match: { results.0.vector_ops: $baseline_vector_ops }
 
 ---
@@ -163,7 +162,7 @@ teardown:
   - match: { results.0.recall: 1.0 }
 
   - do:
-      catch: forbidden
+      catch: /\[_knn_eval\] reads the mapping of field \[emb\] to validate it, which needs the \[view_index_metadata\] index privilege in addition to \[read\]/
       headers:
         Authorization: "Basic a25uX2V2YWxfcmVhZF9vbmx5OngtcGFjay10ZXN0LXBhc3N3b3Jk" # knn_eval_read_only
       knn_eval:
@@ -188,8 +187,6 @@ teardown:
           k: 5
           sample:
             size: 30
-          # exercises the sequential batching that bounds the msearch fan-out
-          max_queries_per_batch: 7
           baseline:
             visit_percentage: 100
           knn_settings:
@@ -199,7 +196,6 @@ teardown:
   - length: { results: 2 }
   - length: { failures: 0 }
   - match: { results.0.knn_settings.visit_percentage: 1.0 }
-  - match: { max_queries_per_batch: 7 }
   - match: { results.0.included_queries: 30 }
   - match: { results.0.excluded_queries: 0 }
   - match: { results.1.included_queries: 30 }
@@ -243,7 +239,7 @@ teardown:
             - visit_percentage: 5
 
 ---
-"A rescore_vector knob makes the baseline an exact reference":
+"A rescore_vector setting makes the baseline an exact reference":
   # The mapping's oversample of 3 rescores only the quantized top 3k, which can drop a document whose true rank is inside k. Raising
   # it on the baseline alone turns the reference into exact search without a brute-force script_score.
   - do:
@@ -263,7 +259,7 @@ teardown:
 
   - match: { baseline.visit_percentage: 100.0 }
   - match: { baseline.rescore_vector.oversample: 10.0 }
-  # the knob set leaves rescore_vector unset, so the mapping's own setting applies
+  # the settings entry leaves rescore_vector unset, so the mapping's own setting applies
   - is_false: results.0.knn_settings.rescore_vector
   - lte: { results.0.recall: 1.0 }
   - gte: { results.0.recall: 0.0 }
@@ -295,7 +291,7 @@ teardown:
   # other; the exclusion is post-hoc.
   - match: { baseline_vector_ops_kind: "full_precision_scan" }
   - match: { baseline_vector_ops: 300 }
-  # a knob set is an ordinary knn search, whose mostly 1-bit operations the codec counts
+  # a settings entry is an ordinary knn search, whose mostly 1-bit operations the codec counts
   - gt: { results.0.vector_ops: 0 }
 
 ---
@@ -315,7 +311,7 @@ teardown:
             - exact: true
 
 ---
-"exact cannot be combined with the approximate knobs":
+"exact cannot be combined with the approximate settings":
   - do:
       catch: bad_request
       knn_eval:
@@ -417,7 +413,7 @@ teardown:
   - match: { results.0.recall: 1.0 }
 
 ---
-"A capped rescore window is reported per knob set":
+"A capped rescore window is reported per settings entry":
   - do:
       knn_eval:
         index: knn_eval_test

@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.knneval;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
@@ -51,38 +49,33 @@ final class KnnEvalState {
         }
     }
 
-    void addBaselineBatch(MultiSearchResponse multiSearchResponse, List<KnnEvalQuery> batch) {
-        Item[] items = multiSearchResponse.getResponses();
-        assert items.length == batch.size() : items.length + " != " + batch.size();
-        for (int queryIndex = 0; queryIndex < batch.size(); queryIndex++) {
-            KnnEvalQuery query = batch.get(queryIndex);
-            Item item = items[queryIndex];
-            if (item.isFailure()) {
-                failures.putIfAbsent(query.getId(), item.getFailure());
-                continue;
-            }
-            baselineTookMillis += item.getResponse().getTook().millis();
-            baselineVectorOps += baselineVectorOperations(item.getResponse());
-            SearchHit[] baselineHits = KnnEvalRecall.topKExcluding(
-                item.getResponse().getHits().getHits(),
-                excludeQueryDocument ? query.getId() : null,
-                spec.getK()
+    /** Records a search failure for one query. The sweep continues, so one bad vector does not discard the rest of the run. */
+    void addFailure(KnnEvalQuery query, Exception failure) {
+        failures.putIfAbsent(query.getId(), failure);
+    }
+
+    void addBaseline(KnnEvalQuery query, SearchResponse response) {
+        baselineTookMillis += response.getTook().millis();
+        baselineVectorOps += baselineVectorOperations(response);
+        SearchHit[] baselineHits = KnnEvalRecall.topKExcluding(
+            response.getHits().getHits(),
+            excludeQueryDocument ? query.getId() : null,
+            spec.getK()
+        );
+        if (baselineHits.length < spec.getK()) {
+            addFailure(
+                query,
+                new IllegalArgumentException(
+                    "baseline returned ["
+                        + baselineHits.length
+                        + "] hits, fewer than [k="
+                        + spec.getK()
+                        + "]; recall@k is undefined for this query"
+                )
             );
-            if (baselineHits.length < spec.getK()) {
-                failures.putIfAbsent(
-                    query.getId(),
-                    new IllegalArgumentException(
-                        "baseline returned ["
-                            + baselineHits.length
-                            + "] hits, fewer than [k="
-                            + spec.getK()
-                            + "]; recall@k is undefined for this query"
-                    )
-                );
-                continue;
-            }
-            baselines.put(query.getId(), KnnEvalRecall.baselineOf(baselineHits));
+            return;
         }
+        baselines.put(query.getId(), KnnEvalRecall.baselineOf(baselineHits));
     }
 
     /** The queries with a reference result, in request order. */
@@ -99,49 +92,38 @@ final class KnnEvalState {
         return evaluableQueries;
     }
 
-    void addCandidateBatch(int settingIndex, MultiSearchResponse multiSearchResponse, List<KnnEvalQuery> batch) {
-        Item[] items = multiSearchResponse.getResponses();
-        assert items.length == batch.size() : items.length + " != " + batch.size();
-        for (int queryIndex = 0; queryIndex < batch.size(); queryIndex++) {
-            KnnEvalQuery query = batch.get(queryIndex);
-            Item item = items[queryIndex];
-            if (item.isFailure()) {
-                failures.putIfAbsent(query.getId(), item.getFailure());
-                continue;
-            }
-            long tookMs = item.getResponse().getTook().millis();
-            long operations = vectorOperationsCount(item.getResponse());
-            SearchHit[] candidateHits = KnnEvalRecall.topKExcluding(
-                item.getResponse().getHits().getHits(),
-                excludeQueryDocument ? query.getId() : null,
-                spec.getK()
-            );
-            KnnEvalRecall.RecallResult result = KnnEvalRecall.recallOf(candidateHits, baselines.get(query.getId()), tookMs, operations);
-            settings.get(settingIndex).add(result);
-        }
+    void addCandidate(int settingIndex, KnnEvalQuery query, SearchResponse response) {
+        long tookMs = response.getTook().millis();
+        long operations = vectorOperationsCount(response);
+        SearchHit[] candidateHits = KnnEvalRecall.topKExcluding(
+            response.getHits().getHits(),
+            excludeQueryDocument ? query.getId() : null,
+            spec.getK()
+        );
+        KnnEvalRecall.RecallResult result = KnnEvalRecall.recallOf(candidateHits, baselines.get(query.getId()), tookMs, operations);
+        settings.get(settingIndex).add(result);
     }
 
     KnnEvalResponse buildResponse() {
         List<KnnEvalResponse.KnnSettingsResult> results = new ArrayList<>(spec.getKnnSettings().size());
         for (int setting = 0; setting < spec.getKnnSettings().size(); setting++) {
-            results.add(settings.get(setting).result(reportedKnobs(spec.getKnnSettings().get(setting))));
+            results.add(settings.get(setting).result(reportedSettings(spec.getKnnSettings().get(setting))));
         }
         return new KnnEvalResponse(
-            reportedKnobs(spec.getBaseline()),
+            reportedSettings(spec.getBaseline()),
             baselineTookMillis,
             baselineVectorOps,
             spec.getBaseline().isExact() ? KnnEvalResponse.FULL_PRECISION_SCAN : KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE,
-            spec.getMaxQueriesPerBatch(),
             results,
             failures
         );
     }
 
-    private KnnEvalResponse.ReportedKnobs reportedKnobs(KnnEvalKnobs knobs) {
-        boolean capped = knobs.isExact() == false
-            && (rescore.autoCalibrate() == false || knobs.getRescoreOversample() != null)
-            && rescore.isRescoreWindowCapped(searchSize, knobs.getRescoreOversample());
-        return new KnnEvalResponse.ReportedKnobs(knobs, capped);
+    private KnnEvalResponse.ReportedSettings reportedSettings(KnnEvalSettings knnSettings) {
+        boolean capped = knnSettings.isExact() == false
+            && (rescore.autoCalibrate() == false || knnSettings.getRescoreOversample() != null)
+            && rescore.isRescoreWindowCapped(searchSize, knnSettings.getRescoreOversample());
+        return new KnnEvalResponse.ReportedSettings(knnSettings, capped);
     }
 
     /** An exact run counts the documents it scanned; an approximate one is profiled. */
@@ -192,9 +174,9 @@ final class KnnEvalState {
             vectorOps += result.vectorOps();
         }
 
-        private KnnEvalResponse.KnnSettingsResult result(KnnEvalResponse.ReportedKnobs knobs) {
+        private KnnEvalResponse.KnnSettingsResult result(KnnEvalResponse.ReportedSettings knnSettings) {
             return new KnnEvalResponse.KnnSettingsResult(
-                knobs,
+                knnSettings,
                 includedQueries == 0 ? null : recallSum / includedQueries,
                 includedQueries,
                 excludedQueries,

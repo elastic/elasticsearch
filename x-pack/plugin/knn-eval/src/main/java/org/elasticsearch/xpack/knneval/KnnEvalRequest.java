@@ -27,7 +27,7 @@ import java.util.Objects;
 /** Request to estimate the recall of approximate kNN configurations against a more thorough one over the same field. */
 final class KnnEvalRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
 
-    private KnnEvalSpec knnEvalSpec;
+    private final KnnEvalSpec knnEvalSpec;
 
     private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -45,17 +45,11 @@ final class KnnEvalRequest extends UntypedActionRequest implements IndicesReques
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
-    KnnEvalRequest() {}
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = null;
-        if (knnEvalSpec == null) {
-            e = new ActionRequestValidationException();
-            e.addValidationError("missing knn evaluation specification");
-        }
         if (indices.length == 0) {
-            e = e == null ? new ActionRequestValidationException() : e;
+            e = new ActionRequestValidationException();
             e.addValidationError("at least one index must be specified");
         }
         return e;
@@ -63,10 +57,6 @@ final class KnnEvalRequest extends UntypedActionRequest implements IndicesReques
 
     public KnnEvalSpec getKnnEvalSpec() {
         return knnEvalSpec;
-    }
-
-    public void setKnnEvalSpec(KnnEvalSpec knnEvalSpec) {
-        this.knnEvalSpec = knnEvalSpec;
     }
 
     @Override

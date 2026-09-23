@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.knneval;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
@@ -14,10 +16,9 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsReques
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -41,23 +43,23 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 /**
- * Compares each candidate's top-k with an exact or approximate baseline. All passes share one point-in-time and run sequentially so
- * index changes and inter-setting contention do not distort results.
+ * Compares each candidate's top-k with an exact or approximate baseline. One shared point-in-time and strictly sequential passes keep
+ * index changes and inter-setting contention out of the measurement.
  */
 public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalRequest, KnnEvalResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportKnnEvalAction.class);
 
-    /** Held for the whole sweep -- every batch of every pass -- and never refreshed. */
+    /** Bounds the idle gap between consecutive searches, not the sweep: each search through the point in time renews it. */
     static final TimeValue POINT_IN_TIME_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
     static final long MAX_EXACT_VECTOR_COMPARISONS = 100_000_000L;
 
     private final Client client;
     private final ClusterService clusterService;
 
-    /** Creates the action with services used to validate mappings and execute child searches. */
     @Inject
     public TransportKnnEvalAction(
         ActionFilters actionFilters,
@@ -87,7 +89,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             listener.onFailure(
                 new IllegalArgumentException(
                     "["
-                        + KnnEvalKnobs.EXACT_FIELD.getPreferredName()
+                        + KnnEvalSettings.EXACT_FIELD.getPreferredName()
                         + "] baseline requires ["
                         + SearchService.ALLOW_EXPENSIVE_QUERIES.getKey()
                         + "] to be true; set it or pass a non-exact baseline such as "
@@ -111,7 +113,28 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             .indicesOptions(request.indicesOptions())
             .fields(field);
         setParentTask(task, mappingsRequest);
-        client.execute(GetFieldMappingsAction.INSTANCE, mappingsRequest, listener.map(response -> rescoreOf(field, response)));
+        client.execute(
+            GetFieldMappingsAction.INSTANCE,
+            mappingsRequest,
+            listener.<GetFieldMappingsResponse>map(response -> rescoreOf(field, response))
+                .delegateResponse((delegate, e) -> delegate.onFailure(mappingLookupFailure(field, e)))
+        );
+    }
+
+    /** The lookup runs as the caller, so a [read]-only caller is refused by an action they never invoked. Name this one instead. */
+    private static Exception mappingLookupFailure(String field, Exception e) {
+        if (ExceptionsHelper.unwrap(e, ElasticsearchSecurityException.class) instanceof ElasticsearchSecurityException security
+            && security.status() == RestStatus.FORBIDDEN) {
+            return new ElasticsearchSecurityException(
+                "[{}] reads the mapping of field [{}] to validate it, which needs the [view_index_metadata] index privilege in "
+                    + "addition to [read]",
+                RestStatus.FORBIDDEN,
+                e,
+                RestKnnEvalAction.ENDPOINT,
+                field
+            );
+        }
+        return e;
     }
 
     private static KnnEvalRescore rescoreOf(String field, GetFieldMappingsResponse response) {
@@ -256,7 +279,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         }
 
         private void run() {
-            runBatches(state.queries, state.spec.getBaseline(), 0, state::addBaselineBatch, () -> runCandidatePass(0));
+            runQueries(state.queries, state.spec.getBaseline(), 0, state::addBaseline, () -> runCandidatePass(0));
         }
 
         private void runCandidatePass(int candidateIndex) {
@@ -264,38 +287,41 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
                 listener.onResponse(state.buildResponse());
                 return;
             }
-            runBatches(
+            runQueries(
                 state.evaluableQueries(),
                 state.spec.getKnnSettings().get(candidateIndex),
                 0,
-                (response, batch) -> state.addCandidateBatch(candidateIndex, response, batch),
+                (query, response) -> state.addCandidate(candidateIndex, query, response),
                 () -> runCandidatePass(candidateIndex + 1)
             );
         }
 
-        private void runBatches(List<KnnEvalQuery> queries, KnnEvalKnobs knobs, int from, BatchConsumer consumer, Runnable onComplete) {
+        /** Searches run one at a time so each reported took is one search's shard time rather than contention with its siblings. */
+        private void runQueries(
+            List<KnnEvalQuery> queries,
+            KnnEvalSettings knnSettings,
+            int index,
+            BiConsumer<KnnEvalQuery, SearchResponse> consumer,
+            Runnable onComplete
+        ) {
             if (checkCancelled(task, listener)) {
                 return;
             }
-            if (from >= queries.size()) {
+            if (index >= queries.size()) {
                 onComplete.run();
                 return;
             }
-            int to = Math.min(from + state.spec.getMaxQueriesPerBatch(), queries.size());
-            List<KnnEvalQuery> batch = queries.subList(from, to);
-            MultiSearchRequest request = KnnEvalSearches.newMultiSearchRequest();
-            for (KnnEvalQuery query : batch) {
-                request.add(KnnEvalSearches.buildSearch(state.spec, query, knobs, state.searchSize, pointInTimeId));
-            }
-            client.multiSearch(request, listener.delegateFailureAndWrap((delegate, response) -> {
-                consumer.accept(response, batch);
-                runBatches(queries, knobs, to, consumer, onComplete);
+            KnnEvalQuery query = queries.get(index);
+            SearchRequest request = KnnEvalSearches.buildSearch(state.spec, query, knnSettings, state.searchSize, pointInTimeId);
+            Runnable next = () -> runQueries(queries, knnSettings, index + 1, consumer, onComplete);
+            client.search(request, ActionListener.wrap(response -> {
+                consumer.accept(query, response);
+                next.run();
+            }, e -> {
+                // one query's search failing is reported against that query; the rest of the sweep still has to run
+                state.addFailure(query, e);
+                next.run();
             }));
-        }
-
-        @FunctionalInterface
-        private interface BatchConsumer {
-            void accept(MultiSearchResponse response, List<KnnEvalQuery> batch);
         }
     }
 
@@ -340,5 +366,4 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             );
         }
     }
-
 }

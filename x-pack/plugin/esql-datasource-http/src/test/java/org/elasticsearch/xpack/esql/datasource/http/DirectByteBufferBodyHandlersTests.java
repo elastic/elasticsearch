@@ -114,7 +114,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(eue.getMessage(), containsString("shorter than expected"));
         assertThat(eue.getMessage(), containsString("received=" + payload.length));
         assertThat(eue.getMessage(), containsString("expected=" + expectedLength));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
     public void testFixedLengthOverflowFails() {
@@ -130,7 +130,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(eue.getMessage(), containsString("exceeded expected length"));
         assertThat(eue.getMessage(), containsString("cumulative=" + payload.length));
         assertThat(eue.getMessage(), containsString("expected=" + (payload.length - 1)));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
     public void testFixedLengthLateOnNextAfterCompleteIsIgnored() throws Exception {
@@ -322,7 +322,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         ExternalUnavailableException eue = (ExternalUnavailableException) ex.getCause();
         assertFalse(eue.throttling());
         assertThat(eue.getMessage(), containsString("beyond content length"));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
     public void testSkipThenFillShortBodyAfterSkipFails() {
@@ -344,7 +344,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(eue.getMessage(), containsString("shorter than expected"));
         assertThat(eue.getMessage(), containsString("received=6"));
         assertThat(eue.getMessage(), containsString("expected=8"));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
     public void testSkipThenFillAtEofWithNoBytesRemainingFails() {
@@ -364,7 +364,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(eue.getMessage(), containsString("shorter than expected"));
         assertThat(eue.getMessage(), containsString("received=0"));
         assertThat(eue.getMessage(), containsString("expected=5"));
-        assertThat(eue.getMessage(), containsString(PATH.toString()));
+        assertThat(eue.getMessage(), containsString(PATH.objectName()));
     }
 
     public void testRangeReadHandler206AccumulatesDirectBuffer() throws Exception {

@@ -307,7 +307,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertThat(thrown, instanceOf(ExternalUnavailableException.class));
         assertFalse(((ExternalUnavailableException) thrown).throttling());
         assertThat(thrown.getMessage(), containsString("shorter than expected"));
-        assertThat(thrown.getMessage(), containsString(path.toString()));
+        assertThat(thrown.getMessage(), containsString(path.objectName()));
         assertThat(thrown.getMessage(), not(containsString("transient read failure")));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
@@ -333,7 +333,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertThat(thrown, instanceOf(ExternalUnavailableException.class));
         assertFalse(((ExternalUnavailableException) thrown).throttling());
         assertThat(thrown.getMessage(), containsString("shorter than expected"));
-        assertThat(thrown.getMessage(), containsString(path.toString()));
+        assertThat(thrown.getMessage(), containsString(path.objectName()));
         assertThat(thrown.getMessage(), not(containsString("transient read failure")));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));

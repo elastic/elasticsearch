@@ -319,7 +319,6 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
     :::{important}
     Don't use this privilege to update index mappings.
     That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
-    It also did not apply to data streams.
     Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
     :::
 
@@ -355,7 +354,6 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
     :::{important}
     Don't use this privilege to update index mappings.
     That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
-    It also did not apply to data streams.
     Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
     :::
 
@@ -407,7 +405,6 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
     :::{important}
     Don't use this privilege to update index mappings.
     That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
-    It also did not apply to data streams.
     Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
     :::
 

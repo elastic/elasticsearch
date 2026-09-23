@@ -39,6 +39,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -61,6 +62,7 @@ import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneEmptyPostingsColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -1544,6 +1546,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean forceDocValuesSkipper;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
     private final String offsetsFieldName;
+    // The type an all-null array's empty postings field takes, or null when the field is not indexed; see EmptyPostingsField.
+    private final FieldType emptyPostingsFieldType;
 
     private final IndexVersion indexCreatedVersion;
 
@@ -1580,6 +1584,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        // Keyed off the resolved index options rather than the `index` parameter: they are what a document holding a value gives
+        // the field, and so what an all-null one has to match.
+        this.emptyPostingsFieldType = this.fieldType.indexOptions() != IndexOptions.NONE
+            ? EmptyPostingsField.typeFor(this.fieldType)
+            : null;
         sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());
     }
 
@@ -1597,6 +1606,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     public void recordEmptyArrayInOrder(LuceneDocument doc) {
         if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD) {
             ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name());
+            // The empty payload carries the field, so an indexed field needs its index options here too.
+            if (emptyPostingsFieldType != null) {
+                EmptyPostingsField.record(doc, fieldType().name(), emptyPostingsFieldType);
+            }
         } else {
             super.recordEmptyArrayInOrder(doc);
         }
@@ -1808,6 +1821,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             int lastValueLength = 0;
             // True when the current doc has at least one non-null slot; gates binary dv blob emission.
             boolean hasNonNull = false;
+            // True when the current doc has at least one null slot: that document carries the field with the null in it, so an
+            // indexed field has to be given its index options even though the slot produces no term. Mirrors the row path.
+            boolean hasNull = false;
+            // The documents needing that empty postings field, collected as the batch is walked.
+            final FixedBitSet emptyPostings = columnar && emitTerms && emptyPostingsFieldType != null ? new FixedBitSet(docCount) : null;
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
@@ -1817,11 +1835,21 @@ public final class KeywordFieldMapper extends FieldMapper {
                     if (binaryDvs != null && docSlotCount > 0) {
                         // TODO: considering appending slots straight into the column builder's stream.
                         if (columnar) {
-                            // An all-null document is a payload like any other, which is why no companion count
-                            // column is emitted alongside.
-                            final BytesRef blob = payload.build();
-                            binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
-                            payload.reset();
+                            // A bare null is dropped outright, matching the row path: the document keeps no slot for it and so
+                            // does not carry the field at all. Only a null written inside an array keeps its place. A null_value
+                            // substitution turns the null into a value, which is why this also asks that nothing was produced.
+                            if (source.isNull(currentDoc) && hasNonNull == false) {
+                                payload.reset();
+                            } else {
+                                // An all-null document is a payload like any other, which is why no companion count
+                                // column is emitted alongside.
+                                final BytesRef blob = payload.build();
+                                binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                                payload.reset();
+                                if (hasNull && emptyPostings != null) {
+                                    emptyPostings.set(currentDoc);
+                                }
+                            }
                         } else {
                             dvCounts.setLong(currentDoc, docSlotCount);
                             if (hasNonNull) {
@@ -1833,6 +1861,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         pos = 0;
                         docSlotCount = 0;
                         hasNonNull = false;
+                        hasNull = false;
                     }
                     if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
                         break;
@@ -1858,6 +1887,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                                 pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
                             }
                             docSlotCount++;
+                            hasNull = true;
                             // hasNonNull stays false: null slots do not produce a binary dv blob.
                         }
                         continue;
@@ -1926,6 +1956,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                 addOwnedBinaryColumn(ctx, fallback, docCount, fallbackFieldName, CustomDocValuesField.TYPE);
                 final EscfColumnData fallbackCountData = fallbackCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(fallbackCountData, fallbackFieldName), fallbackCountData);
+            }
+            if (emptyPostings != null) {
+                final LuceneEmptyPostingsColumn column = new LuceneEmptyPostingsColumn(
+                    fieldType().name(),
+                    emptyPostingsFieldType,
+                    emptyPostings,
+                    docCount
+                );
+                if (column.isEmpty() == false) {
+                    ctx.addColumn(column);
+                }
             }
         }
     }
@@ -2121,7 +2162,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             // is preserved. Values that tripped ignore_above (indexed == false, value != null) record no slot, matching the offsets path.
             if (indexed == false && value == null) {
                 switch (fieldType().diskFormat()) {
-                    case BINARY_COLUMNAR_PAYLOAD -> ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
+                    case BINARY_COLUMNAR_PAYLOAD -> {
+                        // A bare null is dropped outright. The payload joins the document as soon as it exists, so recording a slot
+                        // for a null that stands on its own would carry the field as doc values alone, disagreeing with the index
+                        // options a document holding a value gives it. Inside an array the slot has to be kept for synthetic source
+                        // to put the null back where it was, so the field is registered as indexed instead, with no term to show
+                        // for it.
+                        if (context.isPartOfArray()) {
+                            ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
+                            if (emptyPostingsFieldType != null) {
+                                EmptyPostingsField.record(context.doc(), fieldType().name(), emptyPostingsFieldType);
+                            }
+                        }
+                    }
                     case BINARY_ARRAY_ORDER_INLINE_NULL -> MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(
                         context.doc(),
                         fieldType().name()

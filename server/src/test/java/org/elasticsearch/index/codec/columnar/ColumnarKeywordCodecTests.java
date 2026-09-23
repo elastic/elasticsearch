@@ -331,19 +331,18 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             assertEquals(shape.getKey(), plain, columnar);
         }
 
-        // exists is the one shape that deliberately does not agree. The codec writes a payload for an explicit null,
-        // which is what keeps an all-null array distinct from an absent field, so such a document has the field where
-        // under the format it replaces it does not. Documents 3 ("null") and 4 ("[null]") are the difference; the
-        // empty array of document 11 writes nothing either way and is absent from both.
+        // exists is the one shape that deliberately does not agree. The codec writes a payload for a null inside an array,
+        // which is what keeps an all-null array distinct from an absent field, so document 4 ("[null]") has the field where
+        // under the format it replaces it does not. A bare null (document 3) is dropped outright under both, since there is
+        // no array position to keep it for; the empty array of document 11 writes nothing either way.
         final List<String> existsColumnar = hits(withCodec, QueryBuilders.existsQuery("kw"));
         final List<String> existsPlain = hits(withoutCodec, QueryBuilders.existsQuery("kw"));
-        assertFalse("an explicit null is not present without the codec", existsPlain.contains("3"));
-        assertFalse("nor is an all-null array", existsPlain.contains("4"));
-        assertTrue("but it is with it", existsColumnar.contains("3"));
-        assertTrue("and so is an all-null array", existsColumnar.contains("4"));
+        assertFalse("a bare null is not present without the codec", existsPlain.contains("3"));
+        assertFalse("nor is it with it", existsColumnar.contains("3"));
+        assertFalse("an all-null array is not present without the codec", existsPlain.contains("4"));
+        assertTrue("but it is with it", existsColumnar.contains("4"));
         assertFalse("an empty array is absent either way", existsColumnar.contains("11") || existsPlain.contains("11"));
         final List<String> expected = new ArrayList<>(existsPlain);
-        expected.add("3");
         expected.add("4");
         expected.sort(String::compareTo);
         assertEquals("and nothing else differs", expected, existsColumnar);

@@ -104,7 +104,10 @@ public final class MappedColumns {
     }
 
     public ColumnBatch toColumnBatch() {
-        final List<Column> luceneColumns = columns.stream().map(LuceneColumn::toLuceneColumn).toList();
+        final List<Column> luceneColumns = columns.stream()
+            .filter(LuceneColumn::appearsInColumnBatch)
+            .map(LuceneColumn::toLuceneColumn)
+            .toList();
         return new SliceableColumnBatch(luceneColumns, count);
     }
 

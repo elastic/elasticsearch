@@ -54,6 +54,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -74,6 +75,7 @@ import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneEmptyPostingsColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -1790,6 +1792,8 @@ public final class TextFieldMapper extends FieldMapper {
     private final IndexSettings indexSettings;
     // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
     private final String offsetsFieldName;
+    // The type an all-null array's empty postings field takes, or null when the field is not indexed; see EmptyPostingsField.
+    private final FieldType emptyPostingsFieldType;
 
     private TextFieldMapper(
         String simpleName,
@@ -1829,6 +1833,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.fieldData = builder.fieldData.get();
         this.usesBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields(builder.indexSettings);
         this.offsetsFieldName = builder.offsetsFieldName;
+        this.emptyPostingsFieldType = isIndexed ? EmptyPostingsField.typeFor(this.fieldType) : null;
     }
 
     @Override
@@ -1845,6 +1850,10 @@ public final class TextFieldMapper extends FieldMapper {
     public void recordEmptyArrayInOrder(LuceneDocument doc) {
         if (fieldType().usesColumnarPayload()) {
             ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name());
+            // The empty payload carries the field, so an indexed field needs its index options here too.
+            if (emptyPostingsFieldType != null) {
+                EmptyPostingsField.record(doc, fieldType().name(), emptyPostingsFieldType);
+            }
         } else {
             super.recordEmptyArrayInOrder(doc);
         }
@@ -1956,17 +1965,31 @@ public final class TextFieldMapper extends FieldMapper {
             int docSlotCount = 0;
             int lastValueLength = 0;
             boolean hasNonNull = false;
+            // True when the current doc has at least one null slot: that document carries the field with the null in it, so an
+            // indexed field has to be given its index options even though the slot produces no term. Mirrors the row path.
+            boolean hasNull = false;
+            // The documents needing that empty postings field, collected as the batch is walked.
+            final FixedBitSet emptyPostings = columnar && emitTerms && emptyPostingsFieldType != null ? new FixedBitSet(docCount) : null;
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc != currentDoc) {
                     if (binaryDvs != null && docSlotCount > 0) {
                         if (columnar) {
-                            // An all-null document is a payload like any other, which is why no companion count
-                            // column is emitted alongside.
-                            final BytesRef blob = payload.build();
-                            binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
-                            payload.reset();
+                            // A bare null is dropped outright, matching the row path: the document keeps no slot for it and so
+                            // does not carry the field at all. Only a null written inside an array keeps its place.
+                            if (source.isNull(currentDoc) && hasNonNull == false) {
+                                payload.reset();
+                            } else {
+                                // An all-null document is a payload like any other, which is why no companion count
+                                // column is emitted alongside.
+                                final BytesRef blob = payload.build();
+                                binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
+                                payload.reset();
+                                if (hasNull && emptyPostings != null) {
+                                    emptyPostings.set(currentDoc);
+                                }
+                            }
                         } else {
                             dvCounts.setLong(currentDoc, docSlotCount);
                             if (hasNonNull) {
@@ -1977,6 +2000,7 @@ public final class TextFieldMapper extends FieldMapper {
                         pos = 0;
                         docSlotCount = 0;
                         hasNonNull = false;
+                        hasNull = false;
                     }
                     if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
                         break;
@@ -1994,6 +2018,7 @@ public final class TextFieldMapper extends FieldMapper {
                             pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
                         }
                         docSlotCount++;
+                        hasNull = true;
                     }
                     continue;
                 }
@@ -2024,6 +2049,17 @@ public final class TextFieldMapper extends FieldMapper {
             if (dvCounts != null && dvCounts.isEmpty() == false) {
                 final EscfColumnData dvCountsData = dvCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(dvCountsData, fieldType().name()), dvCountsData);
+            }
+            if (emptyPostings != null) {
+                final LuceneEmptyPostingsColumn column = new LuceneEmptyPostingsColumn(
+                    fieldType().name(),
+                    emptyPostingsFieldType,
+                    emptyPostings,
+                    docCount
+                );
+                if (column.isEmpty() == false) {
+                    ctx.addColumn(column);
+                }
             }
         }
     }
@@ -2095,7 +2131,16 @@ public final class TextFieldMapper extends FieldMapper {
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
             if (fieldType().usesColumnarPayload()) {
-                ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
+                // A bare null is dropped outright. The payload joins the document as soon as it exists, so recording a slot for a
+                // null that stands on its own would carry the field as doc values alone, disagreeing with the index options a
+                // document holding a value gives it. Inside an array the slot has to be kept for synthetic source to put the null
+                // back where it was, so the field is registered as indexed instead, with no term to show for it.
+                if (context.isPartOfArray()) {
+                    ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
+                    if (emptyPostingsFieldType != null) {
+                        EmptyPostingsField.record(context.doc(), fieldType().name(), emptyPostingsFieldType);
+                    }
+                }
             } else if (fieldType().usesArrayOrderBinaryDocValues()) {
                 MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
             } else if (recordOffsets) {

@@ -54,6 +54,15 @@ public interface LuceneColumn extends SliceableColumn {
     Column toLuceneColumn();
 
     /**
+     * Whether this column belongs in the batch handed to {@code IndexWriter.addBatch}. A column that exists only to give a field its
+     * index options on the row path returns {@code false}: a batch settles a field's index options once, on the column carrying the
+     * values, so a second column claiming the same indexing feature there is both unnecessary and rejected by Lucene.
+     */
+    default boolean appearsInColumnBatch() {
+        return true;
+    }
+
+    /**
      * Creates a forward-only cursor for the row-oriented (soft-update / non-{@code addBatch}) path.
      * The cursor iterates over rows in this column's current window; each position yields the
      * Lucene field(s) for that row via {@link RowFieldCursor#appendCurrentFields}.

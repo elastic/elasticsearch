@@ -19,6 +19,7 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -288,7 +289,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 populateColumnBatchDescriptors(mc, descsPerDoc);
                 for (int i = 0; i < docCount; i++) {
                     assertFieldSetsEqual(
-                        xcDescsPerDoc.get(i),
+                        withoutInvertedIndexOnlyFields(xcDescsPerDoc.get(i)),
                         descsPerDoc.get(i),
                         "Batch ["
                             + scenario.name()
@@ -314,6 +315,17 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     + "test data must only include fields whose mappers support columnar"
             );
         }
+    }
+
+    /**
+     * Drops the fields that carry only an inverted-index aspect and no value, such as {@link EmptyPostingsField}. The column-batch
+     * side puts those in a {@code TokenStreamColumn}, which has no value to render into a descriptor, so the row side is held to the
+     * same standard here. The row-cursor comparison above compares them in full.
+     */
+    private static List<FieldDescriptor> withoutInvertedIndexOnlyFields(List<FieldDescriptor> descriptors) {
+        return descriptors.stream()
+            .filter(d -> d.longValue() != null || d.bytesValue() != null || d.fieldType().indexOptions() == IndexOptions.NONE)
+            .toList();
     }
 
     private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {

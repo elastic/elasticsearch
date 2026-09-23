@@ -86,6 +86,11 @@ public final class AnonymizationContext {
             // unpredictable positions; redact the whole fragment rather than risk a partial leak.
             return "<redacted>";
         }
+
+        @Override
+        public String location(String text) {
+            return "<redacted>";
+        }
     };
 
     private AnonymizationContext(String clusterUuid) {

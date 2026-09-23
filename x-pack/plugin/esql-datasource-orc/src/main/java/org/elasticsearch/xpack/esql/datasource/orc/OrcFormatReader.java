@@ -415,15 +415,17 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             return tail;
         } catch (ExecutionException e) {
             // The ORC library embeds the full storage URI in both its IOException ("Malformed ORC
-            // file <uri>. ...") and RuntimeException messages, so we must wrap either kind before
-            // surfacing the error — only the object name (last path segment) must appear.
-            Throwable other;
+            // file <uri>. ...") and RuntimeException messages. Log the full cause for server-side
+            // diagnosis, but do not chain it: the caused_by chain is serialized into API responses
+            // and would expose the storage URI to the caller. Only the object name appears in the
+            // user-facing message.
+            LOGGER.debug(() -> "ORC tail parse failure for [" + path.getName() + "]", e);
             try {
-                other = ParsedFooterCache.rethrowStructural(e);
-            } catch (IOException io) {
-                throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]", io);
+                ParsedFooterCache.rethrowStructural(e);
+            } catch (IOException ignored) {
+                // cause intentionally dropped — contains storage URI
             }
-            throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]", other);
+            throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]");
         }
     }
 

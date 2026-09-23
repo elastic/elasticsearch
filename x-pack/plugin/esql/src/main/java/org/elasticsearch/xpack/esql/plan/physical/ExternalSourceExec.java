@@ -1025,7 +1025,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // included; bucket, prefix, and full URI are always omitted. pushedFilter is a predicate the
         // caller wrote themselves — redact under anonymization only.
         // sourceType is a low-cardinality format enum, never redacted.
-        sb.append(nodeName()).append("[").append(StoragePath.objectName(sourcePath)).append("][").append(sourceType).append("]");
+        sb.append(nodeName()).append("[").append(mapper.location(StoragePath.objectName(sourcePath))).append("][").append(sourceType).append("]");
         if (pushedFilter != null) {
             sb.append("[filter=").append(mapper.opaque(String.valueOf(pushedFilter))).append("]");
         }

@@ -20,6 +20,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -64,7 +65,7 @@ final class RestKnnEvalAction extends BaseRestHandler {
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
-                builder.field("task", localNodeId + ":" + task.getId());
+                builder.field("task", new TaskId(localNodeId, task.getId()).toString());
                 builder.endObject();
                 channel.sendResponse(new RestResponse(RestStatus.OK, builder));
             }

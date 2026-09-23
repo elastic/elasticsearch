@@ -150,6 +150,7 @@ import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactor
 import org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCachePeriodicMetrics;
@@ -223,6 +224,7 @@ import org.elasticsearch.xpack.stateless.recovery.metering.StatelessSearchNodeRe
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchShardWarmVolumesAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
@@ -699,6 +701,7 @@ public class StatelessPlugin extends Plugin
             new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
             new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class),
             new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class),
+            new ActionHandler(TransportFetchShardWarmVolumesAction.TYPE, TransportFetchShardWarmVolumesAction.class),
             new ActionHandler(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
             new ActionHandler(
                 TransportPublishIndexingOperationsHeapMemoryRequirements.INSTANCE,
@@ -847,6 +850,13 @@ public class StatelessPlugin extends Plugin
             ? warmingRatioProviderFactoryRef.get()
             : new DefaultWarmingRatioProviderFactory();
         final WarmingRatioProvider warmingRatioProvider = warmingRatioProviderFactory.create(clusterService.getClusterSettings());
+        final ShardWarmVolumes warmVolumes;
+        if (hasSearchRole) {
+            warmVolumes = new ShardWarmVolumes(client, clusterService, meterRegistry);
+            clusterService.addListener(warmVolumes);
+        } else {
+            warmVolumes = ShardWarmVolumes.NOOP;
+        }
         var cacheWarmingService = createSharedBlobCacheWarmingService(
             cacheService,
             threadPool,
@@ -854,6 +864,7 @@ public class StatelessPlugin extends Plugin
             clusterService.getClusterSettings(),
             warmingRatioProvider
         );
+        cacheWarmingService.setShardWarmVolumes(warmVolumes);
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
 
         var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
@@ -1474,6 +1485,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING,
             MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,

@@ -11,9 +11,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -27,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -112,7 +115,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
                 SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
-                SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING
+                SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
+                SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING
             )
         ).collect(Collectors.toSet());
     }
@@ -751,6 +755,255 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         }
     }
 
+    public void testWarmVolumeShareUsesIntersection() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), true)
+                .build();
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final Index index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                3,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            ShardWarmVolumes volumes = enabledWarmVolumes(state);
+            volumes.put(
+                sourceNodeId,
+                new ShardWarmVolumes.Entry(
+                    startedAtMillis,
+                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
+                )
+            );
+            var service = newWarmingServiceWithCacheSize(threadPool, settings, 1000L, volumes);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(plan.awaitWarming(), is(true));
+            // remaining=8000; equal-share=8000/3; warm-volume=600/1000*8000=4800 wins
+            assertThat(plan.timeout().millis(), equalTo(4800L));
+            assertThat(
+                plan.timeoutContext(),
+                equalTo("relocation source shutting down (warm volume share of remaining time to capped grace deadline)")
+            );
+        }
+    }
+
+    public void testWarmVolumeShareBelowEqualShareKeepsEqualShare() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), true)
+                .build();
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final Index index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                3,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            ShardWarmVolumes volumes = enabledWarmVolumes(state);
+            volumes.put(
+                sourceNodeId,
+                new ShardWarmVolumes.Entry(
+                    startedAtMillis,
+                    Map.of(new ShardId(index, 0), 100L, new ShardId(index, 1), 300L, new ShardId(index, 2), 600L)
+                )
+            );
+            var withVolumes = newWarmingServiceWithCacheSize(threadPool, settings, 1000L, volumes);
+            var withoutVolumes = newWarmingServiceWithCacheSize(threadPool, settings, 1000L);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            var expected = withoutVolumes.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            var actual = withVolumes.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(actual.timeout(), equalTo(expected.timeout()));
+            assertThat(actual.timeoutContext(), equalTo(expected.timeoutContext()));
+        }
+    }
+
+    public void testWarmVolumeShareMissingShardUsesMean() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), true)
+                .build();
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final Index index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                3,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            ShardWarmVolumes volumes = enabledWarmVolumes(state);
+            volumes.put(
+                sourceNodeId,
+                new ShardWarmVolumes.Entry(startedAtMillis, Map.of(new ShardId(index, 1), 300L, new ShardId(index, 2), 600L))
+            );
+            var service = newWarmingServiceWithCacheSize(threadPool, settings, 1000L, volumes);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(plan.timeout().millis(), equalTo(4000L));
+        }
+    }
+
+    public void testWarmVolumeShareAbsentEntryMatchesToday() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.1)
+                .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), true)
+                .build();
+            var withoutVolumes = newWarmingServiceWithCacheSize(threadPool, settings, 1000L);
+            ShardWarmVolumes empty = enabledWarmVolumes(
+                clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                    3,
+                    1,
+                    new Index("idx", randomUUID()),
+                    "source-node",
+                    "target-node",
+                    1L
+                )
+            );
+            var withEmptyMemo = newWarmingServiceWithCacheSize(threadPool, settings, 1000L, empty);
+
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final Index index = new Index("idx", randomUUID());
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                3,
+                1,
+                index,
+                "source-node",
+                "target-node",
+                startedAtMillis
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            var expected = withoutVolumes.searchRecoveryTimeout(state, mockIndexShard(self), 20L);
+            var actual = withEmptyMemo.searchRecoveryTimeout(state, mockIndexShard(self), 20L);
+            assertThat(actual.timeout(), equalTo(expected.timeout()));
+            assertThat(actual.timeoutContext(), equalTo(expected.timeoutContext()));
+        }
+    }
+
+    public void testWarmVolumeShareReshardingUsesEqualShare() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), true)
+                .build();
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final Index index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                3,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis,
+                IndexReshardingMetadata.newSplitByMultiple(3, 2)
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            ShardWarmVolumes volumes = enabledWarmVolumes(state);
+            volumes.put(
+                sourceNodeId,
+                new ShardWarmVolumes.Entry(
+                    startedAtMillis,
+                    Map.of(new ShardId(index, 0), 100L, new ShardId(index, 1), 300L, new ShardId(index, 2), 600L)
+                )
+            );
+            var withVolumes = newWarmingServiceWithCacheSize(threadPool, settings, 1000L, volumes);
+            var withoutVolumes = newWarmingServiceWithCacheSize(threadPool, settings, 1000L);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            var expected = withoutVolumes.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            var actual = withVolumes.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(actual.timeout(), equalTo(expected.timeout()));
+            assertThat(actual.timeoutContext(), equalTo(expected.timeoutContext()));
+        }
+    }
+
     public void testWarmCacheForSearchShardRecoveryNullEndOffsetsUsesResumesRecoveryBeforeWarmingCompletes() throws Exception {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         long warmDurationMillis = randomLongBetween(50, 100);
@@ -1114,6 +1367,15 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         Settings extraSettings,
         long cacheSize
     ) {
+        return newWarmingServiceWithCacheSize(threadPool, extraSettings, cacheSize, ShardWarmVolumes.NOOP);
+    }
+
+    private static SharedBlobCacheWarmingService newWarmingServiceWithCacheSize(
+        ThreadPool threadPool,
+        Settings extraSettings,
+        long cacheSize,
+        ShardWarmVolumes shardWarmVolumes
+    ) {
         ClusterSettings clusterSettings = newClusterSettings(extraSettings);
         StatelessSharedBlobCacheService mockCacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
         when(mockCacheService.getCacheSize()).thenReturn(cacheSize);
@@ -1122,8 +1384,23 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             threadPool,
             TelemetryProvider.NOOP,
             clusterSettings,
-            new DefaultWarmingRatioProviderFactory().create(clusterSettings)
+            new DefaultWarmingRatioProviderFactory().create(clusterSettings),
+            shardWarmVolumes
         );
+    }
+
+    private static ShardWarmVolumes enabledWarmVolumes(ClusterState state) {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                Settings.builder()
+                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING.getKey(), true)
+                    .build(),
+                Set.of(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_WARM_VOLUMES_ENABLED_SETTING)
+            )
+        );
+        when(clusterService.state()).thenReturn(state);
+        return new ShardWarmVolumes(mock(Client.class), clusterService);
     }
 
     /**
@@ -1141,13 +1418,36 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         String targetNodeId,
         long startedAtMillis
     ) {
+        return clusterStateSearchShardsRelocatingFromShuttingDownSource(
+            numShards,
+            numShardsToTarget,
+            index,
+            sourceNodeId,
+            targetNodeId,
+            startedAtMillis,
+            null
+        );
+    }
+
+    private static ClusterState clusterStateSearchShardsRelocatingFromShuttingDownSource(
+        int numShards,
+        int numShardsToTarget,
+        Index index,
+        String sourceNodeId,
+        String targetNodeId,
+        long startedAtMillis,
+        @Nullable IndexReshardingMetadata reshardingMetadata
+    ) {
         assert numShardsToTarget <= numShards;
         final String primaryNodeId = "primary-node";
         final String masterNodeId = "master-node";
         final String otherNodeId = "other-node";
-        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
-            .build();
+        final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
+            .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1));
+        if (reshardingMetadata != null) {
+            indexMetadataBuilder.reshardingMetadata(reshardingMetadata);
+        }
+        final IndexMetadata indexMetadata = indexMetadataBuilder.build();
         final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(index);
         for (int s = 0; s < numShards; s++) {
             final ShardId sid = new ShardId(index, s);

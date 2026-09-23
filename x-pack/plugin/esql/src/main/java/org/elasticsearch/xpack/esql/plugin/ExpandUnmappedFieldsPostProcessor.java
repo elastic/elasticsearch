@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -43,6 +44,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApproximationColumn;
 
@@ -73,20 +75,47 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  */
 public final class ExpandUnmappedFieldsPostProcessor {
     /**
+     * How often the expansion loops poll {@code isCancelled}. The expansion is a coordinator-side, single-threaded scan over every row
+     * of every page (parsing each row's {@code _source} JSON), so for a wide or high-row {@code LOAD_ALL} result it can run for seconds.
+     * Polling every {@value} rows keeps cancellation latency to a small fraction of a page while adding no measurable overhead per row.
+     * Must stay a power of two for the bit-mask test below.
+     */
+    private static final int ROWS_PER_CANCELLATION_CHECK = 1024;
+
+    /**
+     * Test-only seam invoked once at the start of the expansion phase — after a {@code _unmapped_fields} column has been confirmed
+     * present but before any page is scanned. Production never installs a hook (the field stays {@code null}), so this adds a single
+     * volatile read per {@code LOAD_ALL} response and nothing otherwise. {@code LoadAllCancellationIT} installs a hook that blocks
+     * until it has cancelled the task, which lets it deterministically land a cancellation inside an in-progress expansion (rather than
+     * during the compute phase, where the drivers would abort first) and assert that the per-row {@link #ROWS_PER_CANCELLATION_CHECK}
+     * poll then aborts it. Volatile so the coordinator thread running the expansion observes the test's write.
+     */
+    static volatile Runnable expansionStartedForTest = null;
+
+    /**
      * Expands the {@code _unmapped_fields} column in {@code result} into per-field columns.
      * Returns {@code result} unchanged if no {@link UnmappedFieldsAttribute} is present in the schema.
+     *
+     * @param isCancelled polled every {@link #ROWS_PER_CANCELLATION_CHECK} rows during the (potentially long) expansion; when it reports
+     *                    the task cancelled the expansion throws {@link TaskCancelledException} and releases the input and any partially
+     *                    built pages, so an expensive expansion can be cancelled promptly instead of only after it finishes.
      */
     public static Result expand(
         Result result,
         @Nullable UnmappedFieldsOrdering ordering,
         BlockFactory blockFactory,
-        PlannerSettings plannerSettings
+        PlannerSettings plannerSettings,
+        BooleanSupplier isCancelled
     ) {
         List<Attribute> schema = result.schema();
 
         int unmappedIdx = CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute);
         if (unmappedIdx == -1) {
             return result;
+        }
+        Runnable expansionStarted = expansionStartedForTest;
+        if (expansionStarted != null) {
+            expansionStarted.run();
         }
         double reservationFactor = plannerSettings.sourceReservationFactor();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
@@ -96,7 +125,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
         // is left below. Page#releaseBlocks is idempotent, so re-releasing pages rewritePage already drained is a no-op.
         boolean success = false;
         try {
-            var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor);
+            var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor, isCancelled);
             Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
             List<String> expandedFieldNames = new ArrayList<>(fieldNames.size());
             // A discovered field name that collides with an existing column name is dropped, not an error: with flattening a
@@ -117,7 +146,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 layout.schema(),
                 layout.blockOrder(),
                 blockFactory,
-                reservationFactor
+                reservationFactor,
+                isCancelled
             );
 
             Result expanded = new Result(
@@ -155,13 +185,17 @@ public final class ExpandUnmappedFieldsPostProcessor {
         int unmappedIdx,
         UnmappedFieldsPattern pattern,
         CircuitBreaker breaker,
-        double reservationFactor
+        double reservationFactor,
+        BooleanSupplier isCancelled
     ) {
         TreeSet<String> fieldNames = new TreeSet<>();
         BytesRef scratch = new BytesRef();
         for (Page page : result.pages()) {
             BytesRefBlock unmappedBlock = page.getBlock(unmappedIdx);
             for (int row = 0; row < unmappedBlock.getPositionCount(); row++) {
+                if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
+                    throwIfCancelled(isCancelled);
+                }
                 if (unmappedBlock.isNull(row)) {
                     continue;
                 }
@@ -176,6 +210,13 @@ public final class ExpandUnmappedFieldsPostProcessor {
         }
         fieldNames.removeIf(name -> pattern.matches(name) == false);
         return fieldNames;
+    }
+
+    /** Throws {@link TaskCancelledException} if {@code isCancelled} reports the query cancelled, so a long expansion aborts promptly. */
+    private static void throwIfCancelled(BooleanSupplier isCancelled) {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException("cancelled");
+        }
     }
 
     /**
@@ -296,7 +337,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
         List<Attribute> newSchema,
         int[] blockOrder,
         BlockFactory factory,
-        double reservationFactor
+        double reservationFactor,
+        BooleanSupplier isCancelled
     ) {
         int originalColumnCount = result.schema().size();
         Set<String> keep = Set.copyOf(expandedFieldsNames);
@@ -305,7 +347,17 @@ public final class ExpandUnmappedFieldsPostProcessor {
         try {
             for (Page p : result.pages()) {
                 newPages.add(
-                    rewritePage(unmappedIdx, keep, expandedFieldsNames, blockOrder, originalColumnCount, factory, p, reservationFactor)
+                    rewritePage(
+                        unmappedIdx,
+                        keep,
+                        expandedFieldsNames,
+                        blockOrder,
+                        originalColumnCount,
+                        factory,
+                        p,
+                        reservationFactor,
+                        isCancelled
+                    )
                 );
             }
             assert assertNoAllNullExpandedColumn(newPages, newSchema, expandedFieldsNames);
@@ -360,7 +412,8 @@ public final class ExpandUnmappedFieldsPostProcessor {
         int originalColumnCount,
         BlockFactory blockFactory,
         Page page,
-        double reservationFactor
+        double reservationFactor,
+        BooleanSupplier isCancelled
     ) {
         int expandedFieldsCount = expandedFieldsNames.size();
         Block[] allBlocks = new Block[blockOrder.length];
@@ -402,6 +455,9 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 };
                 CircuitBreaker breaker = blockFactory.breaker();
                 for (int row = 0; row < page.getPositionCount(); row++) {
+                    if ((row & (ROWS_PER_CANCELLATION_CHECK - 1)) == 0) {
+                        throwIfCancelled(isCancelled);
+                    }
                     if (unmappedBlock.isNull(row)) {
                         appendRow(Map.of(), expandedFieldsNames, builders, valueScratch);
                         continue;

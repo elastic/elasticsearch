@@ -1359,24 +1359,43 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
             if (adapted != pushedExpressions) {
                 if (adapted.isEmpty()) {
-                    reader = formatReader.withPushedFilter(null);
+                    // Every adapted conjunct was dropped — typically because this file has a one-way
+                    // widening cast (e.g. int32→KEYWORD) and every conjunct referenced that column.
+                    // Do NOT clear the filter entirely: YES-pushed conjuncts (LIKE-family) were
+                    // removed from FilterExec and must still be enforced by the reader. Re-push only
+                    // the YES conjuncts from the original list so they reach the evaluator, while the
+                    // RECHECK conjuncts remain in FilterExec. See elastic/esql-planning#2052.
+                    List<Expression> yesConjuncts = pushedExpressions.stream()
+                        .filter(e -> pushdownSupport.canPush(e) == FilterPushdownSupport.Pushability.YES)
+                        .toList();
+                    reader = applyPushedFilter(yesConjuncts);
                 } else {
                     // adapted is logical (mapFilters + queryDataSchema); physicalize it so the re-minted opaque
                     // predicate references the file's physical columns, matching the plan-time mint.
-                    List<Expression> physicalAdapted = PhysicalNames.translateExpressionNames(adapted, renames);
-                    // Same invariant as the plan-time mint: no logical rename-source name may reach the reader's filter.
-                    assert PhysicalNames.noLogicalNamesRemain(
-                        physicalAdapted.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
-                        renames
-                    ) : "logical rename-source name leaked into the re-minted pushed filter: " + physicalAdapted;
-                    FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(physicalAdapted);
-                    reader = result.hasPushedFilter()
-                        ? formatReader.withPushedFilter(result.pushedFilter())
-                        : formatReader.withPushedFilter(null);
+                    reader = applyPushedFilter(adapted);
                 }
             }
         }
         return readerWithDynamicThreshold(reader);
+    }
+
+    /**
+     * Physicalizes {@code logicalExprs}, re-mints them through {@link #pushdownSupport}, and
+     * returns a reader variant carrying the resulting pushed filter, or one with no filter when
+     * nothing pushes. Shared by both branches of {@link #readerForMapping}.
+     */
+    private FormatReader applyPushedFilter(List<Expression> logicalExprs) {
+        if (logicalExprs.isEmpty()) {
+            return formatReader.withPushedFilter(null);
+        }
+        List<Expression> physical = PhysicalNames.translateExpressionNames(logicalExprs, renames);
+        // Same invariant as the plan-time mint: no logical rename-source name may reach the reader's filter.
+        assert PhysicalNames.noLogicalNamesRemain(
+            physical.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+            renames
+        ) : "logical rename-source name leaked into the re-minted pushed filter: " + physical;
+        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(physical);
+        return result.hasPushedFilter() ? formatReader.withPushedFilter(result.pushedFilter()) : formatReader.withPushedFilter(null);
     }
 
     /**

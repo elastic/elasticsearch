@@ -77,13 +77,18 @@ public class InternalChangePointAggregation extends InternalAggregation {
         // are morally the same sort of thing (we compare nested models) so Wilk's theorem says the gain is a
         // reasonable surrogate for a likelihood ratio test. So basically they're all the log of a probability
         // of something as extreme under a suitable null. Furthermore, they're typically not the same order of
-        // magnitude so even if they aren't perfectly calibrated it probably doesn't affect the labelling.
+        // magnitude so even if they aren't perfectly calibrated it typically doesn't affect the labelling.
+        //
+        // We must compare log p-values, not p-values: a strongly significant event has a log p-value well below
+        // -745, at which point exp underflows to exactly 0.0. Comparing p-values would leave every such event
+        // tied at zero and, since the comparison is strict, silently select the first one in index order rather
+        // than the most significant.i
         int minPValueIndex = -1;
-        double minPValue = 2.0; // Any number greater than 1.0 is sufficient.
+        double minLogPValue = Double.POSITIVE_INFINITY;
         for (int i = 0; i < changeTypes.size(); i++) {
             ChangeType changeType = changeTypes.get(i);
-            if (changeType.pValue() < minPValue) {
-                minPValue = changeType.pValue();
+            if (changeType.logPValue() < minLogPValue) {
+                minLogPValue = changeType.logPValue();
                 minPValueIndex = i;
             }
         }

@@ -64,21 +64,24 @@ import java.util.function.Consumer;
  *       it is reused across every requested column.</li>
  *   <li><b>Per-row-group async prefetch, admitted then dispatched in parallel.</b> One
  *       {@link ColumnChunkPrefetcher#prefetchAsync} call per visited row group, each carrying the
- *       full multi-column projection. {@link CoalescedRangeReader} merges adjacent column-chunk
- *       ranges <em>within</em> the row group (column chunks in one row group are written
- *       contiguously, so the multi-column projection coalesces naturally) and dispatches the
- *       merged ranges to {@link StorageObject#readBytesAsync}. Each bucket takes a
- *       {@link ParquetIoWatermark} hold so TopN extraction competes with scan look-ahead for
- *       {@code heap / 8}; later buckets are look-ahead and wait for a live group to decode when
- *       the cap would be exceeded. Within that cap, buckets still fan out before decode: the
- *       extractor does not wait on row group {@code k}'s bytes before issuing {@code k+1}'s GET.
- *       Per-request RTT/TTFB cost goes from {@code O(row groups × columns)} down to roughly
- *       {@code O(admitted row groups)}, and the wall-clock cost of the slowest in-flight GET is
- *       no longer additive across those groups.</li>
+ *       projection of columns {@link ParquetFormatReader#resolveColumnInfo} resolved (readable
+ *       columns only). Unresolved names are constant-null filled and never prefetched; if every
+ *       requested name is unresolved the extractor returns those nulls without I/O.
+ *       {@link CoalescedRangeReader} merges adjacent column-chunk ranges <em>within</em> the row
+ *       group (column chunks in one row group are written contiguously, so the multi-column
+ *       projection coalesces naturally) and dispatches the merged ranges to
+ *       {@link StorageObject#readBytesAsync}. Each bucket takes a {@link ParquetIoWatermark} hold
+ *       so TopN extraction competes with scan look-ahead for {@code heap / 8}; later buckets are
+ *       look-ahead and wait for a live group to decode when the cap would be exceeded. Within that
+ *       cap, buckets still fan out before decode: the extractor does not wait on row group
+ *       {@code k}'s bytes before issuing {@code k+1}'s GET. Per-request RTT/TTFB cost goes from
+ *       {@code O(row groups × columns)} down to roughly {@code O(admitted row groups)}, and the
+ *       wall-clock cost of the slowest in-flight GET is no longer additive across those
+ *       groups.</li>
  *   <li><b>Pipelined decode in arrival order.</b> A small bounded queue receives each
  *       per-bucket prefetch as it completes. The decode loop drains buckets in arrival order,
  *       running flat ({@link PageColumnReader#readBatchSparse}) or list (skip/read driven by a
- *       {@link ColumnReader}) decode for every requested column against that bucket's
+ *       {@link ColumnReader}) decode for every resolved column against that bucket's
  *       prefetched chunk map. Decoding bucket {@code i} therefore overlaps with the still
  *       in-flight S3 reads for the slower buckets — the synchronous barrier of
  *       <em>"wait for the slowest GET, then start any decode"</em> is removed.</li>
@@ -243,17 +246,31 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
         // Resolve every requested column to its {@link ColumnInfo} once so we have the descriptors
         // ready for the single coalesced fetch (we need their dotted paths to compute the byte
-        // ranges) and for the per-column decode loop afterwards.
+        // ranges) and for the per-column decode loop afterwards. A null info is not a caller error:
+        // the name is absent from this file or maps to UNSUPPORTED, matching the eager scan which
+        // constant-null-fills the slot. Keep the slot null and skip prefetch/decode/coerce for it.
         MessageType schema = ownedFooter.getFileMetaData().getSchema();
         ColumnInfo[] infos = new ColumnInfo[colCount];
+        int resolved = 0;
         for (int c = 0; c < colCount; c++) {
-            ColumnInfo info = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
-            if (info == null) {
-                throw new IllegalArgumentException(
-                    "column [" + columnNames[c] + "] is missing or has an unsupported type in [" + storageObject.path() + "]"
-                );
+            infos[c] = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
+            if (infos[c] != null) {
+                resolved++;
             }
-            infos[c] = info;
+        }
+        if (resolved == 0) {
+            // Empty projection has awkward prefetcher edge cases; with nothing to decode there is
+            // also no reason to open row groups.
+            Block[] nulls = new Block[colCount];
+            try {
+                for (int c = 0; c < colCount; c++) {
+                    nulls[c] = blockFactory.newConstantNullBlock(count);
+                }
+                return nulls;
+            } catch (Throwable e) {
+                ParquetReadFailures.closePreservingCause(e, nulls);
+                throw e;
+            }
         }
 
         // Bucket positions by row group once. Per-column decode walks the same buckets, so paying
@@ -273,13 +290,16 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         // just the column name; for LIST<primitive> it's e.g. "vals.list.element". This must match
         // ColumnChunkMetaData.getPath().toDotString(), which is what
         // ColumnChunkPrefetcher.computeColumnChunkRanges and PrefetchedRowGroupBuilder both key
-        // off. The combined projection covers every requested column for one row group;
+        // off. The combined projection covers every *resolved* column for one row group (unresolved
+        // names are omitted so the prefetcher never asks for a missing chunk);
         // CoalescedRangeReader merges physically-adjacent chunks (column chunks within one row
         // group are written contiguously in Parquet), so the per-bucket fetch typically resolves
         // to a single S3 GET per row group rather than one per (row group, column).
-        Set<String> projection = new java.util.LinkedHashSet<>(colCount);
+        Set<String> projection = new java.util.LinkedHashSet<>(resolved);
         for (ColumnInfo info : infos) {
-            projection.add(String.join(".", info.descriptor().getPath()));
+            if (info != null) {
+                projection.add(String.join(".", info.descriptor().getPath()));
+            }
         }
 
         // Per-bucket async prefetch is admitted against the node watermark then dispatched.
@@ -300,6 +320,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         try {
             decodeBucketsAsTheyArrive(buckets, infos, schema, columnNames, projection, futures, perBucketBlocks, blockFactory);
             for (int c = 0; c < colCount; c++) {
+                if (infos[c] == null) {
+                    result[c] = blockFactory.newConstantNullBlock(count);
+                    continue;
+                }
                 // stitchAndGather releases its per-bucket blocks and nulls the array entries so
                 // the outer defensive cleanup is a no-op for already-stitched columns.
                 Block stitched = stitchAndGather(perBucketBlocks[c], buckets, count, blockFactory);
@@ -317,8 +341,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         } catch (Throwable e) {
             // Defensive cleanup: anything left in perBucketBlocks (e.g. when decode partially
             // completed before failing, or stitchAndGather threw between two columns) needs
-            // releasing. On success all entries are null (stitchAndGather nulls them), so this
-            // path is failure-only in practice.
+            // releasing. On success, resolved columns have their slots nulled by stitchAndGather;
+            // unresolved columns never enter stitch, so those rows stay null by construction.
+            // Either way this path is failure-only in practice.
             for (Block[] perBucket : perBucketBlocks) {
                 for (Block b : perBucket) {
                     if (b != null) {
@@ -337,7 +362,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * Admits and dispatches per-bucket prefetches against {@link ParquetIoWatermark}, then drains
-     * them in arrival order, decoding every requested column for each bucket as soon as its bytes
+     * them in arrival order, decoding every resolved column for each bucket as soon as its bytes
      * land. Later buckets are look-ahead: if the cap would be exceeded, dispatch waits until a
      * live group is decoded and its buffers released. Decode of bucket {@code i} still overlaps
      * with slower in-flight GETs that already admitted — the wall-clock cost of those GETs is no
@@ -364,6 +389,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         @SuppressWarnings("unchecked")
         Set<String>[] perColumnProjections = (Set<String>[]) new Set<?>[colCount];
         for (int c = 0; c < colCount; c++) {
+            if (infos[c] == null) {
+                continue;
+            }
             // Use the descriptor's first path segment as the top-level field name. For flat
             // columns and LIST<primitive> this equals columnNames[c]; for dotted struct-leaf
             // columns (e.g. "event.action") columnNames[c] is not a top-level schema field and
@@ -423,11 +451,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 int rgRowCount = Math.toIntExact(block.getRowCount());
 
                 try {
-                    // Decode every requested column from this bucket's prefetched chunk map. Each
+                    // Decode every resolved column from this bucket's prefetched chunk map. Each
                     // call passes a single-column projection so PrefetchedRowGroupBuilder only
                     // materialises that column's bytes despite the prefetched map carrying every
                     // projected column for this row group.
                     for (int c = 0; c < colCount; c++) {
+                        if (infos[c] == null) {
+                            continue;
+                        }
                         perBucketBlocks[c][bucketIdx] = decodeBucket(
                             bucket,
                             block,

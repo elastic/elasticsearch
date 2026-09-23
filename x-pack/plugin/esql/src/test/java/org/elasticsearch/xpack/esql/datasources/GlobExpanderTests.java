@@ -42,6 +42,12 @@ public class GlobExpanderTests extends ESTestCase {
 
     /** Detection disabled via the canonical setting. */
     private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "none");
+    private static final Map<String, Object> TEMPLATE_YEAR = Map.of(
+        PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+        "template",
+        PartitionConfig.CONFIG_PARTITIONING_PATH,
+        "{year}"
+    );
 
     /** Detection disabled, and every exclusion off. Directory placeholder keys are still skipped regardless. */
     private static final Map<String, Object> NO_EXCLUSION = Map.of(
@@ -3486,6 +3492,22 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * TEMPLATE does not rewrite a multi-value IN, so two year lists on the same glob must not share a cache entry.
+     * A brace used to make the effective pattern differ; without it, only the hint channel keeps them apart.
+     */
+    public void testListingCacheDiscriminatorSeparatesTemplateInLists() {
+        String pattern = "s3://bucket/logs/*/*.parquet";
+        var in2024 = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2024, 2030));
+        var in2025 = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2025, 2030));
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, TEMPLATE_YEAR);
+        assertNotEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, in2024, TEMPLATE_YEAR));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, in2024, TEMPLATE_YEAR),
+            GlobExpander.listingCacheDiscriminator(pattern, in2025, TEMPLATE_YEAR)
+        );
+    }
+
+    /**
      * The walk types a level over ALL sibling folders while the read layer types over the final glob-matched files:
      * {@code month=abc} (matching nothing) widens the level to keyword, and a keyword value against an integer
      * literal is a kind mismatch — undecidable, so nothing is pruned and the flat listing returns every matching
@@ -4077,18 +4099,32 @@ public class GlobExpanderTests extends ESTestCase {
         TreeStubProvider provider = new TreeStubProvider(
             List.of(entry("s3://bucket/logs/2024/a.parquet", 100), entry("s3://bucket/logs/2025/b.parquet", 100))
         );
-        Map<String, Object> template = Map.of(
-            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
-            "template",
-            PartitionConfig.CONFIG_PARTITIONING_PATH,
-            "{year}"
-        );
         // Two values so the template placeholder stays *. One value splices logs/2024/ and never lists the prefix.
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2024, 2030));
 
-        FileList result = GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, template, MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, TEMPLATE_YEAR, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/logs/2024/a.parquet"), paths(result));
+        assertTrue(provider.childListedPrefixes.isEmpty());
+        assertEquals(List.of("s3://bucket/logs/"), provider.listedPrefixes);
+    }
+
+    /**
+     * The discovery cap counts files the template filter keeps. Non-matching years listed first must not trip it
+     * before the matching file is reached. A brace used to hide those years from the cap.
+     */
+    public void testTemplateValueFilterAppliesBeforeDiscoveredFilesCap() throws IOException {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int year = 2016; year <= 2024; year++) {
+            entries.add(entry("s3://bucket/logs/" + year + "/a.parquet", 100));
+        }
+        entries.add(entry("s3://bucket/logs/2025/a.parquet", 100));
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2025, 2030));
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, TEMPLATE_YEAR, 1, MAX);
+
+        assertEquals(List.of("s3://bucket/logs/2025/a.parquet"), paths(result));
         assertTrue(provider.childListedPrefixes.isEmpty());
         assertEquals(List.of("s3://bucket/logs/"), provider.listedPrefixes);
     }

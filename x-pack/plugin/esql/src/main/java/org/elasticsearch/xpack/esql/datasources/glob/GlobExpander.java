@@ -905,20 +905,6 @@ public final class GlobExpander {
     }
 
     /**
-     * Whether these hints select a subtree of the dataset rather than filtering files by their own metadata.
-     * <p>
-     * A listing bound keeps the first keys the provider reports, which is only a prefix of the same listing when
-     * nothing else narrows it. Partition pruning does narrow it — {@link PartitionPruningWalk} descends only the
-     * directories a hint admits, and the flat listing drops a glob-matched file a hint excludes — so a bounded
-     * listing and an unbounded one over the same hinted glob enumerate different files, not a prefix and its whole,
-     * and would disagree about which file is first. Callers that must preserve the anchor use this to decline the
-     * bound.
-     */
-    public static boolean hasPartitionPruningHints(@Nullable List<PartitionFilterHint> hints) {
-        return partitionPruningHints(hints).isEmpty() == false;
-    }
-
-    /**
      * The hints that may prune {@code key=value} folders during the listing walk: every non-{@code _file.*} filter
      * column. Also the exact hint set the cache key carries for a walk-eligible pattern — see {@link ListingIdentity}.
      */

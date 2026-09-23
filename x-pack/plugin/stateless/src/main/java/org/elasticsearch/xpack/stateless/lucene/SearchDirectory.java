@@ -825,10 +825,28 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 final String fileName = entry.getKey();
                 final var reconciledRanges = reconcileBlobFileRanges(fileName, reconciledMetadata.get(fileName), entry.getValue());
                 if (isGenerationalFile(fileName)) {
-                    // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
-                    // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
-                    // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
-                    // instances).
+                    // Generational files are carried over into every subsequent BCC, so a fresh commit notification
+                    // references all the generational files it needs from a single (latest) BCC. Their blob locations are
+                    // not updated here: we keep the first location we see for each file (putIfAbsent below) and pin its BCC.
+                    // On the normal refresh path this is the location the reader opens as soon as the file is first picked
+                    // up, and it never reopens it afterwards (segment core readers are handed over between refreshed reader
+                    // instances), so the first-seen BCC is exactly the one kept alive by the reader.
+                    //
+                    // A deferred refresh (see lastRefreshDeferred usages) breaks that "opened immediately and kept open"
+                    // assumption: the metadata is updated but the refresh can be postponed, so a later commit may supersede
+                    // the first-seen BCC before the reader finally opens the file. We therefore pin every BCC referenced by
+                    // an active generational file, not just the latest one, so the deferred open can still acquire the
+                    // first-seen BCC.
+                    //
+                    // Likewise, a relocated PIT accumulates generational files across several BCCs over its lifetime. When
+                    // the PIT's own BCC is not yet uploaded, the handoff builds the PIT metadata from those multiple BCCs
+                    // (an uploaded BCC would instead carry the latest copy), and the target re-acquires each of them when
+                    // opening the PIT, which again requires all referenced BCCs to be pinned.
+                    //
+                    // TODO: a PIT is anchored on a single commit and should ideally reference each generational file from
+                    // one (latest) BCC like recovery does. That needs the search node to know the latest unuploaded copies
+                    // (read the unuploaded VBCC from the indexing shard, or track unuploaded StatelessCompoundCommits) to
+                    // override the blob-file-ranges timestamp.
                     var incoming = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     if (reconciledMetadata.putIfAbsent(fileName, reconciledRanges) != null) {
                         // read the first known location

@@ -7344,6 +7344,27 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new MvInRange(SRC, d, zero, hundred), Map.of("d", -1.5)));
     }
 
+    // --- _score: per-row, must never certify a discovery-time comparison ---
+
+    public void testScoreMetadataAttributeNeverCertifiesAComparison() {
+        Expression filter = new GreaterThan(SRC, metadataAttr(ExternalMetadataColumns.SCORE), new Literal(SRC, 1.5, DataType.DOUBLE), null);
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of(ExternalMetadataColumns.SCORE, 0.0d)));
+    }
+
+    public void testScorePhysicalColumnStillPrunesNormally() {
+        Expression filter = new Equals(SRC, refAttr(ExternalMetadataColumns.SCORE), new Literal(SRC, new BytesRef("b"), DataType.KEYWORD));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(ExternalMetadataColumns.SCORE, new BytesRef("a"))));
+    }
+
+    public void testScoreHintDoesNotBlockPruningOnAConjunct() {
+        Expression filter = new And(
+            SRC,
+            new Equals(SRC, fieldAttr("year"), intLiteral(2023)),
+            new GreaterThan(SRC, metadataAttr(ExternalMetadataColumns.SCORE), new Literal(SRC, 1.5, DataType.DOUBLE), null)
+        );
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024, ExternalMetadataColumns.SCORE, 0.0d)));
+    }
+
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }

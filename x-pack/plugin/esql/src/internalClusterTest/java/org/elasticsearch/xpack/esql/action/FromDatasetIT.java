@@ -5332,7 +5332,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     public void testFromDatasetStandardMetadataNeverFails() throws Exception {
         // Standing contract: every metadata name a dataset can answer returns a value or SQL NULL, never an
-        // error. All nine come back as NULL columns. Pinned per format in
+        // error. _score seeds 0.0 (see AbstractExternalMetadataMatrixIT#testScoreIsPopulatedForRuntimeMatch
+        // for the scored case); the other eight come back as NULL columns. Pinned per format in
         // AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
@@ -5340,8 +5341,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // _tier (DataTierFieldMapper.NAME) is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP;
         // omit it so the query is valid in non-snapshot builds. Every other standard name has no
         // value on an external row and must render as a NULL column rather than being dropped or
-        // erroring — a file carries no document identity, version or stored source either, and no
-        // scorer is wired over an external relation, so nothing populates _score.
+        // erroring — a file carries no document identity, version or stored source either.
         String query = "FROM employees METADATA _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no "
             + "| KEEP emp_no, _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
@@ -5365,7 +5365,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 assertThat("_index_mode is null on external rows", row.get(6), nullValue());
                 assertThat("_tsid is null on external rows", row.get(7), nullValue());
                 assertThat("_size is null on external rows", row.get(8), nullValue());
-                assertThat("_score is null on external rows", row.get(9), nullValue());
+                assertThat("_score is 0.0 without a scoring predicate", row.get(9), equalTo(0.0));
             }
         }
     }

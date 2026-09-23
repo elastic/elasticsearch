@@ -103,7 +103,7 @@ You can also send it in the `_query` request body as `"settings": {"wildcards_ma
 | `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` | The object each row was read from. |
 | `_ignored` | null |
 | `_index_mode`, `_tsid`, `_size` | null |
-| `_score` | null |
+| `_score` {applies_to}`stack: preview 9.6` | `0.0`, or a real per-row value under a scoring `MATCH`/`MATCH_PHRASE` — see [Use search functions](#use-search-functions). |
 | `_index` {applies_to}`stack: experimental 9.6+` | null |
 | `_id`, `_version`, `_source` {applies_to}`stack: experimental 9.6+` | null |
 

@@ -30,6 +30,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -40,6 +41,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.mockito.ArgumentCaptor;
@@ -642,7 +644,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
             calls.incrementAndGet();
             AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
-            return failTransformer(transformer, S3Exception.builder().statusCode(403).message("Access Denied").build());
+            return failTransformer(transformer, s3Error(403, "AccessDenied"));
         });
 
         S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
@@ -657,6 +659,46 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals("a 403 must not be retried", 1, calls.get());
         assertThat(error.get(), instanceOf(IOException.class));
+        assertThat(error.get().getMessage(), containsString("Access denied"));
+        assertNull(ExceptionsHelper.unwrap(error.get(), ExternalCredentialsExpiredException.class));
+    }
+
+    public void testExpiredTokenFailsWithoutRetry() throws Exception {
+        assertCredentialsExpiredFailsWithoutRetry("ExpiredToken");
+    }
+
+    public void testInvalidTokenFailsWithoutRetry() throws Exception {
+        assertCredentialsExpiredFailsWithoutRetry("InvalidToken");
+    }
+
+    public void testTokenRefreshRequiredFailsWithoutRetry() throws Exception {
+        assertCredentialsExpiredFailsWithoutRetry("TokenRefreshRequired");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertCredentialsExpiredFailsWithoutRetry(String errorCode) throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            calls.incrementAndGet();
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
+            return failTransformer(transformer, s3Error(400, errorCode));
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        obj.readBytesAsync(0, 10, FACTORY, Runnable::run, ActionListener.wrap(buffer -> fail("expected failure"), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertEquals("expired session tokens must not be retried", 1, calls.get());
+        assertThat(error.get(), instanceOf(ExternalCredentialsExpiredException.class));
+        assertThat(error.get().getMessage(), containsString("expired or invalid"));
+        assertThat(error.get().getMessage(), containsString("Refresh the data source credentials"));
+        assertThat(error.get().getMessage(), containsString(errorCode));
     }
 
     /** When every attempt fails with a retryable error, the Standard budget (3 attempts) is honored. */
@@ -915,6 +957,14 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
      * error: the stream is wired and the subscriber's {@code onError} carries the failure, which
      * completes (fails) the attempt future.
      */
+    private static S3Exception s3Error(int status, String errorCode) {
+        return (S3Exception) S3Exception.builder()
+            .statusCode(status)
+            .message(errorCode)
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build())
+            .build();
+    }
+
     private static CompletableFuture<DirectReadBuffer> failTransformer(
         AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer,
         Throwable error

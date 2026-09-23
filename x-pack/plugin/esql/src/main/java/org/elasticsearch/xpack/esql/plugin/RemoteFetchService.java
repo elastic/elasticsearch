@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -53,6 +54,9 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -85,6 +89,13 @@ public final class RemoteFetchService {
     static final String RELEASE_ACTION_NAME = ACTION_PREFIX + "/release";
     static final String EXCHANGE_SETUP_ACTION_NAME = ACTION_PREFIX + "/exchange_setup";
     private static final TimeValue RETAINED_CONTEXTS_REAPER_INTERVAL = TimeValue.timeValueMinutes(1);
+    static final Setting<Integer> MAX_WORKERS_SETTING = Setting.intSetting(
+        "esql.query.remote_fetch_topn.max_workers",
+        1,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private static final Logger logger = LogManager.getLogger(RemoteFetchService.class);
     private static final AtomicLong exchangeIdGenerator = new AtomicLong();
@@ -99,6 +110,8 @@ public final class RemoteFetchService {
     private final RemoteFetchPushdownOperatorBuilder pushdownOperatorBuilder;
     private final RetainedSearchContextsRegistry retainedSearchContexts;
     private final ExchangeServerFactory exchangeServerFactory;
+    private final SecurityContext securityContext;
+    private final boolean securityEnabled;
 
     RemoteFetchService(TransportActionServices transportActionServices, BigArrays bigArrays, BlockFactory blockFactory) {
         this(
@@ -125,6 +138,27 @@ public final class RemoteFetchService {
         RetainedSearchContextsRegistry retainedSearchContexts,
         ExchangeServerFactory exchangeServerFactory
     ) {
+        this(
+            transportActionServices,
+            bigArrays,
+            blockFactory,
+            retainedSearchContexts,
+            exchangeServerFactory,
+            new SecurityContext(
+                transportActionServices.clusterService().getSettings(),
+                transportActionServices.transportService().getThreadPool().getThreadContext()
+            )
+        );
+    }
+
+    RemoteFetchService(
+        TransportActionServices transportActionServices,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        RetainedSearchContextsRegistry retainedSearchContexts,
+        ExchangeServerFactory exchangeServerFactory,
+        SecurityContext securityContext
+    ) {
         this.clusterService = transportActionServices.clusterService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
@@ -135,6 +169,8 @@ public final class RemoteFetchService {
         this.pushdownOperatorBuilder = new RemoteFetchPushdownOperatorBuilder();
         this.retainedSearchContexts = Objects.requireNonNull(retainedSearchContexts);
         this.exchangeServerFactory = Objects.requireNonNull(exchangeServerFactory);
+        this.securityContext = Objects.requireNonNull(securityContext);
+        this.securityEnabled = XPackSettings.SECURITY_ENABLED.get(clusterService.getSettings());
         transportService.registerRequestHandler(
             RELEASE_ACTION_NAME,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -156,7 +192,13 @@ public final class RemoteFetchService {
     }
 
     RetainedSearchContextsRegistry.Handle retainSearchContexts(String sessionId, AcquiredSearchContexts searchContexts) {
-        return retainedSearchContexts.register(sessionId, searchContexts);
+        Authentication creator = securityContext.getAuthentication();
+        if (creator == null && securityEnabled) {
+            final String message = "cannot retain search contexts without an authentication";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+        return retainedSearchContexts.register(sessionId, searchContexts, creator);
     }
 
     /**
@@ -166,7 +208,7 @@ public final class RemoteFetchService {
      * cannot release the search contexts out from under them.
      */
     RetainedSearchContextsRegistry.Handle acquireRetainedContexts(String sessionId) {
-        return retainedSearchContexts.acquire(sessionId);
+        return retainedSearchContexts.acquire(sessionId, securityContext::canIAccessResourcesCreatedBy);
     }
 
     void releaseAsync(DiscoveryNode targetNode, String retainedSessionId, ActionListener<Void> listener) {
@@ -198,7 +240,9 @@ public final class RemoteFetchService {
     }
 
     Client newBatchExchangeClient(CancellableTask parentTask, RetainedSessionReleaser retainedSessionReleaser) {
-        return new BatchExchangeFetchClient(parentTask, retainedSessionReleaser);
+        // Snapshot the dynamic setting so every target exchange owned by this client uses the same worker limit.
+        int maxWorkers = clusterService.getClusterSettings().get(MAX_WORKERS_SETTING);
+        return new BatchExchangeFetchClient(parentTask, retainedSessionReleaser, maxWorkers);
     }
 
     /**
@@ -283,6 +327,11 @@ public final class RemoteFetchService {
 
         IsBlockedResult waitForCompletion();
 
+        /**
+         * Immutable snapshot of setup and server-driver profiling data for this target.
+         */
+        BidirectionalBatchExchangeClient.Profile profile();
+
         @Override
         default void close() {}
     }
@@ -311,12 +360,14 @@ public final class RemoteFetchService {
     private final class BatchExchangeFetchClient implements Client {
         private final CancellableTask parentTask;
         private final RetainedSessionReleaser retainedSessionReleaser;
+        private final int maxWorkers;
         private final Map<TargetSession, TargetExchangeChannel> targetExchanges = new HashMap<>();
         private volatile boolean closed;
 
-        private BatchExchangeFetchClient(CancellableTask parentTask, RetainedSessionReleaser retainedSessionReleaser) {
+        private BatchExchangeFetchClient(CancellableTask parentTask, RetainedSessionReleaser retainedSessionReleaser, int maxWorkers) {
             this.parentTask = parentTask;
             this.retainedSessionReleaser = Objects.requireNonNull(retainedSessionReleaser);
+            this.maxWorkers = maxWorkers;
         }
 
         @Override
@@ -409,7 +460,7 @@ public final class RemoteFetchService {
                 clusterService.getSettings(),
                 setupCallback,
                 null,
-                1,
+                maxWorkers,
                 () -> node
             );
             retainedSessionReleaser.track(node, target.retainedSessionId());
@@ -535,6 +586,11 @@ public final class RemoteFetchService {
         }
 
         @Override
+        public BidirectionalBatchExchangeClient.Profile profile() {
+            return client.profile();
+        }
+
+        @Override
         public void close() {
             synchronized (lock) {
                 if (closed) {
@@ -587,7 +643,7 @@ public final class RemoteFetchService {
     }
 
     private void releaseSession(String sessionId) {
-        retainedSearchContexts.closeRegistration(sessionId);
+        retainedSearchContexts.closeRegistration(sessionId, securityContext::canIAccessResourcesCreatedBy);
     }
 
     void startExchangeFetchServer(ExchangeSetupRequest request, CancellableTask task, ActionListener<Void> listener) {
@@ -597,7 +653,7 @@ public final class RemoteFetchService {
         Releasable releasable = null;
         boolean success = false;
         try {
-            lease = retainedSearchContexts.acquire(request.retainedSessionId());
+            lease = acquireRetainedContexts(request.retainedSessionId());
             final DiscoveryNode clientNode = determineClientNode(task);
             final PlannerSettings settings = plannerSettings.get();
             final IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = lease.searchContexts()
@@ -651,6 +707,7 @@ public final class RemoteFetchService {
                 intermediate,
                 clusterService.getClusterName().value(),
                 releasable,
+                request.configuration().profile(),
                 listener
             );
             success = true;

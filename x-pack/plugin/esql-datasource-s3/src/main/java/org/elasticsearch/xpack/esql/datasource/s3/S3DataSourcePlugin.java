@@ -180,6 +180,11 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return S3Configuration.secretFieldNames();
+    }
+
+    @Override
     public synchronized void close() throws IOException {
         closed = true;
         try {

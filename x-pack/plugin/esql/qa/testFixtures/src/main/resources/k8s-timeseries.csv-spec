@@ -1660,3 +1660,15 @@ cnt:long | metric_type:keyword | cluster:keyword
 3        | cost                | qa
 3        | cost                | staging
 ;
+
+// STATS with multiple input fields
+tsStatsWithMultipleInputFields
+required_capability: fix_aggs_multiple_input_fields
+
+TS k8s
+| STATS avg = WEIGHTED_AVG(network.bytes_in, network.cost)
+;
+
+avg:double
+616.5983606557377
+;

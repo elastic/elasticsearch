@@ -475,7 +475,7 @@ final class CsvLogicalRecordReader {
             // Oversized record. Drain to the end of the physical line so the reader is left at the
             // next record's first byte and bytesRead counts the whole line. The lenient error policy
             // skips this record and resumes from the next read; without draining it would resume
-            // mid-line and every later _rowPosition/_id offset would be short by the undrained tail
+            // mid-line and every later _rowPosition offset would be short by the undrained tail
             // (and could collide with an earlier record's offset). lastRecordBytes is left untouched:
             // the caller's exception handler treats this as "no record produced". The drain reads
             // through readChar()/pushBack(), not the underlying reader directly, so in bulk mode it

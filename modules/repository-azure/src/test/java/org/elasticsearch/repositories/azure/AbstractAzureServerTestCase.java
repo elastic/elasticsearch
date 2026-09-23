@@ -36,6 +36,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -75,23 +76,24 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
     protected HttpServer httpServer;
     protected HttpServer secondaryHttpServer;
     protected boolean serverlessMode;
-    private ThreadPool threadPool;
+    protected ThreadPool threadPool;
     private AzureClientProvider clientProvider;
     private ClusterService clusterService;
 
     @Before
     public void initServer() throws Exception {
         serverlessMode = false;
+        final Settings clientSettings = clientSettings();
         threadPool = new TestThreadPool(
             getTestClass().getName(),
-            AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
-            AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
+            repositoryExecutorBuilder(clientSettings),
+            AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(clientSettings)
         );
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         secondaryHttpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         secondaryHttpServer.start();
-        clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
+        clientProvider = AzureClientProvider.create(threadPool, clientSettings);
         clientProvider.start();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
@@ -181,7 +183,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
 
             @Override
             long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
+                return uploadBlockSize();
             }
 
             @Override
@@ -197,7 +199,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 .put(CONTAINER_SETTING.getKey(), CONTAINER)
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
-                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), maxSinglePartUploadSize())
                 .put(COPY_POLL_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
                 .build()
         );
@@ -214,6 +216,22 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 metadataAccessTier
             )
         );
+    }
+
+    protected ByteSizeValue maxSinglePartUploadSize() {
+        return ByteSizeValue.of(1, ByteSizeUnit.MB);
+    }
+
+    protected long uploadBlockSize() {
+        return ByteSizeUnit.MB.toBytes(1);
+    }
+
+    protected Settings clientSettings() {
+        return Settings.EMPTY;
+    }
+
+    protected ExecutorBuilder<?> repositoryExecutorBuilder(Settings settings) {
+        return AzureRepositoryPlugin.executorBuilder(settings);
     }
 
     protected static byte[] randomBlobContent() {

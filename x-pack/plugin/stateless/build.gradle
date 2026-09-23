@@ -87,6 +87,8 @@ tasks.named('internalClusterTest') {
     jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
     // A small write buffer size to avoid OOM when many nodes run in the same JVM
     systemProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "256kb")
+    // refill Azure uploads every 4 buffers instead of 64, see AzureBccUploadRefillRaceIT
+    systemProperty("reactor.netty.send.maxPrefetchSize", "8")
 }
 
 tasks.register('statelessS3ThirdPartyTests', Test) {

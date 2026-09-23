@@ -1183,6 +1183,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
     }
 
+    /**
+     * Returns the hook installed on the upload stream of the VBCCs created by this service.
+     */
+    protected VirtualBatchedCompoundCommit.UploadStreamHook uploadStreamHook() {
+        return VirtualBatchedCompoundCommit.UploadStreamHook.NOOP;
+    }
+
     public void markIndexDeleting(List<ShardId> shardIds) {
         shardIds.forEach(shardId -> {
             ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
@@ -1910,7 +1917,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     fileName -> getBlobLocation(shardId, fileName),
                     threadPool::relativeTimeInMillis,
                     cacheRegionSizeInBytes,
-                    estimatedMaxHeaderSizeInBytes
+                    estimatedMaxHeaderSizeInBytes,
+                    uploadStreamHook()
                 );
                 final boolean appended = newVirtualBcc.appendCommit(reference, useInternalFilesReplicatedContent, timestampFieldValueRange);
                 assert appended : "append must be successful since the VBCC is new and empty";

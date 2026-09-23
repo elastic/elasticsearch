@@ -1140,42 +1140,33 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             @Nullable String canAllocateNotPreferredDecider,
             boolean primary,
             String sourceNode,
-            String targetNode
+            @Nullable String targetNode
         ) {
-            // Target node is only included when canRemain=NO clashes with canAllocate=NOT_PREFERRED,
+            // Target node and canAllocate decider are only included when canRemain=NO clashes with canAllocate=NOT_PREFERRED,
             // to keep metric cardinality manageable.
-            final String canRemainDeciderOrNone = canRemainDecider != null ? canRemainDecider : "none";
-            if (canAllocateNotPreferredDecider == null) {
-                return Map.of(
-                    "es_can_remain_decision",
-                    canRemainDecision,
-                    "es_can_remain_decider",
-                    canRemainDeciderOrNone,
-                    "es_can_allocate_decision",
-                    "yes",
-                    "es_can_allocate_decider",
-                    "none",
-                    "es_shard_primary",
-                    primary,
-                    "es_source_node",
-                    sourceNode
-                );
-            }
+            final String targetNodeOrOmitted = canAllocateNotPreferredDecider == null || targetNode == null ? "omitted" : targetNode;
+            final String canRemainDeciderOrNone = canRemainDecider == null ? "none" : canRemainDecider;
+            final String canAllocateDecision = canAllocateNotPreferredDecider == null ? "yes" : "not_preferred";
+            // The canAllocate decider is only interesting if it returned not-preferred, another measure to keep
+            // the cardinality of the metric manageable.
+            final String canAllocateNotPreferredDeciderOrOmitted = canAllocateNotPreferredDecider == null
+                ? "omitted"
+                : canAllocateNotPreferredDecider;
             return Map.of(
                 "es_can_remain_decision",
                 canRemainDecision,
                 "es_can_remain_decider",
                 canRemainDeciderOrNone,
                 "es_can_allocate_decision",
-                "not_preferred",
+                canAllocateDecision,
                 "es_can_allocate_decider",
-                canAllocateNotPreferredDecider,
+                canAllocateNotPreferredDeciderOrOmitted,
                 "es_shard_primary",
                 primary,
                 "es_source_node",
                 sourceNode,
                 "es_target_node",
-                targetNode
+                targetNodeOrOmitted
             );
         }
 

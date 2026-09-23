@@ -1856,10 +1856,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(attributes, hasEntry("es_can_remain_decision", "not_preferred"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "AlwaysNotPreferredCanRemainDecider"));
         assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
-        assertThat(attributes, hasEntry("es_can_allocate_decider", "none"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
         assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
-        assertThat(attributes, not(hasKey("es_target_node")));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
     }
 
     public void testCanRemainNoMovesAreCountedWithDeciderLabel() {
@@ -1887,10 +1887,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "AlwaysNoCanRemainDecider"));
         assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
-        assertThat(attributes, hasEntry("es_can_allocate_decider", "none"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
         assertThat(attributes, hasEntry("es_source_node", sourceNodeId));
-        assertThat(attributes, not(hasKey("es_target_node")));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
     }
 
     public void testCanRemainNoWithNotPreferredTargetIncludesTargetNodeInCounter() {
@@ -1958,10 +1958,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "none"));
         assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
-        assertThat(attributes, hasEntry("es_can_allocate_decider", "none"));
+        assertThat(attributes, hasEntry("es_can_allocate_decider", "omitted"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
         assertThat(attributes, hasKey("es_source_node"));
-        assertThat(attributes, not(hasKey("es_target_node")));
+        assertThat(attributes, hasEntry("es_target_node", "omitted"));
     }
 
     private static String startedShardSourceNodeName(ClusterState clusterState) {

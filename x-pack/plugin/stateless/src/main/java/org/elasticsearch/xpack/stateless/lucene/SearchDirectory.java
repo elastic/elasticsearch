@@ -819,6 +819,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             // BCC term/generation, see acquireGenerationalFileTermAndGeneration) always finds them present in generationalFilesTermAndGens.
             // Re-pinning BCCs that happen to be already held is intentional: it keeps them alive even if the only reader referencing them
             // is closed concurrently while we open the relocated commit.
+            assert pitContextRelocationTransfer || assertGenerationalFilesShareSingleBcc(incomingFileRanges);
             final Set<PrimaryTermAndGeneration> incomingGenerationalFilesTermAndGens = new HashSet<>();
             long commitSize = 0L;
             for (var entry : incomingFileRanges.entrySet()) {
@@ -897,6 +898,23 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
             }
         }
+    }
+
+    /**
+     * Asserts that all generational files in a new commit notification reference a single BCC. Generational files are carried over into
+     * the latest BCC, so a normal commit notification never spans several BCCs, unlike relocated PIT metadata (see
+     * {@link #mergePITReaderMetadata}) which accumulates generational files across many BCCs over the PIT's lifetime.
+     */
+    private static boolean assertGenerationalFilesShareSingleBcc(Map<String, BlobFileRanges> incomingFileRanges) {
+        final var bccs = new HashSet<PrimaryTermAndGeneration>();
+        for (var entry : incomingFileRanges.entrySet()) {
+            if (isGenerationalFile(entry.getKey())) {
+                bccs.add(entry.getValue().blobLocation().getBatchedCompoundCommitTermAndGeneration());
+            }
+        }
+        final boolean result = bccs.size() <= 1;
+        assert result : "a new commit notification must reference a single BCC for its generational files but referenced " + bccs;
+        return result;
     }
 
     private static BlobFileRanges reconcileBlobFileRanges(String fileName, BlobFileRanges existingRanges, BlobFileRanges incomingRanges) {

@@ -1,0 +1,5 @@
+area: Suggesters
+issues: []
+pr: 158434
+summary: Cap phrase suggester `token_limit` and bound candidate scoring work
+type: bug

@@ -33,17 +33,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * A flat dotted key such as {@code "languages.long"} is decoded as a single JSON field only when its
- * prefix column ({@code "languages"}) is also in the effective schema; otherwise the decoder reads it as
- * the nested path {@code languages -> long}. On a file that carries both the flat key and a sibling scalar
- * {@code "languages"}, that nested reading walks into the scalar as if it were an object, which fails the
- * query under a strict policy and null-fills the column under a lenient one.
- *
- * <p>The prefix reaches the effective schema on the streaming path only if the coordinator infers the
- * file's schema from its first chunk. When the planner has bound a read schema that lists the dotted leaf
- * but not the prefix, the coordinator skips that inference, so the prefix is absent and the flat key is
- * misread. This drives the real reader through the real streaming coordinator over a genuinely multi-chunk
- * stream to state the contract: the bound dotted-leaf column must still decode to its flat-key value.
+ * A dotted column name always walks as a nested path, so {@code "languages.long"} fills
+ * {@code languages -> long} whether or not a sibling {@code "languages"} column is projected.
+ * This drives the real reader through the real streaming coordinator over a multi-chunk stream:
+ * the bound dotted-leaf column must still decode to its flat-key value in every chunk.
  */
 public class NdJsonDottedPrefixStreamingTests extends ESTestCase {
 
@@ -57,9 +50,7 @@ public class NdJsonDottedPrefixStreamingTests extends ESTestCase {
     public void testBoundDottedLeafDecodesFlatKeyAcrossChunks() throws Exception {
         long chunkSize = new NdJsonFormatReader(segmentSize64Kb(), blockFactory).minimumSegmentSize();
 
-        // Flat dotted key "languages.long" beside a sibling scalar "languages". The sibling is what makes
-        // a first-chunk inference produce the "languages" prefix column, and what turns the misread into a
-        // hard scalar-vs-object failure rather than a silent null.
+        // Flat dotted key "languages.long" beside an independent sibling scalar "languages".
         StringBuilder ndjson = new StringBuilder();
         int rows = 0;
         while (ndjson.length() < chunkSize * 2) {

@@ -503,6 +503,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         context.getBulkShardRequest().splitShardCountSummary()
                     );
                 }
+                if (updateResult.getResponseResult() != DocWriteResponse.Result.NOOP) {
+                    context.trackMemoryConsumptionForTranslatedUpdateRequest(updateResult.action());
+                }
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request

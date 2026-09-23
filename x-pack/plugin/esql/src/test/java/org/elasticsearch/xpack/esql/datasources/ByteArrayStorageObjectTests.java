@@ -7,15 +7,22 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ByteArrayStorageObjectTests extends ESTestCase {
+
+    /** Arbitrary non-zero slack, so a factory buffer that is larger than requested is not a rounding coincidence. */
+    private static final int EXTRA_CAPACITY = 17;
 
     public void testNewStreamReadsFullContent() throws IOException {
         byte[] data = "hello world".getBytes(StandardCharsets.UTF_8);
@@ -48,6 +55,31 @@ public class ByteArrayStorageObjectTests extends ESTestCase {
         byte[] data = new byte[42];
         ByteArrayStorageObject obj = new ByteArrayStorageObject(StoragePath.of("mem://test"), data, 10, 20);
         assertEquals(20, obj.length());
+    }
+
+    public void testReadBytesAsyncOverAllocatedFactoryUsesRequestedLength() {
+        int requestedLength = 3;
+        byte[] data = "abcdef".getBytes(StandardCharsets.UTF_8);
+        ByteArrayStorageObject obj = new ByteArrayStorageObject(StoragePath.of("mem://test"), data, 0, data.length);
+        AtomicInteger closeCalls = new AtomicInteger();
+        DirectBufferFactory factory = length -> {
+            ByteBuffer destination = ByteBuffer.allocate(length + EXTRA_CAPACITY);
+            destination.limit(1);
+            return new DirectReadBuffer(destination, closeCalls::incrementAndGet);
+        };
+        // Runnable::run keeps the read on this thread, so the listener has already fired on return.
+        PlainActionFuture<DirectReadBuffer> delivered = new PlainActionFuture<>();
+
+        obj.readBytesAsync(0, requestedLength, factory, Runnable::run, delivered);
+
+        try (DirectReadBuffer result = delivered.actionGet()) {
+            assertEquals(requestedLength + EXTRA_CAPACITY, result.buffer().capacity());
+            assertEquals(requestedLength, result.buffer().remaining());
+            byte[] out = new byte[requestedLength];
+            result.buffer().get(out);
+            assertEquals("abc", new String(out, StandardCharsets.UTF_8));
+        }
+        assertEquals(1, closeCalls.get());
     }
 
     public void testReadBytesIntoHeapBuffer() throws IOException {

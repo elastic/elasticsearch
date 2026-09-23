@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.PartitionedAggregationBlock;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
@@ -37,7 +39,9 @@ import java.util.stream.LongStream;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     public static HashAggregationOperator.Builder randomBuilder() {
@@ -399,5 +403,34 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         assertThat(seenGroups, expectedGroups);
         assertThat(seenSums, expectedSums);
         assertThat(seenMaxes, expectedMaxes);
+    }
+
+    public void testDisablePartitioning() {
+        var config = new HashAggregationOperator.ParallelConfig(EsExecutors.DIRECT_EXECUTOR_SERVICE, 1, 1, between(800, Integer.MAX_VALUE));
+        DriverContext driverContext = driverContext();
+        var groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
+        try (
+            var operator = new HashAggregationOperator(
+                AggregatorMode.INITIAL,
+                List.of(),
+                dc -> BlockHash.buildPackedValuesBlockHash(groupSpecs, dc.blockFactory(), 128),
+                between(10, 500),
+                1.0,
+                128,
+                null,
+                null,
+                driverContext,
+                config,
+                true
+            )
+        ) {
+            List<Object> values = LongStream.range(0, 100L).mapToObj(n -> (Object) n).toList();
+            operator.addInput(new Page(BlockUtils.fromListRow(blockFactory(), values)));
+            operator.finish();
+            try (Page output = operator.getOutput()) {
+                assertThat(output.getBlockCount(), equalTo(1));
+                assertThat(output.getBlock(0), not(instanceOf(PartitionedAggregationBlock.class)));
+            }
+        }
     }
 }

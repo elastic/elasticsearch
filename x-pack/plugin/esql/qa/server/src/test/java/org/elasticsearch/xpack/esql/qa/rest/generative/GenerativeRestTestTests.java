@@ -124,4 +124,86 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFieldFullTextError(error, schema));
     }
 
+    public void testFullTextAfterSubqueryMatchesSortMessage() {
+        String query = "FROM (FROM languages | SORT language_name | LIMIT 5), alerts | WHERE kql(\"language_name: English\")";
+        String error = "verification_exception: line 1:36: [KQL] function cannot be used after SORT";
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testFullTextAfterSubqueryMatchesSortAndLimitMessage() {
+        String query = "FROM (FROM languages | SORT language_name | LIMIT 5), alerts | WHERE kql(\"language_name: English\")";
+        String error = "verification_exception: line 1:36: [KQL] function cannot be used after SORT and LIMIT";
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+        assertTrue(
+            GenerativeRestTest.isFullTextAfterSubqueryInFromBug(
+                "verification_exception: line 1:80: [:] operator cannot be used after SORT and LIMIT",
+                query
+            )
+        );
+        assertTrue(
+            GenerativeRestTest.isFullTextAfterSubqueryInFromBug(
+                "verification_exception: line 1:80: [MATCH] function cannot be used after SORT and LIMIT",
+                query
+            )
+        );
+        assertTrue(
+            GenerativeRestTest.isFullTextAfterSubqueryInFromBug(
+                "verification_exception: line 1:80: [MatchPhrase] function cannot be used after SORT and LIMIT",
+                query
+            )
+        );
+    }
+
+    public void testFullTextAfterSortRequiresSubqueryInQuery() {
+        String query = "FROM languages | SORT language_name | LIMIT 5 | WHERE kql(\"language_name: English\")";
+        String error = "verification_exception: line 1:36: [KQL] function cannot be used after SORT";
+        assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testQstrAfterSubqueryRenameIsTolerated() {
+        // Real GenerativeIT {feature:SUBQUERIES} failure: the subquery ends with a RENAME, which the flattened plan
+        // pushes ahead of the outer QSTR. RENAME is not one of FROM/WHERE/SORT, so QSTR is rejected.
+        String query = "from (from employees_gender_text | limit 808 | rename `os.version` AS v) | where qstr(\"os.name:world\")";
+        String error = "verification_exception: line 1:481: [QSTR] function cannot be used after RENAME";
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testKqlAfterSubqueryReportsFromIsTolerated() {
+        // KQL/QSTR after a multi-source FROM whose subquery branch has extra commands. After opt the
+        // Filter can sit above a node whose source is the FROM command, so the verifier says "after FROM".
+        String query = "from (from hash_algorithms | dissect algorithm \"%{algorithm} %{algorithm}\" "
+            + "| ip_location geo = algorithm | DEDUP),k8s-downs* | where kql(\"world\")";
+        String error = "verification_exception: line 1:64: [KQL] function cannot be used after FROM";
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+        String errorWithSubquerySource = "verification_exception: line 1:64: [KQL] function cannot be used after "
+            + "FROM (from hash_algorithms | dissect algorithm \"%{algorithm} %{algorithm}\" "
+            + "| ip_location geo = algorithm | DEDUP),k8s-downs*";
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(errorWithSubquerySource, query));
+    }
+
+    public void testKqlAfterFromRequiresSubqueryInQuery() {
+        String query = "FROM languages | WHERE kql(\"language_name: English\")";
+        String error = "verification_exception: line 1:18: [KQL] function cannot be used after FROM";
+        assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testKqlAfterSubqueryEvalIsTolerated() {
+        String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) | WHERE kql(\"title2: world\")";
+        String error = "verification_exception: line 1:64: [KQL] function cannot be used after EVAL";
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testQstrAfterRenameRequiresSubqueryInQuery() {
+        String query = "FROM employees | RENAME first_name AS fn | WHERE qstr(\"fn:world\")";
+        String error = "verification_exception: line 1:44: [QSTR] function cannot be used after RENAME";
+        assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testMatchAfterSubqueryRenameIsNotToleratedByQstrKqlBranch() {
+        // The broadened branch is scoped to QSTR/KQL only: RENAME is legal before MATCH/MatchPhrase, so a MATCH error
+        // naming RENAME is not a known bug and must not be tolerated here.
+        String query = "FROM books, (FROM books | RENAME title AS title2) | WHERE match(title2, \"world\")";
+        String error = "verification_exception: line 1:64: [MATCH] function cannot be used after RENAME";
+        assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
 }

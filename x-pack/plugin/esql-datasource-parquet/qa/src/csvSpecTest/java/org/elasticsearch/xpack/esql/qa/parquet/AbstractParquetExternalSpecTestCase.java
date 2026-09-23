@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.qa.parquet;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
@@ -28,10 +30,15 @@ import org.junit.rules.TestRule;
  */
 abstract class AbstractParquetExternalSpecTestCase extends AbstractExternalSourceSpecTestCase {
 
-    public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+    public static ElasticsearchCluster cluster = EsqlDataSourceMixedClusterTestSupport.isBwcTest()
+        ? Clusters.bwcTestCluster(() -> s3Fixture.getAddress())
+        : Clusters.testCluster(() -> s3Fixture.getAddress());
 
     @ClassRule
-    public static TestRule ruleChain = chainFixturesBeforeCluster(cluster);
+    public static TestRule ruleChain = chainOuterRuleBeforeFixturesAndCluster(
+        EsqlDataSourceMixedClusterTestSupport.outerBwcGuard(Version.V_9_5_0),
+        cluster
+    );
 
     protected AbstractParquetExternalSpecTestCase(
         String fileName,
@@ -47,7 +54,7 @@ abstract class AbstractParquetExternalSpecTestCase extends AbstractExternalSourc
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return dataSourceTestClusterAddresses(cluster);
     }
 
     @Override
@@ -55,6 +62,14 @@ abstract class AbstractParquetExternalSpecTestCase extends AbstractExternalSourc
         return true;
     }
 
+    /**
+     * Inert for the csv-spec suites below this class: every one of their specs is dataset-backed, so it
+     * runs as {@code FROM <dataset>} on every backend and never reaches the raw-{@code EXTERNAL} path
+     * that injects this reader. The result is the same reader either way —
+     * {@link FormatNameResolver} maps a {@code .parquet} resource to the Java reader with no
+     * {@code reader} key, and the internal codec of a compressed fixture does not change the extension.
+     * Kept for the next Parquet suite that does drive a raw {@code EXTERNAL} query.
+     */
     @Override
     protected String readerName() {
         return FormatNameResolver.READER_JAVA;

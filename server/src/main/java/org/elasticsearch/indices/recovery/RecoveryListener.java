@@ -29,9 +29,6 @@ public interface RecoveryListener {
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {}
-
-        @Override
-        public void onRecoveryAborted() {}
     };
 
     /// Called when recovery finishes successfully.
@@ -43,24 +40,6 @@ public interface RecoveryListener {
 
     /// Called when recovery fails with an exception.
     void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy);
-
-    /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
-    void onRecoveryAborted();
-
-    enum FailureStrategy {
-        FAIL_SILENT(false),
-        FAIL_SEND(true);
-
-        private final boolean notifyMaster;
-
-        FailureStrategy(boolean notifyMaster) {
-            this.notifyMaster = notifyMaster;
-        }
-
-        public boolean notifyMaster() {
-            return notifyMaster;
-        }
-    }
 
     static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
         return new RecoveryListener() {
@@ -79,13 +58,6 @@ public interface RecoveryListener {
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try (ThreadContext.StoredContext ignore = context.get()) {
                     listener.onRecoveryFailure(e, failureStrategy);
-                }
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                try (ThreadContext.StoredContext ignore = context.get()) {
-                    listener.onRecoveryAborted();
                 }
             }
         };
@@ -111,15 +83,6 @@ public interface RecoveryListener {
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try {
                     listener.onRecoveryFailure(e, failureStrategy);
-                } finally {
-                    runAfter.run();
-                }
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                try {
-                    listener.onRecoveryAborted();
                 } finally {
                     runAfter.run();
                 }
@@ -151,20 +114,11 @@ public interface RecoveryListener {
                     listener.onRecoveryFailure(e, failureStrategy);
                 }
             }
-
-            @Override
-            public void onRecoveryAborted() {
-                try {
-                    runBefore.run();
-                } finally {
-                    listener.onRecoveryAborted();
-                }
-            }
         };
     }
 
-    /// Returns a listener which delegates `onRecoveryFailure` and `onRecoveryAborted` unchanged to the given listener.
-    /// Before delegating `onRecoveryDone`, it first runs `beforeDone`.
+    /// Returns a listener which delegates [onRecoveryFailure] unchanged to the given listener.
+    /// Before delegating [onRecoveryDone], it first runs `beforeDone`.
     static RecoveryListener runBeforeDone(RecoveryListener listener, Runnable beforeDone) {
         return new RecoveryListener() {
             @Override
@@ -184,16 +138,11 @@ public interface RecoveryListener {
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 listener.onRecoveryFailure(e, failureStrategy);
             }
-
-            @Override
-            public void onRecoveryAborted() {
-                listener.onRecoveryAborted();
-            }
         };
     }
 
-    /// Returns a listener which delegates `onRecoveryDone` and `onRecoveryAborted` unchanged to the given listener.
-    /// Before delegating `onRecoveryFailure`, it first runs `beforeFailure`.
+    /// Returns a listener which delegates [onRecoveryDone] unchanged to the given listener.
+    /// Before delegating [onRecoveryFailure], it first runs `beforeFailure`.
     static RecoveryListener runBeforeFailure(RecoveryListener listener, Consumer<RecoveryFailedException> beforeFailure) {
         return new RecoveryListener() {
             @Override
@@ -212,11 +161,6 @@ public interface RecoveryListener {
                 } finally {
                     listener.onRecoveryFailure(e, failureStrategy);
                 }
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                listener.onRecoveryAborted();
             }
         };
     }
@@ -261,17 +205,6 @@ public interface RecoveryListener {
                         }
                         assert false : ex;
                         throw ex;
-                    }
-                }
-
-                @Override
-                public void onRecoveryAborted() {
-                    assertFirstRun();
-                    try {
-                        delegate.onRecoveryAborted();
-                    } catch (Exception e) {
-                        assert false : new AssertionError("listener [" + delegate + "] must handle its own exceptions", e);
-                        throw e;
                     }
                 }
             };

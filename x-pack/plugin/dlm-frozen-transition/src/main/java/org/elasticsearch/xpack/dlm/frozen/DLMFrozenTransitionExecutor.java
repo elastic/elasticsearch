@@ -229,7 +229,7 @@ class DLMFrozenTransitionExecutor {
                     }, exception -> {
                         errorStore.recordAndLogError(
                             task.getProjectId(),
-                            indexName,
+                            task.getIndex(),
                             exception,
                             Strings.format("Error unmarking index [%s] for conversion to frozen index", indexName),
                             frozenTransitionSettings.getErrorRetryInterval()
@@ -252,7 +252,7 @@ class DLMFrozenTransitionExecutor {
                 } else {
                     errorStore.recordAndLogError(
                         task.getProjectId(),
-                        indexName,
+                        task.getIndex(),
                         ex,
                         Strings.format("Error executing transition for index [%s]", indexName),
                         frozenTransitionSettings.getErrorRetryInterval()

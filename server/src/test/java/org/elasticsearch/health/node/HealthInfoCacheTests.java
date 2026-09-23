@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.health.node.HealthInfoTests.randomDlmFrozenTransitionsHealthInfo;
 import static org.elasticsearch.health.node.HealthInfoTests.randomDslHealthInfo;
 import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,7 +53,15 @@ public class HealthInfoCacheTests extends ESTestCase {
         healthInfoCache.clusterChanged(new ClusterChangedEvent("test", state, state));
         DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
         var repoHealthInfo = randomRepoHealthInfo();
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, latestDslHealthInfo, repoHealthInfo, FileSettingsHealthInfo.INDETERMINATE);
+        DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo = randomDlmFrozenTransitionsHealthInfo();
+        healthInfoCache.updateNodeHealth(
+            node1.getId(),
+            GREEN,
+            latestDslHealthInfo,
+            repoHealthInfo,
+            FileSettingsHealthInfo.INDETERMINATE,
+            latestDlmFrozenTransitionsHealthInfo
+        );
         healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
 
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
@@ -63,6 +72,8 @@ public class HealthInfoCacheTests extends ESTestCase {
         assertThat(diskHealthInfo.get(node2.getId()), equalTo(RED));
         // dsl health info has not changed as a new value has not been reported
         assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(latestDslHealthInfo));
+        // same for the DLM frozen transitions health info
+        assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), is(latestDlmFrozenTransitionsHealthInfo));
     }
 
     public void testRemoveNodeFromTheCluster() {
@@ -144,7 +155,8 @@ public class HealthInfoCacheTests extends ESTestCase {
             GREEN,
             randomDslHealthInfo(),
             randomRepoHealthInfo(),
-            FileSettingsHealthInfo.INDETERMINATE
+            FileSettingsHealthInfo.INDETERMINATE,
+            randomDlmFrozenTransitionsHealthInfo()
         );
         healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
 
@@ -157,6 +169,7 @@ public class HealthInfoCacheTests extends ESTestCase {
         assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(nullValue()));
         Map<String, RepositoriesHealthInfo> repoHealthInfo = healthInfoCache.getHealthInfo().repositoriesInfoByNode();
         assertThat(repoHealthInfo.isEmpty(), equalTo(true));
+        assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), is(nullValue()));
     }
 
 }

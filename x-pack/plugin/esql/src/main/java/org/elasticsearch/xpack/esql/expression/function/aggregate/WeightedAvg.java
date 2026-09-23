@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,17 +35,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class WeightedAvg extends AggregateFunction implements SurrogateExpression {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "WeightedAvg",
-        WeightedAvg::new
-    );
+public class WeightedAvg extends AggregateFunction implements OnlySurrogateExpression, AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(WeightedAvg.class)
         .binary(WeightedAvg::new)
         .name("weighted_avg");
-
-    private final Expression weight;
 
     private static final String invalidWeightError = "{} argument of [{}] cannot be null or 0, received [{}]";
 
@@ -63,27 +55,21 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         @Param(name = "number", type = { "double", "integer", "long" }, description = "A numeric value.") Expression field,
         @Param(name = "weight", type = { "double", "integer", "long" }, description = "A numeric weight.") Expression weight
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, weight);
+        this(source, field, weight, Literal.TRUE, NO_WINDOW);
     }
 
-    public WeightedAvg(Source source, Expression field, Expression filter, Expression window, Expression weight) {
-        super(source, field, filter, window, List.of(weight));
-        this.weight = weight;
+    public WeightedAvg(Source source, Expression field, Expression weight, Expression filter, Expression window) {
+        super(source, List.of(field, weight), filter, window, List.of());
     }
 
-    private WeightedAvg(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).get(0)
-        );
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
@@ -116,13 +102,13 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return resolution;
         }
 
-        if (weight.dataType() == DataType.NULL) {
+        if (weight().dataType() == DataType.NULL) {
             return new TypeResolution(format(null, invalidWeightError, SECOND, sourceText(), null));
         }
-        if (weight.foldable() == false) {
+        if (weight().foldable() == false) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        Object weightVal = weight.fold(FoldContext.small()/* TODO remove me*/);
+        Object weightVal = weight().fold(FoldContext.small()/* TODO remove me*/);
         if (weightVal == null || weightVal.equals(0) || weightVal.equals(0.0)) {
             return new TypeResolution(format(null, invalidWeightError, SECOND, sourceText(), weightVal));
         }
@@ -137,17 +123,12 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     @Override
     protected NodeInfo<WeightedAvg> info() {
-        return NodeInfo.create(this, WeightedAvg::new, field(), filter(), window(), weight);
+        return NodeInfo.create(this, WeightedAvg::new, field(), weight(), filter(), window());
     }
 
     @Override
     public WeightedAvg replaceChildren(List<Expression> newChildren) {
         return new WeightedAvg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
-    }
-
-    @Override
-    public WeightedAvg withFilter(Expression filter) {
-        return new WeightedAvg(source(), field(), filter, window(), weight());
     }
 
     @Override
@@ -176,7 +157,11 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         }
     }
 
+    public Expression field() {
+        return fields().get(0);
+    }
+
     public Expression weight() {
-        return weight;
+        return fields().get(1);
     }
 }

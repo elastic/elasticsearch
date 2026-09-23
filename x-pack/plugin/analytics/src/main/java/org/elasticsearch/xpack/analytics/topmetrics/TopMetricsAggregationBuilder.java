@@ -223,6 +223,11 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
         return size;
     }
 
+    @Override
+    public int getRankedHitSize() {
+        return size;
+    }
+
     List<MultiValuesSourceFieldConfig> getMetricFields() {
         return metricFields;
     }

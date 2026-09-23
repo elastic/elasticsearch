@@ -25,7 +25,7 @@ import org.elasticsearch.test.MockLog;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
@@ -147,8 +147,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     }
 
     static long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard shard) {
-        final DiscoveryNode rNode = getDiscoveryNode(shard.routingEntry().currentNodeId());
-        shard.markAsRecovering("remote", new RecoveryState(shard.routingEntry(), sourceNode, rNode));
+        shard.markAsRecovering("remote");
         shard.prepareForIndexRecovery();
         return collection.startRecovery(shard, sourceNode, 0L, null, listener, null);
     }

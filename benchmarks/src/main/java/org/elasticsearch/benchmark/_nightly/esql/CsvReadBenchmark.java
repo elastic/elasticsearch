@@ -8,6 +8,7 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -96,7 +97,7 @@ public class CsvReadBenchmark {
 
     @Setup(Level.Trial)
     public void setup() {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         blockFactory = DatasourceBenchmarks.newBlockFactory();
         char separator = switch (delimiter) {
             case "csv" -> ',';

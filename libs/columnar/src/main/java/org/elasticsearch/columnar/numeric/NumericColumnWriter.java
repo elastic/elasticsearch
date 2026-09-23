@@ -44,6 +44,8 @@ public final class NumericColumnWriter {
      * @param maxDoc           documents in the segment
      * @param numDocsWithField documents that have at least one value
      * @param numValues        total number of values across all documents
+     * @param valueAddressed   whether to table where each document's values begin, which a caller reading
+     *                         the column by value address rather than by document does not need
      * @param cursors          supplies fresh forward cursors over the documents that have a value;
      *                         called once for iterator and once for the values
      * @param pipeline         the encoding pipeline; obtain via {@link NumericPipelineSelector} or
@@ -61,6 +63,7 @@ public final class NumericColumnWriter {
         int maxDoc,
         int numDocsWithField,
         long numValues,
+        boolean valueAddressed,
         IOSupplier<NumericColumnValues> cursors,
         NumericPipeline pipeline,
         BlockBytesCodec blockBytesCodec,
@@ -76,29 +79,30 @@ public final class NumericColumnWriter {
         }
 
         int blockSize = pipeline.blockSize();
-        boolean multiValued = numValues > numDocsWithField;
-        long numBlocks = (numValues + blockSize - 1) / blockSize;
-        long valuesOffset = data.getFilePointer();
+        boolean tableAddresses = valueAddressed && numValues > numDocsWithField;
 
-        MonotonicWriter blockOffsets = new MonotonicWriter(directory, context, data.getName(), numBlocks + 1L);
         MonotonicWriter valueAddresses = null;
-        try {
-            if (multiValued) {
+        // The values go straight into the column, which this writer owns until they are done.
+        try (
+            LongBlocks.Writer blocks = LongBlocks.Writer.into(
+                pipeline,
+                blockBytesCodec,
+                numValues,
+                directory,
+                context,
+                data.getName(),
+                data
+            )
+        ) {
+            if (tableAddresses) {
                 valueAddresses = new MonotonicWriter(directory, context, data.getName(), numDocsWithField + 1L);
             }
 
-            NumericBlockEncoder encoder = new NumericBlockEncoder(pipeline, blockSize);
-            long[] buffer = new long[blockSize];
-            // One reusable encoder closure over the buffer, so no lambda is allocated per block flush;
-            // blockValueCount carries the count of the block currently being written.
-            int[] blockValueCount = new int[1];
-            BlockBytesCodec.BlockEncoder blockEncoder = out -> encoder.encode(buffer, blockValueCount[0], out);
-            int inBlock = 0;
             long valueAddress = 0;
             SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
             NumericColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                if (multiValued) {
+                if (tableAddresses) {
                     valueAddresses.add(valueAddress);
                 }
                 int count = values.valueCount();
@@ -106,35 +110,19 @@ public final class NumericColumnWriter {
                     skip.startDoc(doc, count);
                 }
                 for (int i = 0; i < count; i++) {
-                    if (inBlock == 0) {
-                        blockOffsets.add(data.getFilePointer() - valuesOffset);
-                    }
                     long value = values.nextValue();
                     if (skip != null) {
                         skip.add(value);
                     }
-                    buffer[inBlock++] = value;
+                    blocks.add(value);
                     valueAddress++;
-                    if (inBlock == blockSize) {
-                        blockValueCount[0] = blockSize;
-                        blockBytesCodec.write(blockEncoder, data);
-                        inBlock = 0;
-                    }
                 }
             }
-            if (inBlock > 0) {
-                // The final block holds fewer than blockSize values; the encoder is told the real count
-                // and never sees padding, so each stage fits only the real data.
-                blockValueCount[0] = inBlock;
-                blockBytesCodec.write(blockEncoder, data);
-            }
-            if (multiValued) {
+            if (tableAddresses) {
                 valueAddresses.add(valueAddress);
             }
-            blockOffsets.add(data.getFilePointer() - valuesOffset);
-
-            MonotonicWriter.Table blocks = blockOffsets.finish(data);
-            MonotonicWriter.Table addresses = multiValued ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
+            final LongBlocks.Metadata written = blocks.finish(data);
+            MonotonicWriter.Table addresses = tableAddresses ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
 
             // The writer buffered the skip bytes while being fed inline; they are flushed here, so the
             // recorded offset is the skip-index file's pointer.
@@ -144,21 +132,21 @@ public final class NumericColumnWriter {
                 iterator,
                 numDocsWithField,
                 numValues,
-                blockSize,
-                blockBytesCodec.id(),
-                pipeline.terminalId(),
-                pipeline.transformIds(),
-                valuesOffset,
-                blocks.dataOffset(),
-                blocks.dataLength(),
-                blocks.meta(),
+                written.blockSize(),
+                written.blockBytesCodecId(),
+                written.terminalId(),
+                written.transformIds(),
+                written.valuesOffset(),
+                written.blockOffsets().dataOffset(),
+                written.blockOffsets().dataLength(),
+                written.blockOffsets().meta(),
                 addresses.dataOffset(),
                 addresses.dataLength(),
                 addresses.meta(),
                 skipper
             );
         } finally {
-            IOUtils.close(blockOffsets, valueAddresses);
+            IOUtils.close(valueAddresses);
         }
     }
 }

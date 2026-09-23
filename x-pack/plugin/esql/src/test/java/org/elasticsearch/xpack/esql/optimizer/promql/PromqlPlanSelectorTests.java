@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,6 +52,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
+
+    public PromqlPlanSelectorTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * Regression guard for the promcheck "Unknown column [label]" failures: {@code sum by (<absent>) (metric)}
@@ -213,6 +218,16 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
             outputColumns(planPromql("PROMQL index=k8s step=1m network.bytes_in")),
             equalTo(List.of("network.bytes_in", "step", "_timeseries"))
         );
+    }
+
+    public void testGroupByAllInstantSelectorOnlyMaterializesSeriesIdentity() {
+        var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in", false);
+        var dimensions = plan.collect(TimeSeriesAggregate.class)
+            .stream()
+            .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
+            .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
+            .toList();
+        assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES)));
     }
 
     public void testGroupByAllInstantSelectorRate() {

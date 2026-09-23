@@ -10,8 +10,8 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.nativeaccess.jdk.PosixMappedSegment;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.io.IOException;
@@ -31,9 +31,9 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
 
-    PosixNativeAccess(String name, NativeLibraryProvider libraryProvider, PosixConstants constants) {
-        super(name, libraryProvider);
-        this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
+    PosixNativeAccess(String name, PosixConstants constants) {
+        super(name);
+        this.libc = LibraryProvider.lookupLibrary(PosixCLibrary.class);
         this.constants = constants;
         this.processLimits = new ProcessLimits(
             getMaxThreads(),

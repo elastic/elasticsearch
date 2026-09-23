@@ -1,5 +1,5 @@
 LimitExec[1000[INTEGER],null]
-\_MergeExec[[x{r}#0, y{r}#1, hd{r}#2, _fork{r}#3]]
+\_MergeExec[[x{r}#0, y{r}#1, hd{r}#2, _fork{r}#3],FORK]
   |_ProjectExec[[x{r}#4, y{r}#5, hd{r}#6, _fork{r}#7]]
   | \_EvalExec[[fork1[KEYWORD] AS _fork#7]]
   |   \_AggregateExec[[hd{r}#6],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS x#4, MAX(long{f}#8,true[BOOLEAN],PT0S[TIME_DURATION]) AS y#5, hd{r}#6],FINAL,[hd{r}#6, $$x$count{r}#9, $$x$seen{r}#10, $$y$max{r}#11, $$y$seen{r}#12],null]

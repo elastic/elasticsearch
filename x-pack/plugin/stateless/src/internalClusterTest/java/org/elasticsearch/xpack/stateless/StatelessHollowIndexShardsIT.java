@@ -2204,9 +2204,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                         try {
                             var client = client();
                             var bulkUpdates = client.prepareBulk();
-                            for (int j = 0; j < Math.min(docsIds.size(), 128); j++) { // need enough updates to be sure to hollow every
-                                                                                      // shard
-                                var docId = randomFrom(docsIds);
+                            int docIndex;
+                            while ((docIndex = nextDocIndex.getAndIncrement()) < 100) { // need enough updates to be sure to hollow every
+                                                                                        // shard
+                                var docId = shuffledDocIds.get(docIndex);
                                 bulkUpdates.add(client.prepareUpdate(indexName, docId).setDoc("field", randomUnicodeOfLength(10)));
                             }
                             assertNoFailures(bulkUpdates.get());
@@ -2254,7 +2255,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 fail("ingestLatch did not reach zero within 30s; see still-hollow shards and hot threads logged above");
             }
             // if ingest threads haven't succeeded, we cannot be sure about the results
-            assertIngestThreadsSucceeded(ingestFutures);
+            ingestFutures.forEach(ESTestCase::safeGet);
             for (int i = 0; i < numberOfShards; i++) {
                 // Should unhollow only once
                 assertThat(
@@ -2299,12 +2300,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             var deleteResponse = safeGet(client().prepareDelete(indexName, id).execute());
             assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
             assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
-        }
-    }
-
-    private static void assertIngestThreadsSucceeded(List<Future<?>> ingestFutures) {
-        for (var ingestFuture : ingestFutures) {
-            safeGet(ingestFuture);
         }
     }
 

@@ -95,8 +95,8 @@ public class HexEncodedByteVectorRecoveryTests extends EngineTestCase {
         // from the hex-encoded original stored in _source.
         List<Translog.Operation> luceneOps = readAllOperationsInLucene(engine);
         assertThat(luceneOps, hasSize(1));
-        assertThat(luceneOps.get(0), instanceOf(Translog.Index.class));
-        Translog.Index luceneOp = (Translog.Index) luceneOps.get(0);
+        assertThat(luceneOps.getFirst(), instanceOf(Translog.Index.class));
+        Translog.Index luceneOp = (Translog.Index) luceneOps.getFirst();
 
         // Reconstruct the original translog op (hex-encoded source, as the primary would have it).
         Translog.Index translogOp = new Translog.Index(
@@ -122,12 +122,9 @@ public class HexEncodedByteVectorRecoveryTests extends EngineTestCase {
     }
 
     /**
-     * Verifies the exact production failure scenario: a "mixed-format" op where only the indexed
-     * vector field was patched from the KNN index (as a signed integer array) while the non-indexed
-     * field remained in its original hex-string form. In a mixed-version cluster, the primary
-     * (running new code) produces this mixed source via replication, while recovery from an old
-     * primary sends both fields as hex strings. Both clause 1 and clause 2 of the asserter fail
-     * for this case; only the third clause (comparing both synthesized forms) succeeds.
+     * In a mixed cluster the primary (running new code) produces this mixed source via replication,
+     * while recovery from an old primary sends both fields as hex strings. Both clause 1 and clause 2
+     * of the asserter fail for this case; only the third clause (comparing both synthesized forms) succeeds.
      */
     public void testTranslogOperationAsserterAcceptsMixedAndHexAsEquivalent() throws IOException {
         ParsedDocument doc = mapperService.documentMapper()
@@ -144,7 +141,7 @@ public class HexEncodedByteVectorRecoveryTests extends EngineTestCase {
         long term = primaryResult.getTerm();
 
         // Simulates the op from replication from a new primary that patched only the indexed field
-        // (the non-indexed field stayed as hex). This is the prvOp in the assertion failure.
+        // (the non-indexed field stayed as hex).
         Translog.Index mixedOp = new Translog.Index(
             "1",
             seqNo,
@@ -156,7 +153,6 @@ public class HexEncodedByteVectorRecoveryTests extends EngineTestCase {
         );
 
         // Simulates the op from recovery from an old primary where both fields are hex strings.
-        // This is the newOp in the assertion failure.
         Translog.Index allHexOp = new Translog.Index(
             "1",
             seqNo,

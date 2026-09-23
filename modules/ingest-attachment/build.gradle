@@ -30,7 +30,7 @@ def versions = [
   'commonsIo' : '2.22.0',
   'jsoup' : '1.23.1',
   'xmlbeans' : '5.3.0', //poi-ooxml dependency: https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/
-  'commonsCollections4' : '4.5.0',
+  'commonsCollections4' : '4.6.0',
   'commonsCompress' : '1.28.0',
   'commonsLang3' :'3.20.0',
   'commonsMath3' : '3.6.1'

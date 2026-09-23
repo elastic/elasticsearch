@@ -31,6 +31,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -186,6 +187,30 @@ public class S3CredentialsProviderTests extends ESTestCase {
             );
             assertTrue(e.getMessage().contains(EsqlContainerCredentialsProvider.POD_IDENTITY_TOKEN_FILE_LOCATION));
         }
+    }
+
+    public void testManagedIdentityChainFailsWhenPodIdentityClosed() throws IOException {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment environment = TestEnvironment.newEnvironment(settings);
+        Path tokenFile = environment.configDir().resolve(EsqlContainerCredentialsProvider.POD_IDENTITY_TOKEN_FILE_LOCATION);
+        Files.createDirectories(tokenFile.getParent());
+        Files.writeString(tokenFile, "token");
+        EsqlContainerCredentialsProvider provider = new EsqlContainerCredentialsProvider(environment, null, name -> {
+            if (name.equals(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.environmentVariable())) {
+                return "/var/run/secrets/token";
+            }
+            if (name.equals(SdkSystemSetting.AWS_CONTAINER_CREDENTIALS_FULL_URI.environmentVariable())) {
+                return "http://127.0.0.1/creds";
+            }
+            return null;
+        });
+        assertTrue(provider.isActive());
+        provider.close();
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> new S3StorageProvider(null, null, null, provider).managedIdentityProviders()
+        );
+        assertThat(e.getMessage(), containsString("has been closed"));
     }
 
     /**

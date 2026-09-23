@@ -137,6 +137,13 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
      */
     private volatile URI validatedCredentialsEndpoint;
 
+    /**
+     * {@code true} once construction successfully wired the credentials cache. Survives
+     * {@link #close()} so callers can tell a closed-but-was-valid provider from one that never
+     * activated (and must not fall through to the stock ECS container provider).
+     */
+    private final boolean configured;
+
     public EsqlContainerCredentialsProvider(Environment environment, ResourceWatcherService resourceWatcherService) {
         this(environment, resourceWatcherService, System::getenv);
     }
@@ -157,17 +164,22 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
             this.tokenFileLocation = null;
             this.credentialsUri = null;
             this.misconfigurationMessage = null;
+            this.configured = false;
             return;
         }
         if (environment == null) {
-            LOGGER.warn(
-                "Cannot configure EKS Pod Identity: node environment is unavailable "
-                    + "(AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE=[{}] will not be used for ESQL S3 reads)",
-                tokenFileEnv
-            );
             this.tokenFileLocation = null;
             this.credentialsUri = null;
-            this.misconfigurationMessage = null;
+            // Soft misconfiguration: Pod Identity env is set but we cannot resolve the entitled
+            // symlink without a node Environment. Callers must not fall through to stock CCP
+            // (entitlement-blocked Kubernetes token path).
+            this.misconfigurationMessage = Strings.format(
+                "Cannot use EKS Pod Identity: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE is defined as [%s] but the node "
+                    + "environment is unavailable",
+                tokenFileEnv
+            );
+            this.configured = false;
+            LOGGER.warn(misconfigurationMessage);
             return;
         }
 
@@ -183,6 +195,7 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
                 tokenFileEnv,
                 entitledPath
             );
+            this.configured = false;
             LOGGER.info(misconfigurationMessage);
             return;
         }
@@ -197,11 +210,13 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
                 tokenFileEnv,
                 entitledPath
             );
+            this.configured = false;
             LOGGER.info(misconfigurationMessage);
             return;
         }
 
         this.misconfigurationMessage = null;
+        this.configured = true;
         this.credentialsCache = CachedSupplier.builder(this::refreshCredentials).cachedValueName(toString()).build();
         setupFileWatcherToRefreshCredentials(entitledPath, resourceWatcherService);
     }
@@ -341,7 +356,9 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
      * Prefetch schedule matching the AWS SDK {@code ContainerCredentialsProvider}, with a floor for
      * short-lived tokens. The stock formula {@code min(now+1h, expiration-15min)} is ≤ {@code now}
      * when credential lifetime is ≤ 15 minutes, which would make {@link CachedSupplier} schedule an
-     * immediate tight refresh loop. In that case prefetch at half the remaining lifetime instead.
+     * immediate tight refresh loop. In that case prefetch at a quarter of the remaining lifetime —
+     * earlier than {@link #staleTime}'s half-life floor — so the background refresh has a head start
+     * before the value is marked stale.
      * (Production EKS Pod Identity credentials last six hours by default, so they use the stock
      * formula; the floor matters for short-lived fixtures and any other short TTL.)
      */
@@ -359,7 +376,7 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
         if (remainingMillis <= 0) {
             return now;
         }
-        return now.plusMillis(remainingMillis / 2);
+        return now.plusMillis(remainingMillis / 4);
     }
 
     private static Instant min(Instant a, Instant b) {
@@ -413,17 +430,30 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
      * credentials chain on this signal.
      */
     public boolean isActive() {
-        return closed == false && credentialsCache != null;
+        synchronized (cacheLock) {
+            return closed == false && credentialsCache != null;
+        }
     }
 
     /**
-     * {@code true} when the Pod Identity env vars are set but the entitled symlink is missing or
-     * was unreadable at construction. Callers must not fall through to the stock
-     * {@code ContainerCredentialsProvider}; if no earlier provider is in the chain they should fail
-     * with {@link #misconfigurationMessage()}, otherwise they may skip this slot.
+     * {@code true} when the Pod Identity env vars are set but the entitled symlink is missing,
+     * unreadable, or the node {@link Environment} was unavailable at construction. Callers must not
+     * fall through to the stock {@code ContainerCredentialsProvider}; if no earlier provider is in
+     * the chain they should fail with {@link #misconfigurationMessage()}, otherwise they may skip
+     * this slot.
      */
     public boolean isMisconfigured() {
-        return misconfigurationMessage != null && credentialsCache == null;
+        return misconfigurationMessage != null;
+    }
+
+    /**
+     * {@code true} after {@link #close()} when this provider had been successfully configured.
+     * Callers must not fall through to the stock ECS container provider in that case.
+     */
+    public boolean isClosedAfterConfiguration() {
+        synchronized (cacheLock) {
+            return closed && configured;
+        }
     }
 
     /** Message naming the entitled symlink the operator must create; only valid when {@link #isMisconfigured()}. */
@@ -452,7 +482,13 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
 
     @Override
     public AwsCredentials resolveCredentials() {
-        CachedSupplier<AwsCredentials> cache = credentialsCache;
+        CachedSupplier<AwsCredentials> cache;
+        synchronized (cacheLock) {
+            if (closed) {
+                throw SdkClientException.create("EKS Pod Identity credentials provider has been closed");
+            }
+            cache = credentialsCache;
+        }
         Objects.requireNonNull(cache, "credentialsCache is not set");
         return cache.get();
     }

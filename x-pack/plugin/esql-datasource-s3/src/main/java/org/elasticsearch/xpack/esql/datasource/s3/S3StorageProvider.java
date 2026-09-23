@@ -625,10 +625,10 @@ public class S3StorageProvider implements StorageProvider {
             // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
             providers.add(new ErrorLoggingCredentialsProvider(containerCredentialsProvider, LOGGER));
         } else if (containerCredentialsProvider != null && containerCredentialsProvider.isMisconfigured()) {
-            // Pod Identity env is present but the entitled symlink is missing/unreadable.
-            // Do not fall through to ContainerCredentialsProvider.create() (entitlement-blocked
-            // K8s path). If IRSA is already in the chain, skip the container link and continue —
-            // a working IRSA source must not be aborted by a broken Pod Identity symlink.
+            // Pod Identity env is present but the entitled symlink is missing/unreadable (or the
+            // node Environment was unavailable). Do not fall through to
+            // ContainerCredentialsProvider.create() (entitlement-blocked K8s path). If IRSA is
+            // already in the chain, skip the container link and continue.
             if (providers.isEmpty()) {
                 throw new IllegalStateException(containerCredentialsProvider.misconfigurationMessage());
             }
@@ -636,6 +636,13 @@ public class S3StorageProvider implements StorageProvider {
                 "Skipping EKS Pod Identity for S3 data sources: {}; continuing with earlier managed-identity providers",
                 containerCredentialsProvider.misconfigurationMessage()
             );
+        } else if (containerCredentialsProvider != null && containerCredentialsProvider.isClosedAfterConfiguration()) {
+            // Was successfully configured then closed (plugin shutdown). Do not fall through to
+            // the ECS task-role endpoint, which is unreachable on EKS.
+            if (providers.isEmpty()) {
+                throw new IllegalStateException("EKS Pod Identity credentials provider has been closed");
+            }
+            LOGGER.warn("Skipping closed EKS Pod Identity provider; continuing with earlier managed-identity providers");
         } else {
             // ECS task-role (and any other container-credentials shape that does not use a token
             // file). Created per S3StorageProvider, so this instance owns it.

@@ -204,13 +204,14 @@ public class EsqlContainerCredentialsProviderTests extends ESTestCase {
         assertThat(EsqlContainerCredentialsProvider.prefetchTime(now, expiration), equalTo(expiration.minus(15, ChronoUnit.MINUTES)));
     }
 
-    public void testPrefetchTimeFloorsToHalfLifeForShortLivedCredentials() {
+    public void testPrefetchTimeFloorsToQuarterLifeForShortLivedCredentials() {
         Instant now = Instant.parse("2026-01-01T00:00:00Z");
         Instant expiration = now.plus(15, ChronoUnit.MINUTES);
-        // Stock formula yields now (or earlier); floor to half remaining lifetime to avoid a tight loop
+        // Stock formula yields now (or earlier); floor to quarter remaining lifetime so prefetch
+        // leads staleTime's half-life floor.
         assertThat(
             EsqlContainerCredentialsProvider.prefetchTime(now, expiration),
-            equalTo(now.plus(7, ChronoUnit.MINUTES).plus(30, ChronoUnit.SECONDS))
+            equalTo(now.plus(3, ChronoUnit.MINUTES).plus(45, ChronoUnit.SECONDS))
         );
     }
 
@@ -232,9 +233,49 @@ public class EsqlContainerCredentialsProviderTests extends ESTestCase {
         assertThat(EsqlContainerCredentialsProvider.staleTime(now, expiration), equalTo(now.plus(2500, ChronoUnit.MILLIS)));
     }
 
+    public void testShortLivedPrefetchLeadsStale() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        Instant expiration = now.plus(5, ChronoUnit.SECONDS);
+        Instant prefetch = EsqlContainerCredentialsProvider.prefetchTime(now, expiration);
+        Instant stale = EsqlContainerCredentialsProvider.staleTime(now, expiration);
+        assertThat(prefetch, equalTo(now.plus(1250, ChronoUnit.MILLIS)));
+        assertThat(stale, equalTo(now.plus(2500, ChronoUnit.MILLIS)));
+        assertTrue("prefetch must lead stale so background refresh has a head start", prefetch.isBefore(stale));
+    }
+
     public void testStaleTimeWithoutExpirationIsNull() {
         Instant now = Instant.parse("2026-01-01T00:00:00Z");
         assertNull(EsqlContainerCredentialsProvider.staleTime(now, null));
+    }
+
+    public void testNullEnvironmentWithPodIdentityEnvIsMisconfigured() {
+        try (
+            EsqlContainerCredentialsProvider provider = new EsqlContainerCredentialsProvider(
+                null,
+                resourceWatcherService,
+                podIdentityEnv("http://127.0.0.1:1/creds")
+            )
+        ) {
+            assertFalse(provider.isActive());
+            assertTrue(provider.isMisconfigured());
+            assertThat(provider.misconfigurationMessage(), containsString("environment is unavailable"));
+        }
+    }
+
+    public void testClosedAfterConfigurationDoesNotLookInactiveAndUnconfigured() throws IOException {
+        Path tokenFile = environment.configDir().resolve(POD_IDENTITY_TOKEN_FILE_LOCATION);
+        Files.writeString(tokenFile, TOKEN_CONTENTS);
+        EsqlContainerCredentialsProvider provider = new EsqlContainerCredentialsProvider(
+            environment,
+            resourceWatcherService,
+            podIdentityEnv("http://127.0.0.1:1/creds")
+        );
+        assertTrue(provider.isActive());
+        assertFalse(provider.isClosedAfterConfiguration());
+        provider.close();
+        assertFalse(provider.isActive());
+        assertTrue(provider.isClosedAfterConfiguration());
+        assertFalse(provider.isMisconfigured());
     }
 
     private void startCredentialsServer() throws IOException {

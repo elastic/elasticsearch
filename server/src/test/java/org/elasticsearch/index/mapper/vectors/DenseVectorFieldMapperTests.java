@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -2432,13 +2433,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())), useDirectIO=false, onDiskMerge=false)"
                         ),
                         containsString(
                             "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                 + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
                         )
                     )
                 )
@@ -2514,13 +2515,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                             containsString(
                                 "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                     + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                    + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                                    + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer()))"
+                                    + ", useDirectIO=false, onDiskMerge=false)"
                             ),
                             containsString(
                                 "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                     + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                     + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                    + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                                    + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
                             )
                         )
                     )
@@ -2570,13 +2572,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())), useDirectIO=false, onDiskMerge=false)"
                         ),
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                 + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
                         )
                     )
                 )
@@ -2673,13 +2675,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())), useDirectIO=false, onDiskMerge=false)"
                         ),
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                 + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
                         )
                     )
                 )
@@ -2705,7 +2707,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testPushingDownExecutorAndThreads() {
         TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
-            new DenseVectorFieldMapper.HnswIndexOptions(16, 200, -1)
+            new DenseVectorFieldMapper.HnswIndexOptions(16, 200, -1, false)
         );
         var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), IndexMode.STANDARD, true, false, List.of(), false)
             .indexOptions(testIndexOptions)
@@ -2809,6 +2811,64 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 
+    /** {@code on_disk_merge} can be flipped by a mapping update: the index type stays the same, so the update is not rejected. */
+    public void testOnDiskMergeIndexOptions() throws IOException {
+        for (String type : new String[] {
+            "hnsw",
+            "int8_hnsw",
+            "int4_hnsw",
+            "flat",
+            "int8_flat",
+            "int4_flat",
+            "bbq_hnsw",
+            "bbq_flat",
+            "bbq_disk" }) {
+            MapperService mapperService = createMapperService(fieldMapping(b -> onDiskMergeMapping(b, type, null)));
+            assertFalse(type + " defaults to off", onDiskMergeOf(mapperService));
+            assertFormatCarriesOnDiskMerge(type, mapperService, false);
+
+            merge(mapperService, fieldMapping(b -> onDiskMergeMapping(b, type, true)));
+            assertTrue(type, onDiskMergeOf(mapperService));
+            assertThat(type, mapperService.documentMapper().mappingSource().toString(), containsString("\"on_disk_merge\":true"));
+            assertFormatCarriesOnDiskMerge(type, mapperService, true);
+
+            merge(mapperService, fieldMapping(b -> onDiskMergeMapping(b, type, false)));
+            assertFalse(type, onDiskMergeOf(mapperService));
+            assertThat(type, mapperService.documentMapper().mappingSource().toString(), not(containsString("on_disk_merge")));
+        }
+    }
+
+    /** @param onDiskMerge the value of {@code on_disk_merge}, or {@code null} to leave it out */
+    private static void onDiskMergeMapping(XContentBuilder b, String type, Boolean onDiskMerge) throws IOException {
+        b.field("type", "dense_vector");
+        b.field("dims", 64);
+        b.field("index", true);
+        b.startObject("index_options");
+        b.field("type", type);
+        if (onDiskMerge != null) {
+            b.field("on_disk_merge", onDiskMerge);
+        }
+        b.endObject();
+    }
+
+    /**
+     * {@code bbq_disk} is skipped: its format is built by its plugin, the server class throws a license error here,
+     * and the plugin's {@code DirectIOIT} covers that hand-off.
+     */
+    private static void assertFormatCarriesOnDiskMerge(String type, MapperService mapperService, boolean onDiskMerge) {
+        if (type.equals("bbq_disk")) {
+            return;
+        }
+        Codec codec = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).codec("default");
+        KnnVectorsFormat format = ((PerFieldKnnVectorsFormat) codec.knnVectorsFormat()).getKnnVectorsFormatForField("field");
+        assertThat(type, format, hasToString(containsString("onDiskMerge=" + onDiskMerge)));
+    }
+
+    private static boolean onDiskMergeOf(MapperService mapperService) {
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        return mapper.fieldType().getIndexOptions().isOnDiskMerge();
+    }
+
     private static class TestDenseVectorIndexOptions extends DenseVectorFieldMapper.DenseVectorIndexOptions {
 
         private final DenseVectorFieldMapper.DenseVectorIndexOptions inner;
@@ -2816,7 +2876,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         private int passedNumMergeWorkers = -1;
 
         TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner) {
-            super(inner.type);
+            super(inner.type, inner.isOnDiskMerge());
             this.inner = inner;
         }
 
@@ -2848,8 +2908,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         @Override
-        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
-            inner.toXContentFragment(builder, params);
+        void doXContentFragment(XContentBuilder builder, Params params) throws IOException {
+            inner.doXContentFragment(builder, params);
         }
     }
 }

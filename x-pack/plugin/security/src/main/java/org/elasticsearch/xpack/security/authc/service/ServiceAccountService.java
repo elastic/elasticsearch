@@ -217,6 +217,7 @@ public class ServiceAccountService {
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
+        @Nullable String description,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<UserManagedServiceAccountStore.PutResult> listener
     ) {
@@ -226,7 +227,7 @@ public class ServiceAccountService {
         }
         userManagedServiceAccountStore.getByPrincipal(accountId.asPrincipal(), listener.delegateFailureAndWrap((delegate, account) -> {
             if (account != null) {
-                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, delegate);
+                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, description, refreshPolicy, delegate);
                 return;
             }
             indexServiceAccountTokenStore.hasTokensFor(accountId, delegate.delegateFailureAndWrap((inner, hasTokens) -> {
@@ -239,7 +240,7 @@ public class ServiceAccountService {
                         )
                     );
                 } else {
-                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, inner);
+                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, description, refreshPolicy, inner);
                 }
             }));
         }));
@@ -291,7 +292,7 @@ public class ServiceAccountService {
     }
 
     private static ServiceAccountInfo toServiceAccountInfo(UserManagedServiceAccount account) {
-        return new ServiceAccountInfo.UserManaged(account.id().asPrincipal(), account.roles(), account.enabled());
+        return new ServiceAccountInfo.UserManaged(account.id().asPrincipal(), account.roles(), account.enabled(), account.description());
     }
 
     /**

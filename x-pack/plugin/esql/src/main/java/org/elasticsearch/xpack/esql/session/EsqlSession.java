@@ -88,9 +88,12 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.SchemaDiscoveryPathExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.dsltranslate.QueryDslFieldNameExtractor;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -124,6 +127,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
@@ -450,10 +454,12 @@ public class EsqlSession {
         // once resolution succeeds, because IN subqueries can be hidden inside view definitions and only become visible — and are
         // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
         // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
+        boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(request.filter());
         viewResolver.replaceViews(
             parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),
             (query, viewName) -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan(),
+            preserveViewBoundaries,
             listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
@@ -551,13 +557,18 @@ public class EsqlSession {
                     // would not be routed to the listener — catch it and fail the query explicitly.
                     final LogicalPlan plan;
                     try {
-                        plan = RequestFilterRewriter.rewrite(
+                        LogicalPlan afterDatasetFilter = RequestFilterRewriter.rewrite(
                             analyzedPlan.inner(),
                             request.filter(),
                             finalConfiguration,
                             minimumVersion,
                             true
                         );
+                        // Apply the request filter to view subplan outputs: the filter is translated against each
+                        // view's output schema and inserted as an ordinary Filter above the view's subplan, so it
+                        // applies after the view's own processing (STATS, EVAL, RENAME, …) rather than being
+                        // pushed into the view's source indices as a Lucene query.
+                        plan = ViewRequestFilterRewriter.rewrite(afterDatasetFilter, request.filter(), finalConfiguration, minimumVersion);
                     } catch (Exception e) {
                         listener.onFailure(e);
                         return;
@@ -914,7 +925,8 @@ public class EsqlSession {
         if (subPlan != null) {
             // code-path to execute subplans. The pinned-read accumulator gathers union_by_name widened reads across
             // every executed plan (each subplan and the final main plan) so the single reconcile at the end strips
-            // their polluting stat deltas regardless of which plan read a file pinned.
+            // their polluting stat deltas regardless of which plan read a file pinned. Each plan's pins are collected
+            // only after that plan's run succeeds, so the first discovery does not hold per-file PinnedColumns.
             executeSubPlan(
                 new DriverCompletionInfo.Accumulator(),
                 new HashMap<>(),
@@ -936,11 +948,12 @@ public class EsqlSession {
             if (explainContext != null) {
                 recordExplainCoordinatorPlan(physicalPlan);
             }
-            Map<String, PinnedColumns> pinnedReads = new HashMap<>();
-            collectPinnedReads(optimizedPlan, pinnedReads);
-            // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
-            // source stats into ExternalSourceCacheService before delivering Result.
+            // execute main plan. Collect pinned reads only after execution so planning-time heap is
+            // not held for every file through discovery. Reconcile data-node-captured source stats
+            // into ExternalSourceCacheService before delivering Result.
             runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
+                Map<String, PinnedColumns> pinnedReads = new HashMap<>();
+                collectPinnedReads(optimizedPlan, pinnedReads);
                 reconcileCapturedSourceStats(result.completionInfo(), pinnedReads);
                 next.onResponse(result);
             }));
@@ -1237,7 +1250,6 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlan.subPlan);
-        collectPinnedReads(subPlan.subPlan, pinnedReads);
         // Create a physical plan out of the logical sub-plan
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, request, physicalPlanOptimizer, planTimeProfile);
         // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
@@ -1265,13 +1277,16 @@ public class EsqlSession {
                 LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
                 LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
 
+                // Pins for this subplan are only consumed at the final reconcile. Collect after
+                // execution so they are not live through this subplan's discovery.
+                collectPinnedReads(subPlan.subPlan, pinnedReads);
+
                 // look for the next inlinejoin plan
                 var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
                 LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
 
                 if (newSubPlan == null) {
                     executionInfo.finishSubPlans();
-                    collectPinnedReads(newMainPlan, pinnedReads);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
                     if (explainContext != null) {
                         // Capture the post-substitution physical plan — the one that actually runs. For
@@ -1287,6 +1302,7 @@ public class EsqlSession {
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             DriverCompletionInfo merged = completionInfoAccumulator.finish();
+                            collectPinnedReads(newMainPlan, pinnedReads);
                             reconcileCapturedSourceStats(merged, pinnedReads);
                             EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(
@@ -1610,11 +1626,8 @@ public class EsqlSession {
         // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
         // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
         // cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
-            parsed,
-            preAnalysis.enriches().isEmpty() == false,
-            unmappedResolution.loadsUnmappedFields()
-        ).withMinimumTransportVersion(localClusterMinimumVersion);
+        PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, requestFilter, configuration)
+            .withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
         // even when index resolution is retried without the filter (e.g. because the filter covers an empty time range).
@@ -1623,6 +1636,12 @@ public class EsqlSession {
             requestFilter,
             configuration::absoluteStartedTimeInMillis
         );
+        // Decided here, from the original request filter, for the same reason as timestampBounds above: index resolution may be
+        // retried without the filter, but the post-analysis steps that consume view boundaries
+        // ({@link ViewRequestFilterRewriter#rewrite} and {@link PlannerUtils#integrateEsFilterIntoFragment}) always run against
+        // {@code request.filter()}. Deriving this from the retry-scoped filter instead would collapse the boundaries the rewriter
+        // still needs, leaving the raw DSL to be pushed into the view's source scan.
+        boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter);
 
         resolveIndicesAndAnalyze(
             parsed,
@@ -1632,10 +1651,48 @@ public class EsqlSession {
             description,
             requestFilter,
             timestampBounds,
+            preserveViewBoundaries,
             preAnalysis,
             result,
             logicalPlanListener
         );
+    }
+
+    /**
+     * Field names to request from field-caps. Normally these are pruned to what the query actually references, but a request filter
+     * that will be applied to a <em>view's output</em> can reference fields the query never mentions: for
+     * {@code FROM my_view | KEEP id} with a filter on {@code region}, pruning leaves {@code region} out of the view branch's output,
+     * and {@link ViewRequestFilterRewriter} then binds it to {@code NULL} (reproducing Query DSL's missing-field leniency) so the
+     * filter silently matches nothing. The raw-index path does not have this problem because there the filter is evaluated by Lucene,
+     * which needs no ES|QL field resolution.
+     * <p>
+     * The filter's own field references are therefore added to the pruned set, keeping pruning effective for everything else. Only
+     * when those references cannot be enumerated (see {@link QueryDslFieldNameExtractor}) does this fall back to every field.
+     */
+    private static PreAnalysisResult resolveFieldNames(
+        LogicalPlan parsed,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        UnmappedResolution unmappedResolution,
+        @Nullable QueryBuilder requestFilter,
+        Configuration configuration
+    ) {
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+            parsed,
+            preAnalysis.enriches().isEmpty() == false,
+            unmappedResolution.loadsUnmappedFields()
+        );
+        boolean filterAppliesToViewOutput = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
+            && parsed.anyMatch(p -> p instanceof ViewUnionAll vua && vua.viewBranchKeys().isEmpty() == false);
+        if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
+            return result;
+        }
+        var referenced = QueryDslFieldNameExtractor.extract(requestFilter, configuration);
+        if (referenced.requiresAllFields()) {
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, result.wildcardJoinIndices());
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        fieldNames.addAll(referenced.fieldNames());
+        return new PreAnalysisResult(fieldNames, result.wildcardJoinIndices());
     }
 
     private void resolveIndicesAndAnalyze(
@@ -1646,6 +1703,7 @@ public class EsqlSession {
         String description,
         QueryBuilder requestFilter,
         TimestampBounds timestampBounds,
+        boolean preserveViewBoundaries,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
@@ -1656,7 +1714,16 @@ public class EsqlSession {
         boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
         SubscribableListener.<PreAnalysisResult>newForked(
-            l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
+            l -> preAnalyzeMainIndices(
+                preAnalysis,
+                configuration,
+                executionInfo,
+                trackedUnmappedFieldIndices,
+                result,
+                requestFilter,
+                viewInternalIndexPatterns(parsed),
+                l
+            )
         ).andThenApply(r -> {
             if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
                 && executionInfo.isCrossClusterSearch()
@@ -1747,6 +1814,7 @@ public class EsqlSession {
                     description,
                     requestFilter,
                     timestampBounds,
+                    preserveViewBoundaries,
                     preAnalysis,
                     r,
                     l
@@ -1977,12 +2045,19 @@ public class EsqlSession {
         // planning time; the rest defer (see ExternalStatsRequirementExtractor).
         Set<String> pathsRequiringStats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
 
+        // Always non-null (empty when every relation is read for its rows). A path in this set is one whose rows
+        // the query all discards, so its resolution owes a schema and nothing else and may stop listing as soon
+        // as it has one. What "having one" means is the dataset's business, not the query's: see
+        // ExternalSourceResolver#listingBoundFor.
+        Set<String> pathsReadingNoRows = SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan);
+
         externalSourceResolver.resolve(
             preAnalysis.icebergPaths(),
             pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
             declaredMappings.isEmpty() ? null : declaredMappings,
             pathsRequiringStats,
+            pathsReadingNoRows,
             listener.map(result::withExternalSourceResolution)
         );
     }
@@ -2220,6 +2295,34 @@ public class EsqlSession {
     }
 
     /**
+     * The index patterns that are only reachable inside a view branch, and so must not have the request filter applied when their
+     * mappings are resolved.
+     *
+     * <p>The filter is handed to field-caps as an {@code index_filter}, which prunes indices whose shards cannot match it. That is a
+     * sound optimization for a pattern the user named directly — correctness there comes from the Lucene filter on the fragment, not
+     * from this pruning. It is <em>not</em> sound for a view's own sources, because the filter belongs on the view's
+     * <em>output</em>: a view that computes or overwrites the filtered field produces output values that differ from the raw indexed
+     * ones, so pruning on the raw values discards sources whose rows the filter should have kept. When that prunes every source the
+     * query fails and {@code analyzeWithRetry} recovers by retrying unfiltered; when it prunes only some, nothing fails and the plan
+     * is left referencing a pruned index, surfacing as an {@code UnresolvedException} during canonicalization.
+     *
+     * <p>Patterns are compared by pattern string ({@link IndexPattern#equals}), which is also how {@code PreAnalyzer} keys them. A
+     * pattern used both inside a view and directly by the query therefore counts as view-internal: it loses the pruning
+     * optimization, which is the safe direction.
+     */
+    private static Set<IndexPattern> viewInternalIndexPatterns(LogicalPlan plan) {
+        Set<IndexPattern> patterns = new HashSet<>();
+        plan.forEachDown(ViewUnionAll.class, vua -> {
+            for (Map.Entry<String, LogicalPlan> branch : vua.namedSubqueries().entrySet()) {
+                if (vua.isViewBranch(branch.getKey())) {
+                    branch.getValue().forEachDown(UnresolvedRelation.class, ur -> patterns.add(ur.indexPattern()));
+                }
+            }
+        });
+        return patterns;
+    }
+
+    /**
      * Perform a field caps request for each index pattern and determine the minimum transport version of all clusters with matching
      * indices.
      */
@@ -2230,6 +2333,7 @@ public class EsqlSession {
         boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
+        Set<IndexPattern> viewInternalPatterns,
         ActionListener<PreAnalysisResult> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -2259,7 +2363,8 @@ public class EsqlSession {
                     executionInfo,
                     trackUnmappedFieldIndices,
                     r,
-                    requestFilter,
+                    // A pattern reachable only inside a view branch must not be pruned by the request filter.
+                    viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
                     l
                 ),
                 listener
@@ -2281,7 +2386,8 @@ public class EsqlSession {
                     executionInfo,
                     trackUnmappedFieldIndices,
                     r,
-                    requestFilter,
+                    // A pattern reachable only inside a view branch must not be pruned by the request filter.
+                    viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
                     routingInfoCapture,
                     l
                 ),
@@ -2547,6 +2653,7 @@ public class EsqlSession {
         String description,
         QueryBuilder requestFilter,
         TimestampBounds timestampBounds,
+        boolean preserveViewBoundaries,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> listener
@@ -2565,7 +2672,15 @@ public class EsqlSession {
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
-            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds);
+            LogicalPlan plan = analyzedPlan(
+                parsed,
+                unmappedResolution,
+                configuration,
+                result,
+                executionInfo,
+                timestampBounds,
+                preserveViewBoundaries
+            );
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // Analysis succeeded on the first attempt. For unmapped_fields=nullify/load we intentionally do NOT re-resolve without the
@@ -2589,6 +2704,7 @@ public class EsqlSession {
                     "second attempt, without filter",
                     null,
                     timestampBounds,
+                    preserveViewBoundaries,
                     preAnalysis,
                     result,
                     listener
@@ -2609,7 +2725,11 @@ public class EsqlSession {
         // surfaces it in the failure log.
         planSnapshot = planSnapshot.withOptimized(optimizedPlan);
         PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
-        physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
+        physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(
+            physicalPlan,
+            request.filter(),
+            physicalPlanOptimizer.context().minimumVersion()
+        );
         physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlan);
         // Overwrite on each call so a failure during subplan execution surfaces the most recent
         // physical plan we built.
@@ -2623,7 +2743,8 @@ public class EsqlSession {
         Configuration configuration,
         PreAnalysisResult r,
         EsqlExecutionInfo executionInfo,
-        TimestampBounds timestampBounds
+        TimestampBounds timestampBounds,
+        boolean preserveViewBoundaries
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
         AnalyzerContext analyzerContext = new AnalyzerContext(
@@ -2635,7 +2756,8 @@ public class EsqlSession {
             projectMetadata,
             r,
             timestampBounds,
-            resolveIpLocations(parsed)
+            resolveIpLocations(parsed),
+            preserveViewBoundaries
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);

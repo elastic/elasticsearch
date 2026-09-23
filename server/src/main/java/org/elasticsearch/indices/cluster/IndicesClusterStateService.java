@@ -304,8 +304,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    // protected for tests
-    protected boolean getLocalRecoveryRetryEnabled() {
+    // package private for tests
+    boolean getLocalRecoveryRetryEnabled() {
         return localRecoveryRetryEnabled;
     }
 

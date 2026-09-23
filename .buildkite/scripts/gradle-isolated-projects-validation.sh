@@ -26,36 +26,15 @@ if [[ ! -f "$REPORT_FILE" ]]; then
   exit 1
 fi
 
-tmp_count_file=$(mktemp)
-tmp_summary_file=$(mktemp)
-trap 'rm -f "$tmp_count_file" "$tmp_summary_file"' EXIT
-
-python3 - "$REPORT_FILE" "$tmp_count_file" "$tmp_summary_file" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-report_file = Path(sys.argv[1])
-count_file = Path(sys.argv[2])
-summary_file = Path(sys.argv[3])
-
-report = json.loads(report_file.read_text())
-count_file.write_text(str(report.get("totalProblems", 0)))
-
-lines = ["Severity breakdown:"]
-for severity in report.get("severities", []):
-    lines.append(f"- {severity['severity']}: {severity['count']}")
-
-lines.append("")
-lines.append("Top 10 problem IDs:")
-for problem in report.get("problems", [])[:10]:
-    lines.append(f"- {problem['count']}x {problem['id']} ({problem['severity']})")
-
-summary_file.write_text("\n".join(lines))
-PY
-
-violation_count=$(<"$tmp_count_file")
-summary=$(<"$tmp_summary_file")
+violation_count=$(jq -r '.totalProblems // 0' "$REPORT_FILE")
+summary=$(jq -r '
+  ["Severity breakdown:"]
+  + ((.severities // []) | map("- \(.severity): \(.count)"))
+  + [""]
+  + ["Top 10 problem IDs:"]
+  + (((.problems // [])[:10]) | map("- \(.count)x \(.id) (\(.severity))"))
+  | join("\n")
+' "$REPORT_FILE")
 
 annotation_style="info"
 if (( gradle_exit != 0 || violation_count > MAX_ISOLATED_PROJECTS_VIOLATIONS )); then

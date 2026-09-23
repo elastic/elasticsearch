@@ -20,7 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.vectors.BFloat16BinaryDenseVectorDocValuesField;
@@ -64,7 +64,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public SortedBinaryDocValues getBytesValues() {
+    public SortableBinaryDocValues getBytesValues() {
         throw new IllegalArgumentException("String representation of doc values for vector fields is not supported");
     }
 

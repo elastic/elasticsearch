@@ -29,6 +29,7 @@ import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -1806,6 +1807,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    "service": "elastic",
                    "name": "Elastic",
                    "task_types": ["sparse_embedding", "chat_completion", "text_embedding", "embedding"],
+                   "features": {
+                       "non_streaming_chat": {
+                           "supported": true
+                       }
+                   },
                    "configurations": {
                        "model_id": {
                            "description": "The name of the model to use for the inference task.",
@@ -1837,7 +1843,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    }
                }
             """);
-        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+        InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
             new BytesArray(content),
             XContentType.JSON
         );
@@ -1855,6 +1861,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    "service": "elastic",
                    "name": "Elastic",
                    "task_types": [],
+                   "features": {
+                       "non_streaming_chat": {
+                           "supported": true
+                       }
+                   },
                    "configurations": {
                        "model_id": {
                            "description": "The name of the model to use for the inference task.",
@@ -1886,7 +1897,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                    }
                }
             """);
-        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+        InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
             new BytesArray(content),
             XContentType.JSON
         );

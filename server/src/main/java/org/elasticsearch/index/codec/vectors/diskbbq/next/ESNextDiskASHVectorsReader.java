@@ -215,10 +215,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 }
                 IndexInput slice = ivfCentroids.slice("ash-preconditioner", preconditionerOffset, preconditionerLength);
                 slice.seek(0);
-                var matrix = AshProjectionMatrix.read(slice);
-                // Eagerly compute wT so it's ready for concurrent search threads
-                matrix.wT();
-                return matrix;
+                return AshProjectionMatrix.read(slice);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

@@ -47,6 +47,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1630,28 +1631,82 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    public StringColumnOptions columnarStringOptions() {
+        // A keyword column is where a dictionary pays: its values repeat, and the terms are short enough that
+        // a bounded dictionary covers much of the column.
+        return fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD
+            ? StringColumnOptions.DEFAULT
+            : null;
+    }
+
+    @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        // TIME_SERIES is accepted by the mode gate, but every keyword field in a TSDB index resolves to
-        // DocValuesDiskFormat.SORTED_SET (see Builder#diskFormat), which supportsColumnarDocValues() does
-        // not accept yet — so TSDB keywords still fall back to the row path until SORTED_SET emission lands.
-        return supportsColumnarDocValues() && normalizerName == null && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
+        final IndexMode mode = indexSettings.getMode();
+        return (mode.isStrictColumnar() || mode.isTsdb())
+            && supportsColumnarDocValues(mode)
+            && hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && normalizerName == null
+            && getOffsetFieldName() == null
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
+            && ignoreAboveFallbackIsColumnar(indexSettings);
+    }
+
+    /**
+     * Returns {@code true} when the {@code ignore_above} synthetic-source fallback that this field writes on
+     * the row path can be reproduced by the columnar batch path. This guards against two row-path shapes the
+     * batch path cannot emit:
+     * <ul>
+     *   <li>A {@link org.apache.lucene.document.StoredField} (when
+     *       {@link #storeIgnoredFieldsInBinaryDocValues} is {@code false}).</li>
+     *   <li>{@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.IntegratedCount} framing
+     *       on indices created before
+     *       {@link org.elasticsearch.index.IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}.</li>
+     * </ul>
+     * Returns {@code true} immediately when no values can be ignored (no fallback emitted at all) or when the
+     * row path emits nothing for ignored values.
+     */
+    private boolean ignoreAboveFallbackIsColumnar(IndexSettings indexSettings) {
+        if (fieldType().ignoreAbove().valuesPotentiallyIgnored() == false) {
+            return true; // no fallback at all
+        }
+        if (storeIgnoredValuesForSyntheticSource() == false) {
+            return true; // row path writes nothing for ignored values
+        }
+        if (storeIgnoredFieldsInBinaryDocValues == false) {
+            return false; // row path writes a StoredField — batch path cannot
+        }
+        if (docValuesParameters().multiValue() == false) {
+            return true; // plain BinaryDocValuesField — batch path can write this
+        }
+        // multi_value=true: row path uses addBinaryFieldLegacyEncodingAware, which picks IntegratedCount framing
+        // on older indices. The batch path only knows how to write SeparateCount framing.
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+
     }
 
     /**
      * Returns true when this keyword field's doc-values layout is supported on the columnar batch path. Accepts
-     * both a field that keeps its array order inline and a single-valued (multi_value=false) binary field. Other
-     * combinations fall back to the row path.
+     * Lucene SORTED_SET doc values (any cardinality, written by {@link #mapColumnBatchUnordered}), binary
+     * doc values that store array order inline (written by {@link #mapColumnBatchOrdered}), and single-valued
+     * (multi_value=false) binary fields. Other combinations fall back to the row path.
      */
-    private boolean supportsColumnarDocValues() {
+    private boolean supportsColumnarDocValues(IndexMode mode) {
+        if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.SORTED_SET) {
+            // Native Lucene SORTED_SET: multi-value handled by mapColumnBatchUnordered using an ARRAY column.
+            // Every keyword field in a TSDB index resolves to SORTED_SET; reaching this branch in any other
+            // mode is unexpected (though technically harmless).
+            assert mode.isTsdb() : "unexpected SORTED_SET keyword field in mode " + mode;
+            return true;
+        }
         if (fieldType().usesBinaryDocValues() == false) {
             return false;
         }
-
         if (fieldType().storesArrayOrderInline()) {
+            // Covers BINARY_ARRAY_ORDER_INLINE_NULL and BINARY_COLUMNAR_PAYLOAD with multi_value=true.
             return true;
         }
-
-        // Without an inline array order there is no way to lay out more than one value per document on this path.
+        // Binary doc values without inline array order: only single-valued is supported.
         return docValuesParameters().multiValue() == false;
     }
 
@@ -1704,13 +1759,18 @@ public final class KeywordFieldMapper extends FieldMapper {
         // strings. This is possible as an eventual user option.
 
         if (fieldType().storesArrayOrderInline()) {
-            mapColumnBatchArrayOrder(ctx, source, emitTerms, emitDvs, emitFallback);
+            mapColumnBatchOrdered(ctx, source, emitTerms, emitDvs, emitFallback);
         } else {
-            mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs, emitFallback);
+            mapColumnBatchUnordered(ctx, source, emitTerms, emitDvs, emitFallback);
         }
     }
 
-    private void mapColumnBatchArrayOrder(
+    /**
+     * Maps a column batch preserving the original array element order. Used when the doc-values disk format
+     * stores element positions inline (e.g. {@code BINARY_ARRAY_ORDER_INLINE_NULL},
+     * {@code BINARY_COLUMNAR_PAYLOAD}), so that round-trip retrieval returns values in insertion order.
+     */
+    private void mapColumnBatchOrdered(
         BatchMappingContext ctx,
         EscfColumn source,
         boolean emitTerms,
@@ -1870,7 +1930,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private void mapColumnBatchSingleValue(
+    /**
+     * Maps a column batch without preserving array element order. Used for single-valued fields and for
+     * {@code SORTED_SET} doc values (TSDB dimensions/labels), where Lucene itself sorts and deduplicates
+     * values per document. Supports both single-value and multi-value ({@code multi_value=true}) documents.
+     */
+    private void mapColumnBatchUnordered(
         BatchMappingContext ctx,
         EscfColumn source,
         boolean emitTerms,
@@ -1886,6 +1951,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         // output here that is not the value's own bytes and cannot share the terms column's serialization; they get a
         // column of their own. See ColumnarBinaryDocValuesField for why the count travels in the blob.
         final boolean columnar = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
+        // SORTED_SET doc values share the fieldType column with terms (the frozen fieldType carries both features).
+        final boolean sortedSetDvs = emitDvs && fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.SORTED_SET;
+        final boolean multiValue = docValuesParameters().multiValue();
         final boolean emitSharedColumn = emitTerms || (emitDvs && columnar == false);
         final BytesRef nullValueBytes = fieldType().nullUtf8Value;
 
@@ -1898,8 +1966,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             final EscfColumnBuilder payloadDvs = emitDvs && columnar ? pending.add(mergeStringColumn()) : null;
             final StringBinaryPayload.Builder payload = payloadDvs != null ? new StringBinaryPayload.Builder() : null;
             final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn()) : null;
+            // multi_value=true fallback needs a counts sidecar matching SeparateCount format.
+            final EscfColumnBuilder fallbackCounts = emitFallback && multiValue ? pending.add(mergeLongColumn()) : null;
 
             int currentDoc = -1;
+            boolean valueSeenThisDoc = false;
+            boolean ignoredThisDoc = false;
+            int elementsThisDoc = 0;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
@@ -1907,6 +1980,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 if (nextDoc != currentDoc) {
                     currentDoc = nextDoc;
+                    valueSeenThisDoc = false;
+                    ignoredThisDoc = false;
+                    elementsThisDoc = 0;
                 }
                 BytesRef binaryValue = cursor.value();
                 if (binaryValue == null) {
@@ -1917,17 +1993,42 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
 
+                if (valueSeenThisDoc && multiValue == false) {
+                    // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
+                    // which raises the correct per-doc error (on_failure=FAIL).
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                    );
+                }
+                valueSeenThisDoc = true;
+
                 if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
+                    if (ignoredThisDoc) {
+                        // More than one ignore_above-exceeded value in this document: bail so ShardBatchMapper
+                        // falls back to the row path, which raises the per-doc error (on_failure=FAIL).
+                        throw new UnsupportedOperationException(
+                            "mapColumnBatch: field ["
+                                + fullPath()
+                                + "] has more than one ignore_above-exceeded value for doc ["
+                                + currentDoc
+                                + "]"
+                        );
+                    }
+                    ignoredThisDoc = true;
+                    // Emit _ignored once per document: DeduplicatingStringColumnAccumulator asserts uniqueness.
                     ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
                     // Deoptimize: we were planning to zero-copy the source column, but now we must
                     // exclude this doc's value from the output. Lazily create the builder and backfill
-                    // all accepted values from before this doc, then continue building per-value.
+                    // all accepted values from before this doc (plus already-accepted elements of this doc).
                     if (values == null && emitSharedColumn) {
                         values = pending.add(mergeStringColumn());
-                        EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc);
+                        EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc, elementsThisDoc);
                     }
                     if (fallback != null) {
                         fallback.setString(currentDoc, binaryValue);
+                        if (fallbackCounts != null) {
+                            fallbackCounts.setLong(currentDoc, 1L);
+                        }
                     }
                     continue;
                 }
@@ -1935,6 +2036,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     throw largeTermException(binaryValue);
                 }
 
+                elementsThisDoc++;
                 valuesProduced = true;
                 if (values != null) {
                     values.setString(currentDoc, binaryValue);
@@ -1948,10 +2050,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             }
 
-            // Emit one term column (frozen fieldType, DocValuesType=NONE for HIGH cardinality) and one
-            // plain binary DV column (BinaryDocValuesField.TYPE, omitNorms=false) — no .counts sidecar.
-            // Both are the value's own bytes, so they share one finished EscfColumnData: one serialization,
-            // two field-type wrappers. A columnar field's doc values are framed and so cannot join them.
+            // For SORTED_SET the frozen fieldType already carries terms + stored + DocValuesType.SORTED_SET +
+            // skip-index type, so one LuceneBinaryColumn carries all features. Emitting a second column with
+            // BinaryDocValuesField.TYPE would trip Lucene's ColumnValidation#featureMask overlap check.
+            // For binary doc values the terms and dv columns may share one serialization (emitSharedColumn).
             if (valuesProduced) {
                 if (emitSharedColumn) {
                     final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
@@ -1960,10 +2062,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                         // which releases them itself. Registered once because two columns share the data.
                         ctx.addResource(data);
                     }
-                    if (emitTerms) {
+                    if (emitTerms || sortedSetDvs) {
                         ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
                     }
-                    if (emitDvs && columnar == false) {
+                    if (emitDvs && columnar == false && sortedSetDvs == false) {
                         ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
                     }
                 }
@@ -1973,14 +2075,20 @@ public final class KeywordFieldMapper extends FieldMapper {
                     addOwnedBinaryColumn(ctx, payloadDvs, docCount, fieldType().name(), CustomDocValuesField.TYPE);
                 }
             }
-            // Synthetic-source fallback for ignore_above values: single BinaryDocValuesField (no counts),
-            // mirroring the row-path's addBinaryFieldLegacyEncodingAware isSingleValued() branch.
+            // Synthetic-source fallback for ignore_above values. For multi_value=false the row path writes a
+            // single BinaryDocValuesField (no counts). For multi_value=true the row path uses SeparateCount
+            // framing, so we emit a CustomDocValuesField blob plus a LuceneLongColumn.counts sidecar.
             if (fallback != null && fallback.isEmpty() == false) {
-                final EscfColumnData fallbackData = fallback.finish(docCount);
-                ctx.addColumn(
-                    LuceneBinaryColumn.of(fallbackData, fieldType().syntheticSourceFallbackFieldName(), BinaryDocValuesField.TYPE),
-                    fallbackData
-                );
+                final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
+                if (multiValue) {
+                    addOwnedBinaryColumn(ctx, fallback, docCount, fallbackFieldName, CustomDocValuesField.TYPE);
+                    assert fallbackCounts != null && fallbackCounts.isEmpty() == false;
+                    final EscfColumnData fallbackCountData = fallbackCounts.finish(docCount);
+                    ctx.addColumn(LuceneLongColumn.counts(fallbackCountData, fallbackFieldName), fallbackCountData);
+                } else {
+                    final EscfColumnData fallbackData = fallback.finish(docCount);
+                    ctx.addColumn(LuceneBinaryColumn.of(fallbackData, fallbackFieldName, BinaryDocValuesField.TYPE), fallbackData);
+                }
             }
         }
     }
@@ -2118,11 +2226,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             switch (fieldType().diskFormat()) {
                 case BINARY_COLUMNAR_PAYLOAD -> {
                     // The ColumNAR codec splits a document's values apart, so the count has to travel in the blob;
-                    // see ColumnarBinaryDocValuesField. A field that keeps array order collects unsorted for the same
-                    // reason the in-order path does; one that does not still collects the way it always did.
-                    final MultiValuedBinaryDocValuesField.ValueOrdering ordering = fieldType().preservesArrayOrder()
-                        ? MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
-                        : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE;
+                    // see ColumnarBinaryDocValuesField. The slots are collected in the order they arrive because that
+                    // is how this format is read back, whatever the field asked for; see SortableBinaryDocValues.
+                    final MultiValuedBinaryDocValuesField.ValueOrdering ordering = MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED;
                     if (context.isPartOfArray() == false) {
                         ColumnarBinaryDocValuesField.recordSingleValue(context.doc(), fieldType().name(), binaryValue, ordering);
                     } else {

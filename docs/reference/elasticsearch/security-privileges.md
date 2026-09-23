@@ -299,17 +299,16 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
     ::::
 
     :::{important}
-    Starting from 8.0, this privilege no longer grants the permission to update index mappings.
-    In earlier versions, it implicitly permitted index mapping updates (excluding data stream mappings) via the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or through [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md).
-    Mapping update capabilities will be fully removed in a future major release.
+    Don't use this privilege to update index mappings.
+    That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
+    Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
     :::
-
 
 `create_doc`
 :   Privilege to index documents. It does not grant the permission to update or overwrite existing documents.
 
     ::::{note}
-    This privilege relies on the `op_type` of indexing requests ([Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-create) and [Bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk)). When ingesting documents as a user who has the `create_doc` privilege (and no higher privilege such as `index` or `write`), you must ensure that *op_type* is set to *create* through one of the following:
+    This privilege relies on the `op_type` of indexing requests ([Index]({{es-apis}}operation/operation-create) and [Bulk]({{es-apis}}operation/operation-bulk)). When ingesting documents as a user who has the `create_doc` privilege (and no higher privilege such as `index` or `write`), you must ensure that *op_type* is set to *create* through one of the following:
 
     * Explicitly setting the `op_type` in the index or bulk APIs
     * Using the `_create` endpoint for the index API
@@ -318,11 +317,10 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
     ::::
 
     :::{important}
-    Starting from 8.0, this privilege no longer grants the permission to update index mappings.
-    In earlier versions, it implicitly permitted index mapping updates (excluding data stream mappings) via the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or through [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md).
-    Mapping update capabilities will be fully removed in a future major release.
+    Don't use this privilege to update index mappings.
+    That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
+    Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
     :::
-
 
 `create_index`
 :   Privilege to create an index or data stream. A create index request may contain aliases to be added to the index once created. In that case the request requires the `manage` privilege as well, on both the index and the aliases names.
@@ -341,7 +339,6 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
     This privilege must *not* be directly granted. It is used internally by [Create Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and [Update Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-update-cross-cluster-api-key) to manage cross-cluster API keys.
     ::::
 
-
 `delete`
 :   Privilege to delete documents.
 
@@ -355,9 +352,9 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 :   Privilege to index and update documents.
 
     :::{important}
-    Starting from 8.0, this privilege no longer grants the permission to update index mappings.
-    In earlier versions, it implicitly permitted index mapping updates (excluding data stream mappings) via the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or through [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md).
-    Mapping update capabilities will be fully removed in a future major release.
+    Don't use this privilege to update index mappings.
+    That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
+    Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
     :::
 
 `maintenance`
@@ -375,14 +372,11 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `manage_follow_index` {applies_to}`serverless: unavailable`
 :   All actions that are required to manage the lifecycle of a follower index, which includes creating a follower index, closing it, and converting it to a regular index. This privilege is necessary only on clusters that contain follower indices.
 
-
 `manage_ilm` {applies_to}`serverless: unavailable`
 :   All {{Ilm}} operations relating to managing the execution of policies of an index or data stream. This includes operations such as retrying policies and removing a policy from an index or data stream.
 
-
 `manage_leader_index` {applies_to}`serverless: unavailable`
 :   All actions that are required to manage the lifecycle of a leader index, which includes [forgetting a follower](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-forget-follower). This privilege is necessary only on clusters that contain leader indices.
-
 
 `manage_view` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 :   Privilege to create, update, retrieve, and delete [{{esql}} view](/reference/query-languages/esql/esql-views.md) definitions, granted on the view name. It does not grant the privilege to query a view with `FROM`, nor any access to the indices that a view definition references. Refer to [view privileges](/reference/query-languages/esql/esql-views.md#esql-views-privileges).
@@ -409,9 +403,9 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 :   Privilege to perform all write operations to documents, which includes the permission to index, update, and delete documents as well as performing bulk operations, while also allowing to dynamically update the index mapping.
 
     :::{important}
-    Starting from 8.0, this privilege no longer grants the permission to update index mappings.
-    In earlier versions, it implicitly permitted index mapping updates (excluding data stream mappings) via the [updating mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) or through [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md).
-    Mapping update capabilities will be fully removed in a future major release.
+    Don't use this privilege to update index mappings with the {ref}/indices-put-mapping.html[updating mapping API].
+    That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
+    Grant the `manage` privilege for explicit mapping updates.
     :::
 
 ## Run as privilege [_run_as_privilege]

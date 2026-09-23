@@ -15,9 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.OptionalInt;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class TestUUIDSourceTests extends ESTestCase {
 
@@ -35,19 +32,6 @@ public class TestUUIDSourceTests extends ESTestCase {
             throw exception;
         }));
         assertSame("withUUIDSource should propagate the exception thrown by the body", exception, thrown);
-        assertDefaultActive();
-    }
-
-    public void testWithUUIDSourceRejectsSecondScope() {
-        final var outer = randomStub();
-        final var inner = randomStub();
-        final var innerBodyRan = new AtomicBoolean();
-        TestUUIDSource.withUUIDSource(outer, () -> {
-            final var error = expectThrows(AssertionError.class, () -> TestUUIDSource.withUUIDSource(inner, () -> innerBodyRan.set(true)));
-            assertThat("rejection should name the active source", error.getMessage(), containsString(outer.toString()));
-            assertFalse("rejected scope should skip its body", innerBodyRan.get());
-            assertStubActive(outer);
-        });
         assertDefaultActive();
     }
 

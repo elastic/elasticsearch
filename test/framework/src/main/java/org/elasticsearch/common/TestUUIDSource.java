@@ -12,7 +12,6 @@ package org.elasticsearch.common;
 import org.elasticsearch.core.CheckedRunnable;
 
 import java.util.OptionalInt;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Placeholder for a seeded {@link UUIDSource} in tests. Currently delegates to the time-based generators and proves that
@@ -20,37 +19,33 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class TestUUIDSource implements UUIDSource {
 
-    private static final UUIDSource DEFAULT = new TimeBasedUUIDSource(
+    private static volatile UUIDSource delegate = new TimeBasedUUIDSource(
         UUIDs.DEFAULT_TIMESTAMP_SUPPLIER,
         UUIDs.DEFAULT_SEQUENCE_ID_SUPPLIER,
         UUIDs.DEFAULT_MAC_ADDRESS_SUPPLIER
     );
 
-    private static final AtomicReference<UUIDSource> delegate = new AtomicReference<>(DEFAULT);
-
     /**
-     * Routes {@link UUIDs#base64UUID()} and {@link UUIDs#base64TimeBasedKOrderedUUIDWithHash} across the JVM, including
-     * internal cluster nodes, to {@code source} while {@code body} runs, then restores the time-based generators. Allows a
-     * single active scope per JVM and throws {@link AssertionError} on a second one, nested or concurrent.
+     * For self-testing only. Thread-unsafe, trappy, static override.
+     * It exists to test SPI class loading.
      */
-    public static <E extends Exception> void withUUIDSource(UUIDSource source, CheckedRunnable<E> body) throws E {
-        if (delegate.compareAndSet(DEFAULT, source) == false) {
-            throw new AssertionError("another withUUIDSource scope is active with [" + delegate.get() + "]");
-        }
+    static <E extends Exception> void withUUIDSource(UUIDSource source, CheckedRunnable<E> body) throws E {
+        final var previous = delegate;
+        delegate = source;
         try {
             body.run();
         } finally {
-            delegate.set(DEFAULT);
+            delegate = previous;
         }
     }
 
     @Override
     public String base64UUID() {
-        return delegate.get().base64UUID();
+        return delegate.base64UUID();
     }
 
     @Override
     public String base64TimeBasedKOrderedUUIDWithHash(OptionalInt hash) {
-        return delegate.get().base64TimeBasedKOrderedUUIDWithHash(hash);
+        return delegate.base64TimeBasedKOrderedUUIDWithHash(hash);
     }
 }

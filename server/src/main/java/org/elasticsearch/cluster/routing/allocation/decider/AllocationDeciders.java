@@ -138,7 +138,7 @@ public class AllocationDeciders {
     }
 
     /**
-     * Common canRemain logic, reused by callers that are interested in the decider label and those that are not
+     * Common canRemain logic, reused by callers that are interested in the decider name and those that are not
      */
     private Decision canRemain(
         ShardRouting shardRouting,

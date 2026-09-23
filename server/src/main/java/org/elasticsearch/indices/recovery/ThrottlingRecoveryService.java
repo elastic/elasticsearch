@@ -659,11 +659,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         /// Computes the effective max concurrent recoveries, derived from [#maxConcurrentRecoveries] and
         /// [#maxConcurrentRecoveriesPerHeapGb].
         private int effectiveMaxConcurrentRecoveries() {
-            if (maxConcurrentRecoveriesPerHeapGb == Double.MAX_VALUE) {
+            final double heapInGb = maxHeap.getGbFrac();
+            assert heapInGb >= 0;
+            if (heapInGb == 0) { // Heap size is unknown (JvmInfo may report 0)
                 return maxConcurrentRecoveries;
             }
-            final double heapInGb = maxHeap.getGbFrac();
-            assert heapInGb > 0;
             return Math.min(maxConcurrentRecoveries, (int) Math.ceil(heapInGb * maxConcurrentRecoveriesPerHeapGb));
         }
 

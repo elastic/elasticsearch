@@ -542,6 +542,49 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         );
     }
 
+    public void testHeapBasedLimitFallsBackToStaticLimitWhenHeapUnknown() {
+        // JvmInfo.getHeapMax() may return 0 when heap size is unknown, in which case we should fall back to the static limit.
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 10.0)
+                .build()
+        );
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            ByteSizeValue.ZERO
+        );
+        service.start();
+        final var started = new AtomicInteger();
+
+        for (int i = 0; i < 4; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                listener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        taskQueue.getCurrentTimeMillis() + 100,
+                        () -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("heap size is unknown (0), should fall back to static limit of 2", started.get(), equalTo(2));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(4));
+        service.close();
+    }
+
     public void testHeapBasedLimitThrottlesRecoveries() {
         final var taskQueue = new DeterministicTaskQueue();
         // 2 GB heap, ratio 1.5 -> ceil(2 * 1.5) = 3 concurrent recoveries
@@ -630,6 +673,118 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat("max_concurrent_incoming_recoveries=3 should only allow 3 recoveries", started.get(), equalTo(3));
         taskQueue.runAllTasks();
         assertThat(started.get(), equalTo(6));
+        service.close();
+    }
+
+    public void testHeapBasedLimitIncreaseCappedByStaticLimit() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // heap-based limit applies (static=5, heap-based = ceil(2 * 0.5) = 1 -> effective = 1)
+        final var heapBytes = ByteSizeValue.ofGb(2);
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 5)
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.5)
+                .build()
+        );
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            heapBytes
+        );
+        service.start();
+        final var started = new AtomicInteger();
+
+        for (int i = 0; i < 10; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                listener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        taskQueue.getCurrentTimeMillis() + 100,
+                        () -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("heap-based limit allows 1 slot", started.get(), equalTo(1));
+
+        // heap ratio increases so heap-based (6) exceeds static (5) -> static takes over with a limit of 5
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder()
+                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 3.0)
+                    .build()
+            );
+        taskQueue.runAllRunnableTasks();
+        assertThat("static limit allows 5 slots", started.get(), equalTo(5));
+
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(10));
+        service.close();
+    }
+
+    public void testHeapBasedLimitWithRelocationProportion() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // 2 GB heap, ratio 2.0 -> effective max = ceil(2 * 2.0) = 4
+        // relocation proportion 0.5 -> relocation slots = ceil(4 * 0.5) = 2
+        final var heapBytes = ByteSizeValue.ofGb(2);
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 2.0)
+                .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), 0.5)
+                .build()
+        );
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            heapBytes
+        );
+        service.start();
+        final var started = new AtomicInteger();
+
+        for (int i = 0; i < 8; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newRelocationRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                listener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        taskQueue.getCurrentTimeMillis() + 100,
+                        () -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("heap-based effective max=4, reloc proportion 0.5 -> ceil(4*0.5)=2 relocation slots", started.get(), equalTo(2));
+
+        // Increase heap ratio: effective max = ceil(2 * 4.0) = 8
+        // relocation slots = ceil(8 * 0.5) = 4
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder()
+                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 4.0)
+                    .build()
+            );
+        taskQueue.runAllRunnableTasks();
+        assertThat("heap-based effective max=8, reloc proportion 0.5 -> ceil(8*0.5)=4 relocation slots", started.get(), equalTo(4));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(8));
         service.close();
     }
 

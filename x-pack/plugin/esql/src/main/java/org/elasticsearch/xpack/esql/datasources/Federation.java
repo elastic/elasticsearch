@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.Setting;
@@ -100,7 +101,7 @@ public final class Federation {
      */
     public static final Setting<Boolean> FEDERATION_ENABLED = Setting.boolSetting(
         "esql.federation.enabled",
-        Build.current().isSnapshot(),
+        defaultEnabled(Constants.WINDOWS, Build.current().isSnapshot()),
         Setting.Property.NodeScope
     );
 
@@ -155,12 +156,33 @@ public final class Federation {
     }
 
     /**
+     * The default for {@link #FEDERATION_ENABLED}: the build's own default, except on Windows, where external data
+     * sources are off unless a deployment asks for them. A Windows release build cannot be asked — see
+     * {@link #enabled}.
+     */
+    static boolean defaultEnabled(boolean windows, boolean snapshot) {
+        return windows == false && snapshot;
+    }
+
+    /**
+     * The effective value of {@link #FEDERATION_ENABLED}, which is the configured one except on a Windows release
+     * build. External data sources are not shipped for that platform, so the setting cannot turn them on there: the
+     * request is reported at startup by {@link #logEffectiveState} and ignored rather than refused, so a deployment
+     * that enables federation everywhere still starts here.
+     *
+     * <p>Windows snapshot builds are unaffected, which is what keeps the feature's own tests running there.
+     */
+    static boolean enabled(boolean configured, boolean windows, boolean snapshot) {
+        return configured && (windows == false || snapshot);
+    }
+
+    /**
      * Whether the federation feature is available on this node, which requires both that it is registered
      * and that {@link #FEDERATION_ENABLED} is on. Takes the node settings rather than caching an
      * effective value, because settings are per-node state and several nodes share one JVM in tests.
      */
     public static boolean isAvailable(Settings settings) {
-        return REGISTERED && FEDERATION_ENABLED.get(settings);
+        return REGISTERED && enabled(FEDERATION_ENABLED.get(settings), Constants.WINDOWS, Build.current().isSnapshot());
     }
 
     /** No-op when federation is available on this node; throws {@link #notAvailableException()} otherwise. */
@@ -183,10 +205,21 @@ public final class Federation {
      * setting at all, so there is no combination to warn about.
      */
     public static void logEffectiveState(Settings settings) {
-        logEffectiveState(REGISTERED, FEDERATION_ENABLED.get(settings));
+        logEffectiveState(REGISTERED, FEDERATION_ENABLED.get(settings), Constants.WINDOWS, Build.current().isSnapshot());
     }
 
-    static void logEffectiveState(boolean registered, boolean enabled) {
+    static void logEffectiveState(boolean registered, boolean configured, boolean windows, boolean snapshot) {
+        if (configured && enabled(configured, windows, snapshot) == false) {
+            // Asked for on a platform that cannot serve it. Reported rather than silently dropped: this is the one
+            // case where the node deliberately does something other than what it was configured to do.
+            logger.error(
+                "[{}] is set to [true], but ES|QL federation (external data sources) is not supported on Windows; "
+                    + "ignoring it and leaving the feature off",
+                FEDERATION_ENABLED.getKey()
+            );
+            return;
+        }
+        boolean enabled = enabled(configured, windows, snapshot);
         if (registered == false) {
             logger.info("ES|QL federation (external data sources) is not registered ([{}]=[false])", REGISTER_PROPERTY);
         } else if (enabled) {

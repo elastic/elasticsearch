@@ -25,13 +25,17 @@ import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Encodes XContentType documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
@@ -131,6 +135,29 @@ public final class EscfEncoder implements SourceBatchEncoder {
             flattenObject(parser, parser.nextToken());
         }
         return backend.finishRow();
+    }
+
+    /**
+     * Parses a pre-decoded map document into the batch and finalizes the row. The SIMD path is not
+     * applicable here; the map is walked directly via {@link MapXContentParser}.
+     *
+     * <p>Because map keys are inherently unique, duplicate-key handling is not needed and
+     * {@link MapXContentParser#allowDuplicateKeys} is not called.
+     */
+    public void parseToScratch(Map<String, Object> source) throws IOException {
+        backend.beginRow();
+        try (
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                source,
+                XContentType.JSON
+            )
+        ) {
+            parser.nextToken(); // START_OBJECT
+            flattenObject(parser, parser.nextToken());
+        }
+        backend.finishRow();
     }
 
     /**

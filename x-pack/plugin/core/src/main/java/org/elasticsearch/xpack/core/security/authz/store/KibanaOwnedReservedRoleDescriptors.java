@@ -769,8 +769,13 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Context Engine's SML storage. A regular (non-system) index that Kibana
                 // creates and manages itself at startup, including its alias.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".ai-index-idx-sml-data", ".ai-index-idx-sml-data-*")
+                    .indices(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-*")
                     .privileges("all")
+                    .build(),
+                // Context Engine AI index views. Kibana creates and deletes them with the AI index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.CONTEXT_ENGINE_AI_INDEX_VIEWS)
+                    .privileges("create_view", "delete_view")
                     .build(),
                 // Context Engine feedback-loop signals. Per-space, regular (non-system)
                 // user indices that Kibana creates and manages via the storage adapter

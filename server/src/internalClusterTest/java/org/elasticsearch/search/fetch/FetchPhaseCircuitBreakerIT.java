@@ -30,6 +30,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -69,7 +70,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(ScriptFieldsTestPlugin.class);
+        return List.of(ScriptFieldsTestPlugin.class, FieldBasedRerankerIT.FieldBasedRerankerPlugin.class);
     }
 
     public static class ScriptFieldsTestPlugin extends MockScriptPlugin {
@@ -538,6 +539,54 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                 lessThanOrEqualTo(breakerBeforeSearch)
             );
         });
+    }
+
+    public void testRankFeaturePhaseReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String rankIndex = "rank_feature_test_idx";
+        String rankFeatureField = "rank_feature_field";
+        assertAcked(
+            prepareCreate(rankIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping(rankFeatureField, "type=text,store=false")
+        );
+
+        int numDocs = 5;
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(prepareIndex(rankIndex).setId(Integer.toString(i)).setSource(rankFeatureField, "0." + (i + 1)));
+        }
+        indexRandom(true, builders);
+        ensureSearchable(rankIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        // The rank feature phase reuses the fetch phase but never requests _source, so a script_field is
+        // the only way to charge the request breaker on this path.
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, LARGE_LIST_SCRIPT, Collections.emptyMap());
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(rankIndex)
+                .setQuery(matchAllQuery())
+                .setRankBuilder(new FieldBasedRerankerIT.FieldBasedRankBuilder(numDocs, rankFeatureField))
+                .addScriptField("expanded", largeScript)
+                .setSize(numDocs),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(numDocs));
+                assertThat(response.getHits().getHits()[0].getFields().get("expanded"), notNullValue());
+            }
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after the rank feature phase completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
     }
 
     private String startDataNode(String cbRequestLimit) {

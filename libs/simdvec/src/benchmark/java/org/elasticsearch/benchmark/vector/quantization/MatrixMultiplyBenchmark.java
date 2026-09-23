@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.quantization;
 
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.benchmark.vector.VectorizationInfo;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
@@ -26,7 +27,9 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -40,27 +43,29 @@ public class MatrixMultiplyBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     @Param({ "SCALAR", "PANAMA" })
     VectorImplementation implementation;
 
-    @Param({ "192", "768" })
+    // ASH defaults are 10240 x 1024 x 512
+    // also use an odd number to exercise the tails
+    @Param({ "192", "481", "768", "10240" })
     int m;
 
-    @Param({ "192", "768" })
+    @Param({ "192", "481", "768", "1024" })
     int k;
 
-    @Param({ "96", "384" })
+    @Param({ "96", "241", "384", "512" })
     int n;
 
     private ESVectorUtilSupport impl;
-    /** A is (m x k), shared by both benchmarks. */
+    /** A is (m x k). */
     private float[] a;
     /** B for matrixMultiply: (k x n). */
     private float[] bMul;
-    /** B for matrixMultiplyTA: (m x n). */
-    private float[] bTA;
+    private float[] result;
 
     @Setup(Level.Trial)
     public void init() {
@@ -72,18 +77,18 @@ public class MatrixMultiplyBenchmark {
         Random random = new Random();
         a = VectorTestUtils.randomFloatVector(random, m * k);
         bMul = VectorTestUtils.randomFloatVector(random, k * n);
-        bTA = VectorTestUtils.randomFloatVector(random, m * n);
+        result = new float[m * n];
+    }
+
+    @Setup(Level.Iteration)
+    public void reset() {
+        Arrays.fill(result, 0);
     }
 
     /** C = A @ B, A is (m x k), B is (k x n), C is (m x n). */
     @Benchmark
-    public float[] matrixMultiply() {
-        return impl.matrixMultiply(a, bMul, m, k, n);
-    }
-
-    /** C = A^T @ B, A is (m x k), B is (m x n), C is (k x n). */
-    @Benchmark
-    public float[] matrixMultiplyTA() {
-        return impl.matrixMultiplyTA(a, bTA, m, k, n);
+    public void matrixMultiply(Blackhole bh) {
+        impl.matrixMultiply(a, bMul, m, k, n, result);
+        bh.consume(result);
     }
 }

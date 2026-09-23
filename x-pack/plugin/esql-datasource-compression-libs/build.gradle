@@ -27,11 +27,11 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
   // Panama FFI binding to libzstd, used by PanamaZstd to replace per-page zstd-jni JNI calls on
-  // the direct-buffer hot path. Provided at runtime by server's :libs:native; declared compileOnly
-  // so we can import the public API (NativeAccess, Zstd) without bundling the jar twice. The
-  // narrow visibility comes from libs/native qualifying its `org.elasticsearch.nativeaccess`
-  // export to this plugin's named module — see this project's `module-info.java`.
-  compileOnly project(':libs:native')
+  // the direct-buffer hot path. Provided at runtime by server's :libs:zstd; declared compileOnly
+  // so we can import the public API (Zstd) without bundling the jar twice. The narrow visibility
+  // comes from libs/zstd qualifying its `org.elasticsearch.zstd` export to this plugin's named
+  // module — see this project's `module-info.java`.
+  compileOnly project(':libs:zstd')
 
   // Shared compression libraries — loaded once, used by all child plugins via extendedPlugins
   implementation "io.airlift:aircompressor:${versions.aircompressor}"
@@ -48,6 +48,7 @@ dependencies {
   // ZstdOutputStream as a safety net while the migration is still recent.
 
   testImplementation project(':test:framework')
+  testImplementation project(':libs:zstd')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
 }

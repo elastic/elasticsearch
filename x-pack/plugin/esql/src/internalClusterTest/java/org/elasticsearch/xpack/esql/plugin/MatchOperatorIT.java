@@ -344,6 +344,24 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testRuntimeMatchOperatorAfterLimit() {
+        var query = """
+            FROM test
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE summary : "fox"
+            | KEEP id
+            """;
+
+        // The LIMIT keeps ids 1-3, of which only 1 mentions a fox; id 6 does too but is cut.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
     public void testMatchOperatorAfterMvExpand() {
         var query = """
             FROM test

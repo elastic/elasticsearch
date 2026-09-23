@@ -2382,6 +2382,253 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * An invalid bare token (not a JSON object; one whose tokenizer advances past the line terminator without
+     * bumping Jackson's line counter) must drop only itself, not the following record. Exercises the streaming
+     * path, which uses {@link NdJsonUtils#moveToNextLine} with the {@link NdJsonUtils.LineTerminatorTrackingStream}
+     * guard added for elastic/esql-planning#1704.
+     * <p>
+     * Tokens covered: every identifier-like token whose rejection path in Jackson consumes the newline as the
+     * first non-{@link Character#isJavaIdentifierPart} byte, plus the lone {@code -} case that goes through
+     * {@code _parseNegNumber}. Valid bare numbers ({@code 42}) are already covered by
+     * {@link #testBareNumberDropsSelf}.
+     */
+    public void testInvalidBareTokenDropsSelf() throws IOException {
+        // https://github.com/elastic/esql-planning/issues/1704
+        for (String badToken : List.of("not_json", "nul", "tru", "falsey", "n", "nan", "Infinityx", "-")) {
+            for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                String ndjson = "{\"v\":1}\n" + badToken + "\n{\"v\":2}\n{\"v\":3}\n";
+                NdJsonReaderCounters counters = new NdJsonReaderCounters();
+                try (
+                    NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                        new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                        null,
+                        List.of(attribute("v", DataType.LONG)),
+                        null,
+                        10,
+                        blockFactory,
+                        policy,
+                        "test://invalid-bare-token-streaming",
+                        counters
+                    );
+                    Page page = decoder.decodePage()
+                ) {
+                    assertNotNull(policy.modeName() + " bare " + badToken + ": page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(
+                        policy.modeName() + " bare " + badToken + ": drops only itself — three records survive",
+                        3,
+                        block.getPositionCount()
+                    );
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+                assertEquals(policy.modeName() + " bare " + badToken + ": charged exactly once", 1L, counters.snapshot().parseErrors());
+            }
+        }
+    }
+
+    /**
+     * Same as {@link #testInvalidBareTokenDropsSelf} but exercises the byte-array path, which recovers through
+     * {@link NdJsonPageDecoder#nextLineStartByteAfter} (already anchored to the token location) rather than
+     * {@link NdJsonUtils#moveToNextLine}.
+     */
+    public void testInvalidBareTokenDropsSelfByteArray() throws IOException {
+        // https://github.com/elastic/esql-planning/issues/1704
+        for (String badToken : List.of("not_json", "nul", "tru", "falsey", "n", "nan", "Infinityx", "-")) {
+            for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                String ndjson = "{\"v\":1}\n" + badToken + "\n{\"v\":2}\n{\"v\":3}\n";
+                byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+                NdJsonReaderCounters counters = new NdJsonReaderCounters();
+                try (
+                    NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                        bytes,
+                        0,
+                        bytes.length,
+                        null,
+                        List.of(attribute("v", DataType.LONG)),
+                        null,
+                        10,
+                        blockFactory,
+                        policy,
+                        "test://invalid-bare-token-bytes",
+                        counters
+                    );
+                    Page page = decoder.decodePage()
+                ) {
+                    assertNotNull(policy.modeName() + " bare " + badToken + " byte-array: page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(
+                        policy.modeName() + " bare " + badToken + " byte-array: drops only itself — three records survive",
+                        3,
+                        block.getPositionCount()
+                    );
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+                assertEquals(
+                    policy.modeName() + " bare " + badToken + " byte-array: charged exactly once",
+                    1L,
+                    counters.snapshot().parseErrors()
+                );
+            }
+        }
+    }
+
+    /**
+     * Two consecutive invalid bare tokens between valid records. Each recovery creates a fresh
+     * {@link NdJsonUtils.LineTerminatorTrackingStream}, so the ring must not carry stale state
+     * from the first recovery into the second. Pins the "consecutive bad lines" invariant noted
+     * in the spec.
+     */
+    public void testConsecutiveInvalidBareTokensDropThemselves() throws IOException {
+        // https://github.com/elastic/esql-planning/issues/1704
+        String ndjson = "{\"v\":1}\nnot_json\nnul\n{\"v\":2}\n";
+        for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://consecutive-invalid-bare-tokens",
+                    counters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + ": page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + ": both bad lines drop, both good records survive", 2, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(2L, block.getLong(1));
+            }
+            assertEquals(policy.modeName() + ": two bad lines, two charges", 2L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * CR and CRLF line-ending variants of {@link #testInvalidBareTokenDropsSelf} and
+     * {@link #testInvalidBareTokenDropsSelfByteArray}, mirroring
+     * {@link #testBareNumberWithCrAndCrlfLineEndings}.
+     */
+    public void testInvalidBareTokenWithCrAndCrlfLineEndings() throws IOException {
+        // https://github.com/elastic/esql-planning/issues/1704
+        for (String eol : List.of("\r", "\r\n")) {
+            String tag = eol.equals("\r") ? "CR" : "CRLF";
+            for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                String ndjson = "{\"v\":1}" + eol + "not_json" + eol + "{\"v\":2}" + eol + "{\"v\":3}" + eol;
+                byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+
+                // Streaming path
+                NdJsonReaderCounters streamCounters = new NdJsonReaderCounters();
+                try (
+                    NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                        new ByteArrayInputStream(bytes),
+                        null,
+                        List.of(attribute("v", DataType.LONG)),
+                        null,
+                        10,
+                        blockFactory,
+                        policy,
+                        "test://invalid-bare-token-" + tag.toLowerCase(Locale.ROOT) + "-streaming",
+                        streamCounters
+                    );
+                    Page page = decoder.decodePage()
+                ) {
+                    assertNotNull(policy.modeName() + " " + tag + " streaming: page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(
+                        policy.modeName() + " " + tag + " streaming: bare not_json drops only itself",
+                        3,
+                        block.getPositionCount()
+                    );
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+                assertEquals(
+                    policy.modeName() + " " + tag + " streaming: charged exactly once",
+                    1L,
+                    streamCounters.snapshot().parseErrors()
+                );
+
+                // Byte-array path
+                NdJsonReaderCounters bytesCounters = new NdJsonReaderCounters();
+                try (
+                    NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                        bytes,
+                        0,
+                        bytes.length,
+                        null,
+                        List.of(attribute("v", DataType.LONG)),
+                        null,
+                        10,
+                        blockFactory,
+                        policy,
+                        "test://invalid-bare-token-" + tag.toLowerCase(Locale.ROOT) + "-bytes",
+                        bytesCounters
+                    );
+                    Page page = decoder.decodePage()
+                ) {
+                    assertNotNull(policy.modeName() + " " + tag + " byte-array: page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(
+                        policy.modeName() + " " + tag + " byte-array: bare not_json drops only itself",
+                        3,
+                        block.getPositionCount()
+                    );
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+                assertEquals(
+                    policy.modeName() + " " + tag + " byte-array: charged exactly once",
+                    1L,
+                    bytesCounters.snapshot().parseErrors()
+                );
+            }
+        }
+    }
+
+    /**
+     * An invalid bare token at EOF (no trailing newline) must drop only itself and leave the last committed
+     * record intact. The forward scan in {@link NdJsonUtils#moveToNextLine} runs (the last consumed byte is
+     * not a terminator), hits EOF, and exits cleanly.
+     */
+    public void testInvalidBareTokenAtEofDropsSelf() throws IOException {
+        // https://github.com/elastic/esql-planning/issues/1704
+        String ndjson = "{\"v\":1}\nnot_json"; // no trailing \n
+        for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://invalid-bare-token-eof",
+                    counters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + ": page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + ": the one committed record survives", 1, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+            }
+            assertEquals(policy.modeName() + ": bad token charged exactly once", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
      * Shared body for the non-strict cases: one good line, the offending line, one good line. The offending
      * line is dropped, both good lines decode, and the client sees SkipWarnings' summary plus a detail
      * carrying Jackson's own limit text (the same passthrough {@code CsvFormatReader} does for its own

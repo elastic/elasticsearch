@@ -39,8 +39,8 @@ public class TsidBuilderTests extends ESTestCase {
     }
 
     /**
-     * A builder reused via {@link TsidBuilder#reset()} — as {@code DimensionsExtractor} does on the
-     * batch path — must produce exactly what a fresh builder would, since state carried across builds
+     * A builder reused via {@link TsidBuilder#reset()} on the batch path must produce exactly what a
+     * fresh builder would, since state carried across builds
      * (the hasher, and the multi-byte layout's value-similarity staging buffer) outlives a single
      * build. The second shape is array-valued, so its dimension count exceeds the number of
      * value-similarity bytes it emits and the backing array is deliberately larger than the returned

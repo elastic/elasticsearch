@@ -16,7 +16,7 @@ apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
 apply plugin: 'elasticsearch.native-library-build'
-apply plugin: 'elasticsearch.jmh'
+apply plugin: 'elasticsearch.benchmark'
 
 dependencies {
   implementation project(':libs:lucene-store')
@@ -37,7 +37,7 @@ dependencies {
 
   // JMH benchmark source set. jmh-core, jopt-simple, commons-math3, :benchmarks:common,
   // :benchmarks:processor and :test:framework (the latter for benchmarkTest only) are
-  // added by elasticsearch.jmh; everything below is what this module needs on top.
+  // added by elasticsearch.benchmark; everything below is what this module needs on top.
   benchmarkImplementation testFixtures(project(':libs:simdvec'))
   benchmarkImplementation project(':server')
   // VectorTestUtils lives in :test:framework main and is used from benchmark bodies, not
@@ -91,11 +91,11 @@ tasks.named('test').configure {
 
 tasks.named('benchmark').configure {
   dependsOn ':libs:native:native-libraries:extractLibs'
-  jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'
-  // Forward the native library path to the forked JMH VMs where the benchmark bodies run,
-  // not only to the harness. Mirrors benchmarks/build.gradle's `run` task.
-  def nativeLibsPath = TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
-  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}"
+  // No `--add-modules=jdk.incubator.vector` here. Benchmarks that want the module ask for it themselves via @Fork(jvmArgsPrepend).
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+  // The benchmark bodies run in JMH's forked VMs; `es.nativelibs.path` needs to be passed as
+  // a system property so it get passed down to the fork.
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
 }
 
 tasks.named('benchmarkTest').configure {

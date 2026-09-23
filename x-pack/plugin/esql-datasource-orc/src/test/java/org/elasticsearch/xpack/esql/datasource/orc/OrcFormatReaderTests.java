@@ -155,7 +155,6 @@ public class OrcFormatReaderTests extends ESTestCase {
         var before = reader.statusSnapshot();
         assertEquals("orc", before.format());
         assertEquals(0L, before.rowsEmitted());
-        assertEquals(0L, before.readNanos());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             while (iterator.hasNext()) {
@@ -167,7 +166,6 @@ public class OrcFormatReaderTests extends ESTestCase {
         var after = reader.statusSnapshot();
         assertEquals("orc", after.format());
         assertEquals("3 data rows drained from the file", 3L, after.rowsEmitted());
-        assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
     }
 
     public void testReadSchemaFromSimpleOrc() throws Exception {

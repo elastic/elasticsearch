@@ -119,8 +119,9 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
     /**
      * Two layers, in order. The dataset aggregate is keyed by the listing's file-set fingerprint, so
      * a listing that actually changed (add or mtime touch) must miss it, re-scan, and re-warm. The
-     * listing cache sits in front of that: default inferred UNION_BY_NAME reuses the listing for the
-     * TTL, so a mutation is invisible until the listing expires. This arm asserts both — TTL-hot
+     * listing cache sits in front of that. TestValidator omit-key hydrates {@code union_by_name};
+     * the listing is still reused for the TTL, so a mutation is invisible until the listing expires.
+     * Homogeneous files: {@code COUNT(*)} folds on either rail. This arm asserts both — TTL-hot
      * listing keeps the old count, then a listing miss (TTL expiry, simulated by dropping listing
      * entries only) sees the live set. Serving a new count while the listing is still cached, or a
      * stale count after it has expired, is the failure this exists to catch.
@@ -187,6 +188,25 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
             total += writeCsvFile(dir.resolve("part-" + f + ".csv"), total);
         }
         String dataset = registerDataset("csv_manyfile", globUri(dir, "*.csv"), Map.of("target_split_size", "256mb"));
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    /**
+     * Same warm {@code COUNT(*)} fold on a {@code local} data source, so omitted
+     * {@code schema_resolution} persists as {@code first_file_wins}. Homogeneous files fold on
+     * either rail; this pins the product default path the TestValidator omit-key tests skip.
+     */
+    public void testNdjsonWarmCountShortCircuitsOnPersistedFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = 0;
+        for (int f = 0; f < 4; f++) {
+            total += writeNdjsonFile(dir.resolve("part-" + f + ".ndjson"), total);
+        }
+        String dataset = registerLocalFileDataset(
+            "ndjson_ffw_warm",
+            globUri(dir, "*.ndjson"),
+            Map.of("segment_size", "64kb", "target_split_size", "256mb")
+        );
         assertWarmCountShortCircuits(dataset, total);
     }
 

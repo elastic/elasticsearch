@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
@@ -61,6 +62,13 @@ public interface DataPoint {
      * @return a list of key-value pairs representing the attributes
      */
     List<KeyValue> getAttributes();
+
+    /**
+     * Returns the exemplars associated with the data point.
+     */
+    default List<Exemplar> getExemplars() {
+        return List.of();
+    }
 
     /**
      * Returns the unit of measurement for the data point.
@@ -123,6 +131,28 @@ public interface DataPoint {
      */
     long getDocCount();
 
+    /**
+     * Returns {@code true} when this data point can be written into an {@link org.elasticsearch.escf.EscfBatchBuilder}
+     * as a scalar long or double field (i.e. via
+     * {@link #writeColumnarValue(org.elasticsearch.escf.EscfBatchBuilder, String)}).
+     * Histogram, summary, and exponential-histogram data points return {@code false} because they write
+     * nested objects/arrays that the current columnar API does not yet support.
+     */
+    default boolean supportsColumnarValue() {
+        return false;
+    }
+
+    /**
+     * Writes the metric value as a scalar field into the given {@link org.elasticsearch.escf.EscfBatchBuilder}.
+     * Only valid when {@link #supportsColumnarValue()} returns {@code true}.
+     *
+     * @param batchBuilder the batch builder to write into
+     * @param fieldName    the field name within the enclosing {@code metrics} object
+     */
+    default void writeColumnarValue(org.elasticsearch.escf.EscfBatchBuilder batchBuilder, String fieldName) {
+        throw new UnsupportedOperationException("writeColumnarValue not supported for " + getClass().getSimpleName());
+    }
+
     record Number(NumberDataPoint dataPoint, Metric metric) implements DataPoint {
 
         @Override
@@ -133,6 +163,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override
@@ -207,6 +242,22 @@ public interface DataPoint {
             }
             return true;
         }
+
+        @Override
+        public boolean supportsColumnarValue() {
+            return dataPoint.getValueCase() != NumberDataPoint.ValueCase.VALUE_NOT_SET;
+        }
+
+        @Override
+        public void writeColumnarValue(org.elasticsearch.escf.EscfBatchBuilder batchBuilder, String fieldName) {
+            switch (dataPoint.getValueCase()) {
+                case AS_DOUBLE -> batchBuilder.doubleField(fieldName, dataPoint.getAsDouble());
+                case AS_INT -> batchBuilder.longField(fieldName, dataPoint.getAsInt());
+                case VALUE_NOT_SET -> throw new IllegalStateException(
+                    "number data point without a value should have been filtered out: " + metric.getName()
+                );
+            }
+        }
     }
 
     record ExponentialHistogram(ExponentialHistogramDataPoint dataPoint, Metric metric) implements DataPoint {
@@ -219,6 +270,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override
@@ -311,6 +367,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override

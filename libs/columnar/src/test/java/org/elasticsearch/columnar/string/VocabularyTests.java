@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -28,6 +29,55 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class VocabularyTests extends ColumnarStringTestCase {
 
     private static final DictionaryPolicy ROOMY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
+
+    // NOTE: the summary is bounded by its own policy, not by the dictionary's share of the column.
+    public void testSummaryIsBoundedByItsOwnCap() throws IOException {
+        final List<BytesRef> values = List.of(new BytesRef("alpha"), new BytesRef("bravo"), new BytesRef("charlie"));
+        final Vocabulary.Terms surveyed = survey(values, ROOMY, new SummaryPolicy(5));
+        assertNotNull(surveyed);
+        assertEquals("one five byte term fits", 1, surveyed.summarySize());
+    }
+
+    // NOTE: a merged column can hold one term more often than an int counts, and the summary carries the
+    // counts as vlongs, so they are counted as longs throughout. Narrowing them would order the two largest
+    // terms by term rather than by how often they are held, and understate what the next merge reads.
+    public void testCombinedRanksOnCountsPastWhatAnIntHolds() {
+        final long smaller = Integer.MAX_VALUE + 1L;
+        final long larger = 2 * smaller;
+        final Vocabulary.Terms combined = Vocabulary.combined(
+            Map.of(new BytesRef("a"), smaller, new BytesRef("b"), larger),
+            smaller + larger,
+            smaller + larger,
+            new DictionaryPolicy(1, 0.5, 1.0),
+            new SummaryPolicy(1)
+        );
+        assertNotNull(combined);
+        assertEquals("room for one term", 1, combined.size());
+        final BytesRef kept = new BytesRef();
+        combined.terms().get(combined.dictionaryIds()[0], kept);
+        assertEquals("the term held more often takes the budget", "b", kept.utf8ToString());
+        assertEquals("and the count it carries for the next merge is the one it was given", larger, combined.countOf(0));
+    }
+
+    public void testASummaryAllowedMoreThanTheDictionaryWidensTheTable() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int term = 0; term < 200; term++) {
+            final BytesRef value = new BytesRef("term-" + term);
+            values.add(value);
+            values.add(value);
+        }
+        final DictionaryPolicy narrow = new DictionaryPolicy(32, 0.5, 1.0);
+        assertThat(
+            "the dictionary's cap alone bounds what the survey holds",
+            survey(values, narrow, new SummaryPolicy(32)).summarySize(),
+            lessThan(20)
+        );
+        assertEquals(
+            "every term, once the summary is allowed to ask for them",
+            200,
+            survey(values, narrow, new SummaryPolicy(8 * 1024)).summarySize()
+        );
+    }
 
     /** A term seen many times is kept, however late in the column it first appears. */
     public void testKeepsWhatTheColumnRepeats() throws IOException {
@@ -55,9 +105,9 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertNotNull(surveyed);
         final BytesRef term = new BytesRef();
         for (int ordinal = 0; ordinal < surveyed.size(); ordinal++) {
-            surveyed.terms().get(surveyed.sortedIds()[ordinal], term);
+            surveyed.terms().get(surveyed.dictionaryIds()[ordinal], term);
             final String text = term.utf8ToString();
-            assertThat("count of " + text, surveyed.countOf(ordinal), lessThanOrEqualTo(actual.get(text)));
+            assertThat("count of " + text, surveyed.countOf(ordinal), lessThanOrEqualTo(actual.get(text).longValue()));
         }
     }
 
@@ -75,12 +125,21 @@ public class VocabularyTests extends ColumnarStringTestCase {
      * A term seen once buys one value of coverage and would widen the ordinal every value in the column
      * pays for, so a column of nothing but distinct values has no vocabulary at all.
      */
-    public void testAllDistinctValuesHaveNoVocabulary() throws IOException {
+    // NOTE: nothing here repays an ordinal in this column, but a term held once per segment is held once per
+    // segment in every segment, so the merge has to be told. Refusing a vocabulary would send it to the values.
+    public void testAllDistinctValuesStillSummarise() throws IOException {
         final List<BytesRef> values = new ArrayList<>();
         for (int i = 0; i < 2000; i++) {
             values.add(new BytesRef("id-" + i));
         }
-        assertNull("nothing repeats", survey(values, ROOMY));
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals("no term repays an ordinal", 0, surveyed.size());
+        assertEquals("every term is summarised", 2000, surveyed.summarySize());
+        assertFalse(
+            "so the column is written plain",
+            ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())
+        );
     }
 
     /** The same column always yields the same dictionary, so a segment does not depend on how it was read. */
@@ -101,7 +160,6 @@ public class VocabularyTests extends ColumnarStringTestCase {
         );
     }
 
-    /** Coverage is what the counts say, and the counts are lower bounds, so it never overstates either. */
     /**
      * A vocabulary taken from what other columns recorded, rather than surveyed from values. It has to keep
      * the terms in the order it was given, name each one by where it sits, and carry the counts when it was
@@ -115,14 +173,14 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertEquals("one ordinal a term", sorted.size(), known.size());
         assertTrue("counts were given", known.counted());
         assertEquals("coverage is kept as given", 0.75, known.coverage(), 0.0);
-        assertEquals("dictionary bytes are the terms' own", 0 + 5 + 5 + 7, known.dictionaryBytes());
+        assertEquals("the terms' own bytes, the empty one charged the byte it costs", 1 + 5 + 5 + 7, known.dictionaryBytes());
         assertEquals("column bytes are kept as given", 1000, known.columnBytes());
 
         final BytesRef scratch = new BytesRef();
         for (int ordinal = 0; ordinal < sorted.size(); ordinal++) {
-            known.terms().get(known.sortedIds()[ordinal], scratch);
+            known.terms().get(known.dictionaryIds()[ordinal], scratch);
             assertEquals("term at ordinal " + ordinal, sorted.get(ordinal), scratch);
-            assertEquals("ordinal round trips through its id", ordinal, known.ordinalOfId()[known.sortedIds()[ordinal]]);
+            assertEquals("ordinal round trips through its id", ordinal, known.ordinalOfId()[known.dictionaryIds()[ordinal]]);
             assertEquals("count at ordinal " + ordinal, counts[ordinal], known.countOf(ordinal));
         }
     }
@@ -136,16 +194,118 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertEquals("coverage is kept as given", 1.0, known.coverage(), 0.0);
     }
 
+    public void testCoverageIsByteWeighted() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        final String[] frequent = { "alpha", "bravo", "char.", "delta", "echo." };
+        for (int i = 0; i < 1000; i++) {
+            values.add(new BytesRef(frequent[i % frequent.length]));
+        }
+        // 1000 unique 50-byte values, each seen once: all dropped by keepMostFrequent.
+        for (int i = 0; i < 1000; i++) {
+            final byte[] escape = new byte[50];
+            escape[0] = (byte) (i & 0xff);
+            escape[1] = (byte) ((i >> 8) & 0xff);
+            values.add(new BytesRef(escape));
+        }
+        // 1000 covered values x 5 bytes = 5000 covered bytes out of 55000 total (~9%).
+        // By value count the ratio is 50%, which would pass minCoverage=0.5 and accept the dictionary
+        // even though 91% of column bytes are in the escape stream and gain nothing from it.
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(5, surveyed.size());
+        assertThat("byte coverage is ~9%, not the 50% value-count ratio", surveyed.coverage(), lessThan(0.5));
+        assertFalse(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
+    }
+
     public void testCoverageNeverOverstates() throws IOException {
         final List<BytesRef> values = zipfish();
         final Map<String, Integer> actual = tally(values);
         final Vocabulary.Terms surveyed = survey(values, ROOMY);
         assertNotNull(surveyed);
-        long truly = 0;
-        for (String term : termsOf(surveyed)) {
-            truly += actual.get(term);
+        long totalVirtualBytes = 0;
+        for (BytesRef v : values) {
+            totalVirtualBytes += Math.max(1, v.length);
         }
-        assertThat("coverage", surveyed.coverage(), lessThanOrEqualTo((double) truly / values.size() + 1e-9));
+        long trulyVirtualBytes = 0;
+        for (String term : termsOf(surveyed)) {
+            trulyVirtualBytes += (long) actual.get(term) * Math.max(1, term.length());
+        }
+        assertThat("coverage", surveyed.coverage(), lessThanOrEqualTo((double) trulyVirtualBytes / totalVirtualBytes + 1e-9));
+    }
+
+    /** Long covered values, short escapes: byte coverage is high even when value-count coverage is modest. */
+    public void testCoverageWhenCoveredValuesAreLong() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        // Five 50-byte terms, 200 occurrences each: 1000 values, 50000 covered bytes.
+        final byte[] term = new byte[50];
+        for (int t = 0; t < 5; t++) {
+            term[0] = (byte) t;
+            final BytesRef ref = new BytesRef(term.clone());
+            for (int i = 0; i < 200; i++) {
+                values.add(ref);
+            }
+        }
+        // 1000 unique 5-byte singletons: all escape after keepMostFrequent.
+        for (int i = 0; i < 1000; i++) {
+            final byte[] escape = new byte[5];
+            escape[0] = (byte) (i & 0xff);
+            escape[1] = (byte) ((i >> 8) & 0xff);
+            values.add(new BytesRef(escape));
+        }
+        // By value count: 1000/2000 = 50%, same as the regression case.
+        // By bytes: 50000/55000 ~= 91%; the dictionary is well worth keeping.
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(5, surveyed.size());
+        assertThat("byte coverage is ~91%, well above 0.5", surveyed.coverage(), lessThanOrEqualTo(1.0));
+        assertTrue(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
+    }
+
+    /** All values in the dictionary: coverage is 1.0 and the policy accepts trivially. */
+    public void testCoverageIsOneWhenAllValuesCovered() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        final String[] terms = { "alpha", "bravo", "char.", "delta", "echo." };
+        for (int i = 0; i < 2000; i++) {
+            values.add(new BytesRef(terms[i % terms.length]));
+        }
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(5, surveyed.size());
+        assertEquals("every byte is covered", 1.0, surveyed.coverage(), 1e-9);
+        assertTrue(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
+    }
+
+    public void testEmptyStringColumnAcceptsDictionary() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < 2000; i++) {
+            values.add(new BytesRef(""));
+        }
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(1, surveyed.size());
+        assertEquals("all values are the covered empty string", 1.0, surveyed.coverage(), 1e-9);
+        assertEquals("the byte the selection was charged for it", 1, surveyed.dictionaryBytes());
+        assertTrue(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
+    }
+
+    public void testEmptyStringCoverageWithLongEscapes() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            values.add(new BytesRef(""));
+        }
+        for (int i = 0; i < 1000; i++) {
+            final byte[] escape = new byte[50];
+            escape[0] = (byte) (i & 0xff);
+            escape[1] = (byte) ((i >> 8) & 0xff);
+            values.add(new BytesRef(escape));
+        }
+        // 1000 empty covered values earn 1 virtual byte each: 1000 covered out of 51000 total (~2%).
+        // The 50-byte escapes dominate the column budget, so the dictionary is correctly rejected.
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull(surveyed);
+        assertEquals(1, surveyed.size());
+        assertThat("empty strings earn only a small fraction when escapes are long", surveyed.coverage(), lessThan(0.5));
+        assertFalse(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
     }
 
     /**
@@ -158,7 +318,7 @@ public class VocabularyTests extends ColumnarStringTestCase {
             values.add(new BytesRef(randomAlphaOfLength(200)));
         }
         // Every value is longer than the bound, so the table never holds anything.
-        assertNull("nothing fits", survey(values, new DictionaryPolicy(16, 0.5, 0.2)));
+        assertNull("nothing fits", survey(values, new DictionaryPolicy(16, 0.5, 0.2), new SummaryPolicy(16)));
     }
 
     /** The first value alone exceeds the bound, and the terms after it still have to be surveyed. */
@@ -168,7 +328,7 @@ public class VocabularyTests extends ColumnarStringTestCase {
         for (int i = 0; i < 400; i++) {
             values.add(new BytesRef(i % 2 == 0 ? "on" : "off"));
         }
-        final Vocabulary.Terms surveyed = survey(values, new DictionaryPolicy(64, 0.5, 0.2));
+        final Vocabulary.Terms surveyed = survey(values, new DictionaryPolicy(64, 0.5, 0.2), new SummaryPolicy(64));
         assertNotNull("the short terms were still found", surveyed);
         assertTrue("kept what repeats", termsOf(surveyed).contains("on"));
         assertTrue("kept what repeats", termsOf(surveyed).contains("off"));
@@ -200,13 +360,17 @@ public class VocabularyTests extends ColumnarStringTestCase {
         final List<String> terms = new ArrayList<>();
         final BytesRef term = new BytesRef();
         for (int ordinal = 0; ordinal < surveyed.size(); ordinal++) {
-            surveyed.terms().get(surveyed.sortedIds()[ordinal], term);
+            surveyed.terms().get(surveyed.dictionaryIds()[ordinal], term);
             terms.add(term.utf8ToString());
         }
         return terms;
     }
 
     private static Vocabulary.Terms survey(List<BytesRef> values, DictionaryPolicy policy) throws IOException {
-        return Vocabulary.survey(cursor(values.toArray(BytesRef[]::new)), policy, values.size());
+        return survey(values, policy, StringColumnOptions.DEFAULT_SUMMARY);
+    }
+
+    private static Vocabulary.Terms survey(List<BytesRef> values, DictionaryPolicy policy, SummaryPolicy summaryPolicy) throws IOException {
+        return Vocabulary.survey(cursor(values.toArray(BytesRef[]::new)), policy, summaryPolicy);
     }
 }

@@ -69,7 +69,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -896,10 +896,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
             Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
             if (caseInsensitive) {
-                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(prefix));
+                a = Operations.concatenate(List.of(a, AutomatonQueries.caseInsensitivePrefix(prefix)));
             } else {
-                a = Operations.concatenate(a, Automata.makeString(prefix));
-                a = Operations.concatenate(a, Automata.makeAnyString());
+                a = Operations.concatenate(List.of(a, Automata.makeString(prefix), Automata.makeAnyString()));
             }
             assert a.isDeterministic();
 
@@ -1203,13 +1202,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     public static final class BinaryKeyedFlattenedFieldData implements IndexFieldData<LeafFieldData> {
         private final String key;
         private final BytesBinaryIndexFieldData delegate;
-        private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
         private final boolean usesArrayOrderBinaryDocValues;
 
         private BinaryKeyedFlattenedFieldData(
             String key,
             BytesBinaryIndexFieldData delegate,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
             boolean usesArrayOrderBinaryDocValues
         ) {
             this.delegate = delegate;
@@ -1288,7 +1287,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     }
 
                     @Override
-                    public SortedBinaryDocValues getBytesValues() {
+                    public SortableBinaryDocValues getBytesValues() {
                         return dv;
                     }
                 };
@@ -1300,14 +1299,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         public static class Builder implements IndexFieldData.Builder {
             private final String fieldName;
             private final String key;
-            private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+            private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
             private final IndexVersion indexVersion;
             private final boolean usesArrayOrderBinaryDocValues;
 
             Builder(
                 String fieldName,
                 String key,
-                ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+                ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
                 IndexVersion indexVersion,
                 boolean usesArrayOrderBinaryDocValues
             ) {
@@ -1836,15 +1835,12 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         // hasTerms()/hasRootDocValues assert the index=false, root-doc-values-free shape that strict columnar defaults to; the terms
         // and root channels have no columnar writer. mappedSubFields must be empty because those keys are indexed by their own
         // mappers, which the driver resolves as ordinary leaves rather than as part of this group.
-        return indexSettings.getMode().isStrictColumnar()
-            && fieldType().usesArrayOrderBinaryDocValues()
+        return fieldType().usesArrayOrderBinaryDocValues()
             && fieldType().hasDocValues()
             && fieldType().indexType().hasTerms() == false
             && fieldType().hasRootDocValues == false
             && mappedSubFields.isEmpty()
-            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty();
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     @Override

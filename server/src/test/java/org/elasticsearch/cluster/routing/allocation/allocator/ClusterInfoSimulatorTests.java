@@ -813,6 +813,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         final long estimatedHostedShardBytesUsed = 180;
         final long shardHeapUsage = 50;
         final long indexHeapUsage = 10;
+        final long postingsHeapUsage = randomLongBetween(0, shardHeapUsage);
 
         final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>();
         nodeHeapMetrics.put(
@@ -824,8 +825,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             new NodeHeapMetrics(harness.nodeId2, totalBytes, new NodeHeapEstimates(estimatedBytesUsed, estimatedHostedShardBytesUsed))
         );
         final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = new HashMap<>();
-        estimatedShardHeapUsages.put(shardRouting1.shardId(), new ShardAndIndexHeapUsage(shardHeapUsage, indexHeapUsage));
-        estimatedShardHeapUsages.put(shardRouting2.shardId(), new ShardAndIndexHeapUsage(shardHeapUsage, indexHeapUsage));
+        estimatedShardHeapUsages.put(
+            shardRouting1.shardId(),
+            new ShardAndIndexHeapUsage(shardHeapUsage, indexHeapUsage, postingsHeapUsage)
+        );
+        estimatedShardHeapUsages.put(
+            shardRouting2.shardId(),
+            new ShardAndIndexHeapUsage(shardHeapUsage, indexHeapUsage, postingsHeapUsage)
+        );
 
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeHeapMetrics(nodeHeapMetrics)
@@ -1271,8 +1278,13 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         final long maxHeapBytes = randomLongBetween(10000, 20000);
         final long defaultShardHeapBytes = randomLongBetween(50, 100);
         final long defaultIndexHeapBytes = randomLongBetween(20, 70);
+        final long defaultPostingsHeapBytes = randomLongBetween(0, defaultShardHeapBytes);
         final long deltaBytes = defaultShardHeapBytes + defaultIndexHeapBytes;
-        final var defaultShardAndIndexHeap = new ShardAndIndexHeapUsage(defaultShardHeapBytes, defaultIndexHeapBytes);
+        final var defaultShardAndIndexHeap = new ShardAndIndexHeapUsage(
+            defaultShardHeapBytes,
+            defaultIndexHeapBytes,
+            defaultPostingsHeapBytes
+        );
         // These baselines need to be consistent, or we risk violating assertions in the NodeHeapEstimate constructor
         // with unrealistic values
         final int baselineNumShards = randomIntBetween(3, 10);

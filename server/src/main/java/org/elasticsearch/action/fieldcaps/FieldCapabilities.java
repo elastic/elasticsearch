@@ -44,7 +44,7 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
 public class FieldCapabilities implements Writeable, ToXContentObject {
 
     static final TransportVersion FIELD_CAPS_INFERENCE_FIELD = TransportVersion.fromName("field_caps_inference_field");
-    static final TransportVersion FIELD_CAPS_INDEX_ANALYZER = TransportVersion.fromName("esql_highlight_implicit_query_and_fields");
+    static final TransportVersion FIELD_CAPS_INDEX_ANALYZER = TransportVersion.fromName("field_caps_index_analyzer");
 
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");

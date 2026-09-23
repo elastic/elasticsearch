@@ -138,8 +138,6 @@ public final class StringColumnWriter {
                     numValues,
                     chunkCodec,
                     sizes,
-                    directory,
-                    context,
                     outputs
                 );
             }
@@ -228,8 +226,8 @@ public final class StringColumnWriter {
                 numValues,
                 numNullSlots,
                 stream.valueBytes(),
-                totals.minLength(),
-                totals.maxLength(),
+                stream.minLength(),
+                stream.maxLength(),
                 addressing,
                 written,
                 sorted,
@@ -239,8 +237,6 @@ public final class StringColumnWriter {
             numValues,
             chunkCodec,
             sizes,
-            directory,
-            context,
             outputs
         );
     }
@@ -261,8 +257,6 @@ public final class StringColumnWriter {
         long numValues,
         ChunkCodec chunkCodec,
         StringColumnOptions.Sizes sizes,
-        Directory directory,
-        IOContext context,
         ColumnOutputs outputs
     ) throws IOException {
         final IndexOutput data = outputs.data();
@@ -323,6 +317,9 @@ public final class StringColumnWriter {
         int previousOrdinalSeen = -1;
 
         final ValueStream.Metadata dictionary;
+        // The length of every term by its ordinal, so a value carried over as an ordinal is priced without
+        // resolving its bytes.
+        final int[] termLengths = new int[dictionarySize];
         // Read by ordinal, so consecutive reads land anywhere in it. Compressing it would mean decompressing a
         // chunk for nearly every value read, to save a few tens of kilobytes: the dictionary is bounded by the
         // policy however large the column is.
@@ -336,6 +333,7 @@ public final class StringColumnWriter {
         );
         for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
             vocabulary.terms().get(vocabulary.dictionaryIds()[ordinal], scratch);
+            termLengths[ordinal] = scratch.length;
             dictionaryWriter.add(scratch);
         }
         dictionary = dictionaryWriter.finish();
@@ -345,6 +343,9 @@ public final class StringColumnWriter {
         final List<IndexInput> replays = new ArrayList<>();
         try {
             long escapes = 0;
+            // The shortest and longest value written, checked against the totals below.
+            int minLength = Integer.MAX_VALUE;
+            int maxLength = -1;
             // The slots actually written, handed to the addressing table so it can check the total it was given.
             long index = 0;
             final ValueStream.Metadata escapeStream;
@@ -384,6 +385,11 @@ public final class StringColumnWriter {
                                     sorted = false;
                                 }
                                 previousOrdinalSeen = mapped;
+                                if (mapped != StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                                    final int length = termLengths[mapped - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
+                                    minLength = Math.min(minLength, length);
+                                    maxLength = Math.max(maxLength, length);
+                                }
                                 ordinalTemp.writeVInt(mapped);
                                 index++;
                                 continue;
@@ -400,6 +406,8 @@ public final class StringColumnWriter {
                                 index++;
                                 continue;
                             }
+                            minLength = Math.min(minLength, value.length);
+                            maxLength = Math.max(maxLength, value.length);
                             final int ordinal;
                             if (hasPrevious && previous.get().bytesEquals(value)) {
                                 ordinal = previousOrdinal;
@@ -437,7 +445,25 @@ public final class StringColumnWriter {
                 }
             }
             addressing = slots.finish(index);
-            escapeStream = replayEscapes(directory, context, escapeTempName, escapes, chunkCodec, sizes, outputs);
+            // A column of nothing but nulls has no length to report.
+            if (maxLength < 0) {
+                minLength = -1;
+            }
+            // Checked rather than asserted: these are on the wire, and a reader, or the next merge, would trust them.
+            if (minLength != totals.minLength() || maxLength != totals.maxLength()) {
+                throw new IllegalStateException(
+                    "wrote values of ["
+                        + minLength
+                        + ", "
+                        + maxLength
+                        + "] bytes, counted ["
+                        + totals.minLength()
+                        + ", "
+                        + totals.maxLength()
+                        + "]"
+                );
+            }
+            escapeStream = replayEscapes(directory, escapeTempName, escapes, chunkCodec, sizes, outputs);
             escapeRanks = escapes == 0 ? MonotonicWriter.Table.NONE : ranks.finish();
 
             final String staged = ordinalTempName;
@@ -467,8 +493,8 @@ public final class StringColumnWriter {
                 numValues,
                 numNullSlots,
                 valueBytes,
-                totals.minLength(),
-                totals.maxLength(),
+                minLength,
+                maxLength,
                 addressing,
                 dictionary,
                 ordinals,
@@ -492,14 +518,12 @@ public final class StringColumnWriter {
     /** Writes the staged escaped values, now that how many of them there are is known. */
     private static ValueStream.Metadata replayEscapes(
         Directory directory,
-        IOContext context,
         String name,
         long count,
         ChunkCodec chunkCodec,
         StringColumnOptions.Sizes sizes,
         ColumnOutputs outputs
     ) throws IOException {
-        final IndexOutput data = outputs.data();
         if (count == 0) {
             return ValueStream.Metadata.empty();
         }

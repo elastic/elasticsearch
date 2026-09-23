@@ -656,7 +656,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 final int count = counter.valueCount();
                 numValues += count;
                 numNullSlots += counter.nullCount();
-                // A cursor over one of our own columns answers a length from the column, not the value.
+                // A cursor over one of our own plain columns answers a length without resolving the value;
+                // over a dictionary column it resolves the term, as writing the column does.
                 for (int i = 0; i < count; i++) {
                     counter.nextValue();
                     final int length = counter.valueLength();

@@ -24,6 +24,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -33,6 +35,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -330,6 +336,34 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     public void testBatchIndexingGateForExemplars() throws Exception {
+        assumeTrue("requires batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build());
+
+        String target = "metrics-generic.otel-default";
+        Index index = new Index(".ds-" + target + "-000001", randomUUID());
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "1969-01-01T00:00:00Z")
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "1971-01-01T00:00:00Z")
+                    .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dimension")
+                    .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
+            )
+            .build();
+        DataStream dataStream = DataStream.builder(target, List.of(index)).setIndexMode(IndexMode.TIME_SERIES).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(indexMetadata, true)
+            .dataStreams(Map.of(target, dataStream), Map.of())
+            .build();
+
+        List<DataPointGroupingContext.DataPointGroup> groups = collectGroups(
+            ExportMetricsServiceRequest.parseFrom(createMetricsRequest(createMetric()).getRequest().streamInput())
+        );
+        assertTrue(metricsAction.canUseBatchIndexing(true, projectMetadata, groups));
+
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
         Metric metricWithExemplar = OtlpUtils.createGaugeMetric(
             "test.metric",
@@ -339,13 +373,8 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         List<DataPointGroupingContext.DataPointGroup> groupsWithExemplars = collectGroups(
             ExportMetricsServiceRequest.parseFrom(createMetricsRequest(metricWithExemplar).getRequest().streamInput())
         );
-        List<DataPointGroupingContext.DataPointGroup> groupsWithoutExemplars = collectGroups(
-            ExportMetricsServiceRequest.parseFrom(createMetricsRequest(createMetric()).getRequest().streamInput())
-        );
 
-        assertFalse(OTLPMetricsTransportAction.canUseBatchIndexing(true, groupsWithExemplars));
-        assertTrue(OTLPMetricsTransportAction.canUseBatchIndexing(true, groupsWithoutExemplars));
-        assertTrue(OTLPMetricsTransportAction.canUseBatchIndexing(false, groupsWithExemplars));
+        assertFalse(metricsAction.canUseBatchIndexing(true, projectMetadata, groupsWithExemplars));
     }
 
     public void testAttributeFanoutReturns413() {

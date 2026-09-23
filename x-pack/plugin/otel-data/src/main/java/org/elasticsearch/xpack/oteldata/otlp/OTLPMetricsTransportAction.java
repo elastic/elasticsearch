@@ -147,14 +147,10 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         List<DataPointGroupingContext.DataPointGroup> allGroups = new ArrayList<>();
         context.consume(allGroups::add);
 
-        String firstTarget = allGroups.isEmpty() ? null : allGroups.get(0).targetIndex().index();
-        boolean singleTarget = firstTarget != null && allGroups.stream().allMatch(g -> firstTarget.equals(g.targetIndex().index()));
         boolean exemplarIngestionEnabled = OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled();
 
-        if (canUseBatchIndexing(exemplarIngestionEnabled, allGroups)
-            && singleTarget
-            && resolveEscfEligible(projectMetadata, firstTarget, allGroups)
-            && isEscfEligible(allGroups)) {
+        if (canUseBatchIndexing(exemplarIngestionEnabled, projectMetadata, allGroups)) {
+            String firstTarget = allGroups.getFirst().targetIndex().index();
             MetricColumnarBuilder metricColumnarBuilder = new MetricColumnarBuilder(defaultMappingHints);
             addEscfBatch(bulkRequestBuilder, metricColumnarBuilder, allGroups, firstTarget);
             return context;
@@ -191,18 +187,32 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         return context;
     }
 
-    static boolean canUseBatchIndexing(boolean exemplarIngestionEnabled, List<DataPointGroupingContext.DataPointGroup> groups) {
-        if (exemplarIngestionEnabled == false) {
-            return true;
+    boolean canUseBatchIndexing(
+        boolean exemplarIngestionEnabled,
+        ProjectMetadata projectMetadata,
+        List<DataPointGroupingContext.DataPointGroup> groups
+    ) {
+        if (groups.isEmpty()) {
+            return false;
         }
+        if (exemplarIngestionEnabled && hasExemplars(groups)) {
+            return false;
+        }
+        String firstTarget = groups.getFirst().targetIndex().index();
+        return groups.stream().allMatch(group -> firstTarget.equals(group.targetIndex().index()))
+            && isEscfEligible(groups)
+            && resolveEscfEligible(projectMetadata, firstTarget, groups);
+    }
+
+    static boolean hasExemplars(List<DataPointGroupingContext.DataPointGroup> groups) {
         for (DataPointGroupingContext.DataPointGroup group : groups) {
             for (DataPoint dataPoint : group.dataPoints()) {
                 if (dataPoint.getExemplars().isEmpty() == false) {
-                    return false;
+                    return true;
                 }
             }
         }
-        return true;
+        return false;
     }
 
     // -------------------------------------------------------------------------

@@ -206,13 +206,12 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         int failedBulkItems = 0;
         BulkItemResponse[] bulkItems = bulkResponse.getItems();
         for (int i = 0; i < bulkItems.length; i++) {
-            BulkItemResponse bulkItemResponse = bulkItems[i];
-            BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-            boolean failureStoreRedirect = isFailureStoreRedirect(bulkItemResponse);
+            BulkItemResponse.Failure failure = bulkItems[i].getFailure();
+            boolean failureStoreRedirect = isFailureStoreRedirect(bulkItems[i]);
             if (failure != null || failureStoreRedirect) {
                 failedBulkItems++;
                 if (context.isPrimaryTelemetryDoc(i) == false) {
-                    context.recordNonPrimaryTelemetryDocFailure(bulkItemResponse);
+                    context.recordNonPrimaryTelemetryDocFailure(bulkItems[i]);
                 } else if (failure != null) {
                     // we're counting each document as one item here
                     // which is an approximation since one document can represent multiple OTLP items

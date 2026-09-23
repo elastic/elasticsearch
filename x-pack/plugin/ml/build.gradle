@@ -148,14 +148,15 @@ tasks.register("verifyControllerProtocolVersion") {
     // at >= REQUIRED_CONTROLLER_PROTOCOL_VERSION) is bundled - see
     // https://github.com/elastic/ml-cpp/pull/3188.
     //
-    // The design doc describes the token as living in "the deps bundle" (singular), so this check is
-    // deliberately deps-artifact-first - but it tolerates the marker appearing in EITHER resolved
-    // nativeBundle artifact (deps@zip or nodeps@zip), at ANY depth rather than only the archive root,
-    // because the exact publication path isn't nailed down yet. In particular, ml-cpp's nodeps
-    // packaging (noDependenciesSpec in ml-cpp's own build.gradle) is an include-only file spec with no
-    // pattern admitting a root-level marker file, so it can never carry one; requiring the marker in
-    // every artifact would make this gate permanently red even after the paired ml-cpp change lands.
-    // It is sufficient for at least one resolved artifact to carry a valid, sufficiently new marker.
+    // ml-cpp (elastic/ml-cpp#3188) deliberately publishes the marker in BOTH nativeBundle artifacts
+    // (deps@zip and nodeps@zip), so that either one alone satisfies this check. This gate is therefore
+    // an OR across the resolved artifacts: it accepts the marker in EITHER artifact, at ANY depth
+    // rather than only the archive root, since the exact publication path is not part of the contract.
+    // A single resolved artifact carrying a valid, sufficiently new marker is enough to pass, whatever
+    // any other resolved artifact contains (missing, malformed, or stale marker). Requiring the marker
+    // in every artifact would make the gate needlessly fragile against future repackaging on either side.
+    // (The marker's runtime duplicate - both zips carrying it at the same path - is handled separately by
+    // excluding it from esplugin.bundleSpec above; here it is read directly from configurations.nativeBundle.)
     def matchesByZip = nativeBundleFiles.files.collectEntries { zipFile ->
       [zipFile, archiveOps.zipTree(zipFile).matching { include '**/controller-protocol.version' }.files]
     }

@@ -54,6 +54,10 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTests {
 
+    public PromqlPlanBinaryOperatorTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testConstantFoldingArithmeticOperators() {
         var plan = planPromql("PROMQL index=k8s step=5m 1 + 1");
         var eval = plan.collect(Eval.class).getFirst();

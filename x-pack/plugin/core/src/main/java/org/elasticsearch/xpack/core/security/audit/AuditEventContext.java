@@ -16,11 +16,24 @@ import org.elasticsearch.core.Nullable;
  * @param realm   the name of the realm that authenticated the subject, or {@code null} if the event is not associated with a
  *                successfully authenticated subject. This is always a positive realm match: the realm a request failed to
  *                authenticate against (e.g. for a {@code realm_authentication_failed} event) is deliberately not surfaced here.
+ * @param subject the authenticated identity of the effective subject, or {@code null} when the event has no such identity
  */
-public record AuditEventContext(@Nullable String[] indices, @Nullable String[] roles, @Nullable String realm) {
+public record AuditEventContext(
+    @Nullable String[] indices,
+    @Nullable String[] roles,
+    @Nullable String realm,
+    @Nullable AuditSubject subject
+) {
 
     /**
      * An empty context, used when no event-specific information is available.
      */
-    public static final AuditEventContext EMPTY = new AuditEventContext(null, null, null);
+    public static final AuditEventContext EMPTY = new AuditEventContext(null, null, null, null);
+
+    /**
+     * Convenience for events that have no authenticated subject.
+     */
+    public AuditEventContext(@Nullable String[] indices, @Nullable String[] roles, @Nullable String realm) {
+        this(indices, roles, realm, null);
+    }
 }

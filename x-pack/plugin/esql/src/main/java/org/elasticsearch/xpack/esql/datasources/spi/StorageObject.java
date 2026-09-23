@@ -118,6 +118,16 @@ public interface StorageObject {
         return length();
     }
 
+    /**
+     * Maps a read position in this object's coordinate space to an offset in the object identified
+     * by {@link #lengthForFooterCacheKey()}. Identity by default. Range views add their start so a
+     * {@code FooterByteCache} suffix check uses file-absolute coordinates, matching
+     * {@link #startReadBytesAsync} which also translates before the backend GET.
+     */
+    default long offsetForFooterCache(long position) {
+        return position;
+    }
+
     /** Returns the last modification time, or null if not available. */
     Instant lastModified() throws IOException;
 

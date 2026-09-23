@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAct
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -57,6 +59,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -79,6 +82,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
@@ -89,6 +93,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -1875,9 +1880,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         ensureGreen(indexName);
         long translogRecoveredOps = indicesAdmin().prepareRecoveries(indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .mapToLong(e -> e.getTranslog().recoveredOperations())
             .sum();
         assertThat(translogRecoveredOps, equalTo((long) numDocs * 3));
@@ -2068,6 +2074,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         unhollowOnIngestion(IngestionType.Index);
     }
 
+    // We have seen this test time out waiting for the ingestion latch. It does not reproduce locally and the CI logs
+    // before and after the timeout do not look slow, which points to a discrete stall in the unhollow-on-first-ingestion
+    // path rather than gradual slowness. HollowShardsService logs each step of unhollowing at DEBUG (start, engine reset,
+    // flush, "unhollowed shard with gen ..."), so enabling it should show how far each shard's unhollow progressed when
+    // we next catch a failure.
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.HollowShardsService:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/151100"
+    )
     public void testUnhollowOnUpdates() throws Exception {
         unhollowOnIngestion(IngestionType.Update);
     }
@@ -2103,11 +2118,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         final var docsIdsGenerator = new AtomicLong();
         final Supplier<String> docIdSupplier = () -> Long.toHexString(docsIdsGenerator.getAndIncrement());
-        var bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
+        var bulkResponse = indexDocs(indexName, between(128, 256), docIdSupplier); // need enough docs for ingesting into all shards
         var docsIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).collect(Collectors.toCollection(HashSet::new));
 
         flush(indexName);
-        bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
+        bulkResponse = indexDocs(indexName, between(128, 256), docIdSupplier); // need enough docs for ingesting into all shards
         Arrays.stream(bulkResponse.getItems()).forEach(item -> docsIds.add(item.getId()));
         var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
         for (int i = 0; i < numberOfShards; i++) {
@@ -2143,13 +2158,18 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             List<Long> generationsBeforeUnhollow = IntStream.range(0, numberOfShards)
                 .mapToObj(i -> statelessCommitService.getLatestUploadedBcc(new ShardId(index, i)).lastCompoundCommit().generation())
                 .toList();
+            // Captured so that, if the latch times out below, we can tell whether a shard made any indexing progress at
+            // all during the burst. Read together with the engine type logged there. See #151100.
+            List<Long> indexOpsBeforeUnhollow = IntStream.range(0, numberOfShards)
+                .mapToObj(i -> findIndexShard(index, i).indexingStats().getTotal().getIndexCount())
+                .toList();
             var ingestLatch = new CountDownLatch(ingestingThreads);
             for (int i = 0; i < ingestingThreads; i++) {
                 Runnable ingestRunnable = switch (ingestionType) {
                     // Index docs
                     case Index -> () -> {
                         try {
-                            indexDocs(indexName, randomIntBetween(64, 128)); // need enough ops to ensure unhollowing all shards
+                            indexDocs(indexName, randomIntBetween(128, 256)); // need enough ops to ensure unhollowing all shards
                         } finally {
                             ingestLatch.countDown();
                         }
@@ -2194,7 +2214,41 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 };
                 ingestExecutor.submit(ingestRunnable);
             }
-            safeAwait(ingestLatch, TimeValue.THIRTY_SECONDS);
+            // If an ingesting thread blocks (most likely on a shard's unhollow-on-first-ingestion), the latch never reaches
+            // zero. Rather than mask that by simply extending the timeout, capture diagnostics on the (rare, CI-only) timeout:
+            // which shards are still hollow, plus a hot-threads dump identifying the stuck operation. See #151100.
+            if (ingestLatch.await(30, TimeUnit.SECONDS) == false) {
+                for (int i = 0; i < numberOfShards; i++) {
+                    var shardId = new ShardId(index, i);
+                    try {
+                        var indexShard = findIndexShard(index, i);
+                        var engine = indexShard.getEngineOrNull();
+                        // The index-op count alone is ambiguous: it only moves once an operation is applied, and unhollowing
+                        // happens before apply, so "before == now" can mean either that the shard received no operations or
+                        // that operations are parked mid-unhollow. The engine type disambiguates: a HollowIndexEngine means
+                        // the reset to an IndexEngine has not completed yet.
+                        logger.error(
+                            "--> ingest latch timed out; shard {} on {}: hollow={}, engine={}, index ops before={} now={}",
+                            shardId,
+                            indexNodeB,
+                            hollowShardsServiceB.isHollowShard(shardId),
+                            engine == null ? "null" : engine.getClass().getSimpleName(),
+                            indexOpsBeforeUnhollow.get(i),
+                            indexShard.indexingStats().getTotal().getIndexCount()
+                        );
+                    } catch (Exception | AssertionError e) {
+                        // Never let a missing shard hide the remaining shards or the hot threads dump below
+                        logger.error(() -> "--> ingest latch timed out; failed to collect diagnostics for shard " + shardId, e);
+                    }
+                }
+                HotThreads.logLocalHotThreads(
+                    logger,
+                    Level.INFO,
+                    "ingest latch timed out waiting for unhollow-on-ingestion",
+                    ReferenceDocs.LOGGING
+                );
+                fail("ingestLatch did not reach zero within 30s; see still-hollow shards and hot threads logged above");
+            }
             for (int i = 0; i < numberOfShards; i++) {
                 // Should unhollow only once
                 assertThat(
@@ -2318,9 +2372,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         );
         long translogRecoveredOps = indicesAdmin().prepareRecoveries(indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .mapToLong(e -> e.getTranslog().recoveredOperations())
             .sum();
         assertThat(translogRecoveredOps, equalTo((long) docs3 + docs4));
@@ -3473,7 +3528,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                             .indices()
                             .recoveries(new RecoveryRequest(index))
                             .get()
-                            .shardRecoveryStates()
+                            .shardRecoveryInfos()
                             .entrySet()
                             .stream()
                             .map(
@@ -3481,6 +3536,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                                     + ":"
                                     + e.getValue()
                                         .stream()
+                                        .map(ShardRecoveryInfo::recoveryState)
                                         .map(rs -> rs.getShardId() + " - " + rs.getTimer().time())
                                         .collect(Collectors.joining(","))
                             )

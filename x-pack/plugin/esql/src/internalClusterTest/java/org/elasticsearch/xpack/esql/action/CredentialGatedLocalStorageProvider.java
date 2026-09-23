@@ -11,6 +11,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -42,6 +43,10 @@ import java.util.NoSuchElementException;
  * credential, no bytes.
  */
 final class CredentialGatedLocalStorageProvider implements StorageProvider {
+    @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) {
+        return null; // directory-aware listing is irrelevant to this test double
+    }
 
     private final String scheme;
     private final Object credentialSeen;

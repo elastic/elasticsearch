@@ -555,6 +555,26 @@ centroid:geo_point                              | count:long | centroid_in_uk:bo
 POINT (-2.597342072712148 54.33551226578214)    | 17         | true                   | false                       | true                       | false                           | false                        | false
 ;
 
+centroidFromAirportsWithToStringDocValuesEval
+required_capability: st_centroid_agg
+required_capability: fix_spatial_doc_values_non_spatial_eval
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/141300
+// TO_STRING applied to a geo_point field should not cause a ClassCastException when the same field
+// is also consumed by ST_CENTROID_AGG, which can trigger the SpatialDocValuesExtraction optimization
+// that changes the field's block type from BytesRefBlock (WKB) to LongBlock (doc-values encoding).
+// All geo_point WKT strings start with "POINT", so SUBSTRING(TO_STRING(location), 1, 5) groups
+// all airports into a single "POINT" bucket, yielding the same centroid as ST_CENTROID_AGG(location).
+FROM airports
+| EVAL location_str = SUBSTRING(TO_STRING(location), 1, 5)
+| STATS centroid = ST_CENTROID_AGG(location) BY location_str
+| SORT location_str
+;
+
+centroid:geo_point                             | location_str:keyword
+POINT(-0.030548143003023033 24.37553649504829) | POINT
+;
+
 centroidFromAirportsAfterIntersectsEvalExpression
 required_capability: st_intersects
 
@@ -1454,6 +1474,25 @@ FROM airports
 
 distance:double    | count:long
 15869.9876282387   | 891
+;
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/149814
+// When both location and city_location are each used by their own ST_CENTROID_AGG, both are added to
+// foundAttributes and extracted via doc-values. ST_DISTANCE(location, city_location) is then called
+// with withDocValues(true, true), which previously fell into the DocValuesAndSource branch, casting the
+// right-hand LongBlock to BytesRefBlock and throwing a ClassCastException. The fix adds a
+// DocValuesAndDocValues evaluator variant that handles both inputs as LongBlock.
+centroidAndDistanceBothDocValues
+required_capability: st_distance
+required_capability: fix_st_distance_doc_values_and_doc_values
+
+FROM airports
+| STATS centroid = ST_CENTROID_AGG(location), city_centroid = ST_CENTROID_AGG(city_location),
+        avg_dist = AVG(ST_DISTANCE(location, city_location))
+;
+
+centroid:geo_point                             | city_centroid:geo_point                            | avg_dist:double
+POINT(-0.030548143003023033 24.37553649504829) | POINT (1.3965610809060276 24.127649406297987)      | 15869.9876282387
 ;
 
 airportDistanceToCityCopenhagen

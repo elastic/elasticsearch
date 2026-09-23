@@ -13,6 +13,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.startsWith;
+
 public class RecursiveChunkerTests extends ESTestCase {
 
     private final List<String> TEST_SEPARATORS = List.of("\n", "\f", "\t", "#");
@@ -169,6 +171,15 @@ public class RecursiveChunkerTests extends ESTestCase {
                 new Chunker.ChunkOffset(expectedThirdChunkOffsetEnd, input.length())
             )
         );
+    }
+
+    public void testChunkWithExpensiveRegexSeparator() {
+        // (a+)+b has to backtrack over every partition of a run of 'a's before it can reject a run that is not followed by a 'b'
+        var input = ("a".repeat(20) + " ").repeat(11);
+        RecursiveChunkingSettings settings = generateChunkingSettings(10, List.of("(a+)+b"));
+
+        var exception = expectThrows(IllegalArgumentException.class, () -> new RecursiveChunker().chunk(input, settings));
+        assertThat(exception.getMessage(), startsWith("Chunk separator regex [(a+)+b] has exceeded the character read limit"));
     }
 
     public void testChunkLongDocument() {

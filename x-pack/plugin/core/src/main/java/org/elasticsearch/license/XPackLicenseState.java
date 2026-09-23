@@ -118,15 +118,12 @@ public class XPackLicenseState {
         switch (newMode) {
             case BASIC:
                 switch (currentMode) {
-                    case STANDARD:
-                        return new String[] { "Security tokens will not be supported." };
                     case TRIAL:
                     case GOLD:
                     case PLATINUM:
                     case ENTERPRISE:
                         return new String[] {
                             "Authentication will be limited to the native and file realms.",
-                            "Security tokens will not be supported.",
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",

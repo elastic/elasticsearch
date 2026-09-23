@@ -45,6 +45,16 @@ public class ExampleWhitelistedClass {
         return Integer.parseInt(x);
     }
 
+    // example allocating method, sized by ExampleAllocationEstimators
+    public String repeat(int count) {
+        return "x".repeat(Math.max(0, count));
+    }
+
+    // the same, but static, so its estimator takes no receiver
+    public static String staticRepeat(int count) {
+        return "y".repeat(Math.max(0, count));
+    }
+
     // example method to attach annotations in whitelist
     public void annotate() {
         // some logic here

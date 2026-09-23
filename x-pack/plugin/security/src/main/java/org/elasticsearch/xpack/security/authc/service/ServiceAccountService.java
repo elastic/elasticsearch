@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
@@ -261,6 +263,30 @@ public class ServiceAccountService {
             namespace,
             serviceName,
             listener.map(accounts -> accounts.stream().map(ServiceAccountService::toServiceAccountInfo).toList())
+        );
+    }
+
+    /**
+     * Searches the stored accounts with a query the caller has already shaped for the security index. As with
+     * {@link #getUserManagedAccountInfos}, a node that cannot hold user-managed accounts has none to report and
+     * answers with an empty page rather than failing.
+     */
+    public void queryUserManagedAccounts(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryServiceAccountResponse> listener) {
+        if (userManagedServiceAccountStore == null) {
+            listener.onResponse(QueryServiceAccountResponse.EMPTY);
+            return;
+        }
+        userManagedServiceAccountStore.queryAccounts(
+            searchSourceBuilder,
+            listener.map(
+                result -> new QueryServiceAccountResponse(
+                    result.total(),
+                    result.items()
+                        .stream()
+                        .map(item -> new QueryServiceAccountResponse.Item(toServiceAccountInfo(item.account()), item.sortValues()))
+                        .toList()
+                )
+            )
         );
     }
 

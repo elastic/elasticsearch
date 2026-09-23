@@ -30,14 +30,14 @@ import java.util.function.Supplier;
  * Parser for {@link Mapping} provided in {@link CompressedXContent} format
  */
 public final class MappingParser {
-    private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final Function<MergeReason, MappingParserContext> mappingParserContextSupplier;
     private final Supplier<Map<String, MetadataFieldMapper.Builder>> metadataBuildersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MappingParser.class);
 
     MappingParser(
-        Supplier<MappingParserContext> mappingParserContextSupplier,
+        Function<MergeReason, MappingParserContext> mappingParserContextSupplier,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Supplier<Map<String, MetadataFieldMapper.Builder>> metadataBuildersSupplier,
         Function<String, String> documentTypeResolver
@@ -146,7 +146,7 @@ public final class MappingParser {
             throw new MapperParsingException("type cannot be an empty string");
         }
 
-        final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
+        MappingParserContext mappingParserContext = mappingParserContextSupplier.apply(reason);
 
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
 

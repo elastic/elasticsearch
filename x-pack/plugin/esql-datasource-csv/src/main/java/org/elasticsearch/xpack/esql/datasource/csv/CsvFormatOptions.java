@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -32,8 +33,10 @@ import java.util.Locale;
  *                           fields when {@link #quoting} is also on, otherwise to keep
  *                           escape + delimiter in one field and as a C-style value decode
  * @param commentPrefix      prefix for comment lines to skip (default: "//")
- * @param nullValue          token whose exact match reads as null (default: empty string, which installs
- *                           no null token, so an empty field is a present empty value rather than null)
+ * @param nullValue          token whose exact match reads as null, or {@code null} (the default) when no token is
+ *                           configured. The empty string is a legal token: naming it is how a user declares that a
+ *                           blank cell is null even on a declared string column, which is why absence is carried as
+ *                           {@code null} rather than as {@code ""} — the two must be distinguishable.
  * @param encoding           character encoding of the input (default: UTF-8)
  * @param datetimeFormatter  custom datetime parser compiled from the {@code datetime_format} option, or null for
  *                           ISO-8601/epoch. An ES {@link DateFormatter} — the same engine the per-column declared
@@ -44,9 +47,9 @@ import java.util.Locale;
  *                           (default: 10MB). Provides OOM protection against malformed files.
  * @param multiValueSyntax   syntax for multi-value fields: NONE (default — standard CSV, no array
  *                           parsing) or BRACKETS ([a,b,c] read as a multi-value)
- * @param headerRow          when {@code true} (default), the first non-comment line is read as the
- *                           schema header; when {@code false}, no header is read and column names
- *                           are synthesized from {@link #columnPrefix}.
+ * @param headerRow          when {@code true} (default), after {@link #skipRows} the first
+ *                           non-comment non-blank record is the schema header; when {@code false},
+ *                           no header is read and column names are synthesized from {@link #columnPrefix}.
  * @param columnPrefix       prefix used to synthesize column names when {@link #headerRow} is
  *                           {@code false}. Counters are appended starting at 0 (e.g.
  *                           {@code col0, col1, col2, ...}). Default: {@code "col"}. Ignored when
@@ -65,13 +68,17 @@ import java.util.Locale;
  *                           matching RFC 4180 and the byte-fidelity posture of {@link Mode#PLAIN}.
  *                           Escaped, PLAIN, and QUOTED no-trim reads use the house grammar, which
  *                           preserves first-column leading whitespace.
+ * @param skipRows           number of leading content records to discard on the first split, after
+ *                           blank and comment-prefix records (which do not count toward N) and
+ *                           before {@link #headerRow} is applied. Default {@code 0}. Must be
+ *                           non-negative; the reader also caps the value at registration.
  */
 public record CsvFormatOptions(
     char delimiter,
     char quoteChar,
     char escapeChar,
     String commentPrefix,
-    String nullValue,
+    @Nullable String nullValue,
     Charset encoding,
     DateFormatter datetimeFormatter,
     int maxFieldSize,
@@ -80,7 +87,8 @@ public record CsvFormatOptions(
     String columnPrefix,
     boolean quoting,
     boolean escaping,
-    boolean trimSpaces
+    boolean trimSpaces,
+    int skipRows
 ) {
 
     public enum MultiValueSyntax {
@@ -152,7 +160,7 @@ public record CsvFormatOptions(
         DEFAULT_QUOTE,
         DEFAULT_ESCAPE,
         "//",
-        "",
+        null, // nullValue: no null token configured (see the record javadoc)
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
@@ -161,7 +169,8 @@ public record CsvFormatOptions(
         DEFAULT_COLUMN_PREFIX,
         true,
         true,
-        false // trimSpaces (default; see the record javadoc)
+        false, // trimSpaces (default; see the record javadoc)
+        0
     );
 
     /**
@@ -176,7 +185,7 @@ public record CsvFormatOptions(
         DEFAULT_QUOTE,
         DEFAULT_ESCAPE,
         "//",
-        "",
+        null, // nullValue: no null token configured (see the record javadoc)
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
@@ -185,7 +194,8 @@ public record CsvFormatOptions(
         DEFAULT_COLUMN_PREFIX,
         false,
         false,
-        false // trimSpaces (default; see the record javadoc)
+        false, // trimSpaces (default; see the record javadoc)
+        0
     );
 
     /**
@@ -198,7 +208,7 @@ public record CsvFormatOptions(
         char quoteChar,
         char escapeChar,
         String commentPrefix,
-        String nullValue,
+        @Nullable String nullValue,
         Charset encoding,
         DateFormatter datetimeFormatter,
         int maxFieldSize,
@@ -220,7 +230,46 @@ public record CsvFormatOptions(
             columnPrefix,
             true,
             true,
-            false // trimSpaces (default; see the record javadoc)
+            false, // trimSpaces (default; see the record javadoc)
+            0
+        );
+    }
+
+    /**
+     * Pre-{@code skip_rows} constructor: callers that don't say otherwise skip nothing.
+     */
+    public CsvFormatOptions(
+        char delimiter,
+        char quoteChar,
+        char escapeChar,
+        String commentPrefix,
+        @Nullable String nullValue,
+        Charset encoding,
+        DateFormatter datetimeFormatter,
+        int maxFieldSize,
+        MultiValueSyntax multiValueSyntax,
+        boolean headerRow,
+        String columnPrefix,
+        boolean quoting,
+        boolean escaping,
+        boolean trimSpaces
+    ) {
+        this(
+            delimiter,
+            quoteChar,
+            escapeChar,
+            commentPrefix,
+            nullValue,
+            encoding,
+            datetimeFormatter,
+            maxFieldSize,
+            multiValueSyntax,
+            headerRow,
+            columnPrefix,
+            quoting,
+            escaping,
+            trimSpaces,
+            0
         );
     }
 
@@ -237,12 +286,18 @@ public record CsvFormatOptions(
         if (maxFieldSize < 0) {
             throw new IllegalArgumentException("maxFieldSize must be non-negative, got: " + maxFieldSize);
         }
+        if (skipRows < 0) {
+            throw new IllegalArgumentException("skipRows must be non-negative, got: " + skipRows);
+        }
         if (multiValueSyntax == null) {
             throw new IllegalArgumentException("multiValueSyntax must not be null");
         }
         if (columnPrefix == null) {
             throw new IllegalArgumentException("columnPrefix must not be null");
         }
+        // No such check for nullValue: null there is the "no null token configured" state, distinct from the
+        // empty string, which is a token a user may legitimately configure. See the record javadoc.
+
         // The ACTIVE special characters must be pairwise-distinct and none of them a line terminator:
         // each byte in the hot scan has exactly one meaning. Inactive characters (the quote when
         // quoting is off, the escape when escaping is off) are never consulted, so they are not

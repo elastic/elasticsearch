@@ -412,7 +412,7 @@ public class PanamaOptimizedScalarQuantization extends OptimizedScalarQuantizati
             FloatVector invPmOnesVec = FloatVector.broadcast(FLOAT_SPECIES, invPmOnes);
             for (; i < FLOAT_SPECIES.loopBound(target.length); i += FLOAT_SPECIES.length()) {
                 FloatVector v = FloatVector.fromArray(FLOAT_SPECIES, target, i);
-                FloatVector oVec = IntVector.fromArray(INTEGER_SPECIES, quantize, i).convert(VectorOperators.I2F, 0).reinterpretAsFloats();
+                FloatVector oVec = (FloatVector) IntVector.fromArray(INTEGER_SPECIES, quantize, i).convert(VectorOperators.I2F, 0);
                 FloatVector sVec = oVec.mul(invPmOnesVec);
                 FloatVector smVec = ones.sub(sVec);
                 daaVec = fma(smVec, smVec, daaVec);
@@ -472,9 +472,9 @@ public class PanamaOptimizedScalarQuantization extends OptimizedScalarQuantizati
             for (; i < FLOAT_SPECIES.loopBound(target.length); i += FLOAT_SPECIES.length()) {
                 FloatVector v = FloatVector.fromArray(FLOAT_SPECIES, target, i);
                 FloatVector vClamped = v.max(a).min(b);
-                IntVector xiqint = vClamped.sub(a).mul(invStep).add(0.5f).convert(VectorOperators.F2I, 0).reinterpretAsInts();
+                IntVector xiqint = (IntVector) vClamped.sub(a).mul(invStep).add(0.5f).convert(VectorOperators.F2I, 0);
                 xiqint.intoArray(quantize, i);
-                FloatVector quantizeVec = xiqint.convert(VectorOperators.I2F, 0).reinterpretAsFloats();
+                FloatVector quantizeVec = (FloatVector) xiqint.convert(VectorOperators.I2F, 0);
                 FloatVector xiq = quantizeVec.mul(step).add(a);
                 FloatVector xiiq = v.sub(xiq);
                 xeVec = fma(v, xiiq, xeVec);
@@ -514,7 +514,7 @@ public class PanamaOptimizedScalarQuantization extends OptimizedScalarQuantizati
                 FloatVector v = FloatVector.fromArray(FLOAT_SPECIES, vector, i);
                 FloatVector xi = v.max(lowVec).min(upperVec); // clamp
                 // round
-                IntVector assignment = xi.sub(lowVec).mul(invStepVec).add(0.5f).convert(VectorOperators.F2I, 0).reinterpretAsInts();
+                IntVector assignment = (IntVector) xi.sub(lowVec).mul(invStepVec).add(0.5f).convert(VectorOperators.F2I, 0);
                 sumQuery += assignment.reduceLanes(ADD);
                 assignment.intoArray(destination, i);
             }

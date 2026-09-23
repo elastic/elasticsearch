@@ -133,6 +133,7 @@ public class XContentSource implements ToXContent {
     private Object data() {
         if (data == null) {
             try (XContentParser parser = parser(bytes)) {
+                parser.nextToken();
                 data = XContentParserUtils.parseFieldsValue(parser);
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read value", ex);

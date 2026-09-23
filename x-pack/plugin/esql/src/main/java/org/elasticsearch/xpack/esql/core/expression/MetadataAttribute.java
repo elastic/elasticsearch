@@ -187,6 +187,17 @@ public final class MetadataAttribute extends TypedAttribute {
         return new UnresolvedMetadataAttributeExpression(source, name);
     }
 
+    /**
+     * The {@code METADATA} clause name of {@code requested}. {@link #create} returns a
+     * {@link MetadataAttribute} for names in {@link #ATTRIBUTES_MAP} and an
+     * {@link UnresolvedMetadataAttributeExpression} otherwise; the latter's {@link #name()} throws.
+     * The {@code EXTERNAL} shim uses a plain {@link UnresolvedAttribute}, so both unresolved shapes
+     * occur.
+     */
+    public static String metadataName(NamedExpression requested) {
+        return requested instanceof UnresolvedMetadataAttributeExpression unr ? unr.pattern() : requested.name();
+    }
+
     public static DataType dataType(String name) {
         var t = ATTRIBUTES_MAP.get(name);
         return t != null ? t.dataType() : null;

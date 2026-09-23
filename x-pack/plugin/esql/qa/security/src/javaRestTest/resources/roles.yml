@@ -149,6 +149,14 @@ fls_user:
       field_security:
         grant: [ value ]
 
+fls_alias_user:
+  cluster: []
+  indices:
+    - names: [ 'index' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ constant_value_alias ]
+
 # Reads all mapped fields from doc values on index-partial-mapping, but field-level security disables
 # access to stored _source. Used (alone) to verify that unmapped_fields="load" cannot leak _source
 # values when the user is denied _source.

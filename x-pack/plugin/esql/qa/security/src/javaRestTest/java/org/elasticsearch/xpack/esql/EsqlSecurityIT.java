@@ -91,6 +91,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_cross_index_user", "x-pack-test-password", "fls_cross_index", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("fls_alias_user", "x-pack-test-password", "fls_alias_user", false)
         .user("fls_partial_no_source_user", "x-pack-test-password", "fls_partial_no_source", false)
         .user("fls_per_index_access_user", "x-pack-test-password", "fls_partial_no_source,read_full_mapping", false)
         .user("fls_no_source_no_value_user", "x-pack-test-password", "fls_no_source_no_value_user", false)
@@ -1504,6 +1505,93 @@ public class EsqlSecurityIT extends ESRestTestCase {
             matchesMap().extraOk()
                 .entry("columns", List.of(matchesMap().entry("name", "constant_values_count").entry("type", "long")))
                 .entry("values", List.of(List.of(0), List.of(0)))
+        );
+    }
+
+    public void testFieldLevelSecurityWithConstantKeywordAlias() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+
+        Request putMapping = new Request("PUT", "/index/_mapping");
+        putMapping.setJsonEntity("""
+        {
+          "properties": {
+            "test_constant": {
+              "type": "constant_keyword",
+              "value": "hidden_value"
+            },
+            "constant_value_alias": {
+              "type": "alias",
+              "path": "test_constant"
+            }
+          }
+        }
+        """);
+        assertOK(client().performRequest(putMapping));
+
+        // Positive control: the alias resolves normally without FLS.
+        Response adminResponse = runESQLCommand("test-admin", """
+        FROM index
+        | KEEP constant_value_alias
+        | LIMIT 2
+        """);
+        assertOK(adminResponse);
+        assertMap(
+            entityAsMap(adminResponse),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(matchesMap().entry("name", "constant_value_alias").entry("type", "keyword"))
+                )
+                .entry("values", List.of(List.of("hidden_value"), List.of("hidden_value")))
+        );
+
+        // Field Caps checks the alias's concrete target, so the alias isn't in the
+        // restricted user's coordinator schema.
+        ResponseException unknownField = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_alias_user", "FROM index | KEEP constant_value_alias")
+        );
+        assertThat(unknownField.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            EntityUtils.toString(unknownField.getResponse().getEntity()),
+            containsString("Unknown column [constant_value_alias]")
+        );
+
+        // LOAD can introduce the alias name, but must not recover the value of its
+        // restricted concrete target.
+        Response projection = runESQLCommand("fls_alias_user", """
+        SET unmapped_fields="load";
+        FROM index
+        | KEEP constant_value_alias
+        | LIMIT 2
+        """);
+        assertOK(projection);
+        assertMap(
+            entityAsMap(projection),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(matchesMap().entry("name", "constant_value_alias").entry("type", "keyword"))
+                )
+                .entry("values", List.of(Arrays.asList((Object) null), Arrays.asList((Object) null)))
+        );
+
+        // Guessing the hidden constant through the alias must not match rows.
+        Response filtered = runESQLCommand("fls_alias_user", """
+        SET unmapped_fields="load";
+        FROM index
+        | WHERE constant_value_alias == "hidden_value"
+        | STATS rows = COUNT(*)
+        """);
+        assertOK(filtered);
+        assertMap(
+            entityAsMap(filtered),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "rows").entry("type", "long")))
+                .entry("values", List.of(List.of(0)))
         );
     }
 

@@ -476,9 +476,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
-            if (name.equals(fullFieldName) && isFieldVisible(name) == false) {
-                return ConstantNull.INSTANCE;
-            }
             // Both of KeywordFieldType#blockLoader's paths mangle an object value from _source, so read _source directly via
             // UnmappedKeywordBlockLoader - see that class for the two broken paths and the issues (#156381, #156433).
             // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
@@ -884,7 +881,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // security, resolves slice aliases (e.g. _slice -> _routing) and query-time runtime fields, and returns null for
             // fields absent from this context.
             MappedFieldType fieldType = fieldType(name);
-            if (fieldType == null) {
+            if (fieldType == null || isFieldVisible(fieldType.name()) == false) {
                 // the field does not exist in this context
                 return ConstantNull.INSTANCE;
             }

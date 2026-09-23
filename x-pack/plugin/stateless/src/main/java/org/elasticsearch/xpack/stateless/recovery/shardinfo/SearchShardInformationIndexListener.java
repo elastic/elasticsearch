@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -18,13 +19,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 
 import java.util.Map;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND_RESPONSE;
-import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE;
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND;
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED;
 
 /**
  * An IndexEventListener to retrieve state from other shard copies
@@ -37,8 +39,6 @@ import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetc
  *
  * Relocation of a shard from one node to another: A request is sent to the node the relocation is coming from.
  * Relocation information is not set when adding a replica, so all nodes with shard copies are queried
- *
- * As only a single instance of this class exists, no state should be shared in here
  */
 public class SearchShardInformationIndexListener implements IndexEventListener {
 
@@ -56,6 +56,8 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
     private final Client client;
     private final SearchShardInformationMetricsCollector collector;
     private final LongSupplier nowSupplier;
+    private final ClusterService clusterService;
+    private final ShardWarmVolumes shardWarmVolumes;
     private volatile boolean active = FEATURE_FLAG_QUERY_SEARCH_SHARD_INFORMATION.isEnabled();
 
     @SuppressWarnings("this-escape")
@@ -63,11 +65,15 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
         Client client,
         SearchShardInformationMetricsCollector collector,
         ClusterSettings clusterSettings,
-        LongSupplier nowSupplier
+        LongSupplier nowSupplier,
+        ClusterService clusterService,
+        ShardWarmVolumes shardWarmVolumes
     ) {
         this.client = client;
         this.collector = collector;
         this.nowSupplier = nowSupplier;
+        this.clusterService = clusterService;
+        this.shardWarmVolumes = shardWarmVolumes;
         clusterSettings.initializeAndWatch(QUERY_SEARCH_SHARD_INFORMATION_SETTING, active -> this.active = active);
     }
 
@@ -81,24 +87,38 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
             // if relocation from another node is in the routing entry, this is the best source of information, no need to ask other shards
             String relocatingNodeId = indexShard.routingEntry().relocatingNodeId();
 
+            final var state = clusterService.state();
+            final boolean wantVolumes = ShardWarmVolumes.shouldFetch(indexShard.routingEntry(), state)
+                && shardWarmVolumes.claimFetch(state, relocatingNodeId);
+
             final long start = nowSupplier.getAsLong();
             TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request(
                 relocatingNodeId,
-                indexShard.shardId()
+                indexShard.shardId(),
+                wantVolumes
             );
 
-            client.execute(TransportFetchSearchShardInformationAction.TYPE, request, ActionListener.wrap(response -> {
-                if (NO_OTHER_SHARDS_FOUND_RESPONSE.equals(response)) {
+            ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = ActionListener.wrap(response -> {
+                if (wantVolumes && response.volumesCollected()) {
+                    shardWarmVolumes.completeFetch(
+                        clusterService.state(),
+                        relocatingNodeId,
+                        response.respondingNodeId(),
+                        response.volumesGeneration(),
+                        response.volumes()
+                    );
+                }
+
+                long lastSearcherAcquiredTime = response.getLastSearcherAcquiredTime();
+                if (lastSearcherAcquiredTime == NO_OTHER_SHARDS_FOUND) {
                     return;
                 }
 
-                if (SHARD_HAS_MOVED_RESPONSE.equals(response)) {
+                if (lastSearcherAcquiredTime == SHARD_HAS_MOVED) {
                     collector.shardMoved();
                     logger.trace("shard was moved before searcher could be acquired for shard [{}]", indexShard.shardId());
                     return;
                 }
-
-                long lastSearcherAcquiredTime = response.getLastSearcherAcquiredTime();
 
                 var attributes = Map.<String, Object>of("es_search_last_searcher_acquired_greater_zero", lastSearcherAcquiredTime > 0);
                 collector.recordSuccess(nowSupplier.getAsLong() - start, attributes);
@@ -121,7 +141,18 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
             }, e -> {
                 logger.warn("could not retrieve search shard information data for shard [" + indexShard.shardId() + "]", e);
                 collector.recordError();
-            }));
+                if (wantVolumes) {
+                    shardWarmVolumes.recordFetchFailure();
+                }
+            });
+            if (wantVolumes) {
+                responseListener = ActionListener.runAfter(responseListener, () -> shardWarmVolumes.releaseClaim(relocatingNodeId));
+            }
+            try {
+                client.execute(TransportFetchSearchShardInformationAction.TYPE, request, responseListener);
+            } catch (Exception e) {
+                responseListener.onFailure(e);
+            }
 
             return null;
         });

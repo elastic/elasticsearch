@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,24 +27,18 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchShardWarmVolumesAction;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ShardWarmVolumesTests extends ESTestCase {
@@ -73,128 +65,127 @@ public class ShardWarmVolumesTests extends ESTestCase {
         assertFalse(ShardWarmVolumes.shouldFetch(relocating, rebalance));
     }
 
-    public void testOneRpcForManyFetchesFromSameSource() {
+    public void testClaimFetchWinsOnceWhileInFlight() {
         Index index = new Index("idx", randomUUID());
         long startedAtMillis = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", startedAtMillis);
-        Client client = mock(Client.class);
-        AtomicReference<ActionListener<TransportFetchShardWarmVolumesAction.Response>> held = new AtomicReference<>();
-        doAnswer(invocation -> {
-            held.set(invocation.getArgument(2));
-            return null;
-        }).when(client).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
-        ShardWarmVolumes volumes = newVolumes(client, state);
+        ShardWarmVolumes volumes = newVolumes(state);
 
-        for (int i = 0; i < 10; i++) {
-            volumes.maybeFetch(state, "source");
-        }
-        verify(client, times(1)).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
+        assertTrue(volumes.claimFetch(state, "source"));
         assertTrue(volumes.isInFlight("source"));
-        assertThat(volumes.peek("source"), nullValue());
+        assertFalse(volumes.claimFetch(state, "source"));
     }
 
-    public void testFailureLeavesMemoEmptyAndAllowsRetry() {
+    public void testEmptyEntryIsMissForFormulaAndBlocksClaim() {
+        Index index = new Index("idx", randomUUID());
+        ShardId shardId = new ShardId(index, 0);
+        long startedAtMillis = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", startedAtMillis);
+        ShardWarmVolumes volumes = newVolumes(state);
+        volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of()));
+
+        assertThat(volumes.get(state, "source"), nullValue());
+        assertNotNull(volumes.entryForGeneration(state, "source"));
+        assertFalse(volumes.claimFetch(state, "source"));
+    }
+
+    public void testNonEmptyPutIsVisibleToGet() {
+        Index index = new Index("idx", randomUUID());
+        ShardId shardId = new ShardId(index, 0);
+        long startedAtMillis = randomNonNegativeLong();
+        ClusterState state = drainState(index, "source", "target", startedAtMillis);
+        ShardWarmVolumes volumes = newVolumes(state);
+        volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(shardId, 99L)));
+
+        assertThat(volumes.get(state, "source").volumes(), equalTo(Map.of(shardId, 99L)));
+        assertThat(volumes.get(state, "source"), sameInstance(volumes.peek("source")));
+        assertFalse(volumes.claimFetch(state, "source"));
+    }
+
+    public void testGenerationMismatchIsMissAndAllowsReclaim() {
+        Index index = new Index("idx", randomUUID());
+        long firstGen = randomLongBetween(1, 1000);
+        long secondGen = firstGen + randomLongBetween(1, 1000);
+        ClusterState first = drainState(index, "source", "target", firstGen);
+        ClusterState second = drainState(index, "source", "target", secondGen);
+        ShardWarmVolumes volumes = newVolumes(second);
+        volumes.put("source", new ShardWarmVolumes.Entry(firstGen, Map.of(new ShardId(index, 0), 10L)));
+
+        assertThat(volumes.get(second, "source"), nullValue());
+        assertThat(volumes.entryForGeneration(second, "source"), nullValue());
+        assertTrue(volumes.claimFetch(second, "source"));
+    }
+
+    public void testFailureClearsInFlightAndAllowsRetry() {
         Index index = new Index("idx", randomUUID());
         long startedAtMillis = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", startedAtMillis);
-        Client client = mock(Client.class);
-        AtomicReference<ActionListener<TransportFetchShardWarmVolumesAction.Response>> held = new AtomicReference<>();
-        doAnswer(invocation -> {
-            held.set(invocation.getArgument(2));
-            return null;
-        }).when(client).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
-        ShardWarmVolumes volumes = newVolumes(client, state);
+        ShardWarmVolumes volumes = newVolumes(state);
 
-        volumes.maybeFetch(state, "source");
-        held.get().onFailure(new RuntimeException("rpc failed"));
-        assertThat(volumes.peek("source"), nullValue());
+        assertTrue(volumes.claimFetch(state, "source"));
+        volumes.recordFetchFailure();
+        volumes.releaseClaim("source");
         assertFalse(volumes.isInFlight("source"));
-
-        volumes.maybeFetch(state, "source");
-        verify(client, times(2)).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
+        assertThat(volumes.peek("source"), nullValue());
+        assertTrue(volumes.claimFetch(state, "source"));
     }
 
-    public void testSynchronousExecuteFailureClearsInFlightAndAllowsRetry() {
+    public void testCompleteFetchStoresUnderResponder() {
         Index index = new Index("idx", randomUUID());
+        ShardId shardId = new ShardId(index, 0);
         long startedAtMillis = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", startedAtMillis);
-        Client client = mock(Client.class);
-        AtomicReference<ActionListener<TransportFetchShardWarmVolumesAction.Response>> held = new AtomicReference<>();
-        doThrow(new IllegalStateException("execute failed")).doAnswer(invocation -> {
-            held.set(invocation.getArgument(2));
-            return null;
-        }).when(client).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
-        ShardWarmVolumes volumes = newVolumes(client, state);
+        ShardWarmVolumes volumes = newVolumes(state);
+        assertTrue(volumes.claimFetch(state, "source"));
 
-        volumes.maybeFetch(state, "source");
-        assertThat(volumes.peek("source"), nullValue());
+        volumes.completeFetch(state, "source", "source", startedAtMillis, Map.of(shardId, 10L));
         assertFalse(volumes.isInFlight("source"));
-
-        volumes.maybeFetch(state, "source");
-        verify(client, times(2)).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
-        assertTrue(volumes.isInFlight("source"));
-        assertNotNull(held.get());
+        assertThat(volumes.get(state, "source").volumes(), equalTo(Map.of(shardId, 10L)));
+        assertFalse(volumes.claimFetch(state, "source"));
     }
 
-    public void testCompletionAfterRemovedNodesIsNotStored() {
+    public void testWrongResponderParksEmptyUnderClaimedId() {
+        Index index = new Index("idx", randomUUID());
+        ShardId shardId = new ShardId(index, 0);
+        long sourceGen = randomLongBetween(1, 1000);
+        long otherGen = sourceGen + randomLongBetween(1, 1000);
+        ClusterState state = drainState(index, Map.of("source", sourceGen, "other", otherGen), "target", TransportVersion.current());
+        ShardWarmVolumes volumes = newVolumes(state);
+        assertTrue(volumes.claimFetch(state, "source"));
+
+        volumes.completeFetch(state, "source", "other", otherGen, Map.of(shardId, 77L));
+        assertThat(volumes.get(state, "other").volumes(), equalTo(Map.of(shardId, 77L)));
+        assertThat(volumes.get(state, "source"), nullValue());
+        assertNotNull(volumes.entryForGeneration(state, "source"));
+        assertTrue(volumes.entryForGeneration(state, "source").volumes().isEmpty());
+        assertFalse(volumes.claimFetch(state, "source"));
+    }
+
+    public void testRemovedNodesCleanup() {
         Index index = new Index("idx", randomUUID());
         long startedAtMillis = randomNonNegativeLong();
         ClusterState withSource = drainState(index, "source", "target", startedAtMillis);
         ClusterState withoutSource = ClusterState.builder(withSource)
             .nodes(DiscoveryNodes.builder(withSource.nodes()).remove("source"))
             .build();
-        Client client = mock(Client.class);
-        AtomicReference<ActionListener<TransportFetchShardWarmVolumesAction.Response>> held = new AtomicReference<>();
-        doAnswer(invocation -> {
-            held.set(invocation.getArgument(2));
-            return null;
-        }).when(client).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
-        ClusterService clusterService = clusterService(withSource);
-        ShardWarmVolumes volumes = new ShardWarmVolumes(client, clusterService);
-        volumes.maybeFetch(withSource, "source");
-
-        when(clusterService.state()).thenReturn(withoutSource);
+        ShardWarmVolumes volumes = newVolumes(withSource);
+        volumes.put("source", new ShardWarmVolumes.Entry(startedAtMillis, Map.of(new ShardId(index, 0), 10L)));
         volumes.clusterChanged(new ClusterChangedEvent("test", withoutSource, withSource));
-        held.get().onResponse(new TransportFetchShardWarmVolumesAction.Response(startedAtMillis, Map.of(index, Map.of(0, 10L))));
         assertThat(volumes.peek("source"), nullValue());
+        assertFalse(volumes.isInFlight("source"));
     }
 
-    public void testGenerationMismatchRefetches() {
-        Index index = new Index("idx", randomUUID());
-        long firstGen = randomLongBetween(1, 1000);
-        long secondGen = firstGen + randomLongBetween(1, 1000);
-        ClusterState first = drainState(index, "source", "target", firstGen);
-        ClusterState second = drainState(index, "source", "target", secondGen);
-        Client client = mock(Client.class);
-        doAnswer(invocation -> null).when(client).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
-        ShardWarmVolumes volumes = newVolumes(client, second);
-        volumes.put("source", new ShardWarmVolumes.Entry(firstGen, Map.of(new ShardId(index, 0), 10L)));
-
-        assertThat(volumes.get(second, "source"), nullValue());
-        volumes.maybeFetch(second, "source");
-        verify(client, times(1)).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
-    }
-
-    public void testSuccessfulPutIsVisibleToGet() {
+    public void testDoesNotClaimWhenMinTransportVersionUnsupported() {
         Index index = new Index("idx", randomUUID());
         long startedAtMillis = randomNonNegativeLong();
-        ClusterState state = drainState(index, "source", "target", startedAtMillis);
-        Client client = mock(Client.class);
-        AtomicReference<ActionListener<TransportFetchShardWarmVolumesAction.Response>> held = new AtomicReference<>();
-        doAnswer(invocation -> {
-            held.set(invocation.getArgument(2));
-            return null;
-        }).when(client).execute(eq(TransportFetchShardWarmVolumesAction.TYPE), any(), any());
-        ShardWarmVolumes volumes = newVolumes(client, state);
-        volumes.maybeFetch(state, "source");
-        var response = new TransportFetchShardWarmVolumesAction.Response(startedAtMillis, Map.of(index, Map.of(0, 99L)));
-        held.get().onResponse(response);
-        assertThat(volumes.get(state, "source").volumes(), equalTo(Map.of(new ShardId(index, 0), 99L)));
-        assertThat(volumes.get(state, "source"), sameInstance(volumes.peek("source")));
+        TransportVersion old = TransportVersion.fromId(TransportFetchSearchShardInformationAction.FETCH_SHARD_WARM_VOLUMES.id() - 1);
+        ClusterState state = drainState(index, Map.of("source", startedAtMillis), "target", old);
+        ShardWarmVolumes volumes = newVolumes(state);
+        assertFalse(volumes.claimFetch(state, "source"));
     }
 
-    private static ShardWarmVolumes newVolumes(Client client, ClusterState state) {
-        return new ShardWarmVolumes(client, clusterService(state));
+    private static ShardWarmVolumes newVolumes(ClusterState state) {
+        return new ShardWarmVolumes(clusterService(state));
     }
 
     private static ClusterService clusterService(ClusterState state) {
@@ -211,30 +202,38 @@ public class ShardWarmVolumesTests extends ESTestCase {
     }
 
     private static ClusterState drainState(Index index, String sourceNodeId, String targetNodeId, long startedAtMillis) {
+        return drainState(index, Map.of(sourceNodeId, startedAtMillis), targetNodeId, TransportVersion.current());
+    }
+
+    private static ClusterState drainState(Index index, Map<String, Long> shutdowns, String targetNodeId, TransportVersion minVersion) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 1))
             .build();
-        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
-            .setNodeId(sourceNodeId)
-            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-            .setReason("test")
-            .setStartedAtMillis(startedAtMillis)
-            .setNodeSeen(true)
-            .build();
-        return ClusterState.builder(new ClusterName("test"))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(DiscoveryNodeUtils.create(sourceNodeId))
-                    .add(DiscoveryNodeUtils.create(targetNodeId))
-                    .localNodeId(targetNodeId)
-                    .masterNodeId(targetNodeId)
+        Map<String, SingleNodeShutdownMetadata> shutdownMetadata = new HashMap<>();
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create(targetNodeId))
+            .localNodeId(targetNodeId)
+            .masterNodeId(targetNodeId);
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.putCompatibilityVersions(targetNodeId, minVersion, Map.of());
+        for (var entry : shutdowns.entrySet()) {
+            shutdownMetadata.put(
+                entry.getKey(),
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId(entry.getKey())
+                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                    .setReason("test")
+                    .setStartedAtMillis(entry.getValue())
+                    .setNodeSeen(true)
                     .build()
-            )
-            .putCompatibilityVersions(sourceNodeId, TransportVersion.current(), Map.of())
-            .putCompatibilityVersions(targetNodeId, TransportVersion.current(), Map.of())
+            );
+            nodes.add(DiscoveryNodeUtils.create(entry.getKey()));
+            state.putCompatibilityVersions(entry.getKey(), minVersion, Map.of());
+        }
+        return state.nodes(nodes.build())
             .metadata(
                 Metadata.builder()
-                    .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of(sourceNodeId, shutdown)))
+                    .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
                     .put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false))
                     .build()
             )

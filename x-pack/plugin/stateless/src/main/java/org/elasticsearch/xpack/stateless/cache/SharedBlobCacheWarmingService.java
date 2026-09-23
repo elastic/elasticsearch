@@ -1269,13 +1269,6 @@ public class SharedBlobCacheWarmingService {
         return false;
     }
 
-    /**
-     * Fire-and-forget fetch of per-shard warm volumes from {@code sourceNodeId}. Recovery must not wait on the result.
-     */
-    public void maybeFetchWarmVolumes(ClusterState state, String sourceNodeId) {
-        shardWarmVolumes.maybeFetch(state, sourceNodeId);
-    }
-
     public void setShardWarmVolumes(ShardWarmVolumes shardWarmVolumes) {
         this.shardWarmVolumes = Objects.requireNonNull(shardWarmVolumes);
     }

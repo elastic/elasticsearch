@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -1400,7 +1399,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
         );
         when(clusterService.state()).thenReturn(state);
-        return new ShardWarmVolumes(mock(Client.class), clusterService);
+        return new ShardWarmVolumes(clusterService);
     }
 
     /**

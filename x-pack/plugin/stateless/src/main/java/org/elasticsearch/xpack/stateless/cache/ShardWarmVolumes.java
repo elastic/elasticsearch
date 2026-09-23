@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -22,7 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchShardWarmVolumesAction;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 
 import java.util.Map;
 import java.util.Objects;
@@ -40,12 +36,6 @@ public class ShardWarmVolumes implements ClusterStateListener {
     public static final String FETCH_TOTAL_METRIC = "es.blob_cache_warming.shard_warm_volumes.fetch.total";
     public static final String FETCH_OUTCOME_ATTRIBUTE_KEY = "es_fetch_outcome";
 
-    private static final Logger logger = LogManager.getLogger(ShardWarmVolumes.class);
-
-    @Nullable
-    private final Client client;
-    @Nullable
-    private final ClusterService clusterService;
     @Nullable
     private final LongCounter fetchTotalMetric;
     // Maps from source node ID to the warm-volume snapshot for a specific shutdown generation.
@@ -55,19 +45,15 @@ public class ShardWarmVolumes implements ClusterStateListener {
     private volatile boolean enabled;
 
     private ShardWarmVolumes() {
-        this.client = null;
-        this.clusterService = null;
         this.fetchTotalMetric = null;
         this.enabled = false;
     }
 
-    public ShardWarmVolumes(Client client, ClusterService clusterService) {
-        this(client, clusterService, MeterRegistry.NOOP);
+    public ShardWarmVolumes(ClusterService clusterService) {
+        this(clusterService, MeterRegistry.NOOP);
     }
 
-    public ShardWarmVolumes(Client client, ClusterService clusterService, MeterRegistry meterRegistry) {
-        this.client = client;
-        this.clusterService = clusterService;
+    public ShardWarmVolumes(ClusterService clusterService, MeterRegistry meterRegistry) {
         this.fetchTotalMetric = meterRegistry.registerLongCounter(
             FETCH_TOTAL_METRIC,
             "Fetches of per-shard warm volumes from a draining search node, broken down by [" + FETCH_OUTCOME_ATTRIBUTE_KEY + "]",
@@ -85,66 +71,50 @@ public class ShardWarmVolumes implements ClusterStateListener {
         return sourceId != null && state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceId);
     }
 
-    public void maybeFetch(ClusterState state, String sourceNodeId) {
-        if (enabled == false || client == null) {
-            return;
+    /**
+     * Claims the right to request volumes for {@code sourceNodeId} under the current shutdown generation.
+     * Returns false when disabled, the min transport version is too old, an entry already exists for this
+     * generation (including empty), or a fetch is already in flight.
+     */
+    public boolean claimFetch(ClusterState state, String sourceNodeId) {
+        if (enabled == false || sourceNodeId == null) {
+            return false;
+        }
+        if (state.getMinTransportVersion().supports(TransportFetchSearchShardInformationAction.FETCH_SHARD_WARM_VOLUMES) == false) {
+            return false;
         }
         var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         if (shutdown == null) {
-            return;
+            return false;
         }
         long generation = shutdown.getStartedAtMillis();
         Entry existing = memo.get(sourceNodeId);
         if (existing != null && existing.generationStartedAtMillis() == generation) {
-            return;
+            return false;
         }
-        // We also check it at a transport call level per each node. This is an optimisation.
-        if (state.getMinTransportVersion().supports(TransportFetchShardWarmVolumesAction.FETCH_SHARD_WARM_VOLUMES) == false) {
-            return;
-        }
-        if (inFlight.add(sourceNodeId) == false) {
-            return;
-        }
-        final ActionListener<TransportFetchShardWarmVolumesAction.Response> listener = ActionListener.runAfter(
-            ActionListener.wrap(response -> {
-                ClusterState latest = clusterService.state();
-                if (latest.nodes().nodeExists(sourceNodeId) == false) {
-                    return;
-                }
-                var currentShutdown = latest.metadata().nodeShutdowns().get(sourceNodeId);
-                if (currentShutdown == null || currentShutdown.getStartedAtMillis() != response.generationStartedAtMillis()) {
-                    return;
-                }
-                memo.put(sourceNodeId, response.toEntry());
-                recordFetchOutcome("success");
-            }, e -> {
-                logger.debug(() -> "failed to fetch shard warm volumes from [" + sourceNodeId + "]", e);
-                recordFetchOutcome("failure");
-            }),
-            () -> inFlight.remove(sourceNodeId)
-        );
-        try {
-            client.execute(
-                TransportFetchShardWarmVolumesAction.TYPE,
-                new TransportFetchShardWarmVolumesAction.Request(sourceNodeId),
-                listener
-            );
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        return inFlight.add(sourceNodeId);
     }
 
-    private void recordFetchOutcome(String outcome) {
-        if (fetchTotalMetric != null) {
-            fetchTotalMetric.incrementBy(1, Map.of(FETCH_OUTCOME_ATTRIBUTE_KEY, outcome));
-        }
-    }
-
+    /**
+     * Usable entry for the timeout formula: matching generation and a non-empty map.
+     */
     @Nullable
     public Entry get(ClusterState state, String sourceNodeId) {
         if (enabled == false) {
             return null;
         }
+        Entry entry = entryForGeneration(state, sourceNodeId);
+        if (entry == null || entry.volumes().isEmpty()) {
+            return null;
+        }
+        return entry;
+    }
+
+    /**
+     * Any stored entry for this source's current shutdown generation, including empty.
+     */
+    @Nullable
+    public Entry entryForGeneration(ClusterState state, String sourceNodeId) {
         Entry entry = memo.get(sourceNodeId);
         if (entry == null) {
             return null;
@@ -154,6 +124,49 @@ public class ShardWarmVolumes implements ClusterStateListener {
             return null;
         }
         return entry;
+    }
+
+    public void completeFetch(
+        ClusterState state,
+        String claimedId,
+        String respondingNodeId,
+        long volumesGeneration,
+        Map<ShardId, Long> volumes
+    ) {
+        putIfCurrentGeneration(state, respondingNodeId, volumesGeneration, volumes);
+        if (claimedId.equals(respondingNodeId) == false) {
+            var shutdown = state.metadata().nodeShutdowns().get(claimedId);
+            if (shutdown != null) {
+                putIfCurrentGeneration(state, claimedId, shutdown.getStartedAtMillis(), Map.of());
+            }
+        }
+        inFlight.remove(claimedId);
+        recordFetchOutcome("success");
+    }
+
+    public void releaseClaim(String sourceNodeId) {
+        inFlight.remove(sourceNodeId);
+    }
+
+    public void recordFetchFailure() {
+        recordFetchOutcome("failure");
+    }
+
+    private void putIfCurrentGeneration(ClusterState state, String nodeId, long generation, Map<ShardId, Long> volumes) {
+        if (state.nodes().nodeExists(nodeId) == false) {
+            return;
+        }
+        var shutdown = state.metadata().nodeShutdowns().get(nodeId);
+        if (shutdown == null || shutdown.getStartedAtMillis() != generation) {
+            return;
+        }
+        memo.put(nodeId, new Entry(generation, volumes));
+    }
+
+    private void recordFetchOutcome(String outcome) {
+        if (fetchTotalMetric != null) {
+            fetchTotalMetric.incrementBy(1, Map.of(FETCH_OUTCOME_ATTRIBUTE_KEY, outcome));
+        }
     }
 
     @Override

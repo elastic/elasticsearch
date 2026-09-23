@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -16,50 +18,72 @@ import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND_RESPONSE;
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED;
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -70,20 +94,23 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
     private final Index index = new Index("my_index", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     private final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "");
-    private final ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
     private final ShardRouting newUnassignedPrimaryIndexOnly = ShardRouting.newUnassigned(
         shardId,
         true,
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         unassignedInfo,
         ShardRouting.Role.INDEX_ONLY,
-        recoveryPriority
+        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
     );
 
     private final ThreadPool threadPool = mock(ThreadPool.class);
     private final ClusterService clusterService = mock(ClusterService.class);
     private final TransportService transportService = mock(TransportService.class);
     private final IndicesService indicesService = mock(IndicesService.class);
+
+    {
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
 
     private final TransportFetchSearchShardInformationAction action = new TransportFetchSearchShardInformationAction(
         threadPool,
@@ -172,7 +199,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             unassignedInfo,
             ShardRouting.Role.INDEX_ONLY,
-            recoveryPriority
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
         ShardRouting searchShard = createSearchOnlyShard(otherShardId, "search_node_1").moveToStarted(1);
 
@@ -481,7 +508,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             RecoverySource.PeerRecoverySource.INSTANCE,
             unassignedInfo,
             ShardRouting.Role.SEARCH_ONLY,
-            recoveryPriority
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize(nodeId, null, randomNonNegativeLong());
     }
 
@@ -492,7 +519,212 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             unassignedInfo,
             ShardRouting.Role.INDEX_ONLY,
-            recoveryPriority
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
+    }
+
+    public void testEstimateWarmVolumeTwoFilesOneBlobUsesMax() {
+        BlobFileRanges first = range("blob-a", 0, 10);
+        BlobFileRanges second = range("blob-a", 5, 20);
+        assertThat(TransportFetchSearchShardInformationAction.estimateWarmVolume(List.of(first, second)), equalTo(25L));
+    }
+
+    public void testEstimateWarmVolumeTwoBlobsSumsMaxima() {
+        BlobFileRanges blobA = range("blob-a", 0, 10);
+        BlobFileRanges blobB = range("blob-b", 3, 7);
+        assertThat(TransportFetchSearchShardInformationAction.estimateWarmVolume(List.of(blobA, blobB)), equalTo(20L));
+    }
+
+    public void testEstimateWarmVolumeEmptyIsZero() {
+        assertThat(TransportFetchSearchShardInformationAction.estimateWarmVolume(List.of()), equalTo(0L));
+    }
+
+    public void testSnapshotSearchableShardsSkipsNonSearchable() {
+        Index idx = new Index("idx", randomUUID());
+        IndexShard searchable = mockShard(idx, 0, ShardRouting.Role.SEARCH_ONLY);
+        IndexShard indexing = mockShard(idx, 1, ShardRouting.Role.INDEX_ONLY);
+        IndexService indexService = mock(IndexService.class);
+        when(indexService.iterator()).thenReturn(List.of(searchable, indexing).iterator());
+        IndicesService services = mock(IndicesService.class);
+        when(services.iterator()).thenReturn(List.of(indexService).iterator());
+
+        List<IndexShard> snapshot = TransportFetchSearchShardInformationAction.snapshotSearchableShards(services);
+        assertThat(snapshot, equalTo(List.of(searchable)));
+    }
+
+    public void testFailedEstimateIsSkippedNotZero() {
+        Index idx = new Index("idx", randomUUID());
+        IndexShard shard = mockShard(idx, 0, ShardRouting.Role.SEARCH_ONLY);
+        Store store = mock(Store.class);
+        when(shard.store()).thenReturn(store);
+
+        assertThat(TransportFetchSearchShardInformationAction.tryEstimateShardWarmVolume(shard), equalTo(OptionalLong.empty()));
+        verify(shard, never()).storeStats();
+    }
+
+    public void testOneFailureYieldsPartialMap() {
+        Index idx = new Index("idx", randomUUID());
+        IndexShard ok = mockShard(idx, 0, ShardRouting.Role.SEARCH_ONLY);
+        IndexShard failing = mockShard(idx, 1, ShardRouting.Role.SEARCH_ONLY);
+        Store failingStore = mock(Store.class);
+        when(failing.store()).thenReturn(failingStore);
+
+        Map<ShardId, Long> volumes = TransportFetchSearchShardInformationAction.collectWarmVolumes(List.of(ok, failing), shard -> {
+            if (shard == ok) {
+                return OptionalLong.of(40L);
+            }
+            return TransportFetchSearchShardInformationAction.tryEstimateShardWarmVolume(shard);
+        });
+        assertThat(volumes, equalTo(Map.of(new ShardId(idx, 0), 40L)));
+        verify(failing, never()).storeStats();
+        verify(ok, never()).storeStats();
+    }
+
+    public void testRequestResponseRoundTrip() throws IOException {
+        ShardId requestShardId = new ShardId(index, 0);
+        var request = new TransportFetchSearchShardInformationAction.Request("node-a", requestShardId, true);
+        var response = new TransportFetchSearchShardInformationAction.Response(
+            123L,
+            "node-a",
+            456L,
+            Map.of(requestShardId, 12L, new ShardId(index, 1), 34L)
+        );
+        assertThat(roundTrip(request, TransportVersion.current()), equalTo(request));
+        assertThat(roundTrip(response, TransportVersion.current()), equalTo(response));
+    }
+
+    public void testDowngradedTransportVersionOmitsVolumes() throws IOException {
+        ShardId requestShardId = new ShardId(index, 0);
+        TransportVersion old = TransportVersion.fromId(TransportFetchSearchShardInformationAction.FETCH_SHARD_WARM_VOLUMES.id() - 1);
+        var request = new TransportFetchSearchShardInformationAction.Request("node-a", requestShardId, true);
+        var copy = roundTrip(request, old);
+        assertFalse(copy.wantVolumes());
+        assertThat(copy.getNodeId(), equalTo("node-a"));
+        assertThat(copy.getShardId(), equalTo(requestShardId));
+
+        var response = new TransportFetchSearchShardInformationAction.Response(99L, "node-a", 1L, Map.of(requestShardId, 12L));
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(old);
+        response.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(old);
+        var copied = new TransportFetchSearchShardInformationAction.Response(in);
+        assertThat(copied.getLastSearcherAcquiredTime(), equalTo(99L));
+        assertFalse(copied.volumesCollected());
+        assertThat(copied.respondingNodeId(), nullValue());
+        assertTrue(copied.volumes().isEmpty());
+    }
+
+    public void testShardMovedWithWantVolumesStillCollects() {
+        long generation = randomNonNegativeLong();
+        IndicesService services = mock(IndicesService.class);
+        when(services.getShardOrNull(shardId)).thenReturn(null);
+        when(services.iterator()).thenReturn(List.<IndexService>of().iterator());
+
+        TransportFetchSearchShardInformationAction volumesAction = newAction(services, localState("source", generation));
+        PlainActionFuture<TransportFetchSearchShardInformationAction.Response> future = new PlainActionFuture<>();
+        volumesAction.shardOperation(new TransportFetchSearchShardInformationAction.Request("source", shardId, true), future);
+        var response = future.actionGet();
+        assertThat(response.getLastSearcherAcquiredTime(), equalTo(SHARD_HAS_MOVED));
+        assertTrue(response.volumesCollected());
+        assertThat(response.respondingNodeId(), equalTo("source"));
+        assertThat(response.volumesGeneration(), equalTo(generation));
+        assertTrue(response.volumes().isEmpty());
+    }
+
+    public void testSourceMemoDoesNotRewalkSameGeneration() {
+        long generation = randomNonNegativeLong();
+        AtomicInteger walks = new AtomicInteger();
+        IndicesService services = mock(IndicesService.class);
+        when(services.getShardOrNull(any())).thenReturn(null);
+        when(services.iterator()).thenAnswer(invocation -> {
+            walks.incrementAndGet();
+            return List.<IndexService>of().iterator();
+        });
+
+        TransportFetchSearchShardInformationAction volumesAction = newAction(services, localState("source", generation));
+        var request = new TransportFetchSearchShardInformationAction.Request("source", shardId, true);
+        PlainActionFuture<TransportFetchSearchShardInformationAction.Response> first = new PlainActionFuture<>();
+        volumesAction.shardOperation(request, first);
+        first.actionGet();
+        PlainActionFuture<TransportFetchSearchShardInformationAction.Response> second = new PlainActionFuture<>();
+        volumesAction.shardOperation(request, second);
+        second.actionGet();
+        assertThat(walks.get(), equalTo(1));
+    }
+
+    private static TransportFetchSearchShardInformationAction.Request roundTrip(
+        TransportFetchSearchShardInformationAction.Request original,
+        TransportVersion version
+    ) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
+        original.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(version);
+        return new TransportFetchSearchShardInformationAction.Request(in);
+    }
+
+    private static TransportFetchSearchShardInformationAction.Response roundTrip(
+        TransportFetchSearchShardInformationAction.Response original,
+        TransportVersion version
+    ) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
+        original.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(version);
+        return new TransportFetchSearchShardInformationAction.Response(in);
+    }
+
+    private static TransportFetchSearchShardInformationAction newAction(IndicesService indicesService, ClusterState state) {
+        ThreadPool pool = mock(ThreadPool.class);
+        when(pool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        ClusterService service = mock(ClusterService.class);
+        when(service.state()).thenReturn(state);
+        return new TransportFetchSearchShardInformationAction(
+            pool,
+            service,
+            mock(ProjectResolver.class),
+            mock(TransportService.class),
+            ActionFilters.EMPTY,
+            indicesService
+        );
+    }
+
+    private static ClusterState localState(String localNodeId, long startedAtMillis) {
+        Index idx = new Index("idx", randomUUID());
+        IndexMetadata indexMetadata = IndexMetadata.builder(idx.getName())
+            .settings(indexSettings(IndexVersion.current(), idx.getUUID(), 1, 1))
+            .build();
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(localNodeId)
+            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+            .setReason("test")
+            .setStartedAtMillis(startedAtMillis)
+            .setNodeSeen(true)
+            .build();
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(localNodeId)).localNodeId(localNodeId).masterNodeId(localNodeId))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of(localNodeId, shutdown)))
+                    .put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false))
+                    .build()
+            )
+            .build();
+    }
+
+    private static IndexShard mockShard(Index index, int shard, ShardRouting.Role role) {
+        ShardId sid = new ShardId(index, shard);
+        ShardRouting routing = TestShardRouting.shardRoutingBuilder(sid, "node", false, STARTED).withRole(role).build();
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.routingEntry()).thenReturn(routing);
+        when(indexShard.shardId()).thenReturn(sid);
+        return indexShard;
+    }
+
+    private static BlobFileRanges range(String blobName, long offset, long length) {
+        return new BlobFileRanges(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length));
     }
 }

@@ -46,6 +46,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                 () -> cursor(docSlots),
                 new StringColumnOptions(
                     ROOMY,
+                    StringColumnOptions.DEFAULT_SUMMARY,
                     randomChunkCodec(),
                     new StringColumnOptions.Sizes(
                         randomValidBlockSize(),

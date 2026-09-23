@@ -95,7 +95,7 @@ public class StringConstantLengthTests extends ColumnarStringTestCase {
                     docSlots.length,
                     lying,
                     () -> cursor(docSlots),
-                    StringColumnOptions.DEFAULT.withDictionary(DictionaryPolicy.NONE),
+                    StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE),
                     null,
                     dir,
                     IOContext.DEFAULT,

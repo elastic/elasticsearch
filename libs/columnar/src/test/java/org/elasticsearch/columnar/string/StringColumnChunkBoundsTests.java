@@ -249,6 +249,7 @@ public class StringColumnChunkBoundsTests extends ColumnarStringTestCase {
     private static StringColumnOptions options(DictionaryPolicy policy, int valuesPerBlock, ChunkBounds plain, ChunkBounds escapes) {
         return new StringColumnOptions(
             policy,
+            StringColumnOptions.DEFAULT_SUMMARY,
             // What cuts a chunk is the same whatever compresses it, so the codec is free to vary.
             randomChunkCodec(),
             new StringColumnOptions.Sizes(

@@ -183,7 +183,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             slotCountsBlockSize,
             randomLengthBlockSize(blockSize)
         );
-        withColumn(docSlots, new StringColumnOptions(policy, chunkCodec, sizes), check);
+        withColumn(docSlots, new StringColumnOptions(policy, StringColumnOptions.DEFAULT_SUMMARY, chunkCodec, sizes), check);
     }
 
     /**

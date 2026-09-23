@@ -50,7 +50,7 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         }
         final StringColumnOptionsSelector selector = (fieldName, type) -> fieldName.equals(NAMED)
             ? StringColumnOptions.DEFAULT
-            : StringColumnOptions.DEFAULT.withDictionary(DictionaryPolicy.NONE);
+            : StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE);
 
         try (Directory dir = newDirectory()) {
             write(dir, selector, values);
@@ -72,6 +72,7 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         }
         final StringColumnOptionsSelector selector = (fieldName, type) -> new StringColumnOptions(
             StringColumnOptions.DEFAULT_DICTIONARY,
+            StringColumnOptions.DEFAULT_SUMMARY,
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
             StringColumnOptions.DEFAULT_SIZES
         );
@@ -101,15 +102,25 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
     public void testOptionsRejectWhatWouldNotRoundTrip() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(null, ChunkCodec.ZSTD, StringColumnOptions.DEFAULT_SIZES)
+            () -> new StringColumnOptions(null, StringColumnOptions.DEFAULT_SUMMARY, ChunkCodec.ZSTD, StringColumnOptions.DEFAULT_SIZES)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, null, StringColumnOptions.DEFAULT_SIZES)
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                StringColumnOptions.DEFAULT_SUMMARY,
+                null,
+                StringColumnOptions.DEFAULT_SIZES
+            )
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, ChunkCodec.ZSTD, null)
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                StringColumnOptions.DEFAULT_SUMMARY,
+                ChunkCodec.ZSTD,
+                null
+            )
         );
     }
 

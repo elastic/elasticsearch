@@ -515,10 +515,7 @@ public final class AzureStorageProvider implements StorageProvider {
                 limit
             );
         } catch (Exception e) {
-            throw new IOException(
-                "Failed to list children in container [" + parsed.container + "] with prefix [" + parsed.blobName + "]" + credentialHint(),
-                e
-            );
+            throw new IOException("Failed to list children in the configured path" + credentialHint(), e);
         }
     }
 

@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -225,7 +226,7 @@ public class BulkBatchEncodersTests extends ESTestCase {
         // First item: valid JSON.
         req.add(indexRequest(INDEX, doc(0)));
         // Second item: content type says JSON but bytes are not valid JSON → encoder will throw.
-        IndexRequest badRequest = new IndexRequest(INDEX).source("{not valid json".getBytes(), XContentType.JSON);
+        IndexRequest badRequest = new IndexRequest(INDEX).source("{not valid json".getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         req.add(badRequest);
 
         BytesReference firstSrc = ((IndexRequest) req.requests().get(0)).indexSource().bytes();

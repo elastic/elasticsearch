@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
 
     public void testFlatRoundTrip() {
-        runTest(4, between(1, 50_000), HllStates.GroupingState.PAGED_PARTITION_THRESHOLD_BYTES);
+        runTest(40_000, between(1, 1_000), HllStates.GroupingState.PAGED_PARTITION_THRESHOLD_BYTES);
     }
 
     public void testPagedRoundTrip() {

@@ -49,10 +49,6 @@ public class CountDistinctLongAggregator {
         current.merge(groupId, inValue, 0);
     }
 
-    public static void combinePartition(HllStates.GroupingState current, int groupId, BytesRef serializedHll) {
-        combineIntermediate(current, groupId, serializedHll);
-    }
-
     public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
         try (LongBlock.Builder builder = ctx.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {

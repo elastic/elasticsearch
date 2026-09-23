@@ -377,14 +377,14 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
         state.appendPartition(values, dstIds[0], length);
       } else {
         for (int i = 0; i < length; i++) {
-          CountDistinctLongAggregator.combinePartition(state, dstIds[i], values.get(i, scratch));
+          CountDistinctLongAggregator.combineIntermediate(state, dstIds[i], values.get(i, scratch));
         }
       }
       return;
     }
     for (int i = 0; i < length; i++) {
       if (seen[i]) {
-        CountDistinctLongAggregator.combinePartition(state, dstIds[i], values.get(i, scratch));
+        CountDistinctLongAggregator.combineIntermediate(state, dstIds[i], values.get(i, scratch));
       }
     }
   }

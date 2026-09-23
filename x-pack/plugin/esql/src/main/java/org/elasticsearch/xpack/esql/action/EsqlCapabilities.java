@@ -4102,6 +4102,14 @@ public class EsqlCapabilities {
          */
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
+        /**
+         * Streaming execution on {@code POST /_query}: the {@code streaming} and
+         * {@code batch_size} URL parameters are accepted, and with {@code format=ndjson} the
+         * response streams header / pages / footer as NDJSON as rows are produced.
+         * Snapshot-only while the streaming protocol is still changing.
+         */
+        STREAMING(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

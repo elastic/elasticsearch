@@ -312,12 +312,8 @@ public final class RestResponse implements Releasable {
     private static ESLogMessage suppressedErrorMessage(RestChannel channel, RestStatus status, Exception e) {
         final CauseChain causes = walkCauseChain(e);
         final Throwable rootCause = causes.deepest();
-        final ESLogMessage message = new SuppressedErrorMessage(
-            "path: {}, params: {}, status: {}",
-            channel.request().rawPath(),
-            channel.request().params(),
-            status.getStatus()
-        ).field("elasticsearch.rest.handler", channel.handlerName())
+        final ESLogMessage message = new SuppressedErrorMessage(channel.request().rawPath(), channel.request().params(), status.getStatus())
+            .field("elasticsearch.rest.handler", channel.handlerName())
             .field("url.path", channel.request().rawPath())
             .field("http.response.status_code", status.getStatus())
             .field("elasticsearch.error.root_cause.type", rootCause.getClass().getName())
@@ -355,8 +351,10 @@ public final class RestResponse implements Releasable {
      */
     private static final class SuppressedErrorMessage extends ESLogMessage {
 
-        SuppressedErrorMessage(String messagePattern, Object... args) {
-            super(messagePattern, args);
+        SuppressedErrorMessage(String path, Map<String, String> params, int status) {
+            // NOTE: the arguments are spelled out rather than forwarded as a varargs array so that the logger usage check can
+            // determine their count statically
+            super("path: {}, params: {}, status: {}", path, params, status);
         }
 
         @Override

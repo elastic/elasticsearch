@@ -39,7 +39,9 @@ public class ESJsonLayoutTests extends ESTestCase {
             "cluster.name": "${sys:es.logs.cluster_name}", \
             "node.name": "%%node_name", \
             "message": "%%notEmpty{%%enc{%%marker}{JSON} }%%enc{%%.-10000m}{JSON}"%%notEmpty{, \
-            %%node_and_cluster_id }%%notEmpty{, %%CustomMapFields{type,timestamp,level,component,cluster.name,node.name,message} }%%exceptionAsJson \
+            %%node_and_cluster_id }%%notEmpty{, \
+            %%CustomMapFields{type,timestamp,level,component,cluster.name,node.name,message} \
+            }%%exceptionAsJson \
             }%n""")));
 
         assertThat(server.toSerializable(new Log4jLogEvent()), Matchers.containsString("\"cluster.name\": \"cluster123\""));
@@ -57,7 +59,9 @@ public class ESJsonLayoutTests extends ESTestCase {
             "level": "%%p", \
             "component": "%%c{1.}", \
             "cluster.name": "${sys:es.logs.cluster_name}", \
-            "node.name": "%%node_name"%%notEmpty{, %%node_and_cluster_id }%%notEmpty{, %%CustomMapFields{type,timestamp,level,component,cluster.name,node.name} }%%exceptionAsJson \
+            "node.name": "%%node_name"%%notEmpty{, %%node_and_cluster_id }%%notEmpty{, \
+            %%CustomMapFields{type,timestamp,level,component,cluster.name,node.name} \
+            }%%exceptionAsJson \
             }%n""")));
     }
 }

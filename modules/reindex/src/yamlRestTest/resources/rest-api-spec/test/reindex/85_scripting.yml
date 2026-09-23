@@ -125,6 +125,96 @@
   - match: { _routing: foo }
 
 ---
+"Add slice alias":
+  - requires:
+      cluster_features: ["index.slice_indexing"]
+      reason: "requires _slice alias support in reindex script metadata"
+
+  - do:
+      index:
+        index:  twitter
+        id:     "1"
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        id:     "2"
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: new_twitter
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: twitter
+          dest:
+            index: new_twitter
+          script:
+            lang: painless
+            source: ctx._slice = ctx._source.user
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index:   new_twitter
+        id:      "1"
+        slice: kimchy
+  - match: { _slice: kimchy }
+
+  - do:
+      get:
+        index:   new_twitter
+        id:      "2"
+        slice: foo
+  - match: { _slice: foo }
+
+---
+"Script that does not assign _slice fails gracefully for a slice-enabled destination":
+  - requires:
+      cluster_features: ["index.slice_indexing"]
+      reason: "requires _slice support in reindex script metadata"
+
+  - do:
+      index:
+        index:  twitter
+        id:     "1"
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: new_twitter
+        body:
+          settings:
+            index.slice.enabled: true
+
+  # The script runs but never assigns ctx._slice, so the document reaches the slice-enabled destination without a slice. Rather than being
+  # silently indexed without a slice, the bulk write is rejected with a clear [slice] is required error and the reindex fails gracefully.
+  - do:
+      catch: /\[slice\].is.required.when.\[index.slice.enabled\].is.true/
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: twitter
+          dest:
+            index: new_twitter
+          script:
+            lang: painless
+            source: ctx._source.user = "other" + ctx._source.user
+
+---
 "Noop one doc":
   - do:
       index:

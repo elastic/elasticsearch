@@ -103,7 +103,8 @@ public class ReindexValidator {
     /**
      * Validates the interaction between the source {@code slice} (which slice of a slice-enabled source to read) and the destination
      * {@code slice} (which slice every reindexed document is written to). A destination {@code slice} may be omitted for a slice-enabled
-     * destination as long as the source is read in slice mode: in that case each document preserves the slice it was read from.
+     * destination when either the source is read in slice mode (each document preserves the slice it was read from) or a script is present
+     * (the script may assign {@code ctx._slice} per document). If neither holds, a static destination {@code slice} is required.
      */
     private void validateSliceRouting(ReindexRequest request, ProjectMetadata projectMetadata) {
         final IndexRequest destination = request.getDestination();
@@ -145,8 +146,11 @@ public class ReindexValidator {
                         + "] instead"
                 );
             }
-            // Omitting [_slice] in [dest] only works when the source is read in slice mode, so each document can keep its source slice.
-            if (destSliceProvided == false && sourceSliceMode == false) {
+            // Omitting [_slice] in [dest] works when the source is read in slice mode (each document keeps its source slice) or a script is
+            // present (it may assign [_slice] per document). Documents that are left without a slice are rejected at index time by the
+            // slice-enabled destination, so we only reject up-front when neither mechanism can supply one.
+            final boolean scriptMayProvideSlice = request.getScript() != null;
+            if (destSliceProvided == false && sourceSliceMode == false && scriptMayProvideSlice == false) {
                 throw new IllegalArgumentException(
                     "["
                         + SliceIndexing.FIELD_NAME
@@ -155,6 +159,8 @@ public class ReindexValidator {
                         + "] is true for destination ["
                         + destinationIndex
                         + "] unless the source is read with ["
+                        + SliceIndexing.FIELD_NAME
+                        + "] or a script assigns ["
                         + SliceIndexing.FIELD_NAME
                         + "]"
                 );

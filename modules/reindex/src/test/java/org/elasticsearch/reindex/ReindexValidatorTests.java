@@ -33,6 +33,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -153,6 +154,17 @@ public class ReindexValidatorTests extends ESTestCase {
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
         // Reading in slice mode lets an omitted destination [slice] preserve the source slice on each document.
         request.getSearchRequest().searchSlice("tenant-a");
+
+        validator.initialValidation(request);
+    }
+
+    public void testAllowOmittedSliceInSliceEnabledDestinationWhenScriptPresent() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        // A script may assign ctx._slice per document, so a static destination [_slice] is not required. Documents the script leaves
+        // without a slice are rejected at index time by the slice-enabled destination.
+        request.setScript(new Script("ctx._slice = ctx._source.tenant"));
 
         validator.initialValidation(request);
     }

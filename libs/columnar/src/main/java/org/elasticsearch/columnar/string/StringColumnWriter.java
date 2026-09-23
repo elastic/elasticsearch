@@ -82,7 +82,7 @@ public final class StringColumnWriter {
      *                                  once for the iterator and once for the values
      * @param options                   how the column is written: its dictionary policy, its chunk codec and
      *                                  the units its streams are sized in
-     * @param known                     a vocabulary already worked out for these values, or null to survey them
+     * @param precomputedVocabulary                     a vocabulary already worked out for these values, or null to survey them
      * @param directory                 directory a dictionary column stages its ordinals and escapes in
      * @param context                   IO context for those staged files
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
@@ -93,7 +93,7 @@ public final class StringColumnWriter {
         StringColumnValues.Totals totals,
         IOSupplier<StringColumnValues> cursors,
         StringColumnOptions options,
-        Vocabulary.Terms known,
+        Vocabulary.Terms precomputedVocabulary,
         Directory directory,
         IOContext context,
         ColumnOutputs outputs
@@ -111,30 +111,33 @@ public final class StringColumnWriter {
             return StringColumnMetadata.empty(iterator);
         }
 
-        Vocabulary.Terms surveyed = null;
+        Vocabulary.Terms vocabulary = null;
         if (dictionaryPolicy.enabled()) {
             // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), dictionaryPolicy, summaryPolicy);
+            vocabulary = precomputedVocabulary != null
+                ? precomputedVocabulary
+                : Vocabulary.survey(cursors.get(), dictionaryPolicy, summaryPolicy);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
             // NOTE: a vocabulary can hold terms for a merge and none worth an ordinal here, so the size
             // check is what keeps a bar of zero from admitting an empty dictionary.
-            if (surveyed != null
-                && surveyed.size() > 0
-                && dictionaryPolicy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
+            if (vocabulary != null
+                && vocabulary.dictionarySize() > 0
+                && dictionaryPolicy.worthKeeping(vocabulary.coverage(), vocabulary.dictionaryBytes(), vocabulary.columnBytes())) {
                 return withSummary(
                     writeDictionary(
                         iterator,
                         totals,
                         cursors,
-                        surveyed,
-                        surveyed.columnBytes(),
+                        vocabulary,
+                        vocabulary.columnBytes(),
                         chunkCodec,
                         sizes,
                         directory,
                         context,
                         outputs
                     ),
-                    surveyed,
+                    vocabulary,
+                    summaryPolicy,
                     numValues - numNullSlots,
                     chunkCodec,
                     sizes,
@@ -148,7 +151,7 @@ public final class StringColumnWriter {
         // Whether a page of this column is worth naming its values. Naming costs a hash and a probe apiece and
         // buys a consumer one entry per distinct value, so it pays where equal values arrive together and buys
         // nothing where every value differs from the one before it. The stream finds those runs anyway while
-        // sizing its blocks, so what a page could collapse is known without comparing anything twice. A column
+        // sizing its blocks, so what a page could collapse is precomputedVocabulary without comparing anything twice. A column
         // written under no dictionary policy was told not to weigh what it repeats, and the page decides.
         final boolean valuesWorthNaming;
         final PlainValues.Metadata written;
@@ -239,7 +242,8 @@ public final class StringColumnWriter {
                 sorted,
                 valuesWorthNaming
             ),
-            surveyed,
+            vocabulary,
+            summaryPolicy,
             numValues - numNullSlots,
             chunkCodec,
             sizes,
@@ -260,34 +264,20 @@ public final class StringColumnWriter {
     private static StringColumnMetadata withSummary(
         StringColumnMetadata metadata,
         Vocabulary.Terms vocabulary,
-        long namedValues,
+        SummaryPolicy summaryPolicy,
+        long nonNullValueCount,
         ChunkCodec chunkCodec,
         StringColumnOptions.Sizes sizes,
         ColumnOutputs outputs
     ) throws IOException {
-        final IndexOutput data = outputs.data();
-        if (vocabulary == null || vocabulary.counted() == false || vocabulary.summarySize() == 0) {
+        if (vocabulary == null || vocabulary.hasCounts() == false || summaryPolicy.enabled() == false) {
             return metadata;
         }
-        final int size = vocabulary.summarySize();
-        ValueStream.Metadata terms = null;
-        if (metadata instanceof StringColumnMetadata.Dictionary column && vocabulary.summaryIsDictionary()) {
-            assert column.dictionarySize() == size : column.dictionarySize() + " != " + size;
-        } else {
-            final BytesRef term = new BytesRef();
-            final ValueStream.Writer writer = new ValueStream.Writer(chunkCodec, sizes.escapeChunks(), sizes.valuesPerBlock(), outputs);
-            for (int ordinal = 0; ordinal < size; ordinal++) {
-                vocabulary.terms().get(vocabulary.summaryIds()[ordinal], term);
-                writer.add(term);
-            }
-            terms = writer.finish();
-        }
-        final long countsOffset = data.getFilePointer();
-        for (int ordinal = 0; ordinal < size; ordinal++) {
-            data.writeVLong(vocabulary.summaryCountOf(ordinal));
-        }
+        final boolean dictionaryHoldsTheTerms = metadata instanceof StringColumnMetadata.Dictionary column
+            && vocabulary.summaryIsDictionary()
+            && column.dictionarySize() == vocabulary.summarySize();
         return metadata.withSummary(
-            new StringColumnMetadata.Summary(terms, countsOffset, data.getFilePointer() - countsOffset, namedValues)
+            SummaryFormat.write(vocabulary, dictionaryHoldsTheTerms, nonNullValueCount, chunkCodec, sizes, outputs)
         );
     }
 
@@ -295,7 +285,7 @@ public final class StringColumnWriter {
      * Writes the dictionary, an ordinal per value, and the values no term names.
      *
      * <p>Both are staged in temporary files first: the escapes because a stream has to be told its length
-     * before it starts and how many escape is not known until the pass is over, the ordinals because the
+     * before it starts and how many escape is not precomputedVocabulary until the pass is over, the ordinals because the
      * numeric column reads its input more than once and a second pass would look every term up again.
      */
     private static StringColumnMetadata writeDictionary(
@@ -315,7 +305,7 @@ public final class StringColumnWriter {
         final long numNullSlots = totals.numNullSlots();
         final IndexOutput data = outputs.data();
         final int escapeRankBlockSize = sizes.escapeRankBlockSize();
-        final int dictionarySize = vocabulary.size();
+        final int dictionarySize = vocabulary.dictionarySize();
         // The terms start above the reserved null, and the escape marker sits one past the last of them.
         final int escapeOrdinal = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
         final BytesRef scratch = new BytesRef();
@@ -428,7 +418,7 @@ public final class StringColumnWriter {
                             } else {
                                 final int id = vocabulary.terms().find(value);
                                 // A term the survey saw can still have been dropped from the dictionary,
-                                // so the ordinal is shifted only once it is known to name one — DROPPED
+                                // so the ordinal is shifted only once it is precomputedVocabulary to name one — DROPPED
                                 // shifted would land on a reserved ordinal rather than staying a marker.
                                 final int termOrdinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
                                 ordinal = termOrdinal == Vocabulary.DROPPED
@@ -529,7 +519,7 @@ public final class StringColumnWriter {
         return (numValues + escapeRankBlockSize - 1) / escapeRankBlockSize + 1L;
     }
 
-    /** Writes the staged escaped values, now that how many of them there are is known. */
+    /** Writes the staged escaped values, now that how many of them there are is precomputedVocabulary. */
     private static ValueStream.Metadata replayEscapes(
         Directory directory,
         String name,

@@ -44,8 +44,9 @@ public final class Vocabulary {
 
     private Vocabulary() {}
 
+    /** How many columns have been surveyed, which the column a merge writes does not show. */
     /** A share of {@code total}, which is zero for a column holding nothing rather than undefined. */
-    static double share(long part, long total) {
+    public static double share(long part, long total) {
         return total == 0 ? 0.0 : (double) part / total;
     }
 
@@ -61,6 +62,9 @@ public final class Vocabulary {
      * @param coverage        the share of the column's values these terms name, as a lower bound
      * @param dictionaryBytes the term bytes the kept terms occupy
      * @param columnBytes     the value bytes the whole column occupies
+     * @param numValues       the non-null values the column holds
+     * @param bestCoverage    the most a dictionary could name here, or {@link BestCoverage#UNKNOWN}
+     *                        where none could be taken
      * @param counts          how often each id was seen, as a lower bound, or null when unknown
      */
     public record Terms(
@@ -71,10 +75,12 @@ public final class Vocabulary {
         double coverage,
         long dictionaryBytes,
         long columnBytes,
+        long numValues,
+        BestCoverage bestCoverage,
         long[] counts
     ) {
-        /** Whether this vocabulary knows how often it saw each of its terms. */
-        public boolean counted() {
+        /** Whether counts were recorded for these terms. */
+        public boolean hasCounts() {
             return counts != null;
         }
 
@@ -83,7 +89,8 @@ public final class Vocabulary {
             return counts[dictionaryIds[ordinal]];
         }
 
-        public int size() {
+        /** How many terms the dictionary holds, which is neither the term table nor the summary. */
+        public int dictionarySize() {
             return dictionaryIds.length;
         }
 
@@ -102,6 +109,34 @@ public final class Vocabulary {
             // not make equal sets: a budget spent on a term held once leaves less for the ones held often.
             return Arrays.equals(summaryIds, dictionaryIds);
         }
+
+        /** What this column summarised about the most a dictionary could name on it. */
+        public BestCoverage bestCoverage() {
+            return bestCoverage;
+        }
+
+        /**
+         * These terms under a bound tighter than their own counts give. A merge that admits a dictionary
+         * has already weighed what its inputs recorded against what it recomputed, and the merged column
+         * records the better of the two rather than losing it to the dictionary it ended up building.
+         *
+         * @param tighter a bound that also holds on this column
+         * @return the same terms carrying {@code tighter}
+         */
+        public Terms withBestCoverage(BestCoverage tighter) {
+            return new Terms(
+                terms,
+                dictionaryIds,
+                summaryIds,
+                ordinalOfId,
+                coverage,
+                dictionaryBytes,
+                columnBytes,
+                numValues,
+                tighter,
+                counts
+            );
+        }
     }
 
     /**
@@ -110,10 +145,19 @@ public final class Vocabulary {
      * discover what they contain.
      *
      * @param sortedTerms the vocabulary, in term order
+     * @param numValues   the values the merged column holds
+     * @param bestCoverage what the merged column summarises about the most a dictionary could name on it
      * @param coverage    the share of the merged column's values these terms name; one for a union of
      *                    dictionaries that let nothing escape, and otherwise an under-estimate
      */
-    public static Terms known(List<BytesRef> sortedTerms, long columnBytes, double coverage, long[] countsPerTerm) {
+    public static Terms known(
+        List<BytesRef> sortedTerms,
+        long columnBytes,
+        double coverage,
+        long numValues,
+        BestCoverage bestCoverage,
+        long[] countsPerTerm
+    ) {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         final int[] dictionaryIds = new int[sortedTerms.size()];
         final int[] ordinalOfId = new int[sortedTerms.size()];
@@ -131,7 +175,18 @@ public final class Vocabulary {
                 counts[id] = countsPerTerm[ordinal];
             }
         }
-        return new Terms(terms, dictionaryIds, dictionaryIds, ordinalOfId, coverage, dictionaryBytes, columnBytes, counts);
+        return new Terms(
+            terms,
+            dictionaryIds,
+            dictionaryIds,
+            ordinalOfId,
+            coverage,
+            dictionaryBytes,
+            columnBytes,
+            numValues,
+            bestCoverage,
+            counts
+        );
     }
 
     /**
@@ -165,18 +220,78 @@ public final class Vocabulary {
         }
         final TermSelection selection = new TermSelection(terms, occurrences);
         final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
-        final int[] summaryIds = selection.thatFit(TermQuota.forMergedSummary(summaryPolicy));
-        if (dictionaryIds.length == 0 && summaryIds.length == 0) {
-            return null;
-        }
-        return selected(selection, dictionaryIds, summaryIds, columnBytes, numValues);
+        final int[] repeatedTermsOnly = selection.thatFit(TermQuota.forMergedSummary(summaryPolicy));
+        final int[] withTermsCountedOnce = selection.thatFit(TermQuota.forSummary(summaryPolicy));
+        // NOTE: counts are summed across the inputs, so a term counted once was seen by one input and by no
+        // other. It may still turn out to repeat: a later merge can bring a segment holding it too, but only
+        // if this merge records it now. That is what the wider quota is for. It is bounded twice over,
+        // because it is a first-fit walk of its own and can drop a repeated term to afford cheaper ones,
+        // and because a column of values unique to the index would otherwise be recorded whole every time.
+        final boolean keepsEveryRepeatedTerm = containsAll(withTermsCountedOnce, repeatedTermsOnly);
+        final boolean withinTheColumnsShare = selection.bytesOf(withTermsCountedOnce) <= dictionaryPolicy.budgetFor(columnBytes);
+        final int[] summaryIds = keepsEveryRepeatedTerm && withinTheColumnsShare ? withTermsCountedOnce : repeatedTermsOnly;
+        return selected(selection, dictionaryIds, summaryIds, dictionaryPolicy, columnBytes, numValues);
     }
 
-    private static Terms selected(TermSelection selection, int[] dictionaryIds, int[] summaryIds, long columnBytes, long numValues) {
+    /** Whether {@code wider} holds every id of {@code narrower}, both being in term order. */
+    /** Whether every id in {@code narrower} is also in {@code wider}. Both are in term order, so one pass does it. */
+    private static boolean containsAll(int[] wider, int[] narrower) {
+        int at = 0;
+        for (int id : narrower) {
+            while (at < wider.length && wider[at] != id) {
+                at++;
+            }
+            if (at == wider.length) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The same vocabulary with its dictionary given up, keeping the terms it summarised. A merge that
+     * refuses a dictionary still passes its inputs' terms on, or the next merge reads a column that holds
+     * nothing and has to go to the values.
+     *
+     * @param combined the vocabulary summed from the inputs' summaries, or null where there was none
+     * @param bestCoverage the best coverage the refusal was reached with, which the merged column records
+     * @return a vocabulary naming no terms but carrying the summary and the bound
+     */
+    public static Terms withoutDictionary(Terms combined, BestCoverage bestCoverage) {
+        if (combined == null) {
+            return known(List.of(), 0, 0.0, bestCoverage.numValues(), bestCoverage, new long[0]);
+        }
+        final int[] ordinalOfId = new int[combined.terms().size()];
+        Arrays.fill(ordinalOfId, DROPPED);
+        return new Terms(
+            combined.terms(),
+            new int[0],
+            combined.summaryIds(),
+            ordinalOfId,
+            0.0,
+            0,
+            combined.columnBytes(),
+            combined.numValues(),
+            bestCoverage,
+            combined.counts()
+        );
+    }
+
+    private static Terms selected(
+        TermSelection selection,
+        int[] dictionaryIds,
+        int[] summaryIds,
+        DictionaryPolicy dictionaryPolicy,
+        long columnBytes,
+        long numValues
+    ) {
         final BytesRefHash terms = selection.terms();
         // Indexed by id, so a term the survey saw but did not keep is told apart from ordinal zero.
         final int[] ordinalOfId = new int[terms.size()];
         Arrays.fill(ordinalOfId, DROPPED);
+        final BestCoverage bestCoverage = dictionaryPolicy.enabled()
+            ? BestCoverage.of(selection.bestCoverage(dictionaryPolicy.maxBytes(), numValues), numValues, dictionaryPolicy.maxBytes())
+            : BestCoverage.UNKNOWN;
         long coveredValues = 0;
         long dictionaryBytes = 0;
         final BytesRef scratch = new BytesRef();
@@ -195,6 +310,8 @@ public final class Vocabulary {
             share(coveredValues, numValues),
             dictionaryBytes,
             columnBytes,
+            numValues,
+            bestCoverage,
             selection.occurrences()
         );
     }
@@ -207,7 +324,7 @@ public final class Vocabulary {
         throws IOException {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         long[] counts = new long[64];
-        final long tableBound = Math.max(dictionaryPolicy.maxBytes(), summaryPolicy.maxBytes());
+        final long tableBound = summaryPolicy.surveyBudgetBytes(dictionaryPolicy);
         long tableBytes = 0;
         long numValues = 0;
         long columnBytes = 0;
@@ -277,13 +394,7 @@ public final class Vocabulary {
         final TermSelection selection = new TermSelection(terms, counts);
         final int[] dictionaryIds = selection.thatFit(TermQuota.forDictionary(dictionaryPolicy, columnBytes));
         final int[] summaryIds = selection.thatFit(TermQuota.forSummary(summaryPolicy));
-        // NOTE: a column where nothing repeats earns no dictionary entry but still has terms worth leaving
-        // for a merge, which may hold them often enough across segments. Returning null here would put the
-        // merge back to reading values, which is what the summary exists to avoid.
-        if (dictionaryIds.length == 0 && summaryIds.length == 0) {
-            return null;
-        }
-        return selected(selection, dictionaryIds, summaryIds, columnBytes, numValues);
+        return selected(selection, dictionaryIds, summaryIds, dictionaryPolicy, columnBytes, numValues);
     }
 
     /**

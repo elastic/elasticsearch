@@ -47,10 +47,13 @@ record TermQuota(long budget, int minCount) {
     }
 
     /**
-     * What a merged column's summary asks. A flush admits a term held once because it has no way of knowing
-     * whether the other segments hold it; a merge has already put every term to that question, once per
-     * input, and a term still held once has failed it. Admitting those would summarise a column of values
-     * unique to the index at the size of the column itself, at every generation.
+     * What a merged column's summary asks: a retained count of at least two.
+     *
+     * <p>A retention heuristic, not a proof of uniqueness. Counts are lower bounds, so a term retained once
+     * may have occurred more often in an input that omitted it or trimmed it away. What the rule buys is
+     * that a column of values unique to the index is not summarised at the size of the column itself, at
+     * every generation. {@link Vocabulary#combined} may take a wider selection that admits retained counts
+     * of one, but only where it keeps every term this one would have kept and still fits the byte budget.
      */
     static TermQuota forMergedSummary(SummaryPolicy summaryPolicy) {
         return new TermQuota(summaryPolicy.maxBytes(), 2);

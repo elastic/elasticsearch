@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -66,6 +67,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -106,6 +114,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -561,6 +570,166 @@ public class FileSplitProviderTests extends ESTestCase {
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
         assertEquals(2, splits.size());
+    }
+
+    // --- multivalue comparison functions: what the out-of-band request filter translates into ---
+
+    public void testMvContainsPrunesNonMatchingPartition() {
+        Expression filter = new MvContains(SRC, fieldAttr("year"), intLiteral(2024));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2023)));
+    }
+
+    public void testMvIntersectsPrunesPartitionOutsideTheSet() {
+        Literal set = new Literal(SRC, List.of(2023, 2024), DataType.INTEGER);
+        Expression filter = new MvIntersects(SRC, fieldAttr("year"), set);
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2022)));
+    }
+
+    public void testMvIntersectsWithNoNonNullMemberIsUnknown() {
+        Literal allNull = new Literal(SRC, Arrays.asList(null, null), DataType.INTEGER);
+        assertNull(FileSplitProvider.evaluateFilter(new MvIntersects(SRC, fieldAttr("year"), allNull), Map.of("year", 2024)));
+    }
+
+    public void testMvInRangePrunesPartitionOutsideTheRange() {
+        // A DSL range on an integer partition column (typically year=) becomes mv_in_range, so this is file pruning
+        // for a range, not only for term / terms.
+        Expression filter = new MvInRange(SRC, fieldAttr("year"), intLiteral(2020), intLiteral(2022));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2021)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2019)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2023)));
+    }
+
+    public void testMvGreaterAndMvLessPruneTheFarSide() {
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2021))
+        );
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2023))
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(new MvLess(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2023))
+        );
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(new MvLess(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2021))
+        );
+    }
+
+    public void testOrderedBoundUsesItsDefaultWhenNoOptionsAreSet() {
+        // mv_in_range defaults to inclusive and mv_greater / mv_less to strict, so with no options a value exactly on
+        // the bound has a definite answer. This is the shape every DSL range on an integer column arrives in.
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(
+                new MvInRange(SRC, fieldAttr("year"), intLiteral(2022), intLiteral(2024)),
+                Map.of("year", 2022)
+            )
+        );
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(
+                new MvInRange(SRC, fieldAttr("year"), intLiteral(2020), intLiteral(2022)),
+                Map.of("year", 2022)
+            )
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2022))
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(new MvLess(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2022))
+        );
+    }
+
+    public void testOrderedBoundIsUnknownWhenOptionsAreSet() {
+        // Options override the default and the matcher does not parse them, so a value on the bound stays unknown —
+        // and is kept. Off the bound the answer does not depend on inclusivity, so it is still definite.
+        Expression includeBound = new MapExpression(
+            SRC,
+            List.of(Literal.keyword(SRC, MvCompare.INCLUDE_BOUND), new Literal(SRC, true, DataType.BOOLEAN))
+        );
+        Expression greater = new MvGreater(SRC, fieldAttr("year"), intLiteral(2022), includeBound);
+        assertNull(FileSplitProvider.evaluateFilter(greater, Map.of("year", 2022)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(greater, Map.of("year", 2023)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(greater, Map.of("year", 2021)));
+    }
+
+    public void testNotOverDslIntegerRangePrunesThePartitionOnTheBound() {
+        // must_not range year > 2024 translates (integralRange) to NOT mv_in_range(year, 2025, INT_MAX) with no
+        // options. The year=2025 file sits exactly on the lower bound: every row is inside the range, so every row fails
+        // the negation, and the file must be pruned. Answering unknown on the bound would keep it for nothing.
+        Expression filter = new Not(SRC, new MvInRange(SRC, fieldAttr("year"), intLiteral(2025), intLiteral(Integer.MAX_VALUE)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2025)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024)));
+    }
+
+    public void testNotOverStrictMvGreaterKeepsTheFileSittingOnTheBound() {
+        // The reason the ordered forms read their default inclusivity rather than assuming one. NOT mv_greater(year,
+        // 2022) is TRUE for every row of a year=2022 file, because the bound is strict by default: on-bound is a
+        // definite FALSE, which negates to TRUE. Assuming an inclusive bound would give 2022 >= 2022 = true, negate to
+        // false, and prune a file whose every row matches.
+        Expression filter = new Not(SRC, new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)));
+        assertNotEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2022)));
+        assertTrue(FileSplitProvider.matchesPartitionFilters(Map.of("year", 2022), List.of(filter)));
+    }
+
+    public void testNotOverMvContainsIsExactOnASinglePartitionValue() {
+        // A partition value is single, so mv_contains is exact there and its negation prunes the equal partition.
+        Expression filter = new Not(SRC, new MvContains(SRC, fieldAttr("year"), intLiteral(2024)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2023)));
+    }
+
+    public void testCaseInsensitiveMvContainsKeepsEveryFile() {
+        // mv_contains(TO_LOWER(p), lowered) is how a case_insensitive DSL term arrives. Partition values hold the
+        // original case, so it must never prune.
+        FieldAttribute region = new FieldAttribute(
+            SRC,
+            "region",
+            new EsField("region", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression filter = new MvContains(SRC, new ToLower(SRC, region, TEST_CFG), new Literal(SRC, new BytesRef("eu"), DataType.KEYWORD));
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of("region", "EU")));
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of("region", "US")));
+    }
+
+    public void testMvContainsWithLiteralOnTheLeftIsUnknown() {
+        // mv_contains(literal, column) asks whether the column's values are a subset of the literal's — not the
+        // swapped form of mv_contains(column, literal). The matcher must not evaluate it as if it were.
+        Expression filter = new MvContains(SRC, intLiteral(2024), fieldAttr("year"));
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of("year", 2023)));
+    }
+
+    public void testMvContainsOnNullPartitionValueIsUnknown() {
+        Map<String, Object> nullYear = new HashMap<>();
+        nullYear.put("year", null);
+        assertNull(FileSplitProvider.evaluateFilter(new MvContains(SRC, fieldAttr("year"), intLiteral(2024)), nullYear));
+    }
+
+    public void testMvContainsOnNonPartitionColumnDoesNotPrune() {
+        assertNull(FileSplitProvider.evaluateFilter(new MvContains(SRC, fieldAttr("status"), intLiteral(200)), Map.of("year", 2024)));
+    }
+
+    public void testMvInRangeOnAFileMetadataColumnPrunes() {
+        // The matcher's value map is not partition columns alone — buildFileTasks overlays the file-metadata
+        // columns, and _file.modified is a DATETIME. A request filter naming it binds when the query carries
+        // METADATA _file.modified, so it reaches this arm. The value is the file's real mtime, one per file, so the
+        // comparison is exact and pruning on it is correct rather than merely safe.
+        Expression modified = new ExternalMetadataAttribute(SRC, FileMetadataColumns.MODIFIED, DataType.DATETIME);
+        Expression filter = new MvInRange(
+            SRC,
+            modified,
+            new Literal(SRC, 1_000L, DataType.DATETIME),
+            new Literal(SRC, 2_000L, DataType.DATETIME)
+        );
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.MODIFIED, 1_500L)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.MODIFIED, 3_000L)));
     }
 
     public void testMatchesPartitionFiltersAllMatch() {
@@ -6109,6 +6278,89 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(pathB, ((FileSplit) splits.getFirst()).path());
     }
 
+    /**
+     * An unbound {@code _file.size} is an ordinary data column. Discovery must not prune by the
+     * listing storage stat: both files survive a size predicate that would have dropped the small
+     * one if the overlay leaked into the filter map.
+     */
+    public void testUnboundFileSizeFilterDoesNotUseListingStat() {
+        StoragePath small = StoragePath.of("s3://b/small.parquet");
+        StoragePath large = StoragePath.of("s3://b/large.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(small, 10, Instant.EPOCH), new StorageEntry(large, 1000, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        Attribute size = new ReferenceAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG);
+        Expression filter = new GreaterThan(SRC, size, new Literal(SRC, 100L, DataType.LONG), null);
+        ExternalSchema schema = new ExternalSchema(List.of(refAttr("id"), size));
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemas = Map.of(
+            small,
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null),
+            large,
+            new SchemaReconciliation.FileSchemaInfo(schema, null, null)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemas,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(filter),
+            schema,
+            Set.of()
+        );
+        List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
+        assertEquals(2, splits.size());
+        assertTrue(((FileSplit) splits.get(0)).partitionValues().containsKey(FileMetadataColumns.SIZE));
+        assertTrue(((FileSplit) splits.get(1)).partitionValues().containsKey(FileMetadataColumns.SIZE));
+    }
+
+    public void testUnboundFileSizeMissingFromFileIsCertifiedSkip() {
+        StoragePath path = StoragePath.of("s3://b/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://b/*.parquet");
+        Attribute size = new ReferenceAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG);
+        Expression filter = new GreaterThan(SRC, size, new Literal(SRC, 100L, DataType.LONG), null);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemas = Map.of(
+            path,
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemas,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(filter),
+            new ExternalSchema(List.of(refAttr("id"), size)),
+            Set.of()
+        );
+        assertEquals(0, provider.discoverSplits(ctx).splits().size());
+    }
+
+    public void testBoundFileSizeFilterUsesListingStat() {
+        StoragePath small = StoragePath.of("s3://b/small.parquet");
+        StoragePath large = StoragePath.of("s3://b/large.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(small, 10, Instant.EPOCH), new StorageEntry(large, 1000, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+        Attribute size = new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG);
+        Expression filter = new GreaterThan(SRC, size, new Literal(SRC, 100L, DataType.LONG), null);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(filter),
+            ExternalSchema.EMPTY,
+            Set.of(FileMetadataColumns.SIZE)
+        );
+        List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        assertEquals(large, ((FileSplit) splits.get(0)).path());
+    }
+
     public void testPhysicalPerFileMetadataNamesAreNullWhenMissingFromFile() {
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
         StoragePath pathB = StoragePath.of("s3://b/b.parquet");
@@ -6918,6 +7170,77 @@ public class FileSplitProviderTests extends ESTestCase {
     // -- helpers --
 
     private static final Source SRC = Source.EMPTY;
+
+    public void testFileMissingTheFilteredColumnIsSkippedForEveryMvForm() {
+        // A schema-union file that lacks the column: each mv_ form is the empty set there, so it is false for every
+        // row and the file can be skipped unread. Before the forms were recognised here they fell through and the
+        // file was opened and scanned for nothing.
+        Set<String> present = Set.of("id", "other");
+        FieldAttribute region = new FieldAttribute(
+            SRC,
+            "region",
+            new EsField("region", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal zoo = new Literal(SRC, new BytesRef("zoo"), DataType.KEYWORD);
+        List<Expression> forms = List.of(
+            new MvContains(SRC, region, zoo),
+            new MvIntersects(SRC, region, new Literal(SRC, List.of(new BytesRef("zoo")), DataType.KEYWORD)),
+            new MvInRange(SRC, region, zoo, zoo),
+            new MvGreater(SRC, region, zoo),
+            new MvLess(SRC, region, zoo)
+        );
+        for (Expression form : forms) {
+            assertTrue(form.toString(), FileSplitProvider.skipIfFilterOnMissingColumns(List.of(form), present));
+        }
+        // Control: the same forms over a column the file does have are not a reason to skip it.
+        FieldAttribute id = new FieldAttribute(
+            SRC,
+            "id",
+            new EsField("id", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        assertFalse(FileSplitProvider.skipIfFilterOnMissingColumns(List.of(new MvContains(SRC, id, zoo)), present));
+    }
+
+    public void testMvContainsWithAColumnOperandKeepsAFileMissingTheField() {
+        // The empty set contains the empty set: mv_contains(missing, other) is true on every row where other is null,
+        // so a file lacking the field can still match and must be read.
+        Set<String> present = Set.of("id", "other");
+        FieldAttribute region = new FieldAttribute(
+            SRC,
+            "region",
+            new EsField("region", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        FieldAttribute other = new FieldAttribute(
+            SRC,
+            "other",
+            new EsField("other", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        assertFalse(FileSplitProvider.skipIfFilterOnMissingColumns(List.of(new MvContains(SRC, region, other)), present));
+    }
+
+    public void testSignedZeroPartitionIsNotConfidentlyPruned() {
+        // ES|QL's double evaluators compare primitives, where IEEE 754 equates -0.0 and 0.0, so every row of a d=-0.0
+        // file satisfies d >= 0.0. The file layer has no retained filter: a confident FALSE here drops the file and
+        // nothing can put its rows back. A d=-0.0 directory is reachable -- StringUtils.parseDouble accepts it, and
+        // types the partition DOUBLE -- while NaN and infinity are rejected there and type as KEYWORD instead.
+        FieldAttribute d = new FieldAttribute(
+            SRC,
+            "d",
+            new EsField("d", DataType.DOUBLE, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal zero = new Literal(SRC, 0.0, DataType.DOUBLE);
+        Literal minusZero = new Literal(SRC, -0.0, DataType.DOUBLE);
+        Literal hundred = new Literal(SRC, 100.0, DataType.DOUBLE);
+        Literal minusHundred = new Literal(SRC, -100.0, DataType.DOUBLE);
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new MvInRange(SRC, d, zero, hundred), Map.of("d", -0.0)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new MvInRange(SRC, d, minusHundred, minusZero), Map.of("d", 0.0)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new MvContains(SRC, d, zero), Map.of("d", -0.0)));
+        // The scalar siblings share the comparator and are corrected by the same change.
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new Equals(SRC, d, zero, null), Map.of("d", -0.0)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new GreaterThanOrEqual(SRC, d, zero, null), Map.of("d", -0.0)));
+        // Positive control: an ordinary double outside the range is still a confident prune.
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new MvInRange(SRC, d, zero, hundred), Map.of("d", -1.5)));
+    }
 
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));

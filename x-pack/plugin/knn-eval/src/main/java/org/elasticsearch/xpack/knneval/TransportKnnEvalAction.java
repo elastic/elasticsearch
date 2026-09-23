@@ -15,6 +15,9 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -100,8 +103,44 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         resolveField(
             task,
             request,
-            listener.delegateFailureAndWrap((delegate, rescore) -> openPointInTime(task, request, rescore, delegate))
+            listener.delegateFailureAndWrap((delegate, rescore) -> rejectNestedField(task, request, rescore, delegate))
         );
+    }
+
+    /** Nested vectors need nested-wrapped sampling and exact queries, plus parent-level recall; refuse them until that exists. */
+    private void rejectNestedField(Task task, KnnEvalRequest request, KnnEvalRescore rescore, ActionListener<KnnEvalResponse> listener) {
+        String field = request.getKnnEvalSpec().getField();
+        FieldCapabilitiesRequest capabilitiesRequest = new FieldCapabilitiesRequest().indices(request.indices())
+            .indicesOptions(request.indicesOptions())
+            .fields(field);
+        setParentTask(task, capabilitiesRequest);
+        client.execute(TransportFieldCapabilitiesAction.TYPE, capabilitiesRequest, listener.delegateFailureAndWrap((delegate, response) -> {
+            String nestedPath = nestedAncestor(field, response.get());
+            if (nestedPath != null) {
+                throw new IllegalArgumentException(
+                    "field ["
+                        + field
+                        + "] is inside the [nested] object ["
+                        + nestedPath
+                        + "], which ["
+                        + RestKnnEvalAction.ENDPOINT
+                        + "] does not support yet"
+                );
+            }
+            openPointInTime(task, request, rescore, delegate);
+        }));
+    }
+
+    /** Field caps lists a field's ancestors by type, so a nested one appears as [nested] under some prefix of the path. */
+    @Nullable
+    static String nestedAncestor(String field, Map<String, Map<String, FieldCapabilities>> capabilities) {
+        for (int dot = field.lastIndexOf('.'); dot > 0; dot = field.lastIndexOf('.', dot - 1)) {
+            String ancestor = field.substring(0, dot);
+            if (capabilities.getOrDefault(ancestor, Map.of()).containsKey("nested")) {
+                return ancestor;
+            }
+        }
+        return null;
     }
 
     /** Validates that the field resolves consistently to a supported DiskBBQ mapping across all target indices. */

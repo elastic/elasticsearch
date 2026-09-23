@@ -15,7 +15,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
@@ -63,6 +68,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -412,6 +418,34 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[100000000] limit"));
     }
 
+    public void testNestedFieldsAreRejected() {
+        RecordingClient client = new RecordingClient();
+        client.nestedPath = "obj";
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        TransportKnnEvalAction action = new TransportKnnEvalAction(ActionFilters.EMPTY, client, transportService, clusterService(true));
+        KnnEvalSettings settings = new KnnEvalSettings(100.0f, null, null, false);
+        KnnEvalSpec spec = new KnnEvalSpec("obj.emb", K, null, new KnnEvalSample(10, null), settings, List.of(settings));
+        PlainActionFuture<KnnEvalResponse> future = new PlainActionFuture<>();
+
+        action.doExecute(null, new KnnEvalRequest(spec, new String[] { "index" }), future);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(
+            e.getMessage(),
+            containsString("field [obj.emb] is inside the [nested] object [obj], which [_knn_eval] does not support yet")
+        );
+        assertFalse(client.pointInTimeOpened);
+    }
+
+    public void testNestedAncestorIsTheNearestNestedPrefix() {
+        Map<String, FieldCapabilities> nested = Map.of("nested", RecordingClient.fieldCapabilities("x", "nested"));
+        Map<String, FieldCapabilities> object = Map.of("object", RecordingClient.fieldCapabilities("x", "object"));
+        assertNull(TransportKnnEvalAction.nestedAncestor("emb", Map.of()));
+        assertNull(TransportKnnEvalAction.nestedAncestor("a.b.emb", Map.of("a", object, "a.b", object)));
+        assertEquals("a", TransportKnnEvalAction.nestedAncestor("a.b.emb", Map.of("a", nested, "a.b", object)));
+        assertEquals("a.b", TransportKnnEvalAction.nestedAncestor("a.b.emb", Map.of("a", nested, "a.b", nested)));
+    }
+
     public void testCancelledTaskStopsBeforeStartingChildWork() {
         RecordingClient client = new RecordingClient();
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
@@ -682,6 +716,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         private RescoreVectorBuilder baselineRescoreVectorBuilder;
         private RescoreVectorBuilder candidateRescoreVectorBuilder;
         private boolean fieldMappingsRequested = false;
+        @Nullable
+        private String nestedPath;
         private boolean vectorCountRequested = false;
         private boolean failFieldMappings = false;
         private Exception fieldMappingsFailure;
@@ -727,6 +763,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         ) {
             if (GetFieldMappingsAction.INSTANCE.equals(action)) {
                 fieldMappingsRequested = true;
+                String field = ((GetFieldMappingsRequest) request).fields()[0];
                 if (failFieldMappings) {
                     listener.onFailure(
                         fieldMappingsFailure == null
@@ -738,9 +775,10 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                 BytesReference mapping = new BytesArray("""
                     {"emb":{"type":"dense_vector","similarity":"l2_norm","element_type":"float",
                     "index_options":{"type":"bbq_disk","rescore_vector":{"oversample":3.0}}}}""");
+                // the source is keyed by leaf name whatever the path, as the real action does
                 Map<String, GetFieldMappingsResponse.FieldMappingMetadata> indexMapping = Map.of(
-                    "emb",
-                    new GetFieldMappingsResponse.FieldMappingMetadata("emb", mapping)
+                    field,
+                    new GetFieldMappingsResponse.FieldMappingMetadata(field, mapping)
                 );
                 Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings;
                 if (mismatchedFieldMappings) {
@@ -751,7 +789,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                         "index",
                         indexMapping,
                         "other-index",
-                        Map.of("emb", new GetFieldMappingsResponse.FieldMappingMetadata("emb", otherMapping))
+                        Map.of(field, new GetFieldMappingsResponse.FieldMappingMetadata(field, otherMapping))
                     );
                 } else {
                     mappings = Map.of("index", indexMapping);
@@ -760,6 +798,16 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                 GetFieldMappingsResponse response = mock(GetFieldMappingsResponse.class);
                 when(response.mappings()).thenReturn(mappings);
                 listener.onResponse((Response) response);
+                return;
+            }
+            if (TransportFieldCapabilitiesAction.TYPE.equals(action)) {
+                Map<String, Map<String, FieldCapabilities>> capabilities = new HashMap<>();
+                String field = ((FieldCapabilitiesRequest) request).fields()[0];
+                capabilities.put(field, Map.of("dense_vector", fieldCapabilities(field, "dense_vector")));
+                if (nestedPath != null) {
+                    capabilities.put(nestedPath, Map.of("nested", fieldCapabilities(nestedPath, "nested")));
+                }
+                listener.onResponse((Response) new FieldCapabilitiesResponse(new String[] { "index" }, capabilities));
                 return;
             }
             if (TransportOpenPointInTimeAction.TYPE.equals(action)) {
@@ -778,6 +826,10 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                 return;
             }
             throw new AssertionError("unexpected action [" + action.name() + "]");
+        }
+
+        private static FieldCapabilities fieldCapabilities(String name, String type) {
+            return new FieldCapabilities(name, type, false, true, true, false, null, null, null, null, Map.of());
         }
 
         /** Answers one evaluation search, recording which settings entry it belonged to. */

@@ -61,7 +61,7 @@
       }
     },
     "body": {
-      "description": "The kNN evaluation definition: a bbq_disk dense_vector field; k from 1 to 1000; exactly one of queries or sample; an optional baseline (default visit_percentage:20 and rescore_vector.oversample:100; exact:true is gated by search.allow_expensive_queries); and 1 to 32 unique knn_settings entries (visit_percentage, num_candidates up to 10000, or 9999 with sample, and rescore_vector). Explicit visit_percentage:0 selects DiskBBQ's automatic visit calculation.",
+      "description": "The kNN evaluation definition: a bbq_disk dense_vector field (not inside a nested object); k from 1 to 1000; exactly one of queries or sample; an optional baseline (default visit_percentage:20 and rescore_vector.oversample:100; exact:true is gated by search.allow_expensive_queries); and 1 to 32 unique knn_settings entries (visit_percentage, num_candidates up to 10000, or 9999 with sample, and rescore_vector). Explicit visit_percentage:0 selects DiskBBQ's automatic visit calculation.",
       "required": true
     }
   }

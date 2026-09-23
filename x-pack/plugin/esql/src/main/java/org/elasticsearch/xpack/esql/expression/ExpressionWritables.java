@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplif
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopology;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionUnary;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -311,7 +312,8 @@ public class ExpressionWritables {
             StSimplify.ENTRY,
             StSimplifyPreserveTopology.ENTRY,
             StSymDifference.ENTRY,
-            StUnion.ENTRY
+            StUnion.ENTRY,
+            StUnionUnary.ENTRY
         );
     }
 

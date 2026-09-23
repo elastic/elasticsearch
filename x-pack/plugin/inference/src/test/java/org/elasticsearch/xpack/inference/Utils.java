@@ -32,7 +32,7 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
@@ -309,8 +309,8 @@ public final class Utils {
 
     public static Map<String, Object> buildExpectationCompletions(List<String> completions) {
         return Map.of(
-            ChatCompletionResults.COMPLETION,
-            completions.stream().map(completion -> Map.of(ChatCompletionResults.Result.RESULT, completion)).collect(Collectors.toList())
+            CompletionResults.COMPLETION,
+            completions.stream().map(completion -> Map.of(CompletionResults.Result.RESULT, completion)).collect(Collectors.toList())
         );
     }
 

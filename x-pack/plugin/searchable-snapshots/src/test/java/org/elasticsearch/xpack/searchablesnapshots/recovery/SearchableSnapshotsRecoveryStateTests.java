@@ -84,9 +84,11 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
         assertThat(recoveryState.getTimer().stopTime(), greaterThan(0L));
     }
 
-    public void testIndexTimerIsStartedDuringConstruction() {
-        SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
+    public void testIndexTimerIsStartedWhenTheRecoveryStarts() {
+        SearchableSnapshotRecoveryState recoveryState = createQueuedRecoveryState();
+        assertThat("a queued recovery has not started its index timer", recoveryState.getIndex().startTime(), equalTo(0L));
 
+        recoveryState.setStage(RecoveryState.Stage.INIT);
         assertThat(recoveryState.getIndex().startTime(), not(equalTo(0L)));
     }
 
@@ -143,6 +145,13 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
     }
 
     private SearchableSnapshotRecoveryState createRecoveryState() {
+        final var recoveryState = createQueuedRecoveryState();
+        recoveryState.setStage(RecoveryState.Stage.INIT);
+        return recoveryState;
+    }
+
+    /// Returns a recovery state that has been created but has not started yet, i.e. still at [RecoveryState.Stage#CREATED].
+    private SearchableSnapshotRecoveryState createQueuedRecoveryState() {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             randomAlphaOfLength(10),
             0,

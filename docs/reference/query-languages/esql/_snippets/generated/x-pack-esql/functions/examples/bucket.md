@@ -223,4 +223,31 @@ FROM employees
 | [1955-01-21T00:00:00.000Z, 1955-08-20T00:00:00.000Z, 1955-08-28T00:00:00.000Z, 1955-10-04T00:00:00.000Z] | 1954-12-31T23:00:00.000Z | 4 |
 | [1957-04-04T00:00:00.000Z, 1957-05-23T00:00:00.000Z, 1957-05-25T00:00:00.000Z, 1957-12-03T00:00:00.000Z] | 1956-12-31T23:00:00.000Z | 4 |
 
+`BUCKET` can also operate on `exponential_histogram` and `tdigest` fields. Instead of a single value, it
+returns the `double_range` buckets that hold values of the histogram, so a histogram spanning several buckets
+contributes a row to each of them. Pass the bucket as the second argument of
+[`COUNT`](/reference/query-languages/esql/functions-operators/aggregation-functions/count.md) to count
+the values of the histograms that fall into each bucket:
+
+```esql
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1)
+| SORT RANGE_MIN(bucket)
+```
+
+| count:long | bucket:double_range |
+| --- | --- |
+| 8723 | 0.0..1.0 |
+| 112 | 1.0..2.0 |
+| 1 | 2.0..3.0 |
+| 2 | 3.0..4.0 |
+| 2 | 5.0..6.0 |
+| 1 | 6.0..7.0 |
+
+
+::::{note}
+Histograms only record approximate value distributions, so the counts per bucket are estimates.
+::::
+
 

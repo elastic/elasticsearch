@@ -41,14 +41,20 @@ public final class RecoveryGateMonitor {
     );
 
     /// How often to re-evaluate the gates while a callback is waiting.
-    // TODO: make this configurable via a node setting
-    private static final TimeValue RECHECK_INTERVAL = TimeValue.timeValueSeconds(1);
+    public static final Setting<TimeValue> RECHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "indices.recovery.gates.recheck_interval",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     /// Resolves the node's gates once, on first use, since plugin-contributed gates only exist late in node construction.
     private final Supplier<List<RecoveryGate>> gates;
     private final ThreadPool threadPool;
 
     private volatile boolean gatesEnabled;
+    private volatile TimeValue recheckInterval;
 
     /// One-shot callbacks awaiting an outcome, fired and cleared by a [#check] that evaluates to it. Guarded by `this`.
     private final Map<RecoveryGate.Outcome, List<Runnable>> outcomeCallbacks = new EnumMap<>(RecoveryGate.Outcome.class);
@@ -60,6 +66,7 @@ public final class RecoveryGateMonitor {
         this.gates = CachedSupplier.wrap(() -> List.copyOf(gatesSupplier.get()));
         this.threadPool = threadPool;
         clusterSettings.initializeAndWatchIfRegistered(ENABLE_RECOVERY_GATES_SETTING, enabled -> this.gatesEnabled = enabled);
+        clusterSettings.initializeAndWatchIfRegistered(RECHECK_INTERVAL_SETTING, interval -> this.recheckInterval = interval);
     }
 
     /// The current node-wide decision, most-restrictive-wins: the first blocking gate's decision, else [RecoveryGate.Decision#RUN].
@@ -126,7 +133,7 @@ public final class RecoveryGateMonitor {
         assert Thread.holdsLock(this);
         if (recheckScheduled == false) {
             recheckScheduled = true;
-            threadPool.scheduleUnlessShuttingDown(RECHECK_INTERVAL, threadPool.generic(), () -> {
+            threadPool.scheduleUnlessShuttingDown(recheckInterval, threadPool.generic(), () -> {
                 synchronized (this) {
                     recheckScheduled = false;
                 }

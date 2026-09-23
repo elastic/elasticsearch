@@ -48,4 +48,13 @@ public final class ExternalSourceCacheTestAccess {
         }
         return victims.size();
     }
+
+    /**
+     * Simulates listing-cache TTL expiry without touching the dataset aggregate. File-set tests
+     * assert the TTL-hot listing first, then call this so the next resolve re-lists and the
+     * fingerprint can miss.
+     */
+    public static void invalidateListings(ExternalSourceCacheService service) {
+        service.listingCache().invalidateAll();
+    }
 }

@@ -33,6 +33,10 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTests {
 
+    public PushDownJoinPastProjectTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     // Expects
     //
     // Project[[languages{f}#16, emp_no{f}#13, languages{f}#16 AS language_code#6, language_name{f}#27]]

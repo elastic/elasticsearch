@@ -46,6 +46,17 @@ public class EsqlLogContext extends QueryLoggerContext {
         this.response = null;
     }
 
+    /**
+     * Constructor for subclasses that supply their own response-derived data (e.g. streaming queries
+     * that never build an {@link EsqlQueryResponse}); all response-derived accessors return their
+     * null-/empty defaults until overridden by the subclass.
+     */
+    protected EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos) {
+        super(task, queryType(request), tookInNanos);
+        this.request = request;
+        this.response = null;
+    }
+
     private static String queryType(EsqlQueryRequest request) {
         if (request instanceof PreparedEsqlQueryRequest prepared && prepared.getType() != null) {
             return prepared.getType();
@@ -103,13 +114,22 @@ public class EsqlLogContext extends QueryLoggerContext {
                 response.rowsEmitted(),
                 response.bytesRead(),
                 response.readNanos(),
+                response.readCpuNanos(),
                 response.cpuNanos()
             )
         );
     }
 
     /** Snapshot of the query-level rollup counters surfaced into the slow log. */
-    record RollupCounters(long documentsFound, long valuesLoaded, long rowsEmitted, long bytesRead, long readNanos, long cpuNanos) {}
+    record RollupCounters(
+        long documentsFound,
+        long valuesLoaded,
+        long rowsEmitted,
+        long bytesRead,
+        long readNanos,
+        long readCpuNanos,
+        long cpuNanos
+    ) {}
 
     @Override
     public String[] getIndices() {

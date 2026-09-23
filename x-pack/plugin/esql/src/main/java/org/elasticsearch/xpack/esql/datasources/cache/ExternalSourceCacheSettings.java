@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
@@ -154,6 +155,94 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Rejects a non-positive footer cache budget at settings-parse time. Both footer caches are
+     * built lazily, when a format reader is first constructed, so without this the node would
+     * accept {@code 0b}/{@code 0%} at startup and only fail on the first Parquet or ORC query.
+     */
+    private static final Setting.Validator<ByteSizeValue> FOOTER_CACHE_BUDGET_VALIDATOR = value -> {
+        if (value.getBytes() <= 0) {
+            throw new IllegalArgumentException("footer cache budget must be greater than 0, got [" + value + "]");
+        }
+    };
+
+    /**
+     * Byte budget for a columnar format reader's footer-byte cache ({@link FooterByteCache}): raw
+     * footer/tail bytes reused across the resolution, split-discovery, and execution phases of a
+     * query, and across back-to-back queries within {@link #FOOTER_CACHE_TTL}. The budget is per
+     * reader instance (the Parquet and ORC readers each own one cache), so the node-wide worst
+     * case is twice this value; absolute values are accepted.
+     * <p>
+     * This is a <em>working-set</em> LRU, not a function of
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#MAX_DISCOVERED_FILES}
+     * (10k default, up to 1M allowed). The
+     * weigher is {@code byte[].length} only — a few KiB of uncounted object overhead per entry at
+     * capacity is fine; do not size this so the cache would admit on the order of a million
+     * entries. 0.5% of an 8 GB heap is ~41 MiB, enough for a typical working set of tiny-file
+     * tails (~8k × 5 KiB) without growing the budget with the file cap. Keep the default at 0.5%.
+     * <p>
+     * Note that only files too large to be fetched whole reach this cache via the 4 MiB adapter
+     * window. Parquet's 64 KiB footer prefetch {@code put}s {@code min(64KiB, fileLength)}, so a
+     * tiny file's whole object can live here and serve a later coalesced data read. Adapter
+     * whole-file fills are deliberately not stored so 4 MiB bodies cannot displace genuine
+     * footers.
+     */
+    public static final Setting<ByteSizeValue> FOOTER_CACHE_SIZE = new Setting<>(
+        "esql.external.cache.footer.size",
+        "0.5%",
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.external.cache.footer.size"),
+        FOOTER_CACHE_BUDGET_VALIDATOR,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Byte budget for a columnar format reader's parsed-footer cache ({@link ParsedFooterCache}):
+     * deserialized footer structures (Parquet {@code ParquetMetadata}, ORC {@code OrcTail}),
+     * weighed by a per-format structural estimate. Like {@link #FOOTER_CACHE_SIZE} the budget is
+     * per reader instance, so the node-wide worst case is twice this value.
+     * <p>
+     * A parsed footer costs several times its serialized form and scales with column count rather
+     * than file size (at Parquet's estimate a single-row-group file weighs ~13 KiB at 15 columns
+     * and ~55 KiB at 100), and files whose writer embeds a schema document in the footer's
+     * key-value metadata (Spark, Iceberg and pandas all do) weigh more again. Doubling
+     * {@link #FOOTER_CACHE_SIZE}'s ratio does not usually offset that, so for typical schemas this
+     * cache holds fewer entries than the byte cache and is the one that evicts first.
+     * <p>
+     * That ordering is worth having rather than a shortcoming, because it keeps the common failure
+     * mode cheap: when a footer is dropped here the raw bytes are often still cached, so the next
+     * phase pays a re-parse (CPU) instead of a fresh network round trip. It is a tendency, not a
+     * guarantee. Two cases invert it. A file small enough to be fetched whole (see the sliding
+     * window in the format reader's storage adapter) is never stored as a footer entry at all, so
+     * this cache is the only one holding anything for it. And a file carrying large per-column
+     * statistics can have a serialized footer bigger than the structural estimate charged here.
+     * In both, an eviction from this cache does cost a re-read. Deployments running wide schemas
+     * over large file sets can raise this to buy back the re-parse; the cost is heap held for the
+     * whole {@link #FOOTER_CACHE_TTL}.
+     */
+    public static final Setting<ByteSizeValue> FOOTER_PARSED_CACHE_SIZE = new Setting<>(
+        "esql.external.cache.footer.parsed.size",
+        "1%",
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.external.cache.footer.parsed.size"),
+        FOOTER_CACHE_BUDGET_VALIDATOR,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Expire-after-access TTL shared by both footer caches. If the bytes are stale, the parse
+     * derived from them is stale too. Must bridge the gaps between resolution, split discovery,
+     * and execution of one query over a large file set, plus dashboard refresh intervals. The
+     * trade-off: footer cache keys are {@code (path, fileLength)} without mtime (adding it would
+     * cost a HEAD request per range split; see {@link FooterByteCache}), so a file overwritten
+     * in place with identical length can be served stale for up to this long. Object-store
+     * analytics layouts treat data files as immutable, and this setting is the operator escape
+     * hatch where they do not.
+     */
+    public static final Setting<TimeValue> FOOTER_CACHE_TTL = Setting.positiveTimeSetting(
+        "esql.external.cache.footer.ttl",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             CACHE_SIZE,
@@ -164,7 +253,10 @@ public final class ExternalSourceCacheSettings {
             LISTING_TTL,
             LISTING_TTL_OLD,
             STRIPE_SIZE,
-            STRIPE_COLUMNS
+            STRIPE_COLUMNS,
+            FOOTER_CACHE_SIZE,
+            FOOTER_PARSED_CACHE_SIZE,
+            FOOTER_CACHE_TTL
         );
     }
 }

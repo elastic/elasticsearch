@@ -75,6 +75,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
@@ -429,7 +430,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.markAsSystemContext();
-            client.executeLocally(
+            client.execute(
                 GlobalCheckpointSyncAction.TYPE,
                 new GlobalCheckpointSyncAction.Request(shardId),
                 ActionListener.wrap(r -> {}, e -> {
@@ -534,7 +535,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * Detects a change, between two {@link IndexMetadata} instances for the same open index, to the cluster-state-level
      * {@link IndexMetadata#SETTING_HISTORY_UUID} setting. This is useful because it lets us know if an in-place snapshot restore is being
      * attempted. Today, a snapshot restore is the only thing that writes the SETTING_HISTORY_UUID setting onto an index that a node already
-     * has open. A restore assigns the destination a new history UUID (see {@code RestoreService#restoreOverClosedIndex}) while preserving
+     * has open. A restore assigns the destination a new history UUID (see {@code RestoreService#restoreOverExistingIndex}) while preserving
      * its index UUID.
      *
      * @param existingMetadata the metadata backing the index service currently loaded on this node
@@ -979,7 +980,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void createShardWhenLockAvailable(
         ShardRouting shardRouting,
         ClusterState originalState,
-        DiscoveryNode sourceNode,
+        @Nullable DiscoveryNode sourceNode,
         long primaryTerm,
         int iteration,
         long delayMillis,
@@ -1286,7 +1287,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            if (failureStrategy == FailureStrategy.ABORT) {
+                // We don't need to notify master of anything here because recovery abortion is a
+                // symptom of a shard that is closing and this is communicated to master through other
+                // means (or the master already knows because the master initiated it, e.g. by moving the shard)
+                return;
+            }
             RecoveryClusterStateDelay.ensureClusterStateVersion(
                 creationClusterStateVersion,
                 clusterService,
@@ -1294,28 +1301,26 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.getThreadContext(),
                 ActionListener.noop(),
                 listener -> {
-                    handleRecoveryFailure(shardRouting, sendShardFailure, primaryTerm, e);
+                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e);
                     listener.onResponse(null);
                 }
             );
         }
-
-        @Override
-        public void onRecoveryAborted() {
-            // We don't need to notify master of anything here because recovery abortion is a
-            // symptom of a shard that is closing and this is communicated to master through other
-            // means (or the master already knows because the master initiated it, e.g. by moving the shard)
-        }
     }
 
     // package-private for testing
-    synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, long primaryTerm, Exception failure) {
+    synchronized void handleRecoveryFailure(
+        ShardRouting shardRouting,
+        FailureStrategy failureStrategy,
+        long primaryTerm,
+        Exception failure
+    ) {
         try {
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    sendShardFailure,
+                    failureStrategy.notifyMaster(),
                     "failed recovery",
                     failure,
                     clusterService.state(),

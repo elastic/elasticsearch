@@ -81,7 +81,10 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.flattenedCases(1, 20)
+            MultiRowTestCaseSupplier.flattenedCases(1, 20),
+            MultiRowTestCaseSupplier.geohashCases(1, 1000),
+            MultiRowTestCaseSupplier.geotileCases(1, 1000),
+            MultiRowTestCaseSupplier.geohexCases(1, 1000)
         ).flatMap(List::stream).forEach(fieldCaseSupplier -> {
             // With precision
             for (var precisionCaseSupplier : precisionSuppliers) {
@@ -102,7 +105,10 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             DataType.IP,
             DataType.VERSION,
             DataType.KEYWORD,
-            DataType.TEXT
+            DataType.TEXT,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX
         )) {
             var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier(
                 "No rows (" + dataType + ")",

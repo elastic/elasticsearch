@@ -85,11 +85,11 @@ public final class ExternalSourceDrainUtils {
     ) {
         try {
             StorageRetryCancellation.runWithCancellation(readCancelled, () -> {
-                while (pages.hasNext() && buffer.noMoreInputs() == false) {
+                while (buffer.noMoreInputs() == false && buffer.readCounters().meteredCpu(pages::hasNext)) {
                     SubscribableListener<Void> space = buffer.waitForSpace();
                     if (space.isDone()) {
                         if (buffer.noMoreInputs()) break;
-                        Page page = pages.next();
+                        Page page = buffer.readCounters().meteredCpu(pages::next);
                         page.allowPassingToDifferentDriver();
                         buffer.addPage(page);
                     } else {

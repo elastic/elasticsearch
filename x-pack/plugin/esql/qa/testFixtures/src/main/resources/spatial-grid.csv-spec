@@ -349,6 +349,42 @@ total:long | nonNull:long
 891        | 0
 ;
 
+gridGeohashCountDistinct
+required_capability: fn_count_distinct_spatial_grid_types
+
+FROM airports
+| EVAL geohash = ST_GEOHASH(location, 2)
+| STATS total = COUNT(*), distinct = COUNT_DISTINCT(geohash)
+;
+
+total:long | distinct:long
+891        | 279
+;
+
+gridGeotileCountDistinct
+required_capability: fn_count_distinct_spatial_grid_types
+
+FROM airports
+| EVAL geotile = ST_GEOTILE(location, 3)
+| STATS total = COUNT(*), distinct = COUNT_DISTINCT(geotile)
+;
+
+total:long | distinct:long
+891        | 30
+;
+
+gridGeohexCountDistinct
+required_capability: fn_count_distinct_spatial_grid_types
+
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| STATS total = COUNT(*), distinct = COUNT_DISTINCT(geohex)
+;
+
+total:long | distinct:long
+891        | 276
+;
+
 gridGeohashStatsByBoundsEnvelope
 required_capability: spatial_grid_types
 

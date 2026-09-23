@@ -21,20 +21,24 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -61,7 +65,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Unit tests for {@link ParquetColumnExtractor}: random-access reads of single columns by
@@ -71,11 +77,17 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class ParquetColumnExtractorTests extends ESTestCase {
 
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
+
     private BlockFactory blockFactory;
 
     @Before
     public void initBlockFactory() throws Exception {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -113,7 +125,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     private ParquetMetadata loadFooter(StorageObject so) throws IOException {
         try (
             ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so, blockFactory.breaker()),
+                new ParquetStorageObjectAdapter(so, footerByteCache, blockFactory.breaker()),
                 PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
             )
         ) {
@@ -394,6 +406,94 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     }
 
     /**
+     * A Parquet {@code LIST} of struct maps to {@link DataType#UNSUPPORTED}, so
+     * {@code resolveColumnInfo} returns null. Deferred extract must emit a constant-null block of
+     * the requested length rather than throw — the same fill the eager scan uses.
+     */
+    public void testExtractUnsupportedColumnIsConstantNull() throws IOException {
+        byte[] data = writeIntAndUnsupportedListOfStructFile(10);
+        StorageObject so = createStorageObject(data);
+        ParquetMetadata footer = loadFooter(so);
+        MessageType schema = footer.getFileMetaData().getSchema();
+        assertTrue("outputs must exist in the footer so this is UNSUPPORTED, not missing", schema.containsField("outputs"));
+        assertNull(ParquetFormatReader.resolveColumnInfo(schema, "outputs"));
+        assertNotNull(ParquetFormatReader.resolveColumnInfo(schema, "v"));
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) {
+            long[] positions = { 0, 3, 9 };
+            try (Block block = extractor.extract("outputs", positions, blockFactory)) {
+                assertAllNull(block, positions.length);
+            }
+        }
+    }
+
+    /**
+     * A name absent from this file also resolves to null. Same constant-null fill; must not throw.
+     */
+    public void testExtractMissingColumnIsConstantNull() throws IOException {
+        byte[] data = writeIntAndUnsupportedListOfStructFile(10);
+        StorageObject so = createStorageObject(data);
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) {
+            long[] positions = { 0, 3, 9 };
+            try (Block block = extractor.extract("no_such_col", positions, blockFactory)) {
+                assertAllNull(block, positions.length);
+            }
+        }
+    }
+
+    /**
+     * Production {@code SourceExtractors} always passes planner {@code targetTypes} and every
+     * deferred name in one extract call. The prefetch path must still decode the readable sibling
+     * while null-filling the unsupported one; skipping stitch on the unresolved slot is what
+     * prevents {@code stitchAndGather}'s "missing decoded block" ISE. Passing
+     * {@code INTEGER}/{@code UNSUPPORTED} (and the reverse order) pins that a reorder which
+     * dereferences {@code infos[c]} before the null-check cannot hide behind a {@code null}
+     * target array.
+     */
+    public void testExtractMixedResolvedAndUnsupported() throws IOException {
+        byte[] data = writeIntAndUnsupportedListOfStructFile(10);
+        StorageObject so = createStorageObject(data);
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) {
+            long[] positions = { 0, 3, 9 };
+            Block[] blocks = extractor.extract(
+                new String[] { "v", "outputs" },
+                new DataType[] { DataType.INTEGER, DataType.UNSUPPORTED },
+                positions,
+                blockFactory
+            );
+            try {
+                assertEquals(2, blocks.length);
+                IntBlock ints = (IntBlock) blocks[0];
+                assertEquals(positions.length, ints.getPositionCount());
+                for (int i = 0; i < positions.length; i++) {
+                    assertEquals((int) positions[i], ints.getInt(i));
+                }
+                assertAllNull(blocks[1], positions.length);
+            } finally {
+                Releasables.close(blocks);
+            }
+            // Reverse column order so a regression that special-cases infos[0] == null and
+            // null-fills the whole projection cannot hide behind {v, outputs}.
+            blocks = extractor.extract(
+                new String[] { "outputs", "v" },
+                new DataType[] { DataType.UNSUPPORTED, DataType.INTEGER },
+                positions,
+                blockFactory
+            );
+            try {
+                assertEquals(2, blocks.length);
+                assertAllNull(blocks[0], positions.length);
+                IntBlock ints = (IntBlock) blocks[1];
+                assertEquals(positions.length, ints.getPositionCount());
+                for (int i = 0; i < positions.length; i++) {
+                    assertEquals((int) positions[i], ints.getInt(i));
+                }
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /**
      * The packed-sort scheme inside {@code Bucket.sortAndDedup} packs each input slot index into
      * the low {@code INDEX_BITS} of a long; if the input batch ever exceeds that capacity, slot
      * collisions silently corrupt the sort. The extractor enforces the local invariant on entry
@@ -415,7 +515,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     /**
      * List columns (Parquet {@code maxRepetitionLevel > 0}, ESQL multi-value blocks) take the
      * repetition-aware sparse path. The extractor must (a) skip all rows preceding each survivor
-     * via {@link ParquetColumnDecoding#skipListValues}, (b) materialize the surviving rows via
+     * via its repetition-aware sparse skip, (b) materialize the surviving rows via
      * {@link ParquetColumnDecoding#readListColumn}, and (c) preserve list values, including
      * empty and null lists, exactly as written.
      */
@@ -453,6 +553,98 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testExtractMalformedListRecoversBeforeSparseSkip() throws IOException {
+        byte[] data = ParquetFormatReaderTests.ARROW_GH_45185;
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<String> warnings = new ArrayList<>();
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(
+                storageObject,
+                reader,
+                loadFooter(storageObject),
+                ErrorPolicy.PERMISSIVE,
+                warnings::add
+            );
+            Block block = extractor.extract("x", new long[] { 1, 4 }, blockFactory)
+        ) {
+            IntBlock ints = (IntBlock) block;
+            assertEquals(2, ints.getPositionCount());
+            int first = ints.getFirstValueIndex(0);
+            assertEquals(2, ints.getValueCount(0));
+            assertEquals(3, ints.getInt(first));
+            assertEquals(4, ints.getInt(first + 1));
+            assertEquals(1, ints.getValueCount(1));
+            assertEquals(9, ints.getInt(ints.getFirstValueIndex(1)));
+        }
+        assertThat(warnings, hasItem(containsString("discarded [1] orphan values")));
+    }
+
+    public void testExtractMalformedListDoesNotRechargeRecoveryAcrossCalls() throws IOException {
+        byte[] data = ParquetFormatReaderTests.ARROW_GH_45185;
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ErrorPolicy oneError = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, false);
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, loadFooter(storageObject), oneError);
+            Block first = extractor.extract("x", new long[] { 1 }, blockFactory);
+            Block second = extractor.extract("x", new long[] { 4 }, blockFactory)
+        ) {
+            assertEquals(2, ((IntBlock) first).getValueCount(0));
+            assertEquals(1, ((IntBlock) second).getValueCount(0));
+        }
+    }
+
+    public void testExtractMalformedListFailsStrictlyDuringSparseSkip() throws IOException {
+        byte[] data = ParquetFormatReaderTests.ARROW_GH_45185;
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, loadFooter(storageObject), ErrorPolicy.STRICT)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> extractor.extract("x", new long[] { 1 }, blockFactory)
+            );
+            assertThat(e.getMessage(), allOf(containsString("column [x]"), containsString("row group [1]")));
+        }
+    }
+
+    /**
+     * The deferred sparse-lookup path drops null list elements for the same reason the eager scan does — an ES|QL
+     * multivalue cannot hold null — so it must announce the loss for the same reason too. Without this the answer a
+     * query gets would depend on whether extraction was deferred, which is the one thing the extractor exists to
+     * rule out. The notice must also name the attribute the query used, not the physical leaf path
+     * {@code vals.list.element}.
+     */
+    public void testExtractListColumnAnnouncesDroppedNullElements() throws IOException {
+        org.apache.parquet.schema.Type intList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("vals");
+        byte[] data = writeFile(new MessageType("ints_list", intList), factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                Group g = factory.newGroup();
+                Group vals = g.addGroup("vals");
+                vals.addGroup("list").append("element", i);
+                vals.addGroup("list"); // null element
+                groups.add(g);
+            }
+            return groups;
+        }, 64 * 1024 * 1024L);
+        StorageObject so = createStorageObject(data);
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) {
+            // Non-adjacent positions so decodeList makes several readListColumn calls: the notice is still one line.
+            try (Block block = extractor.extract("vals", new long[] { 1, 4, 9 }, blockFactory)) {
+                IntBlock ints = (IntBlock) block;
+                assertEquals(3, ints.getPositionCount());
+                for (int slot = 0; slot < 3; slot++) {
+                    assertEquals("the null element is dropped", 1, ints.getValueCount(slot));
+                }
+            }
+        }
+        List<String> warnings = drainWarnings();
+        assertThat(warnings, hasItem(ParquetColumnDecoding.nullListElementsMessage("vals")));
+        assertThat(warnings, hasItem(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY));
+        assertEquals("one summary + one detail, not one per decoded run: " + warnings, 2, warnings.size());
     }
 
     public void testExtractListAcrossRowGroupsWithDuplicates() throws IOException {
@@ -729,6 +921,30 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     }
 
     /**
+     * Later buckets are look-ahead on {@link ParquetIoWatermark}. A 1-byte cap admits the first
+     * group as the node-wide overshoot and serialises the rest; extract must still finish.
+     */
+    public void testExtractWithTinyIoWatermark() throws IOException {
+        byte[] data = writeMultiRowGroupFile(2000);
+        StorageObject so = createStorageObject(data);
+        ParquetMetadata fullFooter = loadFooter(so);
+        assertTrue("expected multiple row groups", fullFooter.getBlocks().size() >= 3);
+        long rg0Rows = fullFooter.getBlocks().get(0).getRowCount();
+        long rg1Rows = fullFooter.getBlocks().get(1).getRowCount();
+        long[] survivors = new long[] { 0L, rg0Rows + 1, rg0Rows + rg1Rows + 1 };
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withIoWatermark(new ParquetIoWatermark(1));
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, fullFooter, ErrorPolicy.PERMISSIVE)) {
+            try (Block block = extractor.extract("v", survivors, blockFactory)) {
+                IntBlock ints = (IntBlock) block;
+                assertEquals(survivors.length, ints.getPositionCount());
+                for (int i = 0; i < survivors.length; i++) {
+                    assertEquals((int) survivors[i], ints.getInt(i));
+                }
+            }
+        }
+    }
+
+    /**
      * Struct-leaf columns (e.g. {@code "event.action"}) must be extractable via the deferred
      * TopN path. The two bugs this exercises: (1) {@code resolveColumnInfo} previously returned
      * {@code null} for dotted names because it only checked top-level fields; (2)
@@ -824,6 +1040,39 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     // -----------------------------------------------------------------------------------------
     // Fixtures
     // -----------------------------------------------------------------------------------------
+
+    /**
+     * Readable int {@code v} plus a {@code LIST} of struct {@code outputs} (UNSUPPORTED). Used by
+     * the deferred-extract null-fill tests: unsupported name, absent name, and mixed extract.
+     */
+    private byte[] writeIntAndUnsupportedListOfStructFile(int rows) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test {
+              required int32 v;
+              optional group outputs (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary key (UTF8);
+                    optional int64 n;
+                  }
+                }
+              }
+            }
+            """);
+        return writeFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(rows);
+            for (int i = 0; i < rows; i++) {
+                Group g = factory.newGroup();
+                g.add("v", i);
+                Group outputs = g.addGroup("outputs");
+                Group element = outputs.addGroup("list").addGroup("element");
+                element.add("key", Binary.fromString("k" + i));
+                element.add("n", (long) i);
+                groups.add(g);
+            }
+            return groups;
+        }, /* rowGroupBytes = */ 64 * 1024 * 1024L);
+    }
 
     /** Single-int-column file with sequential values 0..rows-1. One row group. */
     private byte[] writeIntFile(int rows) throws IOException {
@@ -930,6 +1179,15 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             }
             return groups;
         }, rowGroupBytes);
+    }
+
+    private static void assertAllNull(Block block, int expectedCount) {
+        assertEquals(expectedCount, block.getPositionCount());
+        // Eager scan emits ConstantNullBlock; a typed dense all-null would also pass isNull(i)
+        // and areAllValuesNull(). Pin the constant-null shape so a stitch/decode regression
+        // that still null-fills cells cannot hide here.
+        assertTrue("unresolved extract must emit ConstantNullBlock", block instanceof ConstantNullBlock);
+        assertTrue(block.areAllValuesNull());
     }
 
     private static long nextRowDivisibleByFive(long row) {

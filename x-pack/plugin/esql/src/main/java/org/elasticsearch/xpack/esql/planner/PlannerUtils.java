@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
@@ -49,7 +50,10 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -73,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -140,6 +145,68 @@ public class PlannerUtils {
     }
 
     /**
+     * Recursively decomposes a physical plan containing nested {@link MergeExec} nodes into an immutable {@link SubPlan} tree. Each
+     * {@link MergeExec} becomes a {@link SubPlan.Merge} node: the merge is replaced by an {@link ExchangeSourceExec} in the coordinator
+     * segment plan, and each of its children is wrapped in an {@link ExchangeSinkExec} before recursion. A plan with no {@link MergeExec}
+     * becomes a {@link SubPlan.Leaf}.
+     * <p>
+     * A coordinator segment may contain only one topmost {@link MergeExec} — encountering a second one at the same level is a planning
+     * error, because one compute context supplies one exchange source to all {@link ExchangeSourceExec} nodes in the segment.
+     * <p>
+     * Example — a 3-level nested plan (outer MergeExec with both leaf and inner MergeExec children):
+     * <pre>
+     * Input physical plan:
+     *   LimitExec
+     *   └─ MergeExec                          ← outer merge
+     *      ├─ LeafA                            ← plain producer branch
+     *      ├─ MergeExec                        ← inner merge A
+     *      │  ├─ LeafB
+     *      │  └─ LeafC
+     *      └─ MergeExec                        ← inner merge B
+     *         ├─ LeafD
+     *         └─ LeafE
+     *
+     * Result SubPlan tree:
+     *   Merge(plan = LimitExec → ExchangeSourceExec)           ← outer merge replaced by ExchangeSourceExec
+     *   ├─ Leaf(plan = ExchangeSinkExec → LeafA)               ← plain leaf wrapped in ExchangeSinkExec
+     *   ├─ Merge(plan = ExchangeSinkExec → ExchangeSourceExec) ← inner merge A: produces to outer (ExchangeSinkExec)
+     *   │  ├─ Leaf(plan = ExchangeSinkExec → LeafB)            │  and consumes from its children (ExchangeSourceExec)
+     *   │  └─ Leaf(plan = ExchangeSinkExec → LeafC)
+     *   └─ Merge(plan = ExchangeSinkExec → ExchangeSourceExec) ← inner merge B: same structure
+     *      ├─ Leaf(plan = ExchangeSinkExec → LeafD)
+     *      └─ Leaf(plan = ExchangeSinkExec → LeafE)
+     * </pre>
+     * <p>
+     * There is an additional split of each leaf into a data-node plan and coordinator plan. That split is performed later by
+     * {@link #breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan, Configuration)}.
+     */
+    public static SubPlan buildSubPlan(PhysicalPlan plan) {
+        var topmostMerge = new Holder<MergeExec>();
+        PhysicalPlan segmentPlan = plan.transformDownSkipBranch((p, skipBranch) -> {
+            if (p instanceof MergeExec merge) {
+                if (topmostMerge.get() != null) {
+                    // this plan shape is not possible with the current planner
+                    LOGGER.debug("expected a single topmost MergeExec in a coordinator segment, found multiple in [{}]", plan);
+                    throw new EsqlIllegalArgumentException("expected a single topmost MergeExec in a coordinator segment");
+                }
+                topmostMerge.set(merge);
+                skipBranch.set(true);
+                return new ExchangeSourceExec(merge.source(), merge.output(), false);
+            }
+            return p;
+        });
+        if (topmostMerge.get() == null) {
+            return new SubPlan.Leaf(segmentPlan);
+        }
+        List<SubPlan> children = topmostMerge.get()
+            .children()
+            .stream()
+            .map(child -> buildSubPlan(new ExchangeSinkExec(child.source(), child.output(), false, child)))
+            .toList();
+        return new SubPlan.Merge(segmentPlan, children, topmostMerge.get().kind());
+    }
+
+    /**
      * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
      * we need to break the plan into sub plans and a main coordinator plan.
      * The result pages from each sub plan will be funneled to the main coordinator plan.
@@ -147,9 +214,15 @@ public class PlannerUtils {
      * to the main coordinator plan.
      * There is an additional split of each sub plan into a data node plan and coordinator plan.
      * This split is not done here, but as part of {@code PlannerUtils#breakPlanBetweenCoordinatorAndDataNode}.
+     * <p>
+     * {@link SubPlansAndMainPlan#kind()} is the kind of the {@link MergeExec} whose children became the
+     * subplans, so placement does not need a second walk to recover it. Nested merges still collapse to
+     * the outermost node: {@code transformUp} overwrites {@code subplans} as it walks out, and that
+     * same node supplies the kind.
      */
-    public static Tuple<List<PhysicalPlan>, PhysicalPlan> breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
+    public static SubPlansAndMainPlan breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
         var subplans = new Holder<List<PhysicalPlan>>();
+        var kind = new Holder<MergeExec.Kind>();
         PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
             subplans.set(
                 me.children()
@@ -157,11 +230,18 @@ public class PlannerUtils {
                     .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
                     .toList()
             );
+            kind.set(me.kind());
             return new ExchangeSourceExec(me.source(), me.output(), false);
         });
 
-        return new Tuple<>(subplans.get(), mainPlan);
+        return new SubPlansAndMainPlan(subplans.get(), mainPlan, kind.get());
     }
+
+    /**
+     * Result of splitting a {@link MergeExec} into per-child subplans plus the coordinator plan that
+     * gathers them. {@code subplans} and {@code kind} are null when the plan has no merge.
+     */
+    public record SubPlansAndMainPlan(List<PhysicalPlan> subplans, PhysicalPlan mainPlan, MergeExec.Kind kind) {}
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
@@ -186,6 +266,17 @@ public class PlannerUtils {
             return p;
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
+    }
+
+    /**
+     * Builds the minimally planned local physical shape used to establish a data-driver/reduction-driver schema contract.
+     * This deliberately skips general local optimization while retaining the passes that make field extraction explicit.
+     */
+    public static PhysicalPlan toPhysicalPlanForReductionSchema(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
+        var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
+        // Replace NULL-typed fields from UNMAPPED_FIELDS="NULLIFY" before field extraction tries to load them from an index.
+        LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
+        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
     }
 
     public sealed interface PlanReduction {}
@@ -265,7 +356,7 @@ public class PlannerUtils {
     /**
      * Result of local plan optimization containing both physical and logical plans.
      */
-    public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString) {}
+    public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString, boolean approximationApplied) {}
 
     public static LocalPlanResult localPlanWithLogical(
         PlannerSettings plannerSettings,
@@ -314,7 +405,7 @@ public class PlannerUtils {
         PhysicalPlan resultPlan = localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, optimizedFragment -> {
             logicalPlanString.set(optimizedFragment.toString());
         });
-        return new LocalPlanResult(resultPlan, logicalPlanString.get());
+        return new LocalPlanResult(resultPlan, logicalPlanString.get(), physicalOptimizer.approximationApplied());
     }
 
     public static PhysicalPlan localPlan(
@@ -400,11 +491,30 @@ public class PlannerUtils {
         return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile);
     }
 
-    public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
+    /**
+     * Stamps the request {@code esFilter} onto every {@link FragmentExec} so it is pushed into the Lucene scan — except fragments
+     * under a view branch, whose filter {@code ViewRequestFilterRewriter} has already installed as a logical {@code Filter} above
+     * the view's output. When {@code minimumVersion} is too old for that rewrite to have run
+     * ({@link ViewRequestFilterRewriter#supportsRewrite}), view-branch fragments are stamped like any other so the filter is not
+     * lost; see the rewriter's class javadoc for why that fallback is only approximately right.
+     */
+    public static PhysicalPlan integrateEsFilterIntoFragment(
+        PhysicalPlan plan,
+        @Nullable QueryBuilder esFilter,
+        TransportVersion minimumVersion
+    ) {
         if (esFilter == null) {
             return plan;
         }
+        boolean viewBranchesFilteredAtOutput = ViewRequestFilterRewriter.supportsRewrite(minimumVersion);
         return plan.transformUp(FragmentExec.class, f -> {
+            // View-branch fragments must not receive the Lucene esFilter: the request filter has already been applied
+            // as a logical Filter above the view's output boundary (by ViewRequestFilterRewriter). Pushing the raw DSL
+            // filter into the Lucene scan would apply it before any aggregation or field computation the view performs,
+            // returning wrong results for fields that exist only as computed values (EVAL, STATS, RENAME, etc.).
+            if (f.isFromViewBranch() && viewBranchesFilteredAtOutput) {
+                return f;
+            }
             var fragmentFilter = f.esFilter();
             // TODO: have an ESFilter and push down to EsQueryExec / EsSource
             // This is an ugly hack to push the filter parameter to Lucene
@@ -453,16 +563,21 @@ public class PlannerUtils {
         @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
     ) {
         var isCoordPlan = new Holder<>(Boolean.TRUE);
+        // Possible future improvement: both are BinaryExec nodes excluded for the same reason, so one collect
+        // over a shared predicate could build a single set. Kept separate for now to preserve the history of each case.
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
             .map(x -> ((LookupJoinExec) x).right())
             .collect(Collectors.toSet());
+        Set<PhysicalPlan> remoteFetchExecRightChildren = plan.collect(RemoteFetchExec.class::isInstance)
+            .stream()
+            .map(x -> ((RemoteFetchExec) x).right())
+            .collect(Collectors.toSet());
 
         PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
-            if (lookupJoinExecRightChildren.contains(f)) {
-                // Do not optimize the right child of a lookup join exec
-                // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
-                // Also we only ship logical plans across the network, so the plan needs to remain logical
+            if (lookupJoinExecRightChildren.contains(f) || remoteFetchExecRightChildren.contains(f)) {
+                // These fragments are shipped as logical plans and planned on the target node, where the right stats and
+                // execution context are available.
                 return f;
             }
             isCoordPlan.set(Boolean.FALSE);
@@ -644,7 +759,7 @@ public class PlannerUtils {
 
     /**
      * Checks that the input rows of the plan have been reduced by LIMIT.
-     * In the case where non-unary plans are used, such as {@code Fork} or {@code UnionAll},
+     * In the case where non-unary plans are used, such as {@link org.elasticsearch.xpack.esql.plan.logical.MergePlan},
      * we check that the rows from each branch are reduced by LIMIT.
      */
     public static boolean hasLimitedInput(LogicalPlan plan) {

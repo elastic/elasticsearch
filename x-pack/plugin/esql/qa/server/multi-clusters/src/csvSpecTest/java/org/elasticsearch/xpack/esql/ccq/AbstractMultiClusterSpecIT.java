@@ -39,6 +39,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -172,6 +173,26 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "Lookup join before and after stats by"
     );
 
+    /**
+     * The suite starts loading data and running queries as soon as the local node's own HTTP is up, but the cross-cluster
+     * connection to the remote is established asynchronously. Because these suites run with
+     * {@code skip_unavailable=true}, a query issued before the remote has connected silently skips it and fails. So we
+     * must wait until the remote cluster is ready before starting the test suite.
+     */
+    @Override
+    protected void ensureRemoteClustersConnected() throws Exception {
+        // /_remote/info must go to the local (coordinating) cluster only. The shared client() mirrors non-query requests to
+        // the remote too, whose nodes lack the remote_cluster_client role and reject it, so build a throwaway local client.
+        // connected==true is the meaningful signal (num_nodes_connected is capped by connections_per_cluster=1, not node count).
+        HttpHost[] localHosts = parseClusterHosts(localCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+        try (RestClient localClient = super.buildClient(restAdminSettings(), localHosts)) {
+            assertBusy(() -> {
+                var remoteInfo = assertOKAndCreateObjectPath(localClient.performRequest(new Request("GET", "/_remote/info")));
+                assertEquals(Boolean.TRUE, remoteInfo.evaluate(Clusters.REMOTE_CLUSTER_NAME + ".connected"));
+            }, 60, TimeUnit.SECONDS);
+        }
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
@@ -208,9 +229,9 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             .toList();
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, remoteCapabilities);
 
-        // Do not run tests including "METADATA _index" unless marked with metadata_fields_remote_test,
-        // because they may produce inconsistent results with multiple clusters.
-        assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
+        // Do not run tests including "METADATA _index" or "METADATA _name" unless marked with
+        // metadata_fields_remote_test, because they may produce inconsistent results with multiple clusters.
+        assumeFalse("can't test with cluster-qualified metadata", (remoteMetadata == false) && hasQualifiedNameMetadata(testCase.query));
         // METRICS_INFO/TS_INFO produce a data_stream column that includes the cluster alias prefix
         // when data is on a remote cluster. Non-remote tests expect the bare data stream name, so
         // they are always skipped in CCS. Remote tests need the data to be on the remote cluster,
@@ -470,10 +491,15 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         return dataLocation == DataLocation.REMOTE_ONLY && Clusters.bwcVersion().onOrAfter(Version.V_9_1_0);
     }
 
-    private static final Pattern HAS_INDEX_METADATA = Pattern.compile("metadata\\s+[^|=]*_index", Pattern.CASE_INSENSITIVE);
+    // _name aliases _index on an index, so a remote row answers it with the cluster-qualified name just as
+    // _index does, and a spec written against a single cluster expects the bare one.
+    private static final Pattern HAS_QUALIFIED_NAME_METADATA = Pattern.compile(
+        "metadata\\s+[^|=]*(_index|_name)",
+        Pattern.CASE_INSENSITIVE
+    );
 
-    static boolean hasIndexMetadata(String query) {
-        return HAS_INDEX_METADATA.matcher(query).find();
+    static boolean hasQualifiedNameMetadata(String query) {
+        return HAS_QUALIFIED_NAME_METADATA.matcher(query).find();
     }
 
     @Override

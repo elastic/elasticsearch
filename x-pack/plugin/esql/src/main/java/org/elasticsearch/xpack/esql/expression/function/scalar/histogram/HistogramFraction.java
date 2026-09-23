@@ -91,9 +91,10 @@ public class HistogramFraction extends EsqlScalarFunction implements OptionalArg
                 );
             }
         )
+        .classicHistogramHandler(org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFraction::new)
         .description(
-            "Returns the estimated fraction of observations of a native histogram that fall between the provided lower "
-                + "and upper values."
+            "Returns the estimated fraction of observations of a classic or native histogram that fall between the provided "
+                + "lower and upper values."
         )
         .example("histogram_fraction(0, 0.2, increase(http_request_duration_seconds[1h]))")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
@@ -200,8 +201,9 @@ public class HistogramFraction extends EsqlScalarFunction implements OptionalArg
         out.writeOptionalNamedWriteable(decimals);
     }
 
+    // public so that BUCKET tests can use this to verify buckets are populated
     @Evaluator(extraName = "ExponentialHistogram")
-    static double process(ExponentialHistogram histogram, DoubleRangeBlockBuilder.DoubleRange bucket, @Fixed Integer decimals) {
+    public static double process(ExponentialHistogram histogram, DoubleRangeBlockBuilder.DoubleRange bucket, @Fixed Integer decimals) {
         if (histogram.valueCount() == 0) {
             return 0.0;
         }
@@ -215,7 +217,7 @@ public class HistogramFraction extends EsqlScalarFunction implements OptionalArg
     }
 
     @Evaluator(extraName = "TDigest")
-    static double process(
+    public static double process(
         TDigestHolder histogram,
         DoubleRangeBlockBuilder.DoubleRange bucket,
         @Fixed Integer decimals,

@@ -52,7 +52,7 @@ public final class SubqueryGenerator {
             logger.warn(() -> "Subquery generation failed for inner query [" + last.query() + "]", last.exception());
             throw ExceptionsHelper.convertToRuntime(last.exception());
         }
-        return new SubqueryResult("(" + last.query() + ")", last.outputSchema());
+        return new SubqueryResult("(" + last.query() + ")", inner.currentSchema());
     }
 
     /**
@@ -78,12 +78,15 @@ public final class SubqueryGenerator {
             QueryExecuted result = queryExecutor.execute(fullQuery, depth);
             lastResult = result;
             if (result.exception() != null || result.outputSchema() == null || result.outputSchema().isEmpty()) {
+                // Stop appending, but keep the last good schema (the columns the failing command operated on) so the
+                // allowed-failure check can resolve non-index-mapped fields, instead of being handed an empty schema.
                 continueExecuting = false;
-                currentSchema = List.of();
                 return;
             }
             previousCommands.add(current);
-            currentSchema = result.outputSchema();
+            // Track indexMapped flags like the top-level generation loop, so full-text functions inside the subquery
+            // are only generated against index-mapped fields (and residual failures can be recognized as known bugs).
+            currentSchema = queryExecutor.updateIndexMapped(result.outputSchema(), currentSchema, current);
         }
 
         @Override

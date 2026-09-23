@@ -9,14 +9,30 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.MappedColumns;
 
 /**
  * A mapped, engine-ready batch produced by {@link org.elasticsearch.index.mapper.ShardBatchMapper}.
- * Contains the flattened operation record ({@link IndexOperationBatch}) and the assembled Lucene
- * column data ({@link MappedColumns}) for the columnar write path.
+ * Contains the flattened operation record ({@link IndexOperationBatch}), the assembled Lucene
+ * column data ({@link MappedColumns}), and the recycler-backed resources allocated during mapping.
  *
- * @param batch   the flattened per-document operation data (uids, sources, seq_no byte arrays, etc.)
- * @param columns the assembled {@link MappedColumns}.
+ * @param batch           the flattened per-document operation data (uids, sources, seq_no byte arrays, etc.)
+ * @param columns         the assembled {@link MappedColumns}.
+ * @param columnResources recycler-backed buffers owned by the mapping phase; released on {@link #close()}.
  */
-public record EngineBatch(IndexOperationBatch batch, MappedColumns columns) {}
+public record EngineBatch(IndexOperationBatch batch, MappedColumns columns, Releasable columnResources) implements Releasable {
+
+    /**
+     * Convenience constructor for callers that hold no recycler-backed resources (e.g. test helpers
+     * that pass {@code BytesRefRecycler.NON_RECYCLING_INSTANCE}).
+     */
+    public EngineBatch(IndexOperationBatch batch, MappedColumns columns) {
+        this(batch, columns, () -> {});
+    }
+
+    @Override
+    public void close() {
+        columnResources.close();
+    }
+}

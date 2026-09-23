@@ -100,6 +100,7 @@ public final class ErrorModel {
         float[] residualScratch = scratch.residualScratch;
         float[] normScratch = scratch.normScratch;
         int[] quantizeScratch = scratch.quantizeScratch;
+        float[] preconditionScratch = scratch.preconditionScratch;
 
         float[] docLower = scratch.docLower;
         float[] docUpper = scratch.docUpper;
@@ -112,6 +113,10 @@ public final class ErrorModel {
             float[] doc = source.vectors().vectorValue(source.corpusOrdinals()[i]);
             if (cosine) {
                 doc = CalibrationUtils.copyAndNormalize(doc, normScratch);
+            }
+            if (usePreconditioned && source.preconditioner() != null) {
+                source.preconditioner().applyTransform(doc, preconditionScratch);
+                doc = preconditionScratch;
             }
             int qc = docCentroidAssignments[docAssignments[i]];
             corpusDotCentroid[i] = ESVectorUtil.dotProduct(queryCentroids[qc], doc);
@@ -135,7 +140,6 @@ public final class ErrorModel {
         byte[][] queryQuantized = new byte[actualQueryClusters][dimWork];
 
         float[] queryScratch = scratch.queryScratch;
-        float[] preconditionScratch = scratch.preconditionScratch;
 
         double[] queryDotCentroid = new double[nDocClusters];
         double[] simOsq = scratch.simOsq;
@@ -247,6 +251,10 @@ public final class ErrorModel {
                 if (cosine) {
                     doc = CalibrationUtils.copyAndNormalize(doc, normScratch);
                 }
+                if (usePreconditioned && source.preconditioner() != null) {
+                    source.preconditioner().applyTransform(doc, preconditionScratch);
+                    doc = preconditionScratch;
+                }
                 double exact;
                 if (sim == VectorSimilarityFunction.EUCLIDEAN) {
                     assert docDotDoc != null;
@@ -285,6 +293,17 @@ public final class ErrorModel {
         int[] flatAssignments = docClusters.assignments();
         if (docCentroids.length == 0) {
             return new QuantizedErrorComputeResult(1.0, docCentroids, warmStartQueryCentroids);
+        }
+
+        // K-means distances are preserved under orthogonal rotation, so assignments are the same in both spaces.
+        // Rotating each centroid gives the exact centroid of the preconditioned cluster, so we can cluster in
+        // original space and then rotate the resulting centroids rather than re-clustering preconditioned vectors.
+        if (usePreconditioned && source.preconditioner() != null) {
+            float[][] preconditionedCentroids = new float[docCentroids.length][source.workingDim()];
+            for (int i = 0; i < docCentroids.length; i++) {
+                source.preconditioner().applyTransform(docCentroids[i], preconditionedCentroids[i]);
+            }
+            docCentroids = preconditionedCentroids;
         }
 
         QuantizedQueryErrorResult queryError = quantizedRepErrorStd(
@@ -517,6 +536,7 @@ public final class ErrorModel {
         private final HierarchicalKMeans<float[]> kmeans;
         private final int nDocs;
         private QuantizedErrorComputeResult shared;
+        private boolean sharedPreconditioned; // whether {@link #shared} was computed with {@code usePreconditioned=true}
 
         private RealResidualState(CalibrationSource source) {
             this.nDocs = Math.min(REAL_RESIDUAL_SAMPLE, source.corpusOrdinals().length);
@@ -546,8 +566,8 @@ public final class ErrorModel {
      * not recomputed per encoding.
      * <p>
      * Measures OSQ error once at {@link #REAL_RESIDUAL_SAMPLE} and anchors the intercept at that sample
-     * size. The manifold slope {@code invDim} is used as the scaling exponent, so evaluating at the real corpus size {@code N}
-     * extrapolates as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDim}.
+     * size. The manifold slope is used as the scaling exponent, sign-corrected for dot-like similarities, so evaluating at the
+     * real corpus size {@code N} extrapolates as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDimEffective}.
      */
     public static QuantizationErrorStdModel estimateMagnitudeFromRealResiduals(
         double invDim,
@@ -558,8 +578,13 @@ public final class ErrorModel {
         int nDocsPerCluster,
         RealResidualState state
     ) throws IOException {
-        float[][] warmDoc = state.shared == null ? null : state.shared.docCentroids();
-        float[][] warmQuery = state.shared == null ? null : state.shared.queryCentroids();
+        // doc warm start: reuse only when shared.docCentroids() is in original space (sharedPreconditioned=false).
+        float[][] warmDoc = (state.shared != null && !state.sharedPreconditioned) ? state.shared.docCentroids() : null;
+
+        // query warm start: reuse only when the space of shared.queryCentroids() matches the current call.
+        float[][] warmQuery = (state.shared != null && state.sharedPreconditioned == usePreconditionedQueries)
+            ? state.shared.queryCentroids()
+            : null;
         QuantizedErrorComputeResult r = quantizedRepErrorStdWithCentroids(
             source,
             usePreconditionedQueries,
@@ -574,13 +599,13 @@ public final class ErrorModel {
         );
         if (state.shared == null) {
             state.shared = r;
+            state.sharedPreconditioned = usePreconditionedQueries;
         }
         // 1/d is negative for similarities like cosine, so use -invDim
         double invDimEffective = ManifoldModel.isDotLike(source.similarityFunction()) ? -invDim : invDim;
-        // single measurement anchored at state.nDocs (not numVectors),
-        // so evaluating at N gives measuredStd × (state.nDocs / N)^invDim
+        // single measurement anchored at state.nDocs, so evaluating at N gives measuredStd × (state.nDocs / N)^invDimEffective
         double beta0 = Math.log(Math.max(r.std(), 1e-38)) - invDimEffective * (Math.log(nDocsPerCluster) - Math.log(state.nDocs));
-        return new QuantizationErrorStdModel(new Regression.OLSResult(beta0, invDim, 0, 0, 0, 0));
+        return new QuantizationErrorStdModel(new Regression.OLSResult(beta0, invDimEffective, 0, 0, 0, 0));
     }
 
     /**

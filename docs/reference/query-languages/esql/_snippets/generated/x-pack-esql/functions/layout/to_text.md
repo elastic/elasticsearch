@@ -26,5 +26,8 @@ serverless: preview
 :::{include} ../types/to_text.md
 :::
 
+:::{include} ../functionNamedParams/to_text.md
+:::
+
 :::{include} ../examples/to_text.md
 :::

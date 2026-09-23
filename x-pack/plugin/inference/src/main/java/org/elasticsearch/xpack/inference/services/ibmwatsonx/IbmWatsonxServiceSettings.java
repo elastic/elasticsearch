@@ -14,14 +14,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
@@ -53,20 +54,31 @@ public abstract class IbmWatsonxServiceSettings extends FilteredXContentObject i
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
     /**
-     * Registers the common IBM watsonx service-settings fields (url, api_version, model_id, project_id, rate_limit) onto the given
-     * parser.
+     * Builds an {@link ObjectParser} for IBM watsonx service settings, wiring the common fields (url, api_version, model_id,
+     * project_id), {@link #DEFAULT_RATE_LIMIT_SETTINGS}, and the {@code api_key} no-op.
      */
-    public static <B extends Builder<? extends IbmWatsonxServiceSettings>> void declareCommonFields(
-        AbstractObjectParser<B, ConfigurationParseContext> parser
+    public static <B extends Builder<? extends IbmWatsonxServiceSettings>> ObjectParser<B, ConfigurationParseContext> buildCommonParser(
+        boolean ignoreUnknownFields,
+        Supplier<B> builderSupplier
     ) {
+        var parser = new ServiceSettingsOPBuilder<>(ignoreUnknownFields, builderSupplier).enableRateLimitSettings(
+            Builder::setRateLimitSettings,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        ).allowApiKey().build();
         parser.declareString(Builder::setUrl, new ParseField(URL));
         parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
         parser.declareString(Builder::setProjectId, new ParseField(PROJECT_ID));
-        RateLimitSettings.declareRateLimitSettings(parser, Builder::setRateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
+        return parser;
+    }
+
+    /**
+     * Builds an {@link ObjectParser} for IBM watsonx update requests, wiring {@link #DEFAULT_RATE_LIMIT_SETTINGS} and the {@code api_key}
+     * no-op. The immutable fields (url, api_version, model_id, project_id) are intentionally not declared so that a strict update parser
+     * rejects attempts to change them.
+     */
+    public static <U extends CommonUpdate> ObjectParser<U, Void> buildCommonUpdateParser(Supplier<U> updateSupplier) {
+        return UpdateServiceSettingsOPBuilder.of(updateSupplier, CommonUpdate::setRateLimitSettings).build();
     }
 
     private final URI uri;
@@ -222,18 +234,6 @@ public abstract class IbmWatsonxServiceSettings extends FilteredXContentObject i
     }
 
     /**
-     * Registers the common IBM watsonx fields that may be changed by an update request. Only {@code rate_limit} is mutable; the
-     * immutable fields (such as {@code model_id}, {@code url}, {@code api_version}, and {@code project_id}) are intentionally not
-     * declared so that a strict update parser rejects attempts to change them.
-     */
-    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        RateLimitSettings.declareUpdatableRateLimitSettings(parser, CommonUpdate::setRateLimitSettings);
-        // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
-        parser.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
-    }
-
-    /**
      * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
      * calling {@link #mergedRateLimitSettings(IbmWatsonxServiceSettings)} to resolve the shared fields.
      */
@@ -241,7 +241,7 @@ public abstract class IbmWatsonxServiceSettings extends FilteredXContentObject i
 
         protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
-        private void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+        protected void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
             this.rateLimitSettings = rateLimitSettings;
         }
 

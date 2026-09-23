@@ -21,6 +21,7 @@ public class StringFrozenIdsTests extends ESTestCase {
 
     public void testLayoutIdsAreStable() {
         assertEquals((byte) 0, StringColumnLayout.PLAIN.id());
+        assertEquals((byte) 1, StringColumnLayout.DICTIONARY.id());
     }
 
     public void testLayoutRoundTripsThroughItsId() {

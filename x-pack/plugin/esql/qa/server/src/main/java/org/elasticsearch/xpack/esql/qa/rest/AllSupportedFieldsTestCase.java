@@ -190,6 +190,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
     }
 
+    protected boolean fetchVectordbColumnarIndexModeSupported() throws IOException {
+        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_columnar_index_mode")).orElse(false);
+    }
+
     private static Boolean flattenedDatatypeSortedKeysSupported;
 
     private boolean flattenedDatatypeSortedKeysSupported() throws IOException {
@@ -277,16 +281,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
             );
         }
-        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
-            // Gate on the cluster capability rather than the test runner build: columnar index modes are only available when the
-            // feature flag is enabled on the nodes (e.g. they are disabled in upgrade clusters), in which case these tests skip.
+        if (indexMode.isStrictColumnar()) {
+            // Gate on cluster capabilities rather than the test runner build. This also checks the remote cluster in CCQ tests.
+            boolean modeSupported = indexMode == IndexMode.VECTORDB_COLUMNAR
+                ? fetchVectordbColumnarIndexModeSupported()
+                : clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false);
+            assumeTrue("Cluster does not support index.mode=" + indexMode.getName(), modeSupported);
             assumeTrue(
-                "Cluster does not have columnar index modes enabled",
-                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false)
-            );
-            assumeTrue(
-                "Cluster has nodes that do not support columnar index modes",
-                minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+                "Cluster has nodes that do not support index.mode=" + indexMode.getName(),
+                minVersion().supports(indexMode.getMinimalSupportedVersion())
             );
             assumeTrue(
                 "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
@@ -582,7 +585,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
             if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minVersion(), false)) {
-                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in vector database index modes).
                 expectedValues = expectedValues.entry(
                     "f_dense_vector",
                     matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05))
@@ -1157,7 +1160,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // See expectedType for an explanation
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
                     && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
-                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in vector database index modes).
                     yield matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05));
                 }
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
@@ -1461,7 +1464,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
-            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR -> true;
+            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR, VECTORDB_COLUMNAR -> true;
             case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> false;
         };
     }
@@ -1599,7 +1602,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case FLATTENED -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                 : matchesList().item("column_at_a_time:");
-            case DENSE_VECTOR -> indexMode.isStrictColumnar()
+            // vectordb_columnar keeps dense_vector indexed, so it loads from the normalized vector values like non-columnar
+            // modes; the other strict-columnar modes store the vector as binary doc values.
+            case DENSE_VECTOR -> indexMode.isStrictColumnar() && indexMode.isSearchOptimizedColumnar() == false
                 ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
                 : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false

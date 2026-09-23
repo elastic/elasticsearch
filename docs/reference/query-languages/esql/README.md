@@ -161,12 +161,17 @@ To add a new function called `<my_func>` to the `<group>` group (e.g. `string-fu
 Because we now publish just one docs set off of the `main` branch, we use the [`applies_to` metadata](https://elastic.github.io/docs-builder/syntax/applies/) to differentiate features and their availability across different versions. This is a [cumulative approach](https://elastic.github.io/docs-builder/contribute/#cumulative-docs): instead of creating separate pages for each product and release, we update a **single page** with product- and version-specific details over time.
 
 `applies_to` allows us to clearly communicate when features are introduced, when they transition from preview to GA, and which versions support specific functionality.
+> [!TIP]
+> **Simple rule:** If you're documenting new or changed functionality, you almost always need an `applies_to` version tag.
 
 This metadata accepts a lifecycle and an optional version. The version supports three operators:
 
 - `=X.x` applies to that version only, for example `=9.4`
 - `X.x-Y.y` applies to a version range, for example `9.4-9.6`
 - `X.x+` applies to that version and later, for example `9.5+`
+
+> [!IMPORTANT]
+> Unsure which version tag to use? Ask your coding agent to use the [`applies_to` tagging skill](https://github.com/elastic/elastic-docs-skills/blob/main/skills/authoring/applies-to-tagging/SKILL.md). Use the [Elastic docs skills repository](https://github.com/elastic/elastic-docs-skills) for more tools that can help with documentation contributions.
 
 ### Annotate functions and operators
 
@@ -474,3 +479,4 @@ Locally this writes the generated files straight into the directories above (`ge
 - [How to contribute to Elastic docs](https://www.elastic.co/docs/contribute-docs)
 - [Elastic markdown syntax reference](https://www.elastic.co/docs/contribute-docs/syntax-quick-reference)
 - [Docs tools](https://www.elastic.co/docs/contribute-docs/tools)
+- [Elastic docs skills for coding agents](https://github.com/elastic/elastic-docs-skills)

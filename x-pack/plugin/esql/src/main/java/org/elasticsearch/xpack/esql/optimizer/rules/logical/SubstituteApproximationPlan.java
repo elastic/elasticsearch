@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -22,7 +23,7 @@ public final class SubstituteApproximationPlan extends ParameterizedRule<Logical
 
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan, LogicalOptimizerContext context) {
-        if (QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings()) == null) {
+        if (ApproximationSettings.isOn(QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings())) == false) {
             // Approximation is not enabled
             return logicalPlan;
         } else {

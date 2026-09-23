@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -570,6 +572,106 @@ public class FileSplitProviderTests extends ESTestCase {
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
         assertEquals(2, splits.size());
+    }
+
+    // --- signed zero: the engine compares doubles with ==, under which -0.0 and 0.0 are equal ---
+
+    public void testSignedZeroPartitionIsDecidedAsTheEngineDecidesIt() {
+        Attribute d = new FieldAttribute(SRC, "d", new EsField("d", DataType.DOUBLE, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        for (double partition : new double[] { -0.0, 0.0 }) {
+            for (double zero : new double[] { 0.0, -0.0 }) {
+                Literal literal = new Literal(SRC, zero, DataType.DOUBLE);
+                List<Expression> filters = new ArrayList<>(signedZeroComparisons(d, literal));
+                filters.add(new MvContains(SRC, d, literal));
+                filters.add(new MvIntersects(SRC, d, new Literal(SRC, List.of(zero, 7.0), DataType.DOUBLE)));
+                filters.add(new MvInRange(SRC, d, literal, literal));
+                filters.add(new MvInRange(SRC, d, literal, new Literal(SRC, 7.0, DataType.DOUBLE)));
+                filters.add(new MvInRange(SRC, d, new Literal(SRC, -7.0, DataType.DOUBLE), literal));
+                filters.add(new MvGreater(SRC, d, literal));
+                filters.add(new MvLess(SRC, d, literal));
+                assertEveryFilterAgreesWithTheEngine(filters, "d", partition);
+            }
+        }
+    }
+
+    public void testZeroFileSizeIsDecidedAsTheEngineDecidesIt() {
+        // _file.size is a LONG, so against a DOUBLE literal it takes the comparator's double arm too.
+        Attribute size = new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG);
+        for (double zero : new double[] { 0.0, -0.0 }) {
+            List<Expression> filters = signedZeroComparisons(size, new Literal(SRC, zero, DataType.DOUBLE));
+            assertEveryFilterAgreesWithTheEngine(filters, FileMetadataColumns.SIZE, 0L);
+        }
+    }
+
+    public void testSignedZeroInIsUnknownRatherThanContradictingTheEngine() {
+        // The engine's IN tells the zeros apart with Double.compare where == does not. A confident answer for an
+        // opposite-sign pair prunes matching files under IN or under NOT IN, so the split layer answers neither.
+        Attribute d = new FieldAttribute(SRC, "d", new EsField("d", DataType.DOUBLE, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        Literal seven = new Literal(SRC, 7.0, DataType.DOUBLE);
+        for (double partition : new double[] { -0.0, 0.0 }) {
+            for (double zero : new double[] { 0.0, -0.0 }) {
+                Expression in = new In(SRC, d, List.of(new Literal(SRC, zero, DataType.DOUBLE), seven));
+                for (Expression filter : List.of(in, new Not(SRC, in))) {
+                    Boolean split = FileSplitProvider.evaluateFilter(filter, Map.of("d", partition));
+                    String description = filter.nodeString() + " on d=" + partition;
+                    if (Double.compare(partition, zero) == 0) {
+                        Object engine = filter.transformUp(Attribute.class, a -> Literal.of(a, partition)).fold(FoldContext.small());
+                        assertEquals("same-sign zeros are decided as the engine decides them: " + description, engine, split);
+                    } else {
+                        assertNull("opposite-sign zeros must stay unknown: " + description, split);
+                    }
+                }
+            }
+        }
+        // An exact match elsewhere in the list still decides it, and a non-zero value is still a confident miss.
+        Literal minusZero = new Literal(SRC, -0.0, DataType.DOUBLE);
+        Literal zero = new Literal(SRC, 0.0, DataType.DOUBLE);
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new In(SRC, d, List.of(zero, minusZero)), Map.of("d", -0.0)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new In(SRC, d, List.of(zero, seven)), Map.of("d", 1.5)));
+        // A LONG _file.size of 0 is a positive zero, so a -0.0 candidate is the same opposite-sign pair.
+        Attribute size = new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG);
+        assertNull(FileSplitProvider.evaluateFilter(new In(SRC, size, List.of(minusZero, seven)), Map.of(FileMetadataColumns.SIZE, 0L)));
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(new In(SRC, size, List.of(zero, seven)), Map.of(FileMetadataColumns.SIZE, 0L))
+        );
+    }
+
+    /** The six binary comparisons, each with the literal on the right and on the left. */
+    private static List<Expression> signedZeroComparisons(Attribute column, Literal literal) {
+        return List.of(
+            new Equals(SRC, column, literal),
+            new NotEquals(SRC, column, literal),
+            new GreaterThan(SRC, column, literal, null),
+            new GreaterThanOrEqual(SRC, column, literal, null),
+            new LessThan(SRC, column, literal, null),
+            new LessThanOrEqual(SRC, column, literal, null),
+            new Equals(SRC, literal, column),
+            new NotEquals(SRC, literal, column),
+            new GreaterThan(SRC, literal, column, null),
+            new GreaterThanOrEqual(SRC, literal, column, null),
+            new LessThan(SRC, literal, column, null),
+            new LessThanOrEqual(SRC, literal, column, null)
+        );
+    }
+
+    /**
+     * Every filter, and its negation, must be answered by the split layer exactly as the engine answers it on a row
+     * holding {@code value}. Unknown is not accepted: each of these has a definite answer, so an unknown would hide
+     * the comparison from the test rather than pass it.
+     */
+    private static void assertEveryFilterAgreesWithTheEngine(List<Expression> filters, String column, Object value) {
+        for (Expression positive : filters) {
+            for (Expression filter : List.of(positive, new Not(SRC, positive))) {
+                Object engine = filter.transformUp(Attribute.class, a -> Literal.of(a, value)).fold(FoldContext.small());
+                assertNotNull("the engine must decide [" + filter.nodeString() + "]", engine);
+                assertEquals(
+                    "the split layer must answer [" + filter.nodeString() + "] on " + column + "=" + value + " as the engine does",
+                    engine,
+                    FileSplitProvider.evaluateFilter(filter, Map.of(column, value))
+                );
+            }
+        }
     }
 
     // --- multivalue comparison functions: what the out-of-band request filter translates into ---

@@ -306,10 +306,14 @@ public final class TranslationContext {
         }
 
         // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link.
-        var intermediateResultPlan = doTranslateUnion(
-            branches.stream().map(b -> translateIntermediate(b, new NameId(), new NameId())).toList()
-        );
-        return doTranslateFinal(intermediateResultPlan, null, false);
+        var intermediateResults = new ArrayList<TranslationResult>(branches.size());
+        for (var branch : branches) {
+            intermediateResults.add(translateIntermediate(branch, new NameId(), new NameId()));
+        }
+        // The branches' packings keep their natural names through the union and its dedup; the final projection renames
+        // the one they share to `_timeseries`.
+        Attribute packing = commonPacking(intermediateResults);
+        return doTranslateFinal(doTranslateUnion(intermediateResults), packing, false);
     }
 
     /**
@@ -341,24 +345,21 @@ public final class TranslationContext {
             var ir = intermediateResults.get(i);
             LogicalPlan branchPlan = ir.plan();
             // Each branch is projected to its public shape: value, step, its labels, its series identity
-            // (renamed to `_timeseries` for name-based union alignment) and the branch tag. The explicit
-            // projection also pins the page layout to the branch output: pages cross an exchange and an
-            // Eval below (the value double-cast) can name-shadow a column, leaving its channel in the
-            // page but not in output() (see #158164).
+            // (with its natural name, e.g. `_timeseries$__name__`) and the branch tag. The union aligns
+            // columns by name and the dedup below keys on every non-value column. The final rename to
+            // `_timeseries` is deferred to emitFinalProjection so the dedup groups on semantically
+            // consistent keys. The explicit projection also pins the page layout to the branch output:
+            // pages cross an exchange and an Eval below (the value double-cast) can name-shadow a column,
+            // leaving its channel in the page but not in output() (see #158164).
             var branchOutput = new ArrayList<Attribute>();
             branchOutput.add(ir.valueColumn());
             branchOutput.add(ir.step());
             for (String label : ir.statics()) {
                 branchOutput.add(ir.label(label));
             }
-            Attribute identity = ir.grain();
-            if (identity != null) {
-                if (identity.name().equals(MetadataAttribute.TIMESERIES) == false) {
-                    var alias = new Alias(source, MetadataAttribute.TIMESERIES, identity, new NameId());
-                    branchPlan = new Eval(source, branchPlan, List.of(alias));
-                    identity = alias.toAttribute();
-                }
-                branchOutput.add(identity);
+            Attribute packing = ir.grain();
+            if (packing != null) {
+                branchOutput.add(packing);
             }
             // Drop null-valued rows per branch so an absent left side does not shadow a present right side.
             branchPlan = emitNullsFilter(source, branchPlan, ir.valueColumn());
@@ -384,6 +385,23 @@ public final class TranslationContext {
         }
         var order = new Order(source, branchAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         return new TopNBy(source, union, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
+    }
+
+    /**
+     * The packing every branch carries under one natural name - the union aligns them into a single column, which the
+     * final projection renames to `_timeseries` - or null when a branch has none or the names differ.
+     */
+    private static Attribute commonPacking(List<TranslationResult> parts) {
+        Attribute common = null;
+        for (int i = 0; i < parts.size(); i++) {
+            Attribute packing = parts.get(i).grain();
+            if (i == 0) {
+                common = packing;
+            } else if (common != null && (packing == null || common.name().equals(packing.name()) == false)) {
+                common = null;
+            }
+        }
+        return common;
     }
 
     /**

@@ -19,6 +19,8 @@ import io.opentelemetry.proto.resource.v1.Resource;
 import com.google.protobuf.ByteString;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
@@ -49,11 +51,17 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     private final MappingHints defaultMappingHints;
     private final Map<Hash128, ResourceGroup> resourceGroups = new HashMap<>();
     private final Set<String> ignoredDataPointMessages = new HashSet<>();
-    private final Set<Integer> exemplarDocumentPositions = new HashSet<>();
 
     private int totalDataPoints = 0;
     private int ignoredDataPoints = 0;
+    private int firstExemplarDocumentPosition = -1;
+
     private int duplicateExemplars = 0;
+    private int exemplarsWithoutTarget = 0;
+    private int exemplarsWithoutValue = 0;
+    private int exemplarFailureStoreRedirects = 0;
+    private int exemplarFailures = 0;
+    private String exemplarFailureMessageSample;
 
     public DataPointGroupingContext(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         this.byteStringAccessor = byteStringAccessor;
@@ -156,22 +164,67 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         duplicateExemplars++;
     }
 
-    /** Records the bulk-item position of an exemplar document for response accounting. */
-    public void recordExemplarDocument(int bulkItemPosition) {
-        exemplarDocumentPositions.add(bulkItemPosition);
+    /** Records exemplars dropped because their parent metric has no corresponding exemplar target. */
+    public void recordExemplarsWithoutTarget(int count) {
+        exemplarsWithoutTarget += count;
+    }
+
+    /** Records an exemplar dropped because it does not have a value. */
+    public void recordExemplarWithoutValue() {
+        exemplarsWithoutValue++;
+    }
+
+    /** Records the first bulk-item position occupied by an exemplar document. */
+    public void recordFirstExemplarDocument(int bulkItemPosition) {
+        assert firstExemplarDocumentPosition == -1;
+        firstExemplarDocumentPosition = bulkItemPosition;
     }
 
     @Override
     public boolean isPrimaryTelemetryDoc(int bulkItemPosition) {
-        return exemplarDocumentPositions.contains(bulkItemPosition) == false;
+        return firstExemplarDocumentPosition == -1 || bulkItemPosition < firstExemplarDocumentPosition;
+    }
+
+    @Override
+    public void recordNonPrimaryTelemetryDocFailure(BulkItemResponse bulkItemResponse) {
+        BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
+        if (bulkItemResponse.getFailureStoreStatus() == IndexDocFailureStoreStatus.USED) {
+            exemplarFailureStoreRedirects++;
+        } else {
+            assert failure != null;
+            exemplarFailures++;
+            if (exemplarFailureMessageSample == null) {
+                exemplarFailureMessageSample = failure.getMessage();
+            }
+        }
     }
 
     @Override
     public String getWarningMessage() {
-        if (duplicateExemplars == 0) {
-            return "";
+        StringBuilder warningMessage = new StringBuilder();
+        if (exemplarFailureStoreRedirects > 0) {
+            warningMessage.append("Redirected ")
+                .append(exemplarFailureStoreRedirects)
+                .append(" exemplar documents to the failure store.\n");
         }
-        return duplicateExemplars + " exemplars were dropped due to duplicate timestamps";
+        if (exemplarFailures > 0) {
+            warningMessage.append("Failed to index ")
+                .append(exemplarFailures)
+                .append(" exemplar documents. Sample error message: ")
+                .append(exemplarFailureMessageSample)
+                .append("\n");
+        }
+        if (exemplarsWithoutTarget > 0) {
+            warningMessage.append(exemplarsWithoutTarget)
+                .append(" exemplars were dropped because no exemplar data stream can be derived from an explicit index target.\n");
+        }
+        if (exemplarsWithoutValue > 0) {
+            warningMessage.append(exemplarsWithoutValue).append(" exemplars were dropped because they have no value.\n");
+        }
+        if (duplicateExemplars > 0) {
+            warningMessage.append(duplicateExemplars).append(" exemplars were dropped due to duplicate timestamps and series identity");
+        }
+        return warningMessage.toString();
     }
 
     private ResourceGroup getOrCreateResourceGroup(ResourceMetrics resourceMetrics) {

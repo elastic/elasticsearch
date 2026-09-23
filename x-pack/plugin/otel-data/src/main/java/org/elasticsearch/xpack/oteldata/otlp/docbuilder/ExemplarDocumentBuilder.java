@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Keeps exemplar observations independently queryable while preserving the dimensions of their parent metric series.
  */
-public class ExemplarDocumentBuilder extends OtelTsdbDocumentBuilder {
+public class ExemplarDocumentBuilder extends OTelTsdbDocumentBuilder {
 
     public static final String METRIC_NAME_FIELD = "metric_name";
     public static final String VALUE_FIELD = "value";

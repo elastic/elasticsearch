@@ -163,12 +163,15 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         long totalExpandedBytes = 0;
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
         ExemplarDocumentBuilder exemplarDocumentBuilder = exemplarIngestionEnabled ? new ExemplarDocumentBuilder(byteStringAccessor) : null;
-        Set<ExemplarIdentity> exemplarIdentities = new HashSet<>();
-        Map<String, IndexVersion> exemplarIndexVersions = new HashMap<>();
         for (DataPointGroupingContext.DataPointGroup group : allGroups) {
             IndexVersion indexVersion = resolveIndexVersion(projectMetadata, group);
             totalExpandedBytes = addIndexRequestDocMode(bulkRequestBuilder, metricDocumentBuilder, group, indexVersion, totalExpandedBytes);
-            if (exemplarDocumentBuilder != null) {
+        }
+        if (exemplarDocumentBuilder != null) {
+            int firstExemplarDocumentPosition = bulkRequestBuilder.numberOfActions();
+            Set<ExemplarIdentity> exemplarIdentities = new HashSet<>();
+            Map<String, IndexVersion> exemplarIndexVersions = new HashMap<>();
+            for (DataPointGroupingContext.DataPointGroup group : allGroups) {
                 totalExpandedBytes = addExemplarIndexRequests(
                     bulkRequestBuilder,
                     exemplarDocumentBuilder,
@@ -179,6 +182,9 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                     exemplarIdentities,
                     totalExpandedBytes
                 );
+            }
+            if (bulkRequestBuilder.numberOfActions() > firstExemplarDocumentPosition) {
+                context.recordFirstExemplarDocument(firstExemplarDocumentPosition);
             }
         }
 
@@ -422,6 +428,11 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     ) throws IOException {
         TargetIndex targetIndex = dataPointGroup.targetIndex().exemplarsTarget();
         if (targetIndex == null) {
+            int exemplarCount = 0;
+            for (DataPoint dataPoint : dataPointGroup.dataPoints()) {
+                exemplarCount += dataPoint.getExemplars().size();
+            }
+            context.recordExemplarsWithoutTarget(exemplarCount);
             return totalExpandedBytes;
         }
         String dataStreamName = targetIndex.index();
@@ -433,6 +444,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             BytesRef tsid = dataPointGroup.buildExemplarTsid(dataPoint.getMetricName(), indexVersion);
             for (Exemplar exemplar : dataPoint.getExemplars()) {
                 if (exemplar.getValueCase() == Exemplar.ValueCase.VALUE_NOT_SET) {
+                    context.recordExemplarWithoutValue();
                     continue;
                 }
                 ExemplarIdentity identity = new ExemplarIdentity(
@@ -455,7 +467,6 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                     }
                     totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
                     bulkRequestBuilder.add(indexRequest);
-                    context.recordExemplarDocument(bulkRequestBuilder.numberOfActions() - 1);
                 }
             }
         }

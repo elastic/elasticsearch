@@ -158,6 +158,82 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         }
     }
 
+    public void testExemplarDocumentsFollowMetricDocuments() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "ms",
+            List.of(
+                OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(OtlpUtils.createLongExemplar(1_000_000L, 42L))),
+                OtlpUtils.createDoubleDataPoint(4_000_000L, 0, List.of(), List.of(OtlpUtils.createLongExemplar(3_000_000L, 43L)))
+            )
+        );
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
+
+        AbstractOTLPTransportAction.ProcessingContext context = metricsAction.prepareBulkRequest(
+            createMetricsRequest(metric),
+            bulkRequestBuilder
+        );
+
+        var requests = bulkRequestBuilder.request().requests();
+        assertThat(requests, hasSize(4));
+        assertThat(requests.get(0).index(), equalTo("metrics-generic.otel-default"));
+        assertThat(requests.get(1).index(), equalTo("metrics-generic.otel-default"));
+        assertThat(requests.get(2).index(), equalTo("exemplars-generic.otel-default"));
+        assertThat(requests.get(3).index(), equalTo("exemplars-generic.otel-default"));
+        assertTrue(context.isPrimaryTelemetryDoc(0));
+        assertTrue(context.isPrimaryTelemetryDoc(1));
+        assertFalse(context.isPrimaryTelemetryDoc(2));
+        assertFalse(context.isPrimaryTelemetryDoc(3));
+    }
+
+    public void testExemplarWithoutTargetProducesWarning() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "",
+            List.of(
+                OtlpUtils.createDoubleDataPoint(
+                    2_000_000L,
+                    0,
+                    List.of(keyValue("elasticsearch.index", "custom-index")),
+                    List.of(OtlpUtils.createLongExemplar(1_000_000L, 42L))
+                )
+            )
+        );
+
+        OTLPActionResponse response = executeRequest(
+            createMetricsRequest(metric),
+            new BulkResponse(new BulkItemResponse[] { successResponse() }, 0)
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseRejectedCount(responseBytes), equalTo(0L));
+        assertThat(
+            parseErrorMessage(responseBytes),
+            equalTo("1 exemplars were dropped because no exemplar data stream can be derived from an explicit index target.\n")
+        );
+    }
+
+    public void testExemplarWithoutValueProducesWarning() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Exemplar exemplar = Exemplar.newBuilder().setTimeUnixNano(1_000_000L).build();
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+
+        OTLPActionResponse response = executeRequest(
+            createMetricsRequest(metric),
+            new BulkResponse(new BulkItemResponse[] { successResponse() }, 0)
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseRejectedCount(responseBytes), equalTo(0L));
+        assertThat(parseErrorMessage(responseBytes), equalTo("1 exemplars were dropped because they have no value.\n"));
+    }
+
     public void testDuplicateExemplarWarning() throws Exception {
         assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
@@ -174,7 +250,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
 
         byte[] responseBytes = response.getResponse().array();
         assertThat(parseRejectedCount(responseBytes), equalTo(0L));
-        assertThat(parseErrorMessage(responseBytes), equalTo("1 exemplars were dropped due to duplicate timestamps"));
+        assertThat(parseErrorMessage(responseBytes), equalTo("1 exemplars were dropped due to duplicate timestamps and series identity"));
     }
 
     public void testExemplarFailureStoreRedirectAndDuplicateWarnings() throws Exception {
@@ -195,7 +271,37 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         assertThat(parseRejectedCount(responseBytes), equalTo(0L));
         assertThat(
             parseErrorMessage(responseBytes),
-            equalTo("Redirected 1 exemplar documents to the failure store.\n" + "1 exemplars were dropped due to duplicate timestamps")
+            equalTo(
+                "Redirected 1 exemplar documents to the failure store.\n"
+                    + "1 exemplars were dropped due to duplicate timestamps and series identity"
+            )
+        );
+    }
+
+    public void testExemplarIndexingFailureDoesNotRejectDataPoint() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+
+        OTLPActionResponse response = executeRequest(
+            createMetricsRequest(metric),
+            new BulkResponse(
+                new BulkItemResponse[] {
+                    successResponse(),
+                    bulkItemFailure("exemplars-generic.otel-default", RestStatus.FORBIDDEN, "unauthorized") },
+                0
+            )
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseRejectedCount(responseBytes), equalTo(0L));
+        assertThat(
+            parseErrorMessage(responseBytes),
+            equalTo("Failed to index 1 exemplar documents. Sample error message: java.lang.RuntimeException: unauthorized\n")
         );
     }
 

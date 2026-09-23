@@ -18,6 +18,7 @@ import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 import io.opentelemetry.sdk.common.Clock;
 import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
 import io.opentelemetry.sdk.metrics.data.DoubleExemplarData;
@@ -262,7 +263,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         );
         MetricData metric = ImmutableMetricData.createDoubleGauge(
             Resource.create(Attributes.of(stringKey("service.name"), "checkout-service")),
-            io.opentelemetry.sdk.common.InstrumentationScopeInfo.create("io.opentelemetry.http"),
+            InstrumentationScopeInfo.create("io.opentelemetry.http"),
             "request.duration",
             "",
             "s",
@@ -279,7 +280,17 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
             )
         );
 
-        export(List.of(metric));
+        Request request = new Request("POST", otlpEndpointPath());
+        request.setEntity(new ByteArrayEntity(marshalMetrics(List.of(metric)), ContentType.create("application/x-protobuf")));
+        var response = client().performRequest(request);
+        assertOK(response);
+        ExportMetricsServiceResponse otlpResponse = ExportMetricsServiceResponse.parseFrom(responseAsBytes(response).array());
+        assertThat(otlpResponse.hasPartialSuccess(), equalTo(true));
+        assertThat(otlpResponse.getPartialSuccess().getRejectedDataPoints(), equalTo(0L));
+        assertThat(
+            otlpResponse.getPartialSuccess().getErrorMessage(),
+            equalTo("1 exemplars were dropped due to duplicate timestamps and series identity")
+        );
         assertOK(client().performRequest(new Request("GET", "metrics-*,exemplars-*/_refresh")));
 
         ObjectPath metricSearch = search("metrics-generic.otel-default");

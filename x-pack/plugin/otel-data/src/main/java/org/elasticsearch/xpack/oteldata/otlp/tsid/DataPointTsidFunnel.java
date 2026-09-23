@@ -12,7 +12,7 @@ import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.cluster.routing.TsidBuilder.TsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
-import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OtelTsdbDocumentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTelTsdbDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 public class DataPointTsidFunnel implements TsidFunnel<DataPoint> {
@@ -34,12 +34,12 @@ public class DataPointTsidFunnel implements TsidFunnel<DataPoint> {
     @Override
     public void add(DataPoint dataPoint, TsidBuilder tsidBuilder) {
         tsidBuilder.add(dataPoint.getAttributes(), AttributeListTsidFunnel.get(byteStringAccessor, "attributes."));
-        tsidBuilder.addStringDimension(OtelTsdbDocumentBuilder.UNIT_FIELD, dataPoint.getUnit());
+        tsidBuilder.addStringDimension(OTelTsdbDocumentBuilder.UNIT_FIELD, dataPoint.getUnit());
         AggregationTemporality temporality = dataPoint.getTemporality();
         if (temporality != null) {
             tsidBuilder.addStringDimension(
-                OtelTsdbDocumentBuilder.TEMPORALITY_FIELD,
-                OtelTsdbDocumentBuilder.temporalityToString(temporality)
+                OTelTsdbDocumentBuilder.TEMPORALITY_FIELD,
+                OTelTsdbDocumentBuilder.temporalityToString(temporality)
             );
         }
     }

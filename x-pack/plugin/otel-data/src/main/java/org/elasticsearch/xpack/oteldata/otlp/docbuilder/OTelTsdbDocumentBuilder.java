@@ -22,14 +22,14 @@ import java.io.IOException;
 /**
  * Builds the dimension fields shared by metric and exemplar documents.
  */
-public abstract class OtelTsdbDocumentBuilder extends OTelDocumentBuilder {
+public abstract class OTelTsdbDocumentBuilder extends OTelDocumentBuilder {
 
     public static final String UNIT_FIELD = "unit";
     public static final String TEMPORALITY_FIELD = "temporality";
 
     protected final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
 
-    protected OtelTsdbDocumentBuilder(BufferedByteStringAccessor byteStringAccessor) {
+    protected OTelTsdbDocumentBuilder(BufferedByteStringAccessor byteStringAccessor) {
         super(byteStringAccessor);
     }
 

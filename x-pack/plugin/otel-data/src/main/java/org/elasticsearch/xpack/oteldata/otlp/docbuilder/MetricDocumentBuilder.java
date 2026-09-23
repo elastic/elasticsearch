@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  * This class constructs an Elasticsearch document representation of a metric data point group.
  * It also handles dynamic templates for metrics based on their attributes.
  */
-public class MetricDocumentBuilder extends OtelTsdbDocumentBuilder {
+public class MetricDocumentBuilder extends OTelTsdbDocumentBuilder {
 
     public static final String METRIC_NAMES_HASH_FIELD = "_metric_names_hash";
 

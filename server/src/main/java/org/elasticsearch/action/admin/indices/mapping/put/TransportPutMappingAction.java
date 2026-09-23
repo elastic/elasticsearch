@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -37,7 +39,9 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -108,6 +112,15 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         final ActionListener<AcknowledgedResponse> listener
     ) {
         try {
+            // Normalize to JSON once on the master thread; CompressedXContent and system index
+            // checks both require JSON, and utf8ToString() is unsafe on binary XContent formats.
+            if (request.xContentType() != XContentType.JSON) {
+                request.source(
+                    new BytesArray(XContentHelper.convertToJson(request.source(), false, request.xContentType())),
+                    XContentType.JSON
+                );
+            }
+
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
             final Index[] concreteIndices = resolveIndices(projectMetadata, request, indexNameExpressionResolver);
 
@@ -139,6 +152,8 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> "failed to put mappings on indices " + Arrays.toString(request.indices()), ex);
             throw ex;
+        } catch (IOException e) {
+            listener.onFailure(e);
         }
     }
 
@@ -185,7 +200,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 new PutMappingClusterStateUpdateRequest(
                     request.masterNodeTimeout(),
                     request.ackTimeout(),
-                    request.source(),
+                    request.source().utf8ToString(),
                     autoUpdate,
                     concreteIndices
                 ),

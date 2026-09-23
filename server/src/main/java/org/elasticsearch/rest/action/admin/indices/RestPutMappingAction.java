@@ -54,7 +54,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         PutMappingRequest putMappingRequest = new PutMappingRequest(indices);
-        putMappingRequest.source(new BytesArray(BytesReference.toBytes(request.requiredContent())));
+        putMappingRequest.source(new BytesArray(BytesReference.toBytes(request.requiredContent())), request.getXContentType());
         putMappingRequest.ackTimeout(getAckTimeout(request));
         putMappingRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));

@@ -2401,7 +2401,7 @@ public class LocalExecutionPlanner {
             Attribute scoreAttribute = null;
 
             for (Attribute attribute : filter.output()) {
-                if (attribute instanceof MetadataAttribute && MetadataAttribute.SCORE.equals(attribute.name())) {
+                if (MetadataAttribute.isScoreAttribute(attribute)) {
                     scoreAttribute = attribute;
                 }
             }

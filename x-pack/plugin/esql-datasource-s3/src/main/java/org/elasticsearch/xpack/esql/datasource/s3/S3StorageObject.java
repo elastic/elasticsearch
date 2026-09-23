@@ -263,11 +263,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // Follows the listing-403 wording in S3StorageProvider: name what was refused, then what to change.
             // The read path cannot say which credential is wrong -- S3 answers a bad key and an anonymous request
             // against an authenticated bucket with the same 403 -- so it names both remedies.
-            return new IOException(
-                "Access denied reading external data ("
-                    + S3FailureDetail.of(denied)
-                    + "). Verify the access_key and secret_key configured on the data source, "
-                    + "or set auth=anonymous if the bucket is public.",
+            return new ExternalClientException(
+                ExternalClientException.Condition.ACCESS_DENIED,
+                path,
+                S3FailureDetail.of(denied),
+                "Verify the access_key and secret_key configured on the data source, or set auth=anonymous if the bucket is public.",
                 cause
             );
         }

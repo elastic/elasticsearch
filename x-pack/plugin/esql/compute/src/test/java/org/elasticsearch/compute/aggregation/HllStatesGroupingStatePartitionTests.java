@@ -17,7 +17,6 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
 import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -69,22 +68,20 @@ public class HllStatesGroupingStatePartitionTests extends ComputeTestCase {
 
             PartitionedState partitioned = splitter.finish();
 
+            BytesRef scratch = new BytesRef();
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 // HLL has no null groups, so seen is always null
                 assertThat("seen must be null for HLL", state.partitionSeen(partitioned, p), nullValue());
                 assertThat("hasAllValues must be true for HLL", partitioned.hasAllValues(p), equalTo(true));
 
-                BytesRef[] values = state.partitionValues(partitioned, p);
-                assertThat(values, notNullValue());
+                BytesRefSequence values = state.partitionValues(partitioned, p);
 
                 // Groups assigned to partition p: p, p + NUM_PARTITIONS, p + 2*NUM_PARTITIONS, ...
                 int k = 0;
                 for (int g = p; g < numGroups; g += NUM_PARTITIONS) {
-                    assertThat("partition " + p + " slot " + k + " must be non-null (group " + g + ")", values[k], notNullValue());
-
                     // Merge the serialized sketch into a fresh single-group state and verify cardinality matches
                     try (var check = new HllStates.GroupingState(driverContext, 40_000)) {
-                        check.merge(0, values[k], 0);
+                        check.merge(0, values.get(k, scratch), 0);
                         assertThat(
                             "cardinality mismatch for group " + g + " in partition " + p + " slot " + k,
                             check.cardinality(0),

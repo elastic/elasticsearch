@@ -177,19 +177,19 @@ final class HllStates {
             return new HllPartitionSplitter(breaker);
         }
 
-        BytesRef[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
-            return ((HllPartitionedState) source).values[partition];
+        BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+            HllPartitionedState state = (HllPartitionedState) source;
+            return new BytesRefSequence.Flat(state.partitionData[partition], state.partitionOffsets[partition], state.partitionCounts[partition]);
         }
 
         boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
             return null;
         }
 
-        void appendPartition(BytesRef[] src, int firstId, int length) {
+        void appendPartition(BytesRefSequence src, int firstId, int length) {
+            BytesRef scratch = new BytesRef();
             for (int i = 0; i < length; i++) {
-                if (src[i] != null) {
-                    merge(firstId + i, src[i], 0);
-                }
+                merge(firstId + i, src.get(i, scratch), 0);
             }
         }
 
@@ -204,9 +204,9 @@ final class HllStates {
             );
         }
 
-        private static long bytesUsedByValue(BytesRef value) {
-            return RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length
+        private static long bytesUsedByIntPage(int length) {
+            return RamUsageEstimator.alignObjectSize(
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) length * Integer.BYTES
             );
         }
 
@@ -215,13 +215,30 @@ final class HllStates {
             static final String LABEL = "HllStates#partition";
 
             private final long baseBytes;
-            private final BytesRef[][] values;
+            private byte[][] partitionData;
+            private int[][] partitionOffsets;
+            private int[] partitionDataUsed;
+            private int[] partitionCounts;
 
-            HllPartitionedState(CircuitBreaker breaker, int partitionSize) {
-                baseBytes = BASE_RAM_USAGE + bytesUsedByPointerPage(NUM_PARTITIONS);
-                long pageBytes = bytesUsedByPointerPage(partitionSize);
-                breaker.addEstimateBytesAndMaybeBreak(baseBytes + NUM_PARTITIONS * pageBytes, LABEL);
-                values = new BytesRef[NUM_PARTITIONS][partitionSize];
+            HllPartitionedState(CircuitBreaker breaker, int initialKeysPerPartition, int initialBytesPerPartition) {
+                baseBytes = BASE_RAM_USAGE
+                    + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionData outer ref[]
+                    + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionOffsets outer ref[]
+                    + bytesUsedByIntPage(NUM_PARTITIONS)       // partitionDataUsed
+                    + bytesUsedByIntPage(NUM_PARTITIONS);      // partitionCounts
+                final int initialOffsets = ArrayUtil.oversize(Math.max(initialKeysPerPartition + 1, 2), Integer.BYTES);
+                final int initialBytes = ArrayUtil.oversize(Math.max(initialBytesPerPartition, 1), 1);
+                long perPartitionBytes = (long) NUM_PARTITIONS * initialBytes
+                    + (long) NUM_PARTITIONS * bytesUsedByIntPage(initialOffsets);
+                breaker.addEstimateBytesAndMaybeBreak(baseBytes + perPartitionBytes, LABEL);
+                partitionDataUsed = new int[NUM_PARTITIONS];
+                partitionCounts = new int[NUM_PARTITIONS];
+                partitionData = new byte[NUM_PARTITIONS][];
+                partitionOffsets = new int[NUM_PARTITIONS][];
+                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    partitionData[p] = new byte[initialBytes];
+                    partitionOffsets[p] = new int[initialOffsets];
+                }
             }
 
             @Override
@@ -231,34 +248,38 @@ final class HllStates {
 
             @Override
             public void releasePartition(CircuitBreaker breaker, int partition) {
-                long usedBytes = 0;
-                if (values[partition] != null) {
-                    for (BytesRef v : values[partition]) {
-                        if (v != null) {
-                            usedBytes += bytesUsedByValue(v);
-                        }
-                    }
-                    usedBytes += bytesUsedByPointerPage(values[partition].length);
-                    values[partition] = null;
+                long bytes = 0;
+                if (partitionData[partition] != null) {
+                    bytes += partitionData[partition].length;
+                    partitionData[partition] = null;
                 }
-                breaker.addWithoutBreaking(-usedBytes);
+                if (partitionOffsets[partition] != null) {
+                    bytes += bytesUsedByIntPage(partitionOffsets[partition].length);
+                    partitionOffsets[partition] = null;
+                }
+                breaker.addWithoutBreaking(-bytes);
             }
 
             @Override
             public void releaseAll(CircuitBreaker breaker) {
-                long usedBytes = baseBytes;
-                for (int p = 0; p < NUM_PARTITIONS; p++) {
-                    if (values[p] != null) {
-                        for (BytesRef v : values[p]) {
-                            if (v != null) {
-                                usedBytes += bytesUsedByValue(v);
-                            }
+                long bytes = baseBytes;
+                if (partitionData != null) {
+                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                        if (partitionData[p] != null) {
+                            bytes += partitionData[p].length;
                         }
-                        usedBytes += bytesUsedByPointerPage(values[p].length);
-                        values[p] = null;
                     }
+                    partitionData = null;
                 }
-                breaker.addWithoutBreaking(-usedBytes);
+                if (partitionOffsets != null) {
+                    for (int p = 0; p < NUM_PARTITIONS; p++) {
+                        if (partitionOffsets[p] != null) {
+                            bytes += bytesUsedByIntPage(partitionOffsets[p].length);
+                        }
+                    }
+                    partitionOffsets = null;
+                }
+                breaker.addWithoutBreaking(-bytes);
             }
         }
 
@@ -268,8 +289,7 @@ final class HllStates {
 
             HllPartitionSplitter(CircuitBreaker partitionBreaker) {
                 this.partitionBreaker = partitionBreaker;
-                int partitionSize = ArrayUtil.oversize(PARTITION_WRITE_BATCH, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-                partitionedState = new HllPartitionedState(partitionBreaker, partitionSize);
+                partitionedState = new HllPartitionedState(partitionBreaker, PARTITION_WRITE_BATCH, PARTITION_WRITE_BATCH * 512);
             }
 
             @Override
@@ -281,32 +301,47 @@ final class HllStates {
                         if (count == 0) {
                             continue;
                         }
-                        final int offset = partitionOffsets[p];
-                        ensurePartitionCapacity(p, offset + count);
+                        final int keyBase = partitionedState.partitionCounts[p];
                         final int base = p * PARTITION_WRITE_BATCH;
+                        ensureOffsetCapacity(p, keyBase + count + 1);
                         for (int i = 0; i < count; i++) {
                             final int id = firstId + shiftedIds[base + i];
+                            partitionedState.partitionOffsets[p][keyBase + i] = partitionedState.partitionDataUsed[p];
                             hll.writeTo(id, out);
-                            BytesRef copy = BytesRef.deepCopyOf(out.get());
-                            partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByValue(copy), HllPartitionedState.LABEL);
-                            partitionedState.values[p][offset + i] = copy;
+                            BytesRef ref = out.get();
+                            ensureDataCapacity(p, partitionedState.partitionDataUsed[p] + ref.length);
+                            System.arraycopy(ref.bytes, ref.offset, partitionedState.partitionData[p], partitionedState.partitionDataUsed[p], ref.length);
+                            partitionedState.partitionDataUsed[p] += ref.length;
                             out.reset();
                         }
+                        partitionedState.partitionOffsets[p][keyBase + count] = partitionedState.partitionDataUsed[p];
+                        partitionedState.partitionCounts[p] += count;
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
             }
 
-            private void ensurePartitionCapacity(int partition, int minSize) {
-                BytesRef[] oldValues = partitionedState.values[partition];
-                if (oldValues.length >= minSize) {
+            private void ensureDataCapacity(int p, int minLength) {
+                final byte[] sub = partitionedState.partitionData[p];
+                if (sub.length >= minLength) {
                     return;
                 }
-                int newSize = ArrayUtil.oversize(minSize, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByPointerPage(newSize), HllPartitionedState.LABEL);
-                partitionedState.values[partition] = Arrays.copyOf(oldValues, newSize);
-                partitionBreaker.addWithoutBreaking(-bytesUsedByPointerPage(oldValues.length));
+                final int newLength = ArrayUtil.oversize(minLength, 1);
+                partitionBreaker.addEstimateBytesAndMaybeBreak(newLength, HllPartitionedState.LABEL);
+                partitionedState.partitionData[p] = Arrays.copyOf(sub, newLength);
+                partitionBreaker.addWithoutBreaking(-sub.length);
+            }
+
+            private void ensureOffsetCapacity(int p, int minCount) {
+                final int[] sub = partitionedState.partitionOffsets[p];
+                if (sub.length >= minCount) {
+                    return;
+                }
+                final int newCount = ArrayUtil.oversize(minCount, Integer.BYTES);
+                partitionBreaker.addEstimateBytesAndMaybeBreak(bytesUsedByIntPage(newCount), HllPartitionedState.LABEL);
+                partitionedState.partitionOffsets[p] = Arrays.copyOf(sub, newCount);
+                partitionBreaker.addWithoutBreaking(-bytesUsedByIntPage(sub.length));
             }
 
             @Override

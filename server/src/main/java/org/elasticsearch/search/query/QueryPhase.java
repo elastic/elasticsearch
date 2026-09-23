@@ -265,7 +265,10 @@ public class QueryPhase {
         QuerySearchResult queryResult = searchContext.queryResult();
         SearchTimeoutException.handleTimeout(searchContext.request().allowPartialSearchResults(), searchContext.shardTarget(), queryResult);
 
-        queryResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+        // the empty result has to be shaped like the one this query would have produced, otherwise the coordinating node cannot
+        // merge it with the results of the shards that did not time out
+        QueryPhaseResult emptyResult = QueryPhaseCollectorManager.emptyQueryPhaseResult(searchContext);
+        queryResult.topDocs(emptyResult.topDocsAndMaxScore(), emptyResult.sortValueFormats());
 
         if (searchContext.aggregations() != null) {
             queryResult.aggregations(InternalAggregations.EMPTY);

@@ -35,7 +35,7 @@ entries:
     name: 157888.yaml
     checksum: 16bd3bbcea4328b5c2c13a2d006049c33fb37ac9
   type: enhancement
-  title: For geo_shape support in ES|QL geogrid functions, truncate the results and set warning, Instead of returning null
+  title: 'Truncate ES|QL geogrid `geo_shape` results and warn instead of returning null'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -86,7 +86,7 @@ entries:
     name: 159199.yaml
     checksum: 6b215971fc74e487d6bcfb33e247d884f5f1c8fe
   type: bug-fix
-  title: 'bug(promql): fix flaky canonical test'
+  title: Fix PromQL canonical expression ordering'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -224,7 +224,7 @@ entries:
     name: 159189.yaml
     checksum: d99cdfc8881011276b230a560b08b81083d33b85
   type: bug-fix
-  title: refactor aggs input
+  title: Fix ES|QL aggregate functions that treat extra fields as parameters
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -450,7 +450,7 @@ entries:
     name: 159200.yaml
     checksum: 047e9c8efc41c7ccf42f57463d264fb2589a6591
   type: bug-fix
-  title: 'bug(esql): allow full-text functions in `HIGHLIGHT` queries on time-series indices'
+  title: 'Allow full-text functions in `HIGHLIGHT` queries on time-series indices'
   products:
   - product: cloud-serverless
   - product: elasticsearch

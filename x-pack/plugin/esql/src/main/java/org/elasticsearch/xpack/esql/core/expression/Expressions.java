@@ -121,7 +121,9 @@ public final class Expressions {
             .filter(attr -> attr instanceof UnsupportedAttribute)
             .map(attr -> (UnsupportedAttribute) attr)
             .collect(Collectors.toMap(FieldAttribute::name, e -> e));
-        return existing.isEmpty() ? converted : converted.stream().map(attr -> existing.getOrDefault(attr.name(), attr)).toList();
+        return existing.isEmpty()
+            ? converted
+            : new ArrayList<>(converted.stream().map(attr -> existing.getOrDefault(attr.name(), attr)).toList());
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {

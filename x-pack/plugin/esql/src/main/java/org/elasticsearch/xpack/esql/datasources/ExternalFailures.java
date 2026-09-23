@@ -50,8 +50,8 @@ import java.util.concurrent.ExecutionException;
  *     via {@code ExceptionsHelper.status}, so it is returned unchanged rather than mistaken for a broken
  *     invariant and reported as 500.</li>
  *     <li>An {@link IllegalArgumentException} from a format reader may embed a full storage URI; it is wrapped
-     *     in an {@link ExternalClientException} (400) with a path-free message, and the original is logged at
-     *     {@code WARN} on this node so operators have full context without the URI crossing the wire.</li>
+     *     in an {@link ExternalClientException} (400) with a path-free message and no cause chain, so the IAE
+     *     message never appears in {@code caused_by}. The original is logged at {@code WARN} on this node.</li>
  *     <li>An {@link IOException}/{@link UncheckedIOException}, or one of the specific third-party
  *     decoding exceptions in {@link #MALFORMED_DATA_EXCEPTIONS}, means we could not read or interpret
  *     the resource — a client-class {@link ExternalClientException} (400). Retryable transport failures
@@ -94,23 +94,36 @@ public final class ExternalFailures {
      * Storage-URI scheme prefixes that must never appear in an {@link ExternalException} message
      * handed to a caller. Used by the {@code assert} guard in {@link #classify}.
      */
-    private static final String[] STORAGE_URI_SCHEMES = { "s3://", "gs://", "az://", "azblob://" };
+    private static final String[] STORAGE_URI_SCHEMES = {
+        "s3://",
+        "s3a://",
+        "s3n://",
+        "gs://",
+        "az://",
+        "azblob://",
+        "wasb://",
+        "wasbs://",
+        "http://",
+        "https://" };
 
     /**
-     * Returns {@code true} when the message of {@code e} (and its direct cause, if any) contains none of
-     * the known storage-URI schemes. A {@code false} result means a full object-store path leaked into a
+     * Returns {@code true} when no message in {@code e}'s full cause chain contains a known
+     * storage-URI scheme. A {@code false} result means a full object-store path leaked into a
      * user-facing exception message.
-     * <p>
-     * Only checks the top two levels of the cause chain: deeper levels are serialized as {@code caused_by}
-     * in the REST response and may legitimately carry raw SDK messages (the full path appears there only
-     * for operator-side debugging; it does not appear in the top-level {@code reason} shown to end users).
      */
     static boolean noStoragePathLeaked(RuntimeException e) {
-        if (containsStoragePath(e.getMessage())) {
-            return false;
+        Throwable current = e;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+            if (containsStoragePath(current.getMessage())) {
+                return false;
+            }
+            Throwable cause = current.getCause();
+            if (cause == null || cause == current) {
+                break;
+            }
+            current = cause;
         }
-        Throwable cause = e.getCause();
-        return cause == null || containsStoragePath(cause.getMessage()) == false;
+        return true;
     }
 
     private static boolean containsStoragePath(String msg) {
@@ -129,9 +142,9 @@ public final class ExternalFailures {
      * Returns the {@link RuntimeException} to throw for the given read failure. May instead throw if
      * {@code t} is an {@link Error}, which must propagate unchanged.
      * <p>
-     * Under {@code -ea} (assertions enabled), verifies that the result's top-level message and its direct
-     * cause (if any) contain no known storage-URI scheme — a debug guard that fires immediately if a new
-     * throw site embeds a full path instead of using the structured constructors on {@link ExternalException}.
+     * Under {@code -ea} (assertions enabled), verifies that no message in the result's full cause chain
+     * contains a known storage-URI scheme — a debug guard that fires immediately if a new throw site
+     * embeds a full path instead of using the structured constructors on {@link ExternalException}.
      * See {@link #noStoragePathLeaked}.
      */
     public static RuntimeException classify(Throwable t) {
@@ -149,10 +162,10 @@ public final class ExternalFailures {
             return rejected;
         }
         if (t instanceof IllegalArgumentException iae) {
-            // IAE from format readers may embed storage URIs in the message. Wrap with a path-free message
-            // so the full URI never crosses a node boundary; log at WARN on this node for operator debugging.
-            logger.warn("External read failed with IllegalArgumentException (cause omitted from response)", iae);
-            return new ExternalClientException(iae, "Malformed external data ({})", iae.getClass().getSimpleName());
+            // IAE from format readers may embed storage URIs in the message. Log at WARN on this node for
+            // debugging; do not chain it into the exception so its message never crosses the wire.
+            logger.warn("External read failed with IllegalArgumentException (cause logged, not forwarded)", iae);
+            return new ExternalClientException("Malformed external data ({})", iae.getClass().getSimpleName());
         }
         RuntimeException result;
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {

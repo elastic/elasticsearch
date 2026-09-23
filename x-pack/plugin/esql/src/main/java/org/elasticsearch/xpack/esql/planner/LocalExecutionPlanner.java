@@ -853,7 +853,8 @@ public class LocalExecutionPlanner {
             passThroughChannels,
             deferredColumnNames,
             deferredColumnTypes,
-            capable::sourceExtractorsFor
+            capable::sourceExtractorsFor,
+            capable.datasetLabel()
         );
         return source.with(factory, newLayout);
     }

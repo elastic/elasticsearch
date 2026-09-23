@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -713,7 +714,17 @@ public class ExternalSourceResolver {
                 resolved,
                 listener
             );
-        }, e -> listener.onFailure(mapResolveFailure(path, e))));
+        }, e -> {
+            RuntimeException mapped = mapResolveFailure(path, e);
+            if (mapped instanceof ExternalException ee) {
+                @SuppressWarnings("unchecked")
+                Map<String, String> ctx = (Map<String, String>) config.get(DATASET_CONTEXT_KEY);
+                if (ctx != null) {
+                    ee.setDatasetContext(ctx.get("dataset"), ctx.get("datasource"), ctx.get("type"));
+                }
+            }
+            listener.onFailure(mapped);
+        }));
     }
 
     /**

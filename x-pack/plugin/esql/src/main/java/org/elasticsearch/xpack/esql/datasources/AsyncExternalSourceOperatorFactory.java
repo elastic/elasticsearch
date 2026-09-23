@@ -839,6 +839,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     @Override
+    public String datasetLabel() {
+        return datasetLabel;
+    }
+
+    @Override
     public SourceOperator get(DriverContext driverContext) {
         // Producer hold: released by existing {@link #releaseOperator} sites when this instance's
         // background read finishes or fails. Operator hold: released from the returned operator's

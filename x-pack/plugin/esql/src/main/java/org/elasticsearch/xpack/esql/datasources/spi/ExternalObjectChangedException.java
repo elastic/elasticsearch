@@ -18,8 +18,7 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalObjectChangedException extends ExternalException {
 
-    // ---- Legacy constructors ----
-
+    // TODO: make these package-private once all call sites outside spi are migrated to structured constructors
     public ExternalObjectChangedException(String message, Throwable cause) {
         super(message, cause);
     }
@@ -31,8 +30,6 @@ public final class ExternalObjectChangedException extends ExternalException {
     public ExternalObjectChangedException(String message, Object... args) {
         super(message, args);
     }
-
-    // ---- Structured constructors (condition is always OBJECT_CHANGED) ----
 
     /**
      * Structured constructor for the mid-query object-replacement case. The message is built from

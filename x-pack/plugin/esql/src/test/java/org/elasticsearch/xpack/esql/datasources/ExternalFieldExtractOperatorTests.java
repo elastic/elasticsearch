@@ -83,7 +83,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 /* deferredColumnNames = */ List.of("col"),
                 /* deferredColumnTypes = */ List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(input);
             op.finish();
@@ -130,7 +131,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(empty);
             op.finish();
@@ -172,7 +174,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                     List.of("colA", "colB"),
                     List.of(DataType.INTEGER, DataType.INTEGER),
                     registry,
-                    cranky
+                    cranky,
+                    null
                 );
                 op.addInput(empty);
                 op.finish();
@@ -199,27 +202,27 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
         try {
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(-1, List.of(), List.of(), List.of(), ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, null, List.of(), List.of(), ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), null, List.of(), ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null, ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), null, ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of("col"), List.of(), ctx -> registry)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of("col"), List.of(), ctx -> registry, null)
             );
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), List.of(), null)
+                () -> new ExternalFieldExtractOperator.Factory(0, List.of(), List.of(), List.of(), null, null)
             );
         } finally {
             registry.close();
@@ -232,7 +235,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
             List.of(),
             List.of(),
             List.of(),
-            ctx -> null
+            ctx -> null,
+            null
         );
         DriverContext driverContext = mock(DriverContext.class);
         when(driverContext.blockFactory()).thenReturn(blockFactory);
@@ -250,7 +254,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             // Don't drain; close must release the pending page so we don't leak blocks.
@@ -281,7 +286,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                     List.of("col"),
                     List.of(DataType.INTEGER),
                     registry,
-                    blockFactory
+                    blockFactory,
+                    null
                 );
                 op.addInput(page);
                 try {
@@ -321,7 +327,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             op.finish();
@@ -354,7 +361,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             op.finish();
@@ -384,7 +392,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             op.finish();
@@ -420,7 +429,8 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
                 List.of("col"),
                 List.of(DataType.INTEGER),
                 registry,
-                blockFactory
+                blockFactory,
+                null
             );
             op.addInput(page);
             expectThrows(IllegalStateException.class, op::getOutput);

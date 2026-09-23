@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 
 import java.io.IOException;
 import java.util.List;
@@ -65,6 +66,8 @@ public class ExternalFieldExtractOperator implements Operator {
         private final List<String> deferredColumnNames;
         private final List<DataType> deferredColumnTypes;
         private final Function<DriverContext, SourceExtractors> sourceExtractorsLookup;
+        @org.elasticsearch.core.Nullable
+        private final String datasetLabel;
 
         /**
          * @param rowPositionChannel       channel index in the input page that holds {@code _rowPosition}
@@ -77,13 +80,15 @@ public class ExternalFieldExtractOperator implements Operator {
          *                                 ({@code DeclaredTypeCoercions})
          * @param sourceExtractorsLookup   per-driver registry resolver; must never return
          *                                 {@code null}
+         * @param datasetLabel             dataset context label for annotating failures, or {@code null}
          */
         public Factory(
             int rowPositionChannel,
             List<Integer> passThroughChannels,
             List<String> deferredColumnNames,
             List<DataType> deferredColumnTypes,
-            Function<DriverContext, SourceExtractors> sourceExtractorsLookup
+            Function<DriverContext, SourceExtractors> sourceExtractorsLookup,
+            @org.elasticsearch.core.Nullable String datasetLabel
         ) {
             if (rowPositionChannel < 0) {
                 throw new IllegalArgumentException("rowPositionChannel must be non-negative, got [" + rowPositionChannel + "]");
@@ -111,6 +116,7 @@ public class ExternalFieldExtractOperator implements Operator {
             this.deferredColumnNames = List.copyOf(deferredColumnNames);
             this.deferredColumnTypes = List.copyOf(deferredColumnTypes);
             this.sourceExtractorsLookup = sourceExtractorsLookup;
+            this.datasetLabel = datasetLabel;
         }
 
         @Override
@@ -127,7 +133,8 @@ public class ExternalFieldExtractOperator implements Operator {
                 deferredColumnNames,
                 deferredColumnTypes,
                 registry,
-                driverContext.blockFactory()
+                driverContext.blockFactory(),
+                datasetLabel
             );
         }
 
@@ -149,6 +156,8 @@ public class ExternalFieldExtractOperator implements Operator {
     private final List<DataType> deferredColumnTypes;
     private final SourceExtractors registry;
     private final BlockFactory blockFactory;
+    @org.elasticsearch.core.Nullable
+    private final String datasetLabel;
     private final LongAdder pagesProcessed = new LongAdder();
     private final LongAdder rowsExtracted = new LongAdder();
     private final LongAdder extractNanos = new LongAdder();
@@ -162,7 +171,8 @@ public class ExternalFieldExtractOperator implements Operator {
         List<String> deferredColumnNames,
         List<DataType> deferredColumnTypes,
         SourceExtractors registry,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        @org.elasticsearch.core.Nullable String datasetLabel
     ) {
         this.rowPositionChannel = rowPositionChannel;
         this.passThroughChannels = passThroughChannels;
@@ -170,6 +180,7 @@ public class ExternalFieldExtractOperator implements Operator {
         this.deferredColumnTypes = deferredColumnTypes;
         this.registry = registry;
         this.blockFactory = blockFactory;
+        this.datasetLabel = datasetLabel;
     }
 
     @Override
@@ -293,7 +304,11 @@ public class ExternalFieldExtractOperator implements Operator {
         } catch (Throwable t) {
             // Deferred extraction performs external reads on the driver thread, so classify here
             // while the concrete failure type is still available and before any transport hop.
-            throw ExternalFailures.classify(t);
+            RuntimeException classified = ExternalFailures.classify(t);
+            if (datasetLabel != null && classified instanceof ExternalException ee) {
+                ee.setDatasetLabel(datasetLabel);
+            }
+            throw classified;
         }
         Block[] outBlocks = new Block[passThroughChannels.size() + deferredBlocks.length];
         try {

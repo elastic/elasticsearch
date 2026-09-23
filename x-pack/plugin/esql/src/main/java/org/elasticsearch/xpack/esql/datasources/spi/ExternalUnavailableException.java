@@ -31,8 +31,7 @@ public final class ExternalUnavailableException extends ExternalException {
     /** Server-supplied wait hint in milliseconds; 0 means absent. */
     private final long retryAfterMs;
 
-    // ---- Legacy constructors ----
-
+    // TODO: make these package-private once all call sites outside spi are migrated to structured constructors
     public ExternalUnavailableException(String message, Throwable cause) {
         super(message, cause);
         this.throttling = false;
@@ -91,8 +90,6 @@ public final class ExternalUnavailableException extends ExternalException {
         this.throttling = throttling;
         this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
     }
-
-    // ---- Structured constructors ----
 
     /**
      * Structured constructor. The condition should be {@link Condition#STORE_UNAVAILABLE} for

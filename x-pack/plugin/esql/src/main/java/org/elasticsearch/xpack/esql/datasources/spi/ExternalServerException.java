@@ -17,8 +17,7 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalServerException extends ExternalException {
 
-    // ---- Legacy constructors (used at the classify() boundary) ----
-
+    // TODO: make these package-private once all call sites outside spi are migrated to structured constructors
     public ExternalServerException(String message, Throwable cause) {
         super(message, cause);
     }
@@ -30,8 +29,6 @@ public final class ExternalServerException extends ExternalException {
     public ExternalServerException(String message, Object... args) {
         super(message, args);
     }
-
-    // ---- Structured constructors (used at provider/reader throw sites) ----
 
     /**
      * Structured constructor: message built from {@code condition.render(path.objectName(), detailCode, remedy)}.

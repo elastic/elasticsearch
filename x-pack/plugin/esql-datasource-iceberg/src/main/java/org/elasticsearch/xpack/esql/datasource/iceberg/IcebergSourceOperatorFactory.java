@@ -115,7 +115,7 @@ public class IcebergSourceOperatorFactory implements SourceOperator.SourceOperat
             try {
                 return createIcebergTableReader();
             } catch (Exception e) {
-                throw new RuntimeException("Failed to create Iceberg data reader for: " + tablePath, e);
+                throw new RuntimeException("Failed to create Iceberg data reader", e);
             }
         };
     }

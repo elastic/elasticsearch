@@ -18,8 +18,7 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalCredentialsExpiredException extends ExternalException {
 
-    // ---- Legacy constructors ----
-
+    // TODO: make these package-private once all call sites outside spi are migrated to structured constructors
     public ExternalCredentialsExpiredException(String message, Throwable cause) {
         super(message, cause);
     }
@@ -31,8 +30,6 @@ public final class ExternalCredentialsExpiredException extends ExternalException
     public ExternalCredentialsExpiredException(String message, Object... args) {
         super(message, args);
     }
-
-    // ---- Structured constructors ----
 
     /**
      * Structured constructor: message built from {@link Condition#CREDENTIALS_EXPIRED}.

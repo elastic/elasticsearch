@@ -236,8 +236,6 @@ public abstract class ExternalException extends QlException {
      */
     private volatile String datasetContext;
 
-    // ---- Legacy constructors (used at the classify() boundary where no StoragePath is available) ----
-
     protected ExternalException(String message, Throwable cause) {
         super(message, cause);
         this.condition = null;
@@ -261,8 +259,6 @@ public abstract class ExternalException extends QlException {
         this.detailCode = "";
         this.remedy = "";
     }
-
-    // ---- Structured constructors (used at provider/reader throw sites where StoragePath is available) ----
 
     /**
      * Structured constructor: builds the message from {@code condition.render(path.objectName(), detailCode, remedy)}.

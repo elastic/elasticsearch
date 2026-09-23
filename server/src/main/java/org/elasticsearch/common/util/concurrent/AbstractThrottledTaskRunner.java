@@ -166,12 +166,12 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     }
 
     // exposed for testing
-    final int runningTasks() {
+    int runningTasks() {
         return runningTasks.get();
     }
 
     // exposed for testing
-    final int queuedTasks() {
+    int queuedTasks() {
         return tasks.size();
     }
 

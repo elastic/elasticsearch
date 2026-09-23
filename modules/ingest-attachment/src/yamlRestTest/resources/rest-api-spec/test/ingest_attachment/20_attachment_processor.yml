@@ -33,7 +33,7 @@
   - match: { _source.attachment.content: "This is an english text to test if the pipeline works" }
   - match: { _source.attachment.language: "en" }
   - match: { _source.attachment.content_length: 54 }
-  - match: { _source.attachment.content_type: "text/plain; charset=ISO-8859-1" }
+  - match: { _source.attachment.content_type: "text/plain; charset=windows-1252" }
 
 ---
 "Test attachment processor with fields":

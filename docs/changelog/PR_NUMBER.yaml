@@ -1,0 +1,5 @@
+pr: 0
+summary: Upgrade Apache Tika to 4.0.0 in the attachment processor and normalize date fields to UTC
+area: Ingest Node
+type: upgrade
+issues: []

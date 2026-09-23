@@ -12,6 +12,8 @@ package org.elasticsearch.ingest.attachment;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.Property;
+import org.apache.tika.metadata.filter.DateNormalizingMetadataFilter;
 import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
@@ -20,8 +22,15 @@ import org.apache.tika.parser.html.JSoupParser;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -65,12 +74,27 @@ final class TikaImpl {
     /** singleton tika instance */
     private static final Tika TIKA_INSTANCE = new Tika(PARSER_INSTANCE.getDetector(), PARSER_INSTANCE);
 
+    /** rewrites timezone-less dates as UTC so they always index as dates */
+    private static final DateNormalizingMetadataFilter DATE_FILTER = new DateNormalizingMetadataFilter();
+
+    /** date-times carrying an explicit offset, with or without a colon; DATE_FILTER would ignore the offset */
+    private static final DateTimeFormatter OFFSET_DATE_TIME = new DateTimeFormatterBuilder().append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        .optionalStart()
+        .appendOffset("+HH:MM", "Z")
+        .optionalEnd()
+        .optionalStart()
+        .appendOffset("+HHMM", "Z")
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
     /**
      * parses with tika, throwing any exception hit while parsing the document
      */
     static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
         try {
-            return TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit);
+            String text = TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit);
+            normalizeDates(metadata);
+            return text;
         } catch (LinkageError e) {
             if (e.getMessage().contains("bouncycastle")) {
                 /*
@@ -81,5 +105,32 @@ final class TikaImpl {
             }
             throw new RuntimeException(e);
         }
+    }
+
+    static void normalizeDates(Metadata metadata) throws TikaException {
+        for (String name : metadata.names()) {
+            Property property = Property.get(name);
+            if (property == null || property.getValueType() != Property.ValueType.DATE) {
+                continue;
+            }
+            String value = metadata.get(name);
+            if (value == null) {
+                continue;
+            }
+            // tika 4.0.x and 4.1.x render a malformed year such as "0-01-01" as a negative year
+            if (value.startsWith("-")) {
+                metadata.remove(name);
+                continue;
+            }
+            if (value.endsWith("Z") == false) {
+                try {
+                    OffsetDateTime parsed = OffsetDateTime.parse(value, OFFSET_DATE_TIME);
+                    metadata.set(property, parsed.toInstant().truncatedTo(ChronoUnit.SECONDS).toString());
+                } catch (DateTimeParseException e) {
+                    // no offset (or not a date-time at all): leave it to DATE_FILTER
+                }
+            }
+        }
+        DATE_FILTER.filter(List.of(metadata));
     }
 }

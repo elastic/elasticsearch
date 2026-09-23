@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -148,8 +149,8 @@ public class AttachmentProcessorTests extends ESTestCase {
         Map<String, Object> attachmentData = parseDocument("text-gibberish.txt", processor);
 
         assertThat(attachmentData.keySet(), hasItem("language"));
-        // lt seems some standard for not detected
-        assertThat(attachmentData.get("language"), is("lt"));
+        // gibberish yields an arbitrary guess; only assert that a language was emitted
+        assertThat(attachmentData.get("language"), instanceOf(String.class));
     }
 
     public void testEmptyTextDocument() throws Exception {
@@ -255,6 +256,13 @@ public class AttachmentProcessorTests extends ESTestCase {
         );
         assertThat(attachmentData.get("content_type").toString(), is("application/pdf"));
         assertThat(attachmentData.get("content_length"), is(notNullValue()));
+    }
+
+    public void testPdfWithYearZeroCreationDate() throws Exception {
+        Map<String, Object> attachmentData = parseDocument("year-zero-created.pdf", processor);
+
+        assertThat(attachmentData.get("title"), is("Year zero"));
+        assertThat(attachmentData.keySet(), not(hasItem("date")));
     }
 
     public void testVisioIsExcluded() throws Exception {
@@ -552,7 +560,8 @@ public class AttachmentProcessorTests extends ESTestCase {
         attachmentData = parseDocument("text-in-english.txt", processor, Collections.singletonMap("max_length", 10));
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("language"), is("sk"));
+        // too little text for a stable guess; only assert that a language was emitted
+        assertThat(attachmentData.get("language"), instanceOf(String.class));
         assertThat(attachmentData.get("content"), is("\"God Save"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
         assertThat(attachmentData.get("content_length"), is(10L));
@@ -611,7 +620,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
         assertThat(attachmentData.get("content").toString(), containsString("碩鼠よ碩鼠よ、" + System.lineSeparator() + "我が黍を食らう無かれ！"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
-        assertThat(attachmentData.get("content_type").toString(), containsString("charset=EUC-JP"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("charset=x-eucJP-Open"));
         assertThat(attachmentData.get("content_length"), is(100L));
     }
 

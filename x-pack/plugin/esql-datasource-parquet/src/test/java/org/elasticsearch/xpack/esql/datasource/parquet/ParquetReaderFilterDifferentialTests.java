@@ -26,9 +26,11 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -38,14 +40,21 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -134,6 +143,13 @@ import java.util.regex.Pattern;
  */
 public class ParquetReaderFilterDifferentialTests extends ESTestCase {
 
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
+
     private BlockFactory blockFactory;
 
     /**
@@ -158,6 +174,20 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         .named("description")
         .optional(PrimitiveType.PrimitiveTypeName.INT32)
         .named("nullable_flag")
+        // opt_label / opt_bool exist to make all-null DECODED BATCHES reachable. Every other
+        // string column here is `required`, so no keyword column could ever decode all-null, and
+        // nullable_flag is numeric - which is why this suite could not see the eager-literal-cast
+        // bug (elastic/elasticsearch#157313) despite being built for that bug's family.
+        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("opt_label")
+        .optional(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+        .named("opt_bool")
+        // Numeric twin of opt_label. Without a nullable NUMERIC column whose nulls are batch
+        // aligned, random search cannot reach evaluateRange's all-null case at all: ID is
+        // required, and the oracle's Range arm is Number-only so it cannot take opt_label.
+        .optional(PrimitiveType.PrimitiveTypeName.INT64)
+        .named("opt_num")
         .named("differential_test_schema");
 
     private static final ReferenceAttribute ID = attr("id", DataType.LONG);
@@ -167,11 +197,22 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private static final ReferenceAttribute URL = attr("url", DataType.KEYWORD);
     private static final ReferenceAttribute DESCRIPTION = attr("description", DataType.KEYWORD);
     private static final ReferenceAttribute NULLABLE_FLAG = attr("nullable_flag", DataType.INTEGER);
+    private static final ReferenceAttribute OPT_LABEL = attr("opt_label", DataType.KEYWORD);
+    private static final ReferenceAttribute OPT_BOOL = attr("opt_bool", DataType.BOOLEAN);
+    private static final ReferenceAttribute OPT_NUM = attr("opt_num", DataType.LONG);
 
     private static final int ROW_COUNT = 4000;
 
     private static final String[] CATEGORIES = { "alpha", "beta", "gamma", "delta" };
     private static final String[] URL_HOSTS = { "google.com", "example.org", "elastic.co", "github.com" };
+    private static final String[] OPT_LABELS = { "red", "green", "blue" };
+
+    /**
+     * Batch size the reader is driven with throughout this suite. Null runs in {@code opt_label} /
+     * {@code opt_bool} are aligned to it so that whole decoded batches are null, which is what
+     * makes the reader emit a {@code ConstantNullBlock} for the predicate column.
+     */
+    private static final int READ_BATCH_SIZE = 1024;
 
     @Before
     public void initBlockFactory() throws Exception {
@@ -188,6 +229,77 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         // still produce the right rows whether the row group is fully matching, fully
         // non-matching, or mixed.
         runDifferential(eq(STATUS, 200L, DataType.LONG));
+    }
+
+    public void testMvContainsIsEqualsBound() throws IOException {
+        // What a DSL `term` on a non-date field becomes. Same stats bound as status = 200.
+        runDifferential(mvContains(STATUS, 200L, DataType.LONG));
+    }
+
+    public void testMvContainsOnNullableColumn() throws IOException {
+        // The null contract, which is where mv_ and its scalar sibling part company: a null column is the empty
+        // set, so this is FALSE per row where opt_label = 'red' would be null. The pushed EQ predicate must still
+        // not prune a row group the unpushed read would have produced rows from.
+        runDifferential(mvContains(OPT_LABEL, "red", DataType.KEYWORD));
+    }
+
+    public void testMvIntersectsIsInBound() throws IOException {
+        // What a DSL `terms` becomes — one list-valued literal, not a list of literals.
+        runDifferential(mvIntersects(CATEGORY, DataType.KEYWORD, "alpha", "gamma"));
+    }
+
+    public void testMvInRangeIsRangeBound() throws IOException {
+        // What a time range filter becomes, and also what equality on a date field becomes.
+        runDifferential(mvInRange(ID, DataType.LONG, 100L, 400L));
+    }
+
+    public void testMvInRangeWithExclusiveBoundsPushesInclusiveSuperset() throws IOException {
+        // The open interval (100, 400): both boundary values are false. The statistics predicate and the page index
+        // take the bound inclusively whatever the options say, while the row mask reads it exactly. The superset at the
+        // chunk level must cost pruning, never rows. The mv_in_range analogue of the strict-truth cases below.
+        runDifferential(mvInRangeExclusive(ID, DataType.LONG, 100L, 400L));
+    }
+
+    public void testNotOverExclusiveMvInRangeKeepsBoundaryRows() throws IOException {
+        // Negation inverts which direction is safe. The row arm pushes both bounds inclusive, which is a superset
+        // on positive polarity; negated, a superset mask becomes a SUBSET of the true complement, so a row sitting
+        // on an excluded bound is dropped in the reader and the retained FilterExec never gets the chance to
+        // restore it.
+        runDifferential(new Not(Source.EMPTY, mvInRangeExclusive(ID, DataType.LONG, 100L, 400L)));
+    }
+
+    public void testNotOverAndContainingExclusiveMvInRangeKeepsBoundaryRows() throws IOException {
+        // The De Morgan branch of evaluateNot reaches the same arm.
+        runDifferential(new Not(Source.EMPTY, and(mvInRangeExclusive(ID, DataType.LONG, 100L, 400L), eq(STATUS, 200L, DataType.LONG))));
+    }
+
+    public void testNotOverOptionlessMvInRangeIsExact() throws IOException {
+        // The control that localises the defect: with no options both bounds are inclusive by definition, so the
+        // mask is exact rather than a superset and negating it is correct.
+        runDifferential(new Not(Source.EMPTY, mvInRange(ID, DataType.LONG, 100L, 400L)));
+    }
+
+    public void testMvGreaterPushesInclusiveOverStrictTruth() throws IOException {
+        // include_bound defaults to false, so truth is id > 100 while the pushed predicate is id >= 100. The
+        // superset prunes one value less than it could; it must never prune one it should not.
+        runDifferential(mvGreater(ID, 100L, DataType.LONG));
+    }
+
+    public void testMvLessPushesInclusiveOverStrictTruth() throws IOException {
+        runDifferential(mvLess(ID, 400L, DataType.LONG));
+    }
+
+    public void testMvInRangeAndedWithNonPushableLike() throws IOException {
+        // The time-AND-other shape. The LIKE arm does not translate, so the AND silently drops it and the pushed
+        // predicate is the range alone — looser, which is safe. The retained filter restores the LIKE.
+        runDifferential(and(mvInRange(ID, DataType.LONG, 100L, 400L), like(URL, "*google*")));
+    }
+
+    public void testNotOverMvContainsDoesNotPush() throws IOException {
+        // mv_ is absent from isExactlyTranslatable, so the Not branch builds no FilterPredicate. The conjunct is
+        // still pushed as RECHECK and still evaluated by the retained filter — what is absent is the statistics
+        // predicate. A superset under negation is an under-match, and a pruned row group has no safety net.
+        runDifferential(new Not(Source.EMPTY, mvContains(STATUS, 200L, DataType.LONG)));
     }
 
     public void testRangeOnSortedColumn() throws IOException {
@@ -453,6 +565,80 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         assertMvSurvivors(bytes, like(tags, "Sen*"), Set.of(0L));
         // NOT(tags LIKE "Sen*"): row1 MV → excluded by MV semantics in NOT; row3 "Manager" survives
         assertMvSurvivors(bytes, not(like(tags, "Sen*")), Set.of(3L));
+
+        // mv_in_range over the same list column: the row arm must DECLINE, so every row reaches the retained
+        // filter, which computes the real any-value answer (rows 0, 1 and 3 each hold a value in [2, 6]).
+        // This is what makes block.mayHaveMultivaluedFields() a gate rather than decoration: without it
+        // evaluateRange keeps only positions holding exactly one value and this returns row 1 alone, losing
+        // rows 0 and 3 inside the reader where nothing downstream can recover them. Contrast the scalar Range
+        // over the same bounds above, which legitimately yields row 1 only.
+        assertMvSurvivors(
+            bytes,
+            new MvInRange(Source.EMPTY, v, lit(2, DataType.INTEGER), lit(6, DataType.INTEGER)),
+            Set.of(0L, 1L, 2L, 3L)
+        );
+    }
+
+    /**
+     * 2-level {@code repeated} leaves are primitives, so minting a FilterPredicate used to throw
+     * parquet-mr's {@code FilterPredicates do not currently support repeated columns} out of
+     * RowGroupFilter. Decline at resolveNestedPrimitive; the MV-safe evaluator answers: empty
+     * repeated is null, {@code ==} is true only on a single-value cell.
+     */
+    public void testBareRepeatedPrimitivePredicates() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .repeated(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("v")
+            .named("bare_repeated_schema");
+
+        byte[] bytes = writeBareRepeatedParquet(schema);
+        ReferenceAttribute v = attr("v", DataType.INTEGER);
+
+        // Row 2 is empty repeated (= null). Exactly one IS NULL survivor.
+        assertMvSurvivors(bytes, isNull(v), Set.of(2L));
+        // v == 4: only the single-value 4 (row 1). MV rows excluded.
+        assertMvSurvivors(bytes, eq(v, 4, DataType.INTEGER), Set.of(1L));
+    }
+
+    private byte[] writeBareRepeatedParquet(MessageType schema) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            // Row 0: id=0, v=[1,2]
+            Group r0 = factory.newGroup();
+            r0.add("id", 0L);
+            r0.add("v", 1);
+            r0.add("v", 2);
+            writer.write(r0);
+
+            // Row 1: id=1, v=[4]
+            Group r1 = factory.newGroup();
+            r1.add("id", 1L);
+            r1.add("v", 4);
+            writer.write(r1);
+
+            // Row 2: id=2, v=[] (empty = null)
+            Group r2 = factory.newGroup();
+            r2.add("id", 2L);
+            writer.write(r2);
+
+            // Row 3: id=3, v=[7,5]
+            Group r3 = factory.newGroup();
+            r3.add("id", 3L);
+            r3.add("v", 7);
+            r3.add("v", 5);
+            writer.write(r3);
+        }
+        return out.toByteArray();
     }
 
     private byte[] writeMvParquet(MessageType schema) throws IOException {
@@ -506,7 +692,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         Set<Long> actual = new TreeSet<>();
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(splitTopLevelAnd(filter));
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
-        try (CloseableIterator<Page> iter = reader.read(inMemoryStorageObject(parquetBytes), FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = reader.read(inMemoryStorageObject(parquetBytes), FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
                 Page page = iter.next();
                 try {
@@ -775,6 +961,21 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             boolean uOk = range.includeUpper() ? dv <= du : dv < du;
             return lOk && uOk;
         }
+        if (expr instanceof In in) {
+            String name = ((ReferenceAttribute) in.value()).name();
+            Object v = row.get(name);
+            if (v == null) return null;
+            for (Expression item : in.list()) {
+                Object literal = ((Literal) item).value();
+                Object comparable = literal instanceof BytesRef br ? br.utf8ToString() : literal;
+                if (comparable instanceof Number n && v instanceof Number nv) {
+                    if (Double.compare(n.doubleValue(), nv.doubleValue()) == 0) return true;
+                } else if (comparable.equals(v)) {
+                    return true;
+                }
+            }
+            return false;
+        }
         if (expr instanceof Equals e) {
             return cmpEq(row, e.left(), e.right());
         }
@@ -809,6 +1010,62 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             String regex = wl.pattern().asJavaRegex();
             int flags = wl.caseInsensitive() ? Pattern.CASE_INSENSITIVE : 0;
             return Pattern.compile(regex, flags).matcher((String) v).matches();
+        }
+        // ---- multivalue comparison functions ----------------------------------------------
+        // These are the shapes the out-of-band request filter translates into. Their null contract differs from
+        // the scalar siblings and is pinned from MvContains.process, which is annotated
+        // @Evaluator(allNullsIsNull = false) and returns false when the superset holds no matching value: a null
+        // column is the empty set, so mv_contains(f, v) is FALSE where f == v would be null. Getting this wrong in
+        // the oracle would not be caught by the production-vs-oracle comparison, because every path here shares this
+        // evaluator — what the comparison does prove is that pushing the predicate never drops a row the unpushed
+        // read would have kept.
+        if (expr instanceof MvContains mvContains) {
+            Boolean equal = cmpEq(row, mvContains.left(), mvContains.right());
+            return equal == null ? Boolean.FALSE : equal;
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            String name = ((ReferenceAttribute) mvIntersects.left()).name();
+            Object v = row.get(name);
+            if (v == null) {
+                return Boolean.FALSE;
+            }
+            Object literal = ((Literal) mvIntersects.right()).value();
+            List<?> values = literal instanceof List<?> list ? list : List.of(literal);
+            for (Object item : values) {
+                Object comparable = item instanceof BytesRef br ? br.utf8ToString() : item;
+                if (comparable instanceof Number n && v instanceof Number nv) {
+                    if (Double.compare(n.doubleValue(), nv.doubleValue()) == 0) {
+                        return Boolean.TRUE;
+                    }
+                } else if (comparable.equals(v)) {
+                    return Boolean.TRUE;
+                }
+            }
+            return Boolean.FALSE;
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            if (row.get(((ReferenceAttribute) mvInRange.field()).name()) == null) {
+                return Boolean.FALSE;
+            }
+            // include_lower / include_upper default to true. The chunk-level bound goes in inclusive whatever they say,
+            // so an exclusive option is where the pushed superset is strictly wider than the truth; the row mask is exact.
+            Boolean lower = cmpOrdered(row, mvInRange.field(), mvInRange.lower(), 1, boundOption(mvInRange.options(), "include_lower"));
+            Boolean upper = cmpOrdered(row, mvInRange.field(), mvInRange.upper(), -1, boundOption(mvInRange.options(), "include_upper"));
+            return Boolean.TRUE.equals(lower) && Boolean.TRUE.equals(upper);
+        }
+        if (expr instanceof MvGreater mvGreater) {
+            if (row.get(((ReferenceAttribute) mvGreater.field()).name()) == null) {
+                return Boolean.FALSE;
+            }
+            // include_bound defaults to FALSE (MvCompare.includeBound), so the truth is STRICT while the pushed
+            // predicate is GTE. That gap is the point: the superset must never lose a row.
+            return cmpOrdered(row, mvGreater.field(), mvGreater.bound(), 1, false);
+        }
+        if (expr instanceof MvLess mvLess) {
+            if (row.get(((ReferenceAttribute) mvLess.field()).name()) == null) {
+                return Boolean.FALSE;
+            }
+            return cmpOrdered(row, mvLess.field(), mvLess.bound(), -1, false);
         }
         throw new AssertionError("oracle does not handle expression: " + expr.getClass());
     }
@@ -894,7 +1151,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         throws IOException {
         StorageObject storageObject = inMemoryStorageObject(parquetBytes);
         Set<Long> ids = new TreeSet<>();
-        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
                 Page page = iter.next();
                 try {
@@ -965,7 +1222,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private Set<Long> oracleA_apacheMr(byte[] parquetBytes, Expression filter) throws IOException {
         FilterPredicate filterPredicate = safeTranslateForApacheMr(filter);
         GroupReaderBuilder builder = new GroupReaderBuilder(
-            new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes), blockFactory.arrowAllocator())
+            new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes), footerByteCache, blockFactory.breaker())
         );
         if (filterPredicate != null) {
             builder.withFilter(FilterCompat.get(filterPredicate));
@@ -1051,7 +1308,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private Set<Long> collectIdsWithEval(ParquetFormatReader reader, byte[] parquetBytes, Expression filter) throws IOException {
         StorageObject storageObject = inMemoryStorageObject(parquetBytes);
         Set<Long> ids = new TreeSet<>();
-        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
                 Page page = iter.next();
                 try {
@@ -1088,6 +1345,24 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         } else {
             row.put("nullable_flag", ((IntBlock) flagBlock).getInt(rowIndex));
         }
+        Block labelBlock = page.getBlock(7);
+        if (labelBlock.isNull(rowIndex)) {
+            row.put("opt_label", null);
+        } else {
+            row.put("opt_label", ((BytesRefBlock) labelBlock).getBytesRef(rowIndex, new BytesRef()).utf8ToString());
+        }
+        Block boolBlock = page.getBlock(8);
+        if (boolBlock.isNull(rowIndex)) {
+            row.put("opt_bool", null);
+        } else {
+            row.put("opt_bool", ((BooleanBlock) boolBlock).getBoolean(rowIndex));
+        }
+        Block numBlock = page.getBlock(9);
+        if (numBlock.isNull(rowIndex)) {
+            row.put("opt_num", null);
+        } else {
+            row.put("opt_num", ((LongBlock) numBlock).getLong(rowIndex));
+        }
         return row;
     }
 
@@ -1108,6 +1383,21 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             row.put("nullable_flag", null);
         } else {
             row.put("nullable_flag", g.getInteger("nullable_flag", 0));
+        }
+        if (g.getFieldRepetitionCount("opt_label") == 0) {
+            row.put("opt_label", null);
+        } else {
+            row.put("opt_label", g.getString("opt_label", 0));
+        }
+        if (g.getFieldRepetitionCount("opt_bool") == 0) {
+            row.put("opt_bool", null);
+        } else {
+            row.put("opt_bool", g.getBoolean("opt_bool", 0));
+        }
+        if (g.getFieldRepetitionCount("opt_num") == 0) {
+            row.put("opt_num", null);
+        } else {
+            row.put("opt_num", g.getLong("opt_num", 0));
         }
         return row;
     }
@@ -1150,7 +1440,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     private Expression randomLeaf() {
-        int kind = randomIntBetween(0, 9);
+        int kind = randomIntBetween(0, 15);
         return switch (kind) {
             case 0 -> eq(STATUS, randomLongStatus(), DataType.LONG);
             case 1 -> neq(STATUS, randomLongStatus(), DataType.LONG);
@@ -1161,10 +1451,24 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             case 6 -> isNull(NULLABLE_FLAG);
             case 7 -> isNotNull(NULLABLE_FLAG);
             case 8 -> eq(CATEGORY, randomFrom(CATEGORIES), DataType.KEYWORD);
-            default -> and(
+            // Predicates over the OPTIONAL columns. These are the leaves that can land on a batch
+            // that decoded entirely null, which is what hands the evaluator a ConstantNullBlock.
+            case 9 -> and(
                 gte(SCORE, randomDoubleBetween(0.0, 1.0, true), DataType.DOUBLE),
                 lt(SCORE, randomDoubleBetween(0.0, 1.0, true) + 1.0, DataType.DOUBLE)
             );
+            case 10 -> eq(OPT_LABEL, randomFrom(OPT_LABELS), DataType.KEYWORD);
+            case 11 -> neq(OPT_LABEL, randomFrom(OPT_LABELS), DataType.KEYWORD);
+            case 12 -> eq(OPT_BOOL, randomBoolean(), DataType.BOOLEAN);
+            // IN and Range were absent from this axis entirely, so evaluateIn and evaluateRange
+            // were never exercised by random search despite carrying the same hazard shape.
+            case 13 -> in(OPT_LABEL, DataType.KEYWORD, randomFrom(OPT_LABELS), randomFrom(OPT_LABELS));
+            case 14 -> in(STATUS, DataType.LONG, randomLongStatus(), randomLongStatus());
+            case 15 -> range(OPT_NUM, DataType.LONG, (long) randomIntBetween(0, 250), (long) randomIntBetween(250, 500));
+            // Fail loudly rather than silently folding an unhandled kind into another leaf:
+            // a widened range with a missing case would quietly shrink coverage, which is the
+            // absence-shaped failure this suite exists to catch.
+            default -> throw new AssertionError("unhandled leaf kind " + kind);
         };
     }
 
@@ -1209,12 +1513,72 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         return new Literal(Source.EMPTY, value, type);
     }
 
+    private static Expression mvContains(ReferenceAttribute a, Object v, DataType t) {
+        return new MvContains(Source.EMPTY, a, lit(v, t));
+    }
+
+    /** {@code mv_intersects} carries ONE list-valued literal, unlike {@code In}. */
+    private static Expression mvIntersects(ReferenceAttribute a, DataType t, Object... values) {
+        List<Object> raw = new ArrayList<>(values.length);
+        for (Object v : values) {
+            raw.add(t == DataType.KEYWORD && v instanceof String str ? new BytesRef(str) : v);
+        }
+        return new MvIntersects(Source.EMPTY, a, new Literal(Source.EMPTY, raw, t));
+    }
+
+    private static Expression mvInRange(ReferenceAttribute a, DataType t, Object lower, Object upper) {
+        return new MvInRange(Source.EMPTY, a, lit(lower, t), lit(upper, t));
+    }
+
+    /** {@code mv_in_range} over the open interval {@code (lower, upper)} — both bounds exclusive. */
+    private static Expression mvInRangeExclusive(ReferenceAttribute a, DataType t, Object lower, Object upper) {
+        Expression options = new MapExpression(
+            Source.EMPTY,
+            List.of(
+                Literal.keyword(Source.EMPTY, "include_lower"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                Literal.keyword(Source.EMPTY, "include_upper"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN)
+            )
+        );
+        return new MvInRange(Source.EMPTY, a, lit(lower, t), lit(upper, t), options);
+    }
+
+    /** Reads an {@code include_lower} / {@code include_upper} option. Both default to true. */
+    private static boolean boundOption(Expression options, String key) {
+        if (options instanceof MapExpression map && map.keyFoldedMap().get(key) instanceof Literal literal) {
+            return (Boolean) literal.value();
+        }
+        return true;
+    }
+
+    private static Expression mvGreater(ReferenceAttribute a, Object v, DataType t) {
+        return new MvGreater(Source.EMPTY, a, lit(v, t));
+    }
+
+    private static Expression mvLess(ReferenceAttribute a, Object v, DataType t) {
+        return new MvLess(Source.EMPTY, a, lit(v, t));
+    }
+
     private static Expression eq(ReferenceAttribute a, Object v, DataType t) {
         return new Equals(Source.EMPTY, a, lit(v, t), null);
     }
 
     private static Expression neq(ReferenceAttribute a, Object v, DataType t) {
         return new NotEquals(Source.EMPTY, a, lit(v, t), null);
+    }
+
+    private static Expression in(ReferenceAttribute a, DataType t, Object... values) {
+        List<Expression> items = new ArrayList<>(values.length);
+        for (Object v : values) {
+            items.add(lit(v, t));
+        }
+        return new In(Source.EMPTY, a, items);
+    }
+
+    /** Numeric only: the pure-Java oracle's Range arm compares as {@code Number}. */
+    private static Expression range(ReferenceAttribute a, DataType t, Object lower, Object upper) {
+        return new Range(Source.EMPTY, a, lit(lower, t), true, lit(upper, t), true, ZoneOffset.UTC);
     }
 
     private static Expression gt(ReferenceAttribute a, Object v, DataType t) {
@@ -1333,6 +1697,19 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             row.put("description", "padding_" + ("p".repeat(50)) + "_row_" + i);
             // ~30% nulls in nullable_flag.
             row.put("nullable_flag", (i % 10 < 3) ? null : Integer.valueOf(i % 100));
+            // Null in runs ALIGNED to the read batch size, so whole decoded batches are null and
+            // the reader hands the pushed-filter evaluator a ConstantNullBlock. Exact under the
+            // single-row-group layouts; under MANY_SMALL_GROUPS batches restart per row group, so
+            // the runs additionally yield partially-null blocks through the typed BytesRefBlock
+            // arm - extra coverage rather than a gap.
+            boolean nullBatch = (i / READ_BATCH_SIZE) % 2 == 0;
+            row.put("opt_label", nullBatch ? null : OPT_LABELS[i % OPT_LABELS.length]);
+            // Coarser runs so the two optional columns do not go null in lockstep.
+            boolean nullBoolBatch = (i / (READ_BATCH_SIZE * 2)) % 2 == 0;
+            row.put("opt_bool", nullBoolBatch ? null : Boolean.valueOf(i % 2 == 0));
+            // Offset from opt_label's phase so the two do not go null together.
+            boolean nullNumBatch = ((i / READ_BATCH_SIZE) + 1) % 2 == 0;
+            row.put("opt_num", nullNumBatch ? null : Long.valueOf(i % 500));
             rows.add(row);
         }
         byte[] bytes = writeParquet(rows, layout);
@@ -1365,6 +1742,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
                 Object flag = row.get("nullable_flag");
                 if (flag != null) {
                     g.add("nullable_flag", ((Integer) flag).intValue());
+                }
+                Object label = row.get("opt_label");
+                if (label != null) {
+                    g.add("opt_label", (String) label);
+                }
+                Object optBool = row.get("opt_bool");
+                if (optBool != null) {
+                    g.add("opt_bool", ((Boolean) optBool).booleanValue());
+                }
+                Object optNum = row.get("opt_num");
+                if (optNum != null) {
+                    g.add("opt_num", ((Long) optNum).longValue());
                 }
                 writer.write(g);
             }

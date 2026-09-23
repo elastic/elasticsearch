@@ -60,6 +60,7 @@ public class SumOverflowingLongAggregatorFunctionTests extends AggregatorFunctio
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.of(Long.MAX_VALUE - 1, 2)),
                     List.of(simple().get(driverContext)),
                     new TestResultPageSinkOperator(r -> {}),
+                    Driver.DEFAULT_STATUS_INTERVAL,
                     () -> {}
                 )
             ) {
@@ -79,6 +80,7 @@ public class SumOverflowingLongAggregatorFunctionTests extends AggregatorFunctio
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple().get(driverContext)),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
+                Driver.DEFAULT_STATUS_INTERVAL,
                 () -> {}
             )
         ) {

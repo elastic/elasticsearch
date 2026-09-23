@@ -20,6 +20,7 @@ import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -63,7 +64,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
         if (aOffset == 0 && bOffset == 0 && length == a.length && a.length == b.length) {
-            return dotProduct(a, b);
+            return VectorUtil.dotProduct(a, b);
         }
         float sum = 0f;
         int aEnd = aOffset + length;
@@ -120,7 +121,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(byte[] a, byte[] b, int offset, int length) {
         if (offset == 0 && length == a.length) {
-            return dotProduct(a, b);
+            return VectorUtil.dotProduct(a, b);
         }
         int sum = 0;
         int end = offset + length;
@@ -167,7 +168,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float dist = 0;
         for (int i = 0; i < a.length; i++) {
             float diff = a[i] - b[i];
-            dist += diff * diff;
+            dist = fma(diff, diff, dist);
         }
         return dist;
     }
@@ -244,164 +245,6 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float ipFloatByte(float[] q, byte[] d) {
         return ipFloatByteImpl(q, d);
-    }
-
-    @Override
-    public float calculateOSQLoss(
-        float[] target,
-        float low,
-        float high,
-        float step,
-        float invStep,
-        float norm2,
-        float lambda,
-        int[] quantize
-    ) {
-        float a = low;
-        float b = high;
-        float xe = 0f;
-        float e = 0f;
-        for (int i = 0; i < target.length; ++i) {
-            float xi = target[i];
-            // this is quantizing and then dequantizing the vector
-            quantize[i] = Math.round((Math.min(Math.max(xi, a), b) - a) * invStep);
-            float xiq = fma(step, quantize[i], a);
-            // how much does the de-quantized value differ from the original value
-            float xiiq = xi - xiq;
-            e = fma(xiiq, xiiq, e);
-            xe = fma(xi, xiiq, xe);
-        }
-        return (1f - lambda) * xe * xe / norm2 + lambda * e;
-    }
-
-    @Override
-    public void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
-        float daa = 0;
-        float dab = 0;
-        float dbb = 0;
-        float dax = 0;
-        float dbx = 0;
-        float invPmOnes = 1f / (points - 1f);
-        for (int i = 0; i < target.length; ++i) {
-            float v = target[i];
-            float k = quantize[i];
-            float s = k * invPmOnes;
-            float ms = 1f - s;
-            daa = fma(ms, ms, daa);
-            dab = fma(ms, s, dab);
-            dbb = fma(s, s, dbb);
-            dax = fma(ms, v, dax);
-            dbx = fma(s, v, dbx);
-        }
-        pts[0] = daa;
-        pts[1] = dab;
-        pts[2] = dbb;
-        pts[3] = dax;
-        pts[4] = dbx;
-    }
-
-    @Override
-    public void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats) {
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < target.length; i++) {
-            centered[i] = target[i] - centroid[i];
-            min = Math.min(min, centered[i]);
-            max = Math.max(max, centered[i]);
-            norm2 = fma(centered[i], centered[i], norm2);
-            float delta = centered[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = centered[i] - vecMean;
-            vecVar = fma(delta, delta2, vecVar);
-        }
-        stats[0] = vecMean;
-        stats[1] = vecVar / target.length;
-        stats[2] = norm2;
-        stats[3] = min;
-        stats[4] = max;
-    }
-
-    @Override
-    public void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats) {
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < target.length; i++) {
-            centered[i] = (float) (target[i] - centroid[i]);
-            min = Math.min(min, centered[i]);
-            max = Math.max(max, centered[i]);
-            norm2 = fma(centered[i], centered[i], norm2);
-            float delta = centered[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = centered[i] - vecMean;
-            vecVar = fma(delta, delta2, vecVar);
-        }
-        stats[0] = vecMean;
-        stats[1] = vecVar / target.length;
-        stats[2] = norm2;
-        stats[3] = min;
-        stats[4] = max;
-    }
-
-    @Override
-    public void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        float centroidDot = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < target.length; i++) {
-            centroidDot = fma(target[i], centroid[i], centroidDot);
-            centered[i] = target[i] - centroid[i];
-            min = Math.min(min, centered[i]);
-            max = Math.max(max, centered[i]);
-            norm2 = fma(centered[i], centered[i], norm2);
-            float delta = centered[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = centered[i] - vecMean;
-            vecVar = fma(delta, delta2, vecVar);
-        }
-        stats[0] = vecMean;
-        stats[1] = vecVar / target.length;
-        stats[2] = norm2;
-        stats[3] = min;
-        stats[4] = max;
-        stats[5] = centroidDot;
-    }
-
-    @Override
-    public void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats) {
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        float centroidDot = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < target.length; i++) {
-            float t = (float) target[i];
-            float c = (float) centroid[i];
-            centroidDot = fma(t, c, centroidDot);
-            centered[i] = (float) (target[i] - centroid[i]);
-            min = Math.min(min, centered[i]);
-            max = Math.max(max, centered[i]);
-            norm2 = fma(centered[i], centered[i], norm2);
-            float delta = centered[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = centered[i] - vecMean;
-            vecVar = fma(delta, delta2, vecVar);
-        }
-        stats[0] = vecMean;
-        stats[1] = vecVar / target.length;
-        stats[2] = norm2;
-        stats[3] = min;
-        stats[4] = max;
-        stats[5] = centroidDot;
     }
 
     @Override
@@ -534,23 +377,9 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     public static float ipFloatByteImpl(float[] q, byte[] d) {
         float ret = 0;
         for (int i = 0; i < q.length; i++) {
-            ret += q[i] * d[i];
+            ret = fma(q[i], d[i], ret);
         }
         return ret;
-    }
-
-    @Override
-    public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
-        float nSteps = ((1 << bits) - 1);
-        float invStep = nSteps / (upperInterval - lowInterval);
-        int sumQuery = 0;
-        for (int h = 0; h < vector.length; h++) {
-            float xi = Math.min(Math.max(vector[h], lowInterval), upperInterval);
-            int assignment = Math.round((xi - lowInterval) * invStep);
-            sumQuery += assignment;
-            destination[h] = assignment;
-        }
-        return sumQuery;
     }
 
     @Override
@@ -941,4 +770,83 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
+    @Override
+    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+        Arrays.fill(result, 0);
+        multiplyAccumulate(a, k, b, result, m, k, n);
+    }
+
+    /**
+     * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
+     * {@code a[i * aRowStride + l]}.
+     *
+     * @param aRowStride distance in {@code a} between consecutive rows of the left operand
+     * @param cRows      rows of C, and of the left operand
+     * @param inner      inner dimension of the multiplication
+     * @param n          columns of C, and of B
+     */
+    private void multiplyAccumulate(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
+        // unroll 4x, so 4 values are accumulated into each c cell at once
+        final int innerLimit = inner - inner % 4;
+        for (int i = 0; i < cRows; i++) {
+            int aBase = i * aRowStride;
+            int cBase = i * n;
+            int l = 0;
+            for (; l < innerLimit; l += 4) {
+                int aOffset = aBase + l;
+                int b0 = l * n;
+                int b1 = b0 + n;
+                int b2 = b0 + n * 2;
+                int b3 = b0 + n * 3;
+                for (int j = 0; j < n; j++) {
+                    float acc = c[cBase + j];
+                    acc = fma(a[aOffset], b[b0 + j], acc);
+                    acc = fma(a[aOffset + 1], b[b1 + j], acc);
+                    acc = fma(a[aOffset + 2], b[b2 + j], acc);
+                    acc = fma(a[aOffset + 3], b[b3 + j], acc);
+                    c[cBase + j] = acc;
+                }
+            }
+            // tail
+            for (; l < inner; l++) {
+                linearCombination(a[aBase + l], b, l * n, c, cBase, n);
+            }
+        }
+    }
+
+    @Override
+    public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        // unroll x4
+        int i = 0;
+        for (; i + 4 <= rows; i += 4) {
+            int a0 = i * cols;
+            int a1 = a0 + cols;
+            int a2 = a0 + cols * 2;
+            int a3 = a0 + cols * 3;
+            float s0 = 0;
+            float s1 = 0;
+            float s2 = 0;
+            float s3 = 0;
+            for (int j = 0; j < cols; j++) {
+                float vj = v[j];
+                s0 = fma(a[a0 + j], vj, s0);
+                s1 = fma(a[a1 + j], vj, s1);
+                s2 = fma(a[a2 + j], vj, s2);
+                s3 = fma(a[a3 + j], vj, s3);
+            }
+            result[i] = s0;
+            result[i + 1] = s1;
+            result[i + 2] = s2;
+            result[i + 3] = s3;
+        }
+        // tail
+        for (; i < rows; i++) {
+            int ai = i * cols;
+            float sum = 0;
+            for (int j = 0; j < cols; j++) {
+                sum = fma(a[ai + j], v[j], sum);
+            }
+            result[i] = sum;
+        }
+    }
 }

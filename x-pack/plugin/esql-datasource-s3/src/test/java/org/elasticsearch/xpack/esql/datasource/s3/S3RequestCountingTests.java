@@ -48,7 +48,7 @@ public class S3RequestCountingTests extends ESTestCase {
 
     private void stubHeadResponse() {
         when(mockS3.headObject(any(HeadObjectRequest.class))).thenReturn(
-            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).build()
+            HeadObjectResponse.builder().contentLength(FILE_SIZE).lastModified(LAST_MODIFIED).eTag("\"gen-1\"").build()
         );
     }
 
@@ -249,7 +249,11 @@ public class S3RequestCountingTests extends ESTestCase {
      * falls back to HEAD for the full metadata.
      */
     public void testMissingContentRangeFallsBackToHead() throws IOException {
-        GetObjectResponse noContentRange = GetObjectResponse.builder().contentLength(1L).lastModified(LAST_MODIFIED).build();
+        GetObjectResponse noContentRange = GetObjectResponse.builder()
+            .contentLength(1L)
+            .lastModified(LAST_MODIFIED)
+            .eTag("\"gen-1\"")
+            .build();
         when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
             new ResponseInputStream<>(noContentRange, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 0 })))
         );

@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 
@@ -276,164 +275,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         testIpByteBinImpl(panamaProvider.getVectorUtilSupport()::ipByteBinByte);
     }
 
-    public void testCenterAndCalculateOSQStatsDp() {
-        int size = random().nextInt(128, 512);
-        float delta = 1e-3f * size;
-        var vector = new float[size];
-        var centroid = new float[size];
-        for (int i = 0; i < size; ++i) {
-            vector[i] = random().nextFloat();
-            centroid[i] = random().nextFloat();
-        }
-        var centeredLucene = new float[size];
-        var statsLucene = new float[6];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredLucene, statsLucene);
-        var centeredPanama = new float[size];
-        var statsPanama = new float[6];
-        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredPanama, statsPanama);
-        assertArrayEquals(centeredLucene, centeredPanama, delta);
-        assertArrayEquals(statsLucene, statsPanama, delta);
-    }
-
-    public void testCenterAndCalculateOSQStatsEuclidean() {
-        int size = random().nextInt(128, 512);
-        float delta = 1e-3f * size;
-        var vector = new float[size];
-        var centroid = new float[size];
-        for (int i = 0; i < size; ++i) {
-            vector[i] = random().nextFloat();
-            centroid[i] = random().nextFloat();
-        }
-        var centeredLucene = new float[size];
-        var statsLucene = new float[5];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredLucene, statsLucene);
-        var centeredPanama = new float[size];
-        var statsPanama = new float[5];
-        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredPanama, statsPanama);
-        assertArrayEquals(centeredLucene, centeredPanama, delta);
-        assertArrayEquals(statsLucene, statsPanama, delta);
-    }
-
-    public void testCenterAndCalculateOSQStatsDpByteByteCentroid() {
-        int size = random().nextInt(128, 512);
-        float delta = 1e-3f * size;
-        var vector = new byte[size];
-        var centroid = new byte[size];
-        random().nextBytes(vector);
-        random().nextBytes(centroid);
-        // byte[],byte[] via Default
-        var centeredBB = new float[size];
-        var statsBB = new float[6];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBB, statsBB);
-        // byte[],byte[] via Panama
-        var centeredBBPanama = new float[size];
-        var statsBBPanama = new float[6];
-        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBBPanama, statsBBPanama);
-        assertArrayEquals(centeredBB, centeredBBPanama, delta);
-        assertArrayEquals(statsBB, statsBBPanama, delta);
-    }
-
-    public void testCenterAndCalculateOSQStatsEuclideanByteByteCentroid() {
-        int size = random().nextInt(128, 512);
-        float delta = 1e-3f * size;
-        var vector = new byte[size];
-        var centroid = new byte[size];
-        random().nextBytes(vector);
-        random().nextBytes(centroid);
-        // byte[],byte[] via Default
-        var centeredBB = new float[size];
-        var statsBB = new float[5];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBB, statsBB);
-        // byte[],byte[] via Panama
-        var centeredBBPanama = new float[size];
-        var statsBBPanama = new float[5];
-        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBBPanama, statsBBPanama);
-        assertArrayEquals(centeredBB, centeredBBPanama, delta);
-        assertArrayEquals(statsBB, statsBBPanama, delta);
-    }
-
-    public void testOsqLoss() {
-        int size = random().nextInt(128, 512);
-        float deltaEps = 1e-5f * size;
-        var vector = new float[size];
-        var min = Float.MAX_VALUE;
-        var max = -Float.MAX_VALUE;
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        for (int i = 0; i < size; ++i) {
-            vector[i] = random().nextFloat();
-            min = Math.min(min, vector[i]);
-            max = Math.max(max, vector[i]);
-            float delta = vector[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = vector[i] - vecMean;
-            vecVar += delta * delta2;
-            norm2 += vector[i] * vector[i];
-        }
-        vecVar /= size;
-        float vecStd = (float) Math.sqrt(vecVar);
-
-        int[] destinationDefault = new int[size];
-        int[] destinationPanama = new int[size];
-        for (byte bits : new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }) {
-            int points = 1 << bits;
-            float[] initInterval = new float[2];
-            OptimizedScalarQuantizer.initInterval(bits, vecStd, vecMean, min, max, initInterval);
-            float step = ((initInterval[1] - initInterval[0]) / (points - 1f));
-            float stepInv = 1f / step;
-            float expected = defaultedProvider.getVectorUtilSupport()
-                .calculateOSQLoss(vector, initInterval[0], initInterval[1], step, stepInv, norm2, 0.1f, destinationDefault);
-            float result = panamaProvider.getVectorUtilSupport()
-                .calculateOSQLoss(vector, initInterval[0], initInterval[1], step, stepInv, norm2, 0.1f, destinationPanama);
-            assertEquals(expected, result, deltaEps);
-            assertArrayEquals(destinationDefault, destinationPanama);
-        }
-    }
-
-    public void testOsqGridPoints() {
-        int size = random().nextInt(128, 512);
-        float deltaEps = 1e-5f * size;
-        var vector = new float[size];
-        var min = Float.MAX_VALUE;
-        var max = -Float.MAX_VALUE;
-        var norm2 = 0f;
-        float vecMean = 0;
-        float vecVar = 0;
-        for (int i = 0; i < size; ++i) {
-            vector[i] = random().nextFloat();
-            min = Math.min(min, vector[i]);
-            max = Math.max(max, vector[i]);
-            float delta = vector[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = vector[i] - vecMean;
-            vecVar += delta * delta2;
-            norm2 += vector[i] * vector[i];
-        }
-        vecVar /= size;
-        float vecStd = (float) Math.sqrt(vecVar);
-        int[] destinationDefault = new int[size];
-        int[] destinationPanama = new int[size];
-        for (byte bits : new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }) {
-            int points = 1 << bits;
-            float[] initInterval = new float[2];
-            OptimizedScalarQuantizer.initInterval(bits, vecStd, vecMean, min, max, initInterval);
-            float step = ((initInterval[1] - initInterval[0]) / (points - 1f));
-            float stepInv = 1f / step;
-            float[] expected = new float[5];
-            defaultedProvider.getVectorUtilSupport()
-                .calculateOSQLoss(vector, initInterval[0], initInterval[1], step, stepInv, norm2, 0.1f, destinationDefault);
-            defaultedProvider.getVectorUtilSupport().calculateOSQGridPoints(vector, destinationDefault, points, expected);
-
-            float[] result = new float[5];
-            panamaProvider.getVectorUtilSupport()
-                .calculateOSQLoss(vector, initInterval[0], initInterval[1], step, stepInv, norm2, 0.1f, destinationPanama);
-            panamaProvider.getVectorUtilSupport().calculateOSQGridPoints(vector, destinationPanama, points, result);
-            assertArrayEquals(expected, result, deltaEps);
-            assertArrayEquals(destinationDefault, destinationPanama);
-        }
-    }
-
     public void testSoarDistance() {
         int size = random().nextInt(128, 512);
         float deltaEps = 1e-3f * size;
@@ -467,29 +308,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         var expected = defaultedProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
         var result = panamaProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
         assertEquals(expected, result, Math.abs(expected) * 1e-5f + 1e-3f);
-    }
-
-    public void testQuantizeVectorWithIntervals() {
-        int vectorSize = randomIntBetween(1, 2048);
-        float[] vector = new float[vectorSize];
-
-        byte bits = (byte) randomIntBetween(1, 8);
-        for (int i = 0; i < vectorSize; ++i) {
-            vector[i] = random().nextFloat();
-        }
-        float low = random().nextFloat();
-        float high = random().nextFloat();
-        if (low > high) {
-            float tmp = low;
-            low = high;
-            high = tmp;
-        }
-        int[] quantizeExpected = new int[vectorSize];
-        int[] quantizeResult = new int[vectorSize];
-        var expected = defaultedProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, quantizeExpected, low, high, bits);
-        var result = panamaProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, quantizeResult, low, high, bits);
-        assertArrayEquals(quantizeExpected, quantizeResult);
-        assertEquals(expected, result, 0f);
     }
 
     public void testSquareDistanceRange() {
@@ -1544,4 +1362,65 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
         assertArrayEqualsPercent(result1, result2, 0.15f);
     }
+
+    public void testMatrixMultiply() {
+        int m = randomIntBetween(2, 1024);
+        int k = randomIntBetween(2, 1024);
+        int n = randomIntBetween(2, 1024);
+
+        float[] a = VectorTestUtils.randomFloatVector(m * k);
+        float[] b = VectorTestUtils.randomFloatVector(k * n);
+
+        float[] expected = basicMatrixMultiply(a, b, m, k, n);
+
+        float[] scalar = new float[m * n];
+        defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar);
+        assertArrayEquals(expected, scalar, 1e-3f);
+        float[] panama = new float[m * n];
+        panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama);
+        assertArrayEquals(expected, panama, 1e-3f);
+    }
+
+    private static float[] basicMatrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[m * n];
+        for (int i = 0; i < m; i++) {
+            int aBase = i * k;
+            int cBase = i * n;
+            for (int l = 0; l < k; l++) {
+                for (int d = 0; d < n; d++) {
+                    c[cBase + d] = Math.fma(a[aBase + l], b[l * n + d], c[cBase + d]);
+                }
+            }
+        }
+        return c;
+    }
+
+    public void testMatrixVectorMultiply() {
+        int rows = randomIntBetween(2, 1024);
+        int cols = randomIntBetween(2, 1024);
+
+        float[] a = VectorTestUtils.randomFloatVector(rows * cols);
+        float[] v = VectorTestUtils.randomFloatVector(cols);
+
+        float[] expected = basicMatrixVectorMultiply(a, rows, cols, v);
+
+        float[] scalarResult = new float[rows];
+        defaultedProvider.getVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, scalarResult);
+        assertArrayEquals(expected, scalarResult, 1e-3f);
+        float[] panamaResult = new float[rows];
+        panamaProvider.getVectorUtilSupport().matrixVectorMultiply(a, rows, cols, v, panamaResult);
+        assertArrayEquals(expected, panamaResult, 1e-3f);
+    }
+
+    private static float[] basicMatrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+        float[] result = new float[rows];
+        for (int i = 0; i < rows; i++) {
+            int aBase = i * cols;
+            for (int j = 0; j < cols; j++) {
+                result[i] = Math.fma(a[aBase + j], v[j], result[i]);
+            }
+        }
+        return result;
+    }
+
 }

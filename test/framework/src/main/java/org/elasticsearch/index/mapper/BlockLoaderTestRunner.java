@@ -251,8 +251,8 @@ public class BlockLoaderTestRunner {
         StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
         SourceLoader.Leaf leafSourceLoader = null;
         if (storedFieldsSpec.requiresSource()) {
-            var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-            leafSourceLoader = sourceLoader.leaf(context.reader(), null);
+            var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+            leafSourceLoader = sourceLoader.leaf(context, null);
             storedFieldsSpec = storedFieldsSpec.merge(
                 new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
             );

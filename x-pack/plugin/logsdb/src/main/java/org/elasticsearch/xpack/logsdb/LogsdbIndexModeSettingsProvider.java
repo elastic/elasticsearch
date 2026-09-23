@@ -128,6 +128,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final String indexName,
         final String dataStreamName,
         IndexMode templateIndexMode,
+        final boolean registryInstalledTemplate,
         final ProjectMetadata metadata,
         final Instant resolvedAt,
         Settings settings,
@@ -186,8 +187,14 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             );
             if (licenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
                 LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-                SourceFieldMapper.Mode fallbackMode = fallbackSourceMode(settings, templateIndexMode);
-                additionalSettings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), fallbackMode.toString());
+                IndexMode resolvedIndexMode = resolveIndexMode(settings.get(IndexSettings.MODE.getKey()));
+                if (resolvedIndexMode == null) {
+                    resolvedIndexMode = templateIndexMode;
+                }
+                additionalSettings.put(
+                    IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                    fallbackSourceMode(resolvedIndexMode).toString()
+                );
             }
         }
 
@@ -420,15 +427,11 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     /**
      * Returns the source mode to fall back to when synthetic source is not licensed.
-     * Strictly-columnar index modes ({@code columnar} and {@code logsdb_columnar}) do not support
+     * Strictly-columnar index modes do not support
      * {@link SourceFieldMapper.Mode#STORED}, so they fall back to {@link SourceFieldMapper.Mode#COLUMNAR_STORED}.
      * All other index modes fall back to {@link SourceFieldMapper.Mode#STORED}.
      */
-    private static SourceFieldMapper.Mode fallbackSourceMode(Settings settings, IndexMode templateIndexMode) {
-        IndexMode indexMode = resolveIndexMode(settings.get(IndexSettings.MODE.getKey()));
-        if (indexMode == null) {
-            indexMode = templateIndexMode;
-        }
+    private static SourceFieldMapper.Mode fallbackSourceMode(IndexMode indexMode) {
         return indexMode != null && indexMode.isStrictColumnar() ? SourceFieldMapper.Mode.COLUMNAR_STORED : SourceFieldMapper.Mode.STORED;
     }
 

@@ -1,0 +1,5 @@
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false) == true
+  AND COALESCE(languages IN (FROM employees | KEEP languages), false) != true
+  AND ((salary IN (FROM employees | KEEP salary)) IS NULL) == false
+  AND ((languages IN (FROM employees | KEEP languages)) IS NOT NULL) != false

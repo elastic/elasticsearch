@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -209,8 +210,10 @@ public final class SourceExtractors implements Releasable {
      *                    ({@code null} — the list or an entry — disables coercion for that column)
      * @param factory     block factory for memory accounting
      * @return one Block per column, each with exactly {@code count} rows; in caller-supplied order
+     * @throws IOException if an extractor fails while reading the requested columns
      */
-    public Block[] materialize(long[] encodedRefs, int count, List<String> columns, List<DataType> targetTypes, BlockFactory factory) {
+    public Block[] materialize(long[] encodedRefs, int count, List<String> columns, List<DataType> targetTypes, BlockFactory factory)
+        throws IOException {
         if (encodedRefs == null) {
             throw new IllegalArgumentException("encodedRefs must not be null");
         }
@@ -305,12 +308,7 @@ public final class SourceExtractors implements Releasable {
                 if (perIdCounts[id] == 0) {
                     continue;
                 }
-                Block[] perIdBlocks;
-                try {
-                    perIdBlocks = snapshot.get(id).extract(columnNames, targetTypesArray, localPositionsById[id], factory);
-                } catch (IOException e) {
-                    throw new UncheckedIOException("failed to materialize columns " + columns + " from extractor id [" + id + "]", e);
-                }
+                Block[] perIdBlocks = snapshot.get(id).extract(columnNames, targetTypesArray, localPositionsById[id], factory);
                 if (perIdBlocks == null || perIdBlocks.length != colCount) {
                     if (perIdBlocks != null) {
                         Releasables.closeExpectNoException(perIdBlocks);
@@ -345,7 +343,17 @@ public final class SourceExtractors implements Releasable {
             }
 
             // Phase 5: build the final per-column blocks by copying from the per-id blocks in slot
-            // order. Element type comes from the first non-null per-id block for each column.
+            // order. Builder type is the declared/planner type when present ({@code DataType.NULL}
+            // included: leave the builder null so the constant-null arm fills the column). Otherwise
+            // the unique non-{@link ElementType#NULL} element type among this column's per-id
+            // blocks. A {@code ConstantNullBlock} is a Java-non-null pointer with
+            // {@code ElementType.NULL}; using it as the builder type throws {@code "can't append
+            // non-null values to a null block"} as soon as a later id contributes values. Typed
+            // builders already accept all-null sources via {@code copyFrom}. If every per-id block
+            // is all-null, leave the builder null so {@code newConstantNullBlock} below fills the
+            // column even when a declared type is present — allocating a typed builder of size
+            // {@code count} for an all-null deferred column is wasted. Skip {@code copyFrom} for
+            // that column.
             // Hot-path optimization opportunity (deferred): when {@code snapSize == 1} the inverse
             // mapping is identity ({@code inverseId[s] == 0}, {@code inverseIndex[s] == s}) and the
             // builder copy reduces to a verbatim re-build of the per-id block. Detecting that case
@@ -355,20 +363,47 @@ public final class SourceExtractors implements Releasable {
             boolean built = false;
             try {
                 for (int c = 0; c < colCount; c++) {
-                    for (int id = 0; id < snapSize; id++) {
-                        if (perColIdBlocks[c][id] != null) {
-                            builders[c] = perColIdBlocks[c][id].elementType().newBlockBuilder(count, factory);
-                            break;
+                    DataType declared = targetTypesArray == null ? null : targetTypesArray[c];
+                    if (declared != null) {
+                        ElementType declaredEt = DeclaredTypeCoercions.elementTypeFor(declared);
+                        if (declaredEt != ElementType.NULL) {
+                            for (int id = 0; id < snapSize; id++) {
+                                Block b = perColIdBlocks[c][id];
+                                if (b != null && b.elementType() != ElementType.NULL) {
+                                    builders[c] = declaredEt.newBlockBuilder(count, factory);
+                                    break;
+                                }
+                            }
                         }
+                        continue;
+                    }
+                    ElementType type = ElementType.NULL;
+                    for (int id = 0; id < snapSize; id++) {
+                        Block b = perColIdBlocks[c][id];
+                        if (b == null) {
+                            continue;
+                        }
+                        ElementType et = b.elementType();
+                        if (et != ElementType.NULL) {
+                            assert type == ElementType.NULL || type == et : "mixed element types " + type + " vs " + et;
+                            type = et;
+                        }
+                    }
+                    if (type != ElementType.NULL) {
+                        builders[c] = type.newBlockBuilder(count, factory);
                     }
                 }
                 for (int slot = 0; slot < count; slot++) {
                     int id = inverseId[slot];
                     int idx = inverseIndex[slot];
                     for (int c = 0; c < colCount; c++) {
+                        Block.Builder builder = builders[c];
+                        if (builder == null) {
+                            continue;
+                        }
                         Block source = perColIdBlocks[c][id];
                         // source is non-null because perIdCounts[id] > 0 (slot exists for this id).
-                        builders[c].copyFrom(source, idx, idx + 1);
+                        builder.copyFrom(source, idx, idx + 1);
                     }
                 }
                 try {

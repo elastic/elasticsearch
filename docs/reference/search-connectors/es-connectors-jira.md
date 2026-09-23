@@ -120,11 +120,17 @@ The following configuration fields are required to set up the connector:
 `data_source`
 :   Dropdown to determine the Jira platform type: `Jira Cloud`, `Jira Server`, or `Jira Data Center`. Default value is `Jira Cloud`.
 
+`data_center_auth_method` {applies_to}`stack: ga 9.6`
+:   The authentication method for Jira Data Center: `Basic authentication` or `Personal access token`. Default value is `Basic authentication`.
+
 `data_center_username`
-:   The username of the account for Jira Data Center.
+:   The username of the account for Jira Data Center. {applies_to}`stack: ga 9.6` This field is only available for `Basic authentication`.
 
 `data_center_password`
-:   The password of the account to be used for Jira Data Center.
+:   The password of the account to be used for Jira Data Center. {applies_to}`stack: ga 9.6` This field is only available for `Basic authentication`.
+
+`data_center_personal_access_token` {applies_to}`stack: ga 9.6`
+:   The personal access token for Jira Data Center. This field is only available for `Personal access token`.
 
 `username`
 :   The username of the account for Jira Server.
@@ -282,7 +288,7 @@ The connector syncs the following objects and entities:
 **Note:** Archived projects and issues are not indexed.
 
 ::::{note}
-* Content from files bigger than 8 MiB won’t be extracted
+* Content from files bigger than 10 MB won’t be extracted
 * Permissions are not synced by default. You must first enable [DLS](#es-connectors-jira-client-document-level-security). Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

@@ -699,7 +699,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = new ArrayList<>(expressions(ctx.functionParam()));
+        List<Expression> args = new ArrayList<>();
+        for (ParseTree child : ctx.children) {
+            if (child instanceof EsqlBaseParser.BooleanExpressionContext boolCtx) {
+                // Use typedParsing (not expression()) so that function arguments don't count as a
+                // user-visible nesting level, preserving depth-counting semantics.
+                args.add(typedParsing(this, boolCtx, Expression.class));
+            } else if (child instanceof EsqlBaseParser.LambdaContext lambdaCtx) {
+                args.add(visitLambda(lambdaCtx));
+            }
+        }
         if (ctx.mapExpression() != null) {
             MapExpression mapArg = visitMapExpression(ctx.mapExpression());
             args.add(mapArg);
@@ -738,17 +747,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             return last.getText();
         }
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
-    }
-
-    @Override
-    public Expression visitFunctionParam(EsqlBaseParser.FunctionParamContext ctx) {
-        if (ctx.lambda() != null) {
-            return visitLambda(ctx.lambda());
-        }
-        // Use typedParsing (not expression()) to avoid charging a depth unit for the functionParam
-        // grammar rule, which is a grammar-level indirection for lambda support, not a user-visible
-        // nesting level. This preserves the pre-lambda depth-counting semantics.
-        return typedParsing(this, ctx.booleanExpression(), Expression.class);
     }
 
     @Override

@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,12 +50,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3ContentIntegrityRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static final TestTlsCertificate testTlsCertificate = TestTlsCertificate.generate("localhost");
 
@@ -79,8 +80,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             super(
                 true,
                 tlsCertificate,
-                BUCKET,
-                BASE_PATH,
+                bucketSupplier,
+                basePathSupplier,
                 S3ConsistencyModel::randomConsistencyModel,
                 (authorizationHeader, sessionTokenHeader) -> authorizationHeader != null
                     && TEST_CONFIGS.stream()
@@ -174,7 +175,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
@@ -257,7 +258,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         }
 
         String getRepositoryBasePath() {
-            return BASE_PATH
+            return basePathSupplier.get()
                 + "/"
                 + (https ? "https" : "http")
                 + "_chunked_encoding_"

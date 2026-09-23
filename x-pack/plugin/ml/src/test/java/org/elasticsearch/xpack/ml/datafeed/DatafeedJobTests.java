@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -482,6 +483,27 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
         assertThat(flushJobRequests.getAllValues().isEmpty(), is(true));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
+    }
+
+    public void testSkippedClustersStatsUpdatedOnExtractionFailure() throws Exception {
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenThrow(new ResourceNotFoundException("remote cluster skipped"));
+        List<LinkedClusterState> skippedStates = List.of(new LinkedClusterState("remote1", LinkedClusterState.Status.SKIPPED, null, 10));
+        when(dataExtractor.getLinkedClusterStates()).thenReturn(skippedStates);
+
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            randomBoolean(),
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            stats
+        );
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        assertThat(stats.getSkippedClusters(), equalTo(1));
     }
 
     public void testCloudCredentialFailureShouldAuditOncePerFailureEpisode() throws Exception {
@@ -1163,6 +1185,65 @@ public class DatafeedJobTests extends ESTestCase {
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
     }
 
+    public void testEffectiveMaxConsecutiveExtractionFailures() {
+        long frequencyMs = TimeValue.timeValueMinutes(10).millis();
+        long searchesPerDay = createDatafeedJobWithExtractionFailureThreshold(frequencyMs, null).numberOfSearchesIn24Hours();
+        assertThat(searchesPerDay, equalTo(TimeValue.timeValueDays(1).millis() / frequencyMs));
+
+        // Unset defaults to a day's worth of searches so a persistently broken datafeed surfaces within a day.
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(frequencyMs, null).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(searchesPerDay)
+        );
+
+        // An explicit positive value is used verbatim.
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(frequencyMs, 42).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(42L)
+        );
+
+        // -1 disables the behaviour and is preserved, so shouldStopAfterConsecutiveExtractionFailures stays false.
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(frequencyMs, -1).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(-1L)
+        );
+
+        // When the frequency is longer than a day, numberOfSearchesIn24Hours() is 0, so the default floors at 1.
+        long lowFrequencyMs = TimeValue.timeValueDays(2).millis();
+        assertThat(createDatafeedJobWithExtractionFailureThreshold(lowFrequencyMs, null).numberOfSearchesIn24Hours(), equalTo(0L));
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(lowFrequencyMs, null).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(1L)
+        );
+    }
+
+    private DatafeedJob createDatafeedJobWithExtractionFailureThreshold(long frequencyMs, Integer maxConsecutiveExtractionFailures) {
+        Supplier<Long> currentTimeSupplier = () -> currentTime;
+        return new DatafeedJob(
+            "datafeed-" + jobId,
+            null,
+            jobId,
+            null,
+            dataDescription.build(),
+            frequencyMs,
+            500,
+            dataExtractorFactory,
+            timingStatsReporter,
+            client,
+            auditor,
+            new AnnotationPersister(resultsPersisterService),
+            currentTimeSupplier,
+            delayedDataDetector,
+            null,
+            maxConsecutiveExtractionFailures,
+            -1,
+            -1,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime))
+        );
+    }
+
     private DatafeedJob createDatafeedJob(
         long frequencyMs,
         long queryDelayMs,
@@ -1300,6 +1381,7 @@ public class DatafeedJobTests extends ESTestCase {
             new AnnotationPersister(resultsPersisterService),
             currentTimeSupplier,
             delayedDataDetector,
+            null,
             null,
             latestFinalBucketEndTimeMs,
             latestRecordTimeMs,

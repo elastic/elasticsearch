@@ -17,8 +17,11 @@ import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -46,7 +49,29 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
      */
     private static final Set<String> DENY_INCOMPATIBLE_FIELD_TYPES = Set.of("geo_point", "geo_shape", "shape");
 
-    public StandardVersusLogsdbFieldLevelSecurityChallengeRestIT() {}
+    @ClassRule()
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .module("data-streams")
+        .module("x-pack-stack")
+        .user("test_admin", "x-pack-test-password")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .setting("xpack.security.http.ssl.enabled", "false")
+        .setting("xpack.security.transport.ssl.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("cluster.logsdb.enabled", "true")
+        .setting("xpack.ml.enabled", "false")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    public StandardVersusLogsdbFieldLevelSecurityChallengeRestIT() {
+        super(new DataGenerationHelper(builder -> builder.withMaxFieldCountPerLevel(30), false));
+    }
 
     public void testFieldLevelSecuritySourceEquivalence() throws IOException {
         final int numberOfDocuments = ESTestCase.randomIntBetween(20, 80);
@@ -59,11 +84,13 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
         }
         indexDocuments(() -> documents, () -> documents);
 
-        // Deny one field so that, when it lands inside an _ignored_source capture on the logsdb side, FLS must drop that entry and hand
-        // back the survivors - the multi-value re-encode path the fix guards. Both indices filter identically, so the sources must match.
-        final String deniedField = randomDeniedField();
+        // Target one field so that, when it lands inside an _ignored_source capture on the logsdb side, FLS must drop entries and re-encode
+        // the survivors. Also, randomize the polarity: excluding the field exercises the exclude automaton, while granting only it
+        // exercises the include automaton. Both indices filter identically, so the sources must match either way.
+        final String targetField = randomDeniedField();
+        final boolean grantOnly = randomBoolean();
 
-        final String encoded = createFieldLevelSecurityApiKey(deniedField);
+        final String encoded = createFieldLevelSecurityApiKey(targetField, grantOnly);
 
         final SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(numberOfDocuments);
 
@@ -73,18 +100,27 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
             .expected(querySourcesAsApiKey(getBaselineDataStreamName(), search, encoded))
             .ignoringSort(true)
             .isEqualTo(querySourcesAsApiKey(getContenderDataStreamName(), search, encoded));
-        assertTrue("denied field [" + deniedField + "]: " + matchResult.getMessage(), matchResult.isMatch());
+        final String policy = grantOnly ? "grant-only" : "except";
+        assertTrue("target field [" + targetField + "] policy [" + policy + "]: " + matchResult.getMessage(), matchResult.isMatch());
     }
 
     /**
      * Picks a concrete field to deny. Prefers the mapping template's leaf paths (precise, dotted), skipping types whose {@code _source}
      * form the standard index cannot filter identically to logsdb (see {@link #DENY_INCOMPATIBLE_FIELD_TYPES}), but the challenge
      * framework sometimes uses a fully dynamic mapping with no predefined fields, so it falls back to a top-level field from a document.
+     * <p>
+     * It denies only explicitly-mapped fields. A dynamically-mapped text field has a keyword multi-field that FLS restricts when only the
+     * parent is granted, so the granted field reconstructs to null on logsdb and diverges from the standard index. This is a known gap.
+     * TODO: once the multi field gap is addressed, undo the changes in this commit.
      */
     private String randomDeniedField() throws IOException {
+        final Map<String, Map<String, Object>> explicitFields = dataGenerationHelper.mapping().lookup();
+
         final List<String> templateFields = new ArrayList<>();
         for (final Map.Entry<String, String> field : dataGenerationHelper.getTemplateFieldTypes().entrySet()) {
-            if ("@timestamp".equals(field.getKey()) == false && DENY_INCOMPATIBLE_FIELD_TYPES.contains(field.getValue()) == false) {
+            if ("@timestamp".equals(field.getKey()) == false
+                && DENY_INCOMPATIBLE_FIELD_TYPES.contains(field.getValue()) == false
+                && explicitFields.containsKey(field.getKey())) {
                 templateFields.add(field.getKey());
             }
         }
@@ -100,18 +136,17 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
         final List<String> fields = new ArrayList<>();
         for (final Map<String, Object> source : getSources(response)) {
             for (final String key : source.keySet()) {
-                if ("@timestamp".equals(key) == false && fields.contains(key) == false) {
+                if ("@timestamp".equals(key) == false && fields.contains(key) == false && explicitFields.containsKey(key)) {
                     fields.add(key);
                 }
             }
         }
-        assertFalse("expected at least one non-timestamp field in the indexed documents", fields.isEmpty());
+        assertFalse("expected at least one explicitly-mapped non-timestamp field in the indexed documents", fields.isEmpty());
         return randomFrom(fields);
     }
 
-    private String createFieldLevelSecurityApiKey(final String deniedField) throws IOException {
-        final Request request = new Request("POST", "/_security/api_key");
-        // Build via XContentBuilder so randomized field/index names with control characters are correctly JSON-escaped.
+    private String createFieldLevelSecurityApiKey(final String targetField, final boolean grantOnly) throws IOException {
+        // Build via XContentBuilder so randomized field_security, field and index names with control characters are correctly JSON-escaped.
         final XContentBuilder body = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .field("name", "fls-challenge")
@@ -121,18 +156,21 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
             .startObject()
             .array("names", getBaselineDataStreamName(), getContenderDataStreamName())
             .array("privileges", "read")
-            .startObject("field_security")
-            .array("grant", "*")
-            .array("except", deniedField)
-            .endObject()
-            .endObject()
-            .endArray()
-            .endObject()
-            .endObject()
-            .endObject();
+            .startObject("field_security");
+        // grantOnly grants just @timestamp plus the target field (an include filter that drops everything else); otherwise grant all
+        // fields except the target (an exclude filter). @timestamp is always granted so the routing/sort field survives both polarities.
+        if (grantOnly) {
+            body.array("grant", "@timestamp", targetField);
+        } else {
+            body.array("grant", "*").array("except", targetField);
+        }
+        body.endObject().endObject().endArray().endObject().endObject().endObject();
+
+        final Request request = new Request("POST", "/_security/api_key");
         request.setJsonEntity(Strings.toString(body));
         final Response response = client.performRequest(request);
         assertOK(response);
+
         return (String) entityAsMap(response).get("encoded");
     }
 

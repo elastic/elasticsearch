@@ -29,7 +29,7 @@ configurations {
 
 dependencies {
   testImplementation project(':test:framework')
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
   api project(':test:fixtures:testcontainer-utils')
   implementation("commons-io:commons-io:2.15.1")
 
@@ -37,7 +37,7 @@ dependencies {
     transitive = false
   }
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 
   // ensure we have proper logging during when used in tests
   runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"

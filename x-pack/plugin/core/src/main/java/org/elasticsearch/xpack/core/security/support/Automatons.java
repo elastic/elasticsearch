@@ -226,10 +226,10 @@ public final class Automatons {
 
         final List<Automaton> automata = new ArrayList<>();
         if (prefix.isEmpty() == false) {
-            automata.add(Operations.concatenate(build.apply(prefix), Automata.makeAnyString()));
+            automata.add(Operations.concatenate(List.of(build.apply(prefix), Automata.makeAnyString())));
         }
         if (suffix.isEmpty() == false) {
-            automata.add(Operations.concatenate(Automata.makeAnyString(), build.apply(suffix)));
+            automata.add(Operations.concatenate(List.of(Automata.makeAnyString(), build.apply(suffix))));
         }
         if (infix.isEmpty() == false) {
             automata.add(Operations.concatenate(List.of(Automata.makeAnyString(), build.apply(infix), Automata.makeAnyString())));

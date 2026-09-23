@@ -87,32 +87,9 @@ public interface ESVectorUtilSupport {
 
     float ipFloatByte(float[] q, byte[] d);
 
-    float calculateOSQLoss(
-        float[] target,
-        float lowerInterval,
-        float upperInterval,
-        float step,
-        float invStep,
-        float norm2,
-        float lambda,
-        int[] quantize
-    );
-
-    void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts);
-
-    void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats);
-
-    void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats);
-
-    void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats);
-
-    void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats);
-
     float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
 
     float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm);
-
-    int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
     void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
 
@@ -197,4 +174,8 @@ public interface ESVectorUtilSupport {
     float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
 
     void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
+
+    void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result);
+
+    void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result);
 }

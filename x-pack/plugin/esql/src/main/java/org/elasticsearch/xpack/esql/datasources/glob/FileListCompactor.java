@@ -47,6 +47,13 @@ final class FileListCompactor {
         if (raw == null || raw.isResolved() == false || raw.fileCount() == 0) {
             return raw;
         }
+        // Neither compacted encoding carries the truncation flag, so compacting would report a bounded listing as
+        // a complete one. Refused here rather than at the caller so a future caller cannot drop the flag. The
+        // cost: a listing bounded at a raised partition_sample_size is carried uncompacted through planning.
+        // Teaching the encodings to carry the flag would remove the trade-off.
+        if (raw.isTruncated()) {
+            return raw;
+        }
         String normalizedBase = normalizeBase(basePath);
         PartitionMetadata pm = raw.partitionMetadata();
         FileList groupedCandidate = pm != null && pm.isEmpty() == false ? tryDirectoryGrouped(normalizedBase, raw) : null;
@@ -228,7 +235,8 @@ final class FileListCompactor {
             raw.originalPattern(),
             raw.partitionMetadata(),
             count,
-            raw.fileSetFingerprint()
+            raw.fileSetFingerprint(),
+            raw.listingWarnings()
         );
     }
 
@@ -346,7 +354,8 @@ final class FileListCompactor {
             raw.originalPattern(),
             raw.partitionMetadata(),
             count,
-            raw.fileSetFingerprint()
+            raw.fileSetFingerprint(),
+            raw.listingWarnings()
         );
     }
 

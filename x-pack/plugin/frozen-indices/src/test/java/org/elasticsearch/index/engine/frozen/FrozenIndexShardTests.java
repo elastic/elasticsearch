@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.index.engine.frozen;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -29,12 +30,14 @@ public class FrozenIndexShardTests extends IndexShardTestCase {
         indexDoc(indexShard, "_doc", "3");
         flushAndCloseShardNoCheck(indexShard);
         final ShardRouting shardRouting = indexShard.routingEntry();
+        final ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
+            shardRouting,
+            shardRouting.primary() ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+        );
         IndexShard frozenShard = reinitShard(
             indexShard,
-            ShardRoutingHelper.initWithSameId(
-                shardRouting,
-                shardRouting.primary() ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
-            ),
+            reinitRouting,
+            reinitRouting.primary() ? null : DiscoveryNodeUtils.create("source-node"),
             indexShard.indexSettings().getIndexMetadata(),
             config -> new FrozenEngine(config, true, randomBoolean())
         );

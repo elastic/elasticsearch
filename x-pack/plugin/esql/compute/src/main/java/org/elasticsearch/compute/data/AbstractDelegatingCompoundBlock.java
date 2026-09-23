@@ -92,14 +92,9 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
 
     @Override
     public final int getTotalValueCount() {
-        int subBlockCount = subBlockPositionCount();
-        int nullCount = 0;
-        for (int p = 0; p < positionCount; p++) {
-            if (isNull(p)) {
-                nullCount++;
-            }
-        }
-        return subBlockCount - nullCount;
+        // Every value (null or not) occupies exactly one sub-block position, and the first
+        // sub-block is null exactly at the sub-positions where this block is null.
+        return getSubBlocks().getFirst().getTotalValueCount();
     }
 
     @Override

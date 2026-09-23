@@ -35,6 +35,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     public static final String SERVER_ERROR_OBJECT = "Received an error response";
     public static final String BAD_REQUEST = "Received a bad request status code";
     public static final String METHOD_NOT_ALLOWED = "Received a method not allowed status code";
+    public static final String VALIDATION_ERROR = "Received an input validation error response";
 
     protected final String requestType;
     protected final ResponseParser nonStreamingResponseParseFunction;
@@ -90,10 +91,10 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
         var errorEntityMsg = errorParseFunction.apply(result);
-        return buildError(message, outboundRequest, result, errorEntityMsg);
+        return constructNonStreamingException(message, outboundRequest, result, errorEntityMsg);
     }
 
-    protected ElasticsearchException buildError(
+    public static ElasticsearchStatusException constructNonStreamingException(
         String message,
         OutboundRequest outboundRequest,
         HttpResult result,

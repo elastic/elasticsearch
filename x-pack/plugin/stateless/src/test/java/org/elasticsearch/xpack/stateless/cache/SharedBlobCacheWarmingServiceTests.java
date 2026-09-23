@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.IndexingShardCacheBlobRead
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -106,6 +107,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -119,7 +121,9 @@ import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUF
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_BCC_HEADER_PREWARM;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_MERGE;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -2216,8 +2220,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         .filter(
                             measurement -> Double.compare(measurement.getDouble(), blobSpec.ratio()) == 0
                                 && measurement.attributes()
-                                    .get(StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY)
-                                    .equals(StatelessCommitService.bccSizeBucket(blobSpec.blobSize()))
+                                    .get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY)
+                                    .equals(BccUploadMetrics.bccSizeBucket(blobSpec.blobSize()))
                         )
                         .count(),
                     is(1L)
@@ -2235,12 +2239,12 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 .thenComparing(Map.Entry::getValue);
             assertThat(
                 requestedBytesMeasurements.stream()
-                    .map(m -> Map.entry(m.getLong(), m.attributes().get(StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY).toString()))
+                    .map(m -> Map.entry(m.getLong(), m.attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY).toString()))
                     .sorted(byValueThenBucket)
                     .toList(),
                 equalTo(
                     blobSpecs.stream()
-                        .map(spec -> Map.entry(spec.endOffset(), StatelessCommitService.bccSizeBucket(spec.blobSize())))
+                        .map(spec -> Map.entry(spec.endOffset(), BccUploadMetrics.bccSizeBucket(spec.blobSize())))
                         .sorted(byValueThenBucket)
                         .toList()
                 )
@@ -2507,14 +2511,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeNode.sharedCacheService.getRegionSize(),
                 randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
-            appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+            // Mirror recovery: build the BCC first, then a single updateCommit with file ranges.
+            for (StatelessCommitRef statelessCommitRef : indexCommits) {
+                assertTrue(vbcc.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
             vbcc.freeze();
 
-            // Force a single, known timestamp for every file in the recovered commit so the ShardWarmer's per-file resolution is
-            // deterministic regardless of which segment/region ends up being warmed.
             final StatelessCompoundCommit lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
             final var timestampRange = new StatelessCompoundCommit.TimestampFieldValueRange(knownTimestamp, knownTimestamp);
             final Map<String, BlobFileRanges> timestampOverride = new HashMap<>();
+            // Artificially stamp every file in the recovered commit with the same known timestamp so we can assert deterministically.
             for (var entry : lastCommit.commitFiles().entrySet()) {
                 timestampOverride.put(entry.getKey(), new BlobFileRanges(entry.getValue(), timestampRange));
             }
@@ -2869,6 +2875,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .build();
             }
         }) {
+
             var warmingService = fakeNode.warmingService;
 
             // We want to force the warming tasks that we assert on to go into the queue of the task runner.
@@ -3088,6 +3095,197 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             safeGet(mergeWarmFuture);
 
             threadPoolBlocker.countDown();
+        }
+    }
+
+    public void testMergeWarmingSchedulesOneTaskPerRegion() throws IOException {
+        var primaryTerm = 1;
+        var warmingTasks = new ArrayList<AbstractWarmingTask>();
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    warmingRatioProvider
+                ) {
+                    @Override
+                    protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                        warmingTasks.add(task);
+                        super.scheduleWarmingTask(task);
+                    }
+                };
+            }
+        }) {
+            var fileName = "_segment1.si";
+            var segmentInfo = new SegmentInfo(
+                fakeNode.indexingDirectory,
+                Version.LATEST,
+                Version.LATEST,
+                "_segment1",
+                Integer.MAX_VALUE,
+                false,
+                false,
+                null,
+                Map.of(),
+                new byte[16],
+                Map.of(),
+                null
+            );
+            segmentInfo.setFiles(List.of(fileName));
+            var segmentCommitInfo = new SegmentCommitInfo(segmentInfo, 0, 0, -1L, -1L, -1L, new byte[16]);
+
+            int regionCount = randomIntBetween(2, 5);
+            var blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
+            var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
+            var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
+            var mergeWarmFuture = new PlainActionFuture<Void>();
+            fakeNode.warmingService.warmCacheMerge(
+                "test-merge",
+                fakeNode.shardId,
+                fakeNode.indexingStore,
+                List.of(segmentCommitInfo),
+                ignored -> blobLocation,
+                () -> false,
+                mergeWarmFuture
+            );
+            assertThat(warmingTasks, hasSize(regionCount));
+            safeGet(mergeWarmFuture);
+        }
+    }
+
+    public void testMergeWarmingIsInterleavedWithRegion0Warming() throws IOException {
+        var primaryTerm = 1;
+
+        // test that interleaving between regions from merges and region-0 prewarmings can take place: to do so we store the execution order
+        // of prewarmings and assert at the end that interleaving took place
+        List<Type> warmingTaskRunnerExecutionOrder = Collections.synchronizedList(new ArrayList<>());
+
+        // warmingTaskRunner executes at most 2 tasks at a time (see nodeSettings below), so we start with 2 merge-region tasks that start
+        // and block
+        var mergeStarted = new CountDownLatch(2);
+        var mergeRelease = new Semaphore(0);
+
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                Settings settings = super.nodeSettings();
+                return Settings.builder()
+                    .put(settings)
+                    // warmingTaskRunner is set to have max running tasks of 1 + stateless_prewarm_thread_pool.max, so we set max to 1
+                    // here, so we execute at most 2 tasks at a time
+                    .put("stateless.stateless_prewarm_thread_pool.core", 1)
+                    .put("stateless.stateless_prewarm_thread_pool.max", 1)
+                    .build();
+            }
+
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    warmingRatioProvider
+                ) {
+                    @Override
+                    protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                        super.scheduleWarmingTask(new AbstractWarmingTask(task.type, task.position) {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                warmingTaskRunnerExecutionOrder.add(task.type);
+
+                                if (task.type == INDEXING_MERGE) {
+                                    mergeStarted.countDown();
+                                    safeAcquire(mergeRelease);
+                                }
+
+                                task.onResponse(releasable);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                task.onFailure(e);
+                            }
+                        });
+                    }
+                };
+            }
+        }) {
+            var fileName = "_segment1.si";
+            var segmentInfo = new SegmentInfo(
+                fakeNode.indexingDirectory,
+                Version.LATEST,
+                Version.LATEST,
+                "_segment1",
+                Integer.MAX_VALUE,
+                false,
+                false,
+                null,
+                Map.of(),
+                new byte[16],
+                Map.of(),
+                null
+            );
+            segmentInfo.setFiles(List.of(fileName));
+            var segmentCommitInfo = new SegmentCommitInfo(segmentInfo, 0, 0, -1L, -1L, -1L, new byte[16]);
+
+            // merge warming schedules one task per region, so we end up with 5 merge tasks for warming regions
+            int regionCount = 5;
+            var blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
+            var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
+            var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
+            var mergeWarmFuture = new PlainActionFuture<Void>();
+            fakeNode.warmingService.warmCacheMerge(
+                "test-merge",
+                fakeNode.shardId,
+                fakeNode.indexingStore,
+                List.of(segmentCommitInfo),
+                ignored -> blobLocation,
+                () -> false,
+                mergeWarmFuture
+            );
+
+            // wait until both the 2 merge tasks are running, while the remaining 3 are queued
+            safeAwait(mergeStarted);
+
+            // start the region-0 prewarming
+            var indexShard = mockIndexShard(fakeNode);
+            var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
+            var region0Future = new PlainActionFuture<Void>();
+            fakeNode.warmingService.warmCacheForBCCHeadersRead(indexShard, directory, Set.of(blobFile), region0Future);
+
+            // only after we've started the region-0 prewarming we allow one of the 2 previous merge running tasks to complete
+            // at this point we would have 1 merge-task ran, 1 running merge and 1 running region-0 task, and 3 queued merge tasks
+            mergeRelease.release();
+            safeGet(region0Future);
+
+            // let the remaining merge tasks to run and complete
+            mergeRelease.release(regionCount - 1);
+            safeGet(mergeWarmFuture);
+
+            // we started with prewarming 2 merge regions, then we had a region-0 prewarming that took place before the remaining queued 3
+            // merge tasks
+            assertThat(
+                warmingTaskRunnerExecutionOrder,
+                equalTo(
+                    List.of(INDEXING_MERGE, INDEXING_MERGE, INDEXING_BCC_HEADER_PREWARM, INDEXING_MERGE, INDEXING_MERGE, INDEXING_MERGE)
+                )
+            );
         }
     }
 

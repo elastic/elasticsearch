@@ -49,6 +49,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     static final String ERROR_MESSAGE_ON_JOB_ID_UPDATE = "Datafeed's job_id cannot be changed.";
 
+    public static final ParseField FORCE_REKEYING = new ParseField("_force_rekeying");
+
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", Builder::new);
 
     static {
@@ -87,6 +89,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG
         );
         PARSER.declareInt(Builder::setMaxEmptySearches, DatafeedConfig.MAX_EMPTY_SEARCHES);
+        PARSER.declareInt(Builder::setMaxConsecutiveExtractionFailures, DatafeedConfig.MAX_CONSECUTIVE_EXTRACTION_FAILURES);
         PARSER.declareObject(
             Builder::setIndicesOptions,
             (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
@@ -94,6 +97,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         );
         PARSER.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         PARSER.declareString(Builder::setProjectRouting, DatafeedConfig.PROJECT_ROUTING);
+        PARSER.declareBoolean(Builder::setForceRekeying, FORCE_REKEYING);
     }
 
     private final String id;
@@ -108,9 +112,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final ChunkingConfig chunkingConfig;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
     private final Integer maxEmptySearches;
+    private final Integer maxConsecutiveExtractionFailures;
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
     private final String projectRouting;
+    private final Boolean forceRekeying;
 
     private DatafeedUpdate(
         String id,
@@ -125,9 +131,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         ChunkingConfig chunkingConfig,
         DelayedDataCheckConfig delayedDataCheckConfig,
         Integer maxEmptySearches,
+        Integer maxConsecutiveExtractionFailures,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings,
-        String projectRouting
+        String projectRouting,
+        Boolean forceRekeying
     ) {
         this.id = id;
         this.jobId = jobId;
@@ -141,9 +149,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.chunkingConfig = chunkingConfig;
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
+        this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
         this.indicesOptions = indicesOptions;
         this.runtimeMappings = runtimeMappings;
         this.projectRouting = projectRouting;
+        this.forceRekeying = forceRekeying;
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {
@@ -172,6 +182,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
         this.runtimeMappings = in.readBoolean() ? in.readGenericMap() : null;
         projectRouting = in.getTransportVersion().supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING) ? in.readOptionalString() : null;
+        forceRekeying = in.getTransportVersion().supports(DatafeedConfig.DATAFEED_FORCE_REKEYING) ? in.readOptionalBoolean() : null;
+        maxConsecutiveExtractionFailures = in.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)
+            ? in.readOptionalInt()
+            : null;
     }
 
     /**
@@ -222,6 +236,12 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (out.getTransportVersion().supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING)) {
             out.writeOptionalString(projectRouting);
         }
+        if (out.getTransportVersion().supports(DatafeedConfig.DATAFEED_FORCE_REKEYING)) {
+            out.writeOptionalBoolean(forceRekeying);
+        }
+        if (out.getTransportVersion().supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES)) {
+            out.writeOptionalInt(maxConsecutiveExtractionFailures);
+        }
     }
 
     @Override
@@ -253,6 +273,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         addOptionalField(builder, DatafeedConfig.CHUNKING_CONFIG, chunkingConfig);
         addOptionalField(builder, DatafeedConfig.DELAYED_DATA_CHECK_CONFIG, delayedDataCheckConfig);
         addOptionalField(builder, DatafeedConfig.MAX_EMPTY_SEARCHES, maxEmptySearches);
+        addOptionalField(builder, DatafeedConfig.MAX_CONSECUTIVE_EXTRACTION_FAILURES, maxConsecutiveExtractionFailures);
         if (indicesOptions != null) {
             builder.startObject(DatafeedConfig.INDICES_OPTIONS.getPreferredName());
             indicesOptions.toXContent(builder, params);
@@ -260,6 +281,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         addOptionalField(builder, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD, runtimeMappings);
         addOptionalField(builder, DatafeedConfig.PROJECT_ROUTING, projectRouting);
+        if (forceRekeying != null) {
+            builder.field(FORCE_REKEYING.getPreferredName(), forceRekeying);
+        }
         builder.endObject();
         return builder;
     }
@@ -296,6 +320,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     public String getProjectRouting() {
         return projectRouting;
+    }
+
+    public Boolean getForceRekeying() {
+        return forceRekeying;
     }
 
     Map<String, Object> getQuery() {
@@ -337,6 +365,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     public Integer getMaxEmptySearches() {
         return maxEmptySearches;
+    }
+
+    public Integer getMaxConsecutiveExtractionFailures() {
+        return maxConsecutiveExtractionFailures;
     }
 
     public IndicesOptions getIndicesOptions() {
@@ -390,6 +422,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (maxEmptySearches != null) {
             builder.setMaxEmptySearches(maxEmptySearches);
         }
+        if (maxConsecutiveExtractionFailures != null) {
+            builder.setMaxConsecutiveExtractionFailures(maxConsecutiveExtractionFailures);
+        }
         if (indicesOptions != null) {
             builder.setIndicesOptions(indicesOptions);
         }
@@ -434,9 +469,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             && Objects.equals(this.scriptFields, that.scriptFields)
             && Objects.equals(this.chunkingConfig, that.chunkingConfig)
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
+            && Objects.equals(this.maxConsecutiveExtractionFailures, that.maxConsecutiveExtractionFailures)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
             && Objects.equals(this.runtimeMappings, that.runtimeMappings)
-            && Objects.equals(this.projectRouting, that.projectRouting);
+            && Objects.equals(this.projectRouting, that.projectRouting)
+            && Objects.equals(this.forceRekeying, that.forceRekeying);
     }
 
     @Override
@@ -454,9 +491,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             chunkingConfig,
             delayedDataCheckConfig,
             maxEmptySearches,
+            maxConsecutiveExtractionFailures,
             indicesOptions,
             runtimeMappings,
-            projectRouting
+            projectRouting,
+            forceRekeying
         );
     }
 
@@ -514,6 +553,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             && (maxEmptySearches == null
                 || Objects.equals(maxEmptySearches, datafeed.getMaxEmptySearches())
                 || (maxEmptySearches == -1 && datafeed.getMaxEmptySearches() == null))
+            && (maxConsecutiveExtractionFailures == null
+                || Objects.equals(maxConsecutiveExtractionFailures, datafeed.getMaxConsecutiveExtractionFailures()))
             && (indicesOptions == null || Objects.equals(indicesOptions, datafeed.getIndicesOptions()))
             && (runtimeMappings == null || Objects.equals(runtimeMappings, datafeed.getRuntimeMappings()))
             && (projectRouting == null || Objects.equals(projectRouting, datafeed.getProjectRouting()));
@@ -533,9 +574,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private ChunkingConfig chunkingConfig;
         private DelayedDataCheckConfig delayedDataCheckConfig;
         private Integer maxEmptySearches;
+        private Integer maxConsecutiveExtractionFailures;
         private IndicesOptions indicesOptions;
         private Map<String, Object> runtimeMappings;
         private String projectRouting;
+        private Boolean forceRekeying;
 
         public Builder() {}
 
@@ -556,9 +599,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.chunkingConfig = config.chunkingConfig;
             this.delayedDataCheckConfig = config.delayedDataCheckConfig;
             this.maxEmptySearches = config.maxEmptySearches;
+            this.maxConsecutiveExtractionFailures = config.maxConsecutiveExtractionFailures;
             this.indicesOptions = config.indicesOptions;
             this.runtimeMappings = config.runtimeMappings != null ? new HashMap<>(config.runtimeMappings) : null;
             this.projectRouting = config.projectRouting;
+            this.forceRekeying = config.forceRekeying;
         }
 
         public Builder setId(String datafeedId) {
@@ -649,6 +694,19 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setMaxConsecutiveExtractionFailures(int maxConsecutiveExtractionFailures) {
+            if (maxConsecutiveExtractionFailures < -1 || maxConsecutiveExtractionFailures == 0) {
+                String msg = Messages.getMessage(
+                    Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
+                    DatafeedConfig.MAX_CONSECUTIVE_EXTRACTION_FAILURES.getPreferredName(),
+                    maxConsecutiveExtractionFailures
+                );
+                throw ExceptionsHelper.badRequestException(msg);
+            }
+            this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
+            return this;
+        }
+
         public Builder setIndicesOptions(IndicesOptions indicesOptions) {
             this.indicesOptions = indicesOptions;
             return this;
@@ -661,6 +719,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         public Builder setProjectRouting(String projectRouting) {
             this.projectRouting = projectRouting;
+            return this;
+        }
+
+        public Builder setForceRekeying(Boolean forceRekeying) {
+            this.forceRekeying = forceRekeying;
             return this;
         }
 
@@ -678,9 +741,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 chunkingConfig,
                 delayedDataCheckConfig,
                 maxEmptySearches,
+                maxConsecutiveExtractionFailures,
                 indicesOptions,
                 runtimeMappings,
-                projectRouting
+                projectRouting,
+                forceRekeying
             );
         }
     }

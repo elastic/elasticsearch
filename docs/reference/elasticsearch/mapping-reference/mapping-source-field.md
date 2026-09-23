@@ -318,6 +318,8 @@ The columnar index modes use columnar source. By default this content gets gener
 But this content can also be stored on disk at index time by using `columnar_stored` source mode.
 The `columnar_stored` source mode can be useful for queries that fetch all or most of the fields in the index.
 
+Both modes return the same content, which differs from the document that was sent at index time: field paths are flattened, arrays of objects lose their grouping, and content that no mapped field can hold is dropped. For details, and for a comparison with `logsdb` synthetic source, see [What columnar `_source` preserves](/reference/elasticsearch/columnar/index.md#columnar-source-fidelity).
+
 To use columnar-stored source:
 
 ```console
@@ -325,16 +327,18 @@ PUT my-columnar-index
 {
   "settings": {
     "index": {
+      "mapping": {
+        "source": {
+          "mode": "columnar_stored"
+        }
+      },
       "mode": "columnar"
-    }
-  },
-  "mappings": {
-    "_source": {
-      "mode": "columnar_stored"
     }
   }
 }
 ```
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` When a field is mapped with [`doc_values: {multi_value: false, on_failure: ignore}`](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure), both columnar source modes reconstruct the full original array in `_source`. The primary doc value appears first, followed by the values held in the field's hidden `._on_failure` sidecar column, preserving the order in which they were originally supplied. Source fidelity is therefore maintained even though only the first value per document participates in search, aggregation, and ES|QL queries.
 
 Turning off `_source` entirely (`"_source": {"enabled": false}`) is **not allowed** in columnar modes.
 

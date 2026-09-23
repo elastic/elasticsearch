@@ -27,12 +27,14 @@ import org.elasticsearch.columnar.ColumnarFieldType;
  *         case DOUBLE -> NumericPipeline::doubleGaugePipeline;
  *         default     -> NumericPipeline::defaultPipeline;
  *     },
+ *     field -> ColumnarFieldType.DOUBLE,
  *     blockSize
  * )
  * }</pre>
  *
- * <p>The no-arg {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} constructor wires a
- * default implementation that always returns {@link NumericPipeline#defaultPipeline}.
+ * <p>The no-arg {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} SPI constructor is
+ * read-only: it pairs {@link NumericPipeline#defaultPipeline} with a type selector that fails fast
+ * if a write path resolves a type through it.
  */
 @FunctionalInterface
 public interface NumericPipelineSelector {
@@ -42,7 +44,7 @@ public interface NumericPipelineSelector {
      * the format's block size to produce the concrete {@link NumericPipeline}.
      *
      * @param fieldName the Lucene field name
-     * @param type      the columnar field type resolved from {@link org.apache.lucene.index.FieldInfo} attributes
+     * @param type      the columnar field type resolved by the injected {@code ColumnarFieldTypeSelector}
      */
     NumericPipelineTemplate select(String fieldName, ColumnarFieldType type);
 }

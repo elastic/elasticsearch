@@ -18,7 +18,9 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
@@ -637,7 +639,8 @@ public class IndexEngineTests extends AbstractEngineTestCase {
 
     /**
      * Verifies that {@code StatelessThreadPoolMergeScheduler}'s throttle callbacks are correctly wired to the engine's
-     * throttle state, and that {@code getMaxMergeCount()} returns the expected threshold for a given factor.
+     * throttle state, that {@code getMaxMergeCount()} returns the expected threshold for a given factor, and that the
+     * factor is read dynamically so live cluster-settings updates are reflected without restarting the engine.
      */
     public void testStatelessMergeThrottleConfiguration() throws IOException {
         int factor = randomIntBetween(1, 5);
@@ -645,7 +648,17 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), factor)
             .build();
-        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings))) {
+        // Build ClusterSettings explicitly so we can push a dynamic update after engine construction.
+        ClusterSettings clusterSettings = new ClusterSettings(
+            nodeSettings,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                IndexEngine.MERGE_FORCE_REFRESH_SIZE,
+                IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR
+            )
+        );
+        IndexEngineDynamicSettings dynamicSettings = new IndexEngineDynamicSettings(clusterSettings);
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, nodeSettings), dynamicSettings)) {
             var scheduler = (IndexEngine.StatelessThreadPoolMergeScheduler) engine.getMergeScheduler();
 
             // threshold = factor × allocatedProcessors (= thread pool merge max)
@@ -658,6 +671,11 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             assertTrue(engine.isThrottled());
             scheduler.disableIndexingThrottling(0, 0, factor * maxConcurrentMerges);
             assertFalse(engine.isThrottled());
+
+            // dynamic update: changing the factor is reflected immediately in getMaxMergeCount()
+            int newFactor = factor + randomIntBetween(1, 5);
+            clusterSettings.applySettings(Settings.builder().put(IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR.getKey(), newFactor).build());
+            assertThat(scheduler.getMaxMergeCount(), equalTo(newFactor * maxConcurrentMerges));
         }
     }
 
@@ -734,6 +752,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
                 DocumentParsingProvider.EMPTY_INSTANCE,
                 new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+                newIndexEngineDynamicSettings(indexConfig.getIndexSettings().getNodeSettings()),
                 commitService.getShardLocalCommitsTracker(indexConfig.getShardId()).shardLocalReadersTracker()
             ) {
                 @Override

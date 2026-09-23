@@ -39,8 +39,8 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
             super(
                 USE_FIXTURE,
                 null,
-                "bucket",
-                "base_path_integration_tests",
+                () -> "bucket",
+                () -> "base_path_integration_tests",
                 () -> consistencyModel,
                 fixedAccessKey("s3_test_access_key", regionSupplier, "s3")
             );

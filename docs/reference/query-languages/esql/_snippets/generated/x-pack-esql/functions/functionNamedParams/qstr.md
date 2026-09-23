@@ -12,7 +12,7 @@
 :   (boolean) If true, the query attempts to analyze wildcard terms in the query string. Defaults to false.
 
 `analyzer`
-:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the default_field.
+:   (keyword) Analyzer used to convert the text in the query value into tokens. Defaults to the index-time analyzer mapped for the default_field.
 
 `auto_generate_synonyms_phrase_query`
 :   (boolean) If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.

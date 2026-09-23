@@ -22,6 +22,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODE
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.CSP_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.GEO_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_DISPLAY_NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
@@ -32,6 +33,11 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.INTERNAL_FIE
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.VERSION_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.MODEL_IDENTITY_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.CREATOR_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.FAMILY_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.TIER_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.VERSION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,6 +107,12 @@ public class EndpointMetadataParserTests extends ESTestCase {
         displayMap.put(NAME_FIELD, MY_ENDPOINT);
         displayMap.put(MODEL_CREATOR_FIELD, MY_ENDPOINT_CREATOR);
 
+        var modelIdentityMap = new HashMap<String, Object>();
+        modelIdentityMap.put(CREATOR_FIELD, "test_ai");
+        modelIdentityMap.put(FAMILY_FIELD, "test_model");
+        modelIdentityMap.put(TIER_FIELD, "test_tier");
+        modelIdentityMap.put(VERSION_FIELD, "4.2");
+
         var regionMap = new HashMap<String, Object>();
         regionMap.put(CSP_FIELD.getPreferredName(), "aws");
         regionMap.put(REGION_FIELD.getPreferredName(), "us-east-1");
@@ -110,6 +122,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
         metadataMap.put(HEURISTICS_FIELD_NAME, heuristicsMap);
         metadataMap.put(INTERNAL_FIELD_NAME, internalMap);
         metadataMap.put(DISPLAY_FIELD_NAME, displayMap);
+        metadataMap.put(MODEL_IDENTITY_FIELD_NAME, modelIdentityMap);
         metadataMap.put(REGIONS_FIELD_NAME, List.of(regionMap));
         metadataMap.put(DENIED_BY_REGION_POLICY_FIELD_NAME, true);
 
@@ -128,7 +141,9 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         assertThat(result.display(), equalTo(new EndpointMetadata.Display(MY_ENDPOINT, MY_ENDPOINT_CREATOR)));
 
-        assertThat(result.regions(), equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"))));
+        assertThat(result.modelIdentity(), equalTo(new EndpointMetadata.ModelIdentity("test_ai", "test_model", "test_tier", "4.2")));
+
+        assertThat(result.regions(), equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", null))));
         assertTrue(result.deniedByRegionPolicy());
     }
 
@@ -306,13 +321,14 @@ public class EndpointMetadataParserTests extends ESTestCase {
         regionMap.put(CSP_FIELD.getPreferredName(), "aws");
         regionMap.put(REGION_FIELD.getPreferredName(), "us-east-1");
         regionMap.put(GEO_FIELD.getPreferredName(), "us");
+        regionMap.put(REGION_DISPLAY_NAME_FIELD.getPreferredName(), "US East (N. Virginia)");
 
         var map = new HashMap<String, Object>();
         map.put(REGIONS_FIELD_NAME, List.of(regionMap));
 
         var result = EndpointMetadataParser.regionsFromMap(map, ROOT);
 
-        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"))));
+        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", "US East (N. Virginia)"))));
     }
 
     public void testRegionsFromMap_ParsesMultipleRegions() {
@@ -335,8 +351,8 @@ public class EndpointMetadataParserTests extends ESTestCase {
             result,
             equalTo(
                 List.of(
-                    new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"),
-                    new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu")
+                    new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", null),
+                    new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu", null)
                 )
             )
         );
@@ -348,7 +364,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var result = EndpointMetadataParser.regionsFromMap(map, ROOT);
 
-        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion(null, null, null))));
+        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion(null, null, null, null))));
     }
 
     public void testRegionsFromMap_Throws_WhenItemIsNotAMap() {
@@ -379,5 +395,56 @@ public class EndpointMetadataParserTests extends ESTestCase {
         map.put(DENIED_BY_REGION_POLICY_FIELD_NAME, false);
 
         assertFalse(EndpointMetadataParser.deniedByRegionPolicyFromMap(map, ROOT));
+    }
+
+    public void testModelIdentityFromMap_ReturnsEmpty_WhenMapIsNull() {
+        assertThat(EndpointMetadataParser.modelIdentityFromMap(null, ROOT), sameInstance(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE));
+    }
+
+    public void testModelIdentityFromMap_ReturnsEmpty_WhenMapIsEmpty() {
+        assertThat(
+            EndpointMetadataParser.modelIdentityFromMap(Map.of(), ROOT),
+            sameInstance(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE)
+        );
+    }
+
+    public void testModelIdentityFromMap_ReturnsEmpty_WhenAllFieldsAreNull() {
+        var map = new HashMap<String, Object>();
+        map.put(CREATOR_FIELD, null);
+        map.put(FAMILY_FIELD, null);
+        map.put(TIER_FIELD, null);
+        map.put(VERSION_FIELD, null);
+
+        assertThat(EndpointMetadataParser.modelIdentityFromMap(map, ROOT), sameInstance(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE));
+    }
+
+    public void testModelIdentityFromMap_ParsesAllFields() {
+        var map = new HashMap<String, Object>();
+        map.put(CREATOR_FIELD, "anthropic");
+        map.put(FAMILY_FIELD, "claude");
+        map.put(TIER_FIELD, "sonnet");
+        map.put(VERSION_FIELD, "4.6");
+
+        var result = EndpointMetadataParser.modelIdentityFromMap(map, ROOT);
+
+        assertThat(result, equalTo(new EndpointMetadata.ModelIdentity("anthropic", "claude", "sonnet", "4.6")));
+    }
+
+    public void testModelIdentityFromMap_ParsesPartialFields() {
+        var map = new HashMap<String, Object>();
+        map.put(CREATOR_FIELD, "elastic");
+        map.put(FAMILY_FIELD, "elser");
+
+        var result = EndpointMetadataParser.modelIdentityFromMap(map, ROOT);
+
+        assertThat(result, equalTo(new EndpointMetadata.ModelIdentity("elastic", "elser", null, null)));
+    }
+
+    public void testModelIdentityFromMap_Throws_WhenCreatorWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(CREATOR_FIELD, 999);
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.modelIdentityFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(CREATOR_FIELD));
     }
 }

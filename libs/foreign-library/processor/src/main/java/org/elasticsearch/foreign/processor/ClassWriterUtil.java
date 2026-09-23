@@ -102,7 +102,7 @@ final class ClassWriterUtil {
             case BOOLEAN -> ClassDesc.ofDescriptor("Z");
             case FLOAT -> ClassDesc.ofDescriptor("F");
             case DOUBLE -> ClassDesc.ofDescriptor("D");
-            case VOID, ADDRESS, STRING, ADDRESSABLE -> throw new AssertionError("not a primitive type: " + type);
+            case VOID, ADDRESS, STRING, ADDRESSABLE, UPCALL -> throw new AssertionError("not a primitive type: " + type);
         };
     }
 
@@ -119,6 +119,7 @@ final class ClassWriterUtil {
             case DOUBLE -> new VLField("JAVA_DOUBLE", ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfDouble;"));
             case ADDRESS, STRING -> new VLField("ADDRESS", ClassDesc.ofDescriptor("Ljava/lang/foreign/AddressLayout;"));
             case ADDRESSABLE -> throw new AssertionError("ADDRESSABLE resolves through layoutType() before emitValueLayout");
+            case UPCALL -> throw new AssertionError("UPCALL resolves through layoutType() before emitValueLayout");
             case VOID -> throw new AssertionError("void has no ValueLayout");
         };
         cb.getstatic(CD_ValueLayout, vl.name(), vl.type());
@@ -150,6 +151,7 @@ final class ClassWriterUtil {
             case DOUBLE -> ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfDouble;");
             case ADDRESS, STRING -> ClassDesc.ofDescriptor("Ljava/lang/foreign/AddressLayout;");
             case ADDRESSABLE -> throw new AssertionError("ADDRESSABLE cannot be a struct field type");
+            case UPCALL -> throw new AssertionError("UPCALL cannot be a struct field type");
             case VOID -> throw new AssertionError("void cannot be a field type");
         };
     }

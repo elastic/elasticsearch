@@ -34,6 +34,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.DateTimeException;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 
 /**
@@ -136,13 +137,14 @@ import java.util.function.IntFunction;
  *       an unparseable token) follow the read's {@link ErrorPolicy} the same way the text
  *       readers' parse failures do — the base default {@code fail_fast} ({@link ErrorPolicy#STRICT})
  *       fails the read on the first bad value, while the opt-in {@code null_field} mode
- *       ({@code skip_row} degrades to it, a columnar batch cannot drop one row) nulls the cell and
- *       emits a response {@code Warning} header, {@code ignore_malformed}-style. Fused arms and
- *       {@link #castBlock} route the failure
- *       through the one {@link #onCoercionFailure} chokepoint so the two paths cannot disagree.
- *       Readers also re-check {@link #supports} per file for a <b>declared</b> column, since a
- *       multi-file glob can drift from the anchor footer; an <b>inferred</b> column may only widen,
- *       so a drifted inferred type null-fills rather than taking this lossy escape (never narrows).</li>
+ *       ({@code null_field}) nulls the cell and emits a response {@code Warning} header,
+ *       {@code ignore_malformed}-style; under {@code skip_row} the per-batch
+ *       {@code ColumnarRowDropHelper} drops the whole row at the page emit point via
+ *       {@link Block#filter}. Fused arms and {@link #castBlock} route the failure through the one
+ *       {@link #onCoercionFailure} chokepoint so the two paths cannot disagree. Readers also
+ *       re-check {@link #supports} per file for a <b>declared</b> column, since a multi-file glob
+ *       can drift from the anchor footer; an <b>inferred</b> column may only widen, so a drifted
+ *       inferred type null-fills rather than taking this lossy escape (never narrows).</li>
  *   <li><b>Text formats</b> (CSV/TSV, NDJSON) have no physical schema — every value is a string,
  *       so the parse into the declared type <i>is</i> the coercion and a bad token follows the
  *       reader's own per-value error policy. Their declared date {@code format} parse goes
@@ -294,6 +296,28 @@ public final class DeclaredTypeCoercions {
         @Nullable String columnName,
         @Nullable SkipWarnings warnings
     ) {
+        return castBlock(source, from, to, declaredFormat, blockFactory, columnName, warnings, null);
+    }
+
+    /**
+     * Overload of {@link #castBlock} that additionally reports failed positions to {@code failedPositionSink}
+     * for {@code skip_row} callers. When {@code failedPositionSink} is non-null (only under
+     * {@code error_mode: skip_row}), a coercion failure at position {@code p} still nulls the cell in the
+     * returned block (so block shape is consistent), AND calls {@code failedPositionSink.accept(p)} so the
+     * caller's {@link ColumnarRowDropHelper} can drop the whole row at the page emit point via
+     * {@link Block#filter}. All other parameters and semantics are identical to
+     * {@link #castBlock(Block, DataType, DataType, DateFormatter, BlockFactory, String, SkipWarnings)}.
+     */
+    public static Block castBlock(
+        Block source,
+        DataType from,
+        DataType to,
+        @Nullable DateFormatter declaredFormat,
+        BlockFactory blockFactory,
+        @Nullable String columnName,
+        @Nullable SkipWarnings warnings,
+        @Nullable IntConsumer failedPositionSink
+    ) {
         int positions = source.getPositionCount();
         if (from == to) {
             source.incRef();
@@ -304,6 +328,7 @@ public final class DeclaredTypeCoercions {
         }
         Function<Object, Object> coercer = scalarCoercer(from, to, declaredFormat);
         IntFunction<Object> read = valueReader(source, from);
+        boolean skipRow = failedPositionSink != null;
         try (Block.Builder builder = builderFor(to, blockFactory, positions)) {
             ValueWriter write = valueWriter(builder, to);
             Object[] scratch = null;
@@ -319,7 +344,8 @@ public final class DeclaredTypeCoercions {
                     try {
                         coerced = coercer.apply(read.apply(first));
                     } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
-                        onCoercionFailure(columnName, from, to, e, warnings);
+                        onCoercionFailure(columnName, from, to, e, warnings, skipRow);
+                        if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                         continue;
                     }
@@ -336,11 +362,12 @@ public final class DeclaredTypeCoercions {
                         try {
                             scratch[v] = coercer.apply(read.apply(first + v));
                         } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
-                            onCoercionFailure(columnName, from, to, e, warnings);
+                            onCoercionFailure(columnName, from, to, e, warnings, skipRow);
                             failed = true;
                         }
                     }
                     if (failed) {
+                        if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                         continue;
                     }
@@ -361,7 +388,9 @@ public final class DeclaredTypeCoercions {
      * {@code null} {@code warnings} sink (strict, {@code error_mode: fail_fast}) the failure
      * propagates and the read fails; with a live sink the caller nulls the cell/position and one
      * capped response {@code Warning} header records the reason. Callers append the null
-     * themselves — this method only decides throw-vs-warn.
+     * themselves — this method only decides throw-vs-warn. The {@code skipRow} flag controls the
+     * warning suffix: {@code false} (null_field) appends {@code "; returning null"};
+     * {@code true} (skip_row) appends {@code "; row will be dropped"}.
      * <p>
      * As the single decision point it also normalizes the strict failure. The coercers throw heterogeneous
      * low-level exceptions ({@code NumberFormatException} from {@code Double.parseDouble}, a
@@ -384,6 +413,22 @@ public final class DeclaredTypeCoercions {
         RuntimeException e,
         @Nullable SkipWarnings warnings
     ) {
+        onCoercionFailure(columnName, from, to, e, warnings, false);
+    }
+
+    /**
+     * Overload of {@link #onCoercionFailure} that accepts a {@code skipRow} flag controlling the
+     * warning suffix: {@code false} appends {@code "; returning null"} (for {@code null_field});
+     * {@code true} appends {@code "; row will be dropped"} (for {@code skip_row}).
+     */
+    public static void onCoercionFailure(
+        @Nullable String columnName,
+        DataType from,
+        DataType to,
+        RuntimeException e,
+        @Nullable SkipWarnings warnings,
+        boolean skipRow
+    ) {
         String detail = "Column ["
             + (columnName == null ? "<unknown>" : columnName)
             + "]: cannot coerce value from ["
@@ -395,7 +440,7 @@ public final class DeclaredTypeCoercions {
         if (warnings == null) {
             throw new InvalidArgumentException(e, detail + "; set error_mode=null_field to read failing values as null instead of failing");
         }
-        warnings.add(detail + "; returning null");
+        warnings.add(detail + (skipRow ? "; row will be dropped" : "; returning null"));
     }
 
     /**

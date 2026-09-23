@@ -346,7 +346,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(
-                    InstrumentType.DOUBLE_GAUGE,
+                    InstrumentType.DOUBLE_ASYNC_GAUGE,
                     ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR
                 );
             assertThat(measurements, hasSize(1));
@@ -372,7 +372,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             assertThat(
                 meterRegistry.getRecorder()
                     .getMeasurements(
-                        InstrumentType.DOUBLE_GAUGE,
+                        InstrumentType.DOUBLE_ASYNC_GAUGE,
                         ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR
                     ),
                 hasSize(0)
@@ -470,7 +470,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(
-                    InstrumentType.LONG_GAUGE,
+                    InstrumentType.LONG_ASYNC_GAUGE,
                     ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE_TIME
                 );
             assertThat(measurements, hasSize(3));

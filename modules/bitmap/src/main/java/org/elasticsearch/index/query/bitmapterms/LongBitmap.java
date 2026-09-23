@@ -155,6 +155,15 @@ public final class LongBitmap implements BitmapValues {
         return isEmpty() == false && last < 0;
     }
 
+    /**
+     * Always declines, which {@link BitmapValues#coversRange} permits, because the current implementation
+     * {@link Roaring64NavigableMap} exposes no range-containment method.
+     */
+    @Override
+    public boolean coversRange(long min, long max) {
+        return false;
+    }
+
     /** @return a iterator over the values, in ascending unsigned order */
     @Override
     public PeekableIterator iterator() {

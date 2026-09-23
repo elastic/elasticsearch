@@ -10,12 +10,15 @@
 package org.elasticsearch.index.codec.vectors.ash;
 
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.simdvec.AshSphericalScalarQuantizer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
+import org.elasticsearch.simdvec.VectorScorerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
-import java.util.Set;
 import java.util.function.IntUnaryOperator;
 
 /**
@@ -40,6 +43,8 @@ import java.util.function.IntUnaryOperator;
  */
 public final class AsymmetricHashingQuantizer {
 
+    private static final VectorScorerFactory FACTORY = ESVectorizationProvider.getInstance().getVectorScorerFactory();
+
     /** Training method for the projection matrix W. */
     public enum Method {
         /** Learn W via PCA + iterative Procrustes optimization. */
@@ -55,9 +60,6 @@ public final class AsymmetricHashingQuantizer {
     private final long seed;
     private final AshSphericalScalarQuantizer quantizer;
 
-    /** Supported values for bits per dimension. */
-    public static final Set<Integer> SUPPORTED_BITS_PER_DIM = Set.of(1, 2, 3, 4, 8);
-
     /**
      * Creates an ASH quantizer with the given configuration.
      *
@@ -67,6 +69,9 @@ public final class AsymmetricHashingQuantizer {
      * @param nTrainingIterations number of Procrustes iterations (for LEARNED)
      * @param trainingFactor multiplier on dimension for training sample size
      * @param seed random seed
+     * @throws IllegalArgumentException if {@code bitsPerDim} is not a
+     *         {@linkplain IvfSegmentConfig.AshConfig#isValidBitsPerDim(int) valid ASH bit width} or
+     *         {@code projectedDimsFraction} is not in (0, 1]
      */
     public AsymmetricHashingQuantizer(
         float projectedDimsFraction,
@@ -79,15 +84,13 @@ public final class AsymmetricHashingQuantizer {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
         }
-        if (bitsPerDim <= 0 || SUPPORTED_BITS_PER_DIM.contains(bitsPerDim) == false) {
-            throw new IllegalArgumentException("bitsPerDim must be one of " + SUPPORTED_BITS_PER_DIM + ", got: " + bitsPerDim);
-        }
+        IvfSegmentConfig.AshConfig.validateBitsPerDim(bitsPerDim);
         this.projectedDimsFraction = projectedDimsFraction;
         this.method = method;
         this.nTrainingIterations = nTrainingIterations;
         this.trainingFactor = trainingFactor;
         this.seed = seed;
-        this.quantizer = new AshSphericalScalarQuantizer(bitsPerDim);
+        this.quantizer = FACTORY.newAshSphericalScalarQuantizer(bitsPerDim);
     }
 
     /**
@@ -108,7 +111,7 @@ public final class AsymmetricHashingQuantizer {
      *
      * @param vectors all vectors in the segment, shape (nVectors, originalDim)
      * @param centroids cluster centroids, fetched by vector ordinal
-     * @return the learned projection matrix W in row-major order, shape (originalDim, nDims)
+     * @return the transposed learned projection matrix W^T in row-major order, shape (nDims, originalDim)
      */
     public float[] train(float[][] vectors, CheckedIntFunction<float[], IOException> centroids) throws IOException {
         int originalDim = vectors[0].length;
@@ -140,7 +143,7 @@ public final class AsymmetricHashingQuantizer {
         }
 
         // LEARNED: PCA init + Procrustes
-        return learnedTraining(xTraining, trainingSize, originalDim, nDims);
+        return ESVectorUtil.transposeMatrix(learnedTraining(xTraining, trainingSize, originalDim, nDims), originalDim, nDims);
     }
 
     /**
@@ -180,9 +183,20 @@ public final class AsymmetricHashingQuantizer {
     public static VectorAndNorm precomputeCentroid(float[] centroid, float[] wT) {
         int originalDim = centroid.length;
         int nDims = wT.length / originalDim;
-        float[] centroidProjected = SvdUtil.matrixVectorMultiply(wT, nDims, originalDim, centroid);
+        float[] centroidProjected = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centroid);
         float centroidNormSq = ESVectorUtil.dotProduct(centroid, centroid);
         return new VectorAndNorm(centroidProjected, centroidNormSq);
+    }
+
+    private static final ThreadLocal<float[]> XLATENT_ARRAY = new ThreadLocal<>();
+
+    private static float[] getXLatentArray(int length) {
+        float[] array = XLATENT_ARRAY.get();
+        if (array == null || array.length != length) {
+            array = new float[length];
+            XLATENT_ARRAY.set(array);
+        }
+        return array;
     }
 
     /**
@@ -200,10 +214,11 @@ public final class AsymmetricHashingQuantizer {
         int nDims = wT.length / originalDim;
 
         // Center and compute norm
-        var centered = centralizeVector(vector, centroid);
+        VectorAndNorm centered = centralizeVector(vector, centroid);
 
         // Project using transposed W
-        float[] xLatent = SvdUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector());
+        float[] xLatent = getXLatentArray(nDims);
+        ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector(), xLatent);
 
         // Quantize
         AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
@@ -228,31 +243,33 @@ public final class AsymmetricHashingQuantizer {
     }
 
     private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {
-        // PCA initialization: extract top nDims right singular vectors via power iteration
+        // PCA initialization: extract top nDims right singular vectors as columns (originalDim x nDims)
         // This is much faster than full SVD when nDims << originalDim
-        float[] topVectors = SvdUtil.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
-
-        // P = top nDims right singular vectors transposed: rows of topVectors are the vectors
-        // topVectors shape: (nDims x originalDim); P shape: (originalDim x nDims)
-        float[] p = ESVectorUtil.transposeMatrix(topVectors, nDims, originalDim);
+        float[] p = AshUtils.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
-        float[] xLd = SvdUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
+        float[] xLd = ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
+
+        // Pre-transpose X_ld so that X_ld^T @ X_enc can use sequential memory access
+        float[] xLdT = ESVectorUtil.transposeMatrix(xLd, nTraining, nDims);
 
         // Initialize random M (nDims x nDims)
-        float[] m = SvdUtil.randomGaussians(new Random(seed), nDims * nDims);
+        float[] m = AshUtils.randomGaussians(new Random(seed), nDims * nDims);
 
         // Iterative Procrustes
-        float[] r = null;
+        float[] r = new float[nDims * nDims];
+        float[] xTransformed = new float[nTraining * nDims];
+        AshSphericalScalarQuantizer.QuantizeResult qr = new AshSphericalScalarQuantizer.QuantizeResult(nTraining, nDims);
+
         for (int epoch = 0; epoch <= nTrainingIterations; epoch++) {
             // R = procrustes(M)
-            r = SvdUtil.procrustes(m, nDims);
+            AshUtils.procrustes(m, nDims, r);
 
             if (epoch < nTrainingIterations) {
                 // X_transformed = X_ld @ R (nTraining x nDims)
-                float[] xTransformed = SvdUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims);
+                ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims, xTransformed);
                 // Quantize
-                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed, nTraining, nDims);
+                quantizer.encode(xTransformed, nTraining, nDims, qr);
                 float[] xEnc = qr.centeredCodes();
                 float[] codeNorms = qr.codeNorms();
                 // Normalize encoded: xEnc[i] /= codeNorms[i]
@@ -265,19 +282,20 @@ public final class AsymmetricHashingQuantizer {
                         }
                     }
                 }
-                // M = X_ld.T @ X_enc (nDims x nDims)
-                m = SvdUtil.matrixMultiplyTA(xLd, xEnc, nTraining, nDims, nDims);
+                // M = X_ld^T @ X_enc (nDims x nDims) — uses pre-transposed X_ld for sequential access
+                ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims, m);
             }
         }
 
         // W = P @ R (originalDim x nDims)
-        return SvdUtil.matrixMultiply(p, r, originalDim, nDims, nDims);
+        return ESVectorUtil.matrixMultiply(p, r, originalDim, nDims, nDims);
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {
-        float[] q = SvdUtil.randomGaussians(new Random(seed), originalDim * nDims);
-        SvdUtil.qrOrthogonalize(q, originalDim, nDims);
-        return q;
+        // qrOrthogonalize orthonormalizes rows, so it produces W^T (nDims x originalDim)
+        float[] qT = AshUtils.randomGaussians(new Random(seed), originalDim * nDims);
+        AshUtils.qrOrthogonalize(qT, originalDim, nDims);
+        return qT;
     }
 
     /**

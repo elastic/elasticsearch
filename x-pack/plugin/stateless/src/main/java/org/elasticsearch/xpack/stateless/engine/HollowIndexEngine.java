@@ -288,6 +288,17 @@ public class HollowIndexEngine extends Engine {
     }
 
     @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        throwShardNotAvailableException("updates are not supported on a hollow engine");
+        return null;
+    }
+
+    @Override
     public void prepareForEngineReset() {
         hollowShardsService.ensureHollowShard(shardId, true, "hollow index engine requires the shard to be hollow");
         logger.debug(() -> "preparing to reset hollow index engine for shard " + shardId);

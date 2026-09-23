@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -51,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class EsqlParsingBenchmark {
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /**

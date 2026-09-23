@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -250,9 +250,25 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             return filterExec;
         }
 
-        String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
-        FilterPushdownSupport pushdownSupport = resolveFilterPushdownSupport(formatName, ctx);
+        FormatReader formatReader = resolveFormatReader(externalExec.sourceType(), ctx);
+        FilterPushdownSupport pushdownSupport = formatReader != null ? formatReader.filterPushdownSupport() : null;
         if (pushdownSupport == null) {
+            return filterExec;
+        }
+
+        // Withhold pushdown when the reader cannot honour skip_row on its filtered decode path. Parquet turns on
+        // late materialization the moment a predicate reaches it, and that path emits pages without the row-drop
+        // compaction, so a coercion failure would silently null the cell and keep the row -- null_field semantics
+        // for a skip_row read. Leaving the predicate in the FilterExec above the source costs the row-group and
+        // page-index skipping but keeps results correct on both counts: the filter still runs, and every batch
+        // goes through the decode path that drops rows.
+        //
+        // This must happen here, at the mint, rather than at the operator factory. The pushed filter is the only
+        // signal the reader keys late materialization off, and by the time the factory sees the plan the FilterExec
+        // for a Pushability.YES conjunct has already been dropped -- so the factory can neither suppress the filter
+        // (rows would leak unfiltered) nor undo the late-mat decision it implies.
+        if (formatReader.dropsRowsUnderPushedFilter() == false
+            && externalExec.declaredReadSpec().dropsRowsOnCoercionFailure(ErrorPolicy.forReader(externalExec.config(), formatReader))) {
             return filterExec;
         }
 
@@ -333,20 +349,18 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 
-    static String resolveFormatName(Map<String, Object> config, String sourcePath) {
-        return FormatNameResolver.resolve(config, sourcePath);
-    }
-
     /**
-     * Resolves filter pushdown support for the given format via {@link FormatReader#filterPushdownSupport()}.
+     * Resolves the configured reader for the given format, or {@code null} when the rule has no way to look one up
+     * (no external context, no registry, format unregistered). Callers read both
+     * {@link FormatReader#filterPushdownSupport()} and {@link FormatReader#dropsRowsUnderPushedFilter()} off it, so
+     * it returns the reader rather than the support object alone.
+     * Keys on {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec#sourceType()}, the same
+     * origin as {@code InsertExternalFieldExtraction} / {@code PushStatsToExternalSource} — not a last-dot of
+     * {@code sourcePath()}, which would mis-read a compressed text file as {@code gz}.
      */
-    private static FilterPushdownSupport resolveFilterPushdownSupport(String formatName, LocalPhysicalOptimizerContext ctx) {
-        FormatReaderRegistry formatReaderRegistry = ctx.external() == null ? null : ctx.external().formatReaderRegistry();
-        if (formatReaderRegistry == null) {
-            return null;
-        }
-        FormatReader formatReader = formatReaderRegistry.findByName(formatName);
-        return formatReader != null ? formatReader.filterPushdownSupport() : null;
+    static FormatReader resolveFormatReader(String formatName, LocalPhysicalOptimizerContext ctx) {
+        FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();
+        return formatReaderRegistry != null ? formatReaderRegistry.findByName(formatName) : null;
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, ParameterizedQueryExec pqExec, LocalPhysicalOptimizerContext ctx) {

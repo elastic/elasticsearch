@@ -48,6 +48,8 @@ import javax.tools.Diagnostic.Kind;
  * @param simpleName the simple interface or class name
  * @param packageName the package name (may be empty)
  * @param libraryName the native library name from {@code @LibrarySpecification.name()} (may be empty)
+ * @param system whether {@code libraryName} is loaded via {@code System.loadLibrary} rather than
+ *        {@code LoaderHelper.loadLibrary}, from {@code @LibrarySpecification.system()}
  * @param methods all native methods in declaration order
  * @param unavailableOn enum constant names of platforms where this library is unavailable (empty means available everywhere)
  * @param structs every {@code @StructSpecification} type enclosed in this interface, in declaration order
@@ -62,6 +64,7 @@ public record LibraryModel(
     String simpleName,
     String packageName,
     String libraryName,
+    boolean system,
     List<MethodModel> methods,
     List<String> unavailableOn,
     List<StructModel> structs,
@@ -83,6 +86,7 @@ public record LibraryModel(
     public static final String DEFAULT_MH_RESOLVER_FQN = DefaultMethodHandleResolver.class.getName();
     public static final String LIBRARY_SPECIFICATION_FQN = LibrarySpecification.class.getName();
     public static final String STRUCT_SPECIFICATION_FQN = org.elasticsearch.foreign.StructSpecification.class.getName();
+    public static final String ADDRESSABLE_FQN = org.elasticsearch.foreign.Addressable.class.getName();
 
     /** Fully-qualified name of the {@code $Impl} class generated for this library. */
     public String implQualifiedName() {
@@ -116,6 +120,7 @@ public record LibraryModel(
 
         LibrarySpecification annotation = element.getAnnotation(LibrarySpecification.class);
         String libraryName = annotation != null ? annotation.name() : "";
+        boolean system = annotation != null && annotation.system();
         String qualifiedName = element.getQualifiedName().toString();
         String simpleName = element.getSimpleName().toString();
         String packageName = env.getElementUtils().getPackageOf(element).getQualifiedName().toString();
@@ -135,6 +140,11 @@ public record LibraryModel(
                 specMirror
             );
             return null;
+        }
+
+        if (system && libraryName.isEmpty()) {
+            messager.printMessage(Kind.ERROR, "@LibrarySpecification.system requires a non-empty name", element, specMirror);
+            hasError = true;
         }
 
         String symbolResolverClassName = resolveAndValidateSymbolResolver(element, messager, env.getTypeUtils(), packageName);
@@ -172,6 +182,14 @@ public record LibraryModel(
             TypeElement typeElement = (TypeElement) enclosed;
             AnnotationMirror structSpecMirror = ModelUtil.findAnnotationMirror(typeElement, STRUCT_SPECIFICATION_FQN);
             if (structSpecMirror == null) {
+                // Not a @StructSpecification type, but a record or class that directly implements
+                // Addressable (e.g. a Handle/Address wrapper) is still a legitimate ADDRESSABLE
+                // parameter type. Record its simple name alongside struct names so
+                // MethodModel#from's parameter classification recognizes it, without adding a
+                // StructModel for it — it needs no generated $Impl.
+                if (findTypeElement(typeElement, ADDRESSABLE_FQN) != null) {
+                    structSimpleNames.add(typeElement.getSimpleName().toString());
+                }
                 continue;
             }
             if (kind != ElementKind.RECORD && kind != ElementKind.INTERFACE) {
@@ -230,6 +248,7 @@ public record LibraryModel(
                 simpleName,
                 packageName,
                 libraryName,
+                system,
                 methods,
                 unavailableOn,
                 structs,

@@ -13,6 +13,49 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.5.4 [connectors-9.5.4-release-notes]
+
+### Fixes [connectors-9.5.4-fixes]
+* Fix connectors running under Elastic Agent crashing on check-in when the Elasticsearch output policy included an `ssl` block. Agent SSL settings are now read correctly from the protobuf config payload. [#4456](https://github.com/elastic/connectors/pull/4456), [#4084](https://github.com/elastic/connectors/issues/4084)
+* Fix MD5 hashing being blocked on FIPS-enabled hosts, where OpenSSL rejects `hashlib.md5()` without the `usedforsecurity=False` flag. Existing document IDs are unaffected. [#4416](https://github.com/elastic/connectors/pull/4416)
+* Fix Network Drive Document Level Security granting read access to users who only have write permission on a file, instead of matching Windows file server behavior. [#4410](https://github.com/elastic/connectors/pull/4410), [#1963](https://github.com/elastic/connectors/issues/1963), [#2875](https://github.com/elastic/connectors/issues/2875)
+* Fix MSSQL connector syncs failing with `Invalid TDS marker` when large table queries were retried on a poisoned connection. [#4407](https://github.com/elastic/connectors/pull/4407), [#3723](https://github.com/elastic/connectors/issues/3723)
+* Fix the Outlook connector aborting a sync when an Active Directory user has a valid `mail` attribute that is not the primary SMTP address. The affected account is skipped with a warning and the sync continues. [#4406](https://github.com/elastic/connectors/pull/4406), [#2931](https://github.com/elastic/connectors/issues/2931)
+* Fix connectors with Document Level Security enabled but access control sync scheduling disabled logging a platinum license error every 30 seconds. [#4405](https://github.com/elastic/connectors/pull/4405), [#4139](https://github.com/elastic/connectors/issues/4139)
+* Fix OneDrive full content syncs failing with `KeyError: '_allow_access_control'` when both Document Level Security and advanced sync rules were enabled. [#4404](https://github.com/elastic/connectors/pull/4404)
+* Fix ServiceNow Document Level Security exhausting Elasticsearch memory on large tenants, where every role member was expanded onto each content document. An opt-in compact mode stores role tokens instead: disable **Expand role members** to enable it. Changing the setting requires a full content sync and access control sync. [#4392](https://github.com/elastic/connectors/pull/4392)
+
+## 9.4.7 [connectors-9.4.7-release-notes]
+
+### Fixes [connectors-9.4.7-fixes]
+* Fix connectors running under Elastic Agent crashing on check-in when the Elasticsearch output policy included an `ssl` block. Agent SSL settings are now read correctly from the protobuf config payload. [#4456](https://github.com/elastic/connectors/pull/4456), [#4084](https://github.com/elastic/connectors/issues/4084)
+* Fix MD5 hashing being blocked on FIPS-enabled hosts, where OpenSSL rejects `hashlib.md5()` without the `usedforsecurity=False` flag. Existing document IDs are unaffected. [#4416](https://github.com/elastic/connectors/pull/4416)
+* Fix Network Drive Document Level Security granting read access to users who only have write permission on a file, instead of matching Windows file server behavior. [#4410](https://github.com/elastic/connectors/pull/4410), [#1963](https://github.com/elastic/connectors/issues/1963), [#2875](https://github.com/elastic/connectors/issues/2875)
+* Fix MSSQL connector syncs failing with `Invalid TDS marker` when large table queries were retried on a poisoned connection. [#4407](https://github.com/elastic/connectors/pull/4407), [#3723](https://github.com/elastic/connectors/issues/3723)
+* Fix the Outlook connector aborting a sync when an Active Directory user has a valid `mail` attribute that is not the primary SMTP address. The affected account is skipped with a warning and the sync continues. [#4406](https://github.com/elastic/connectors/pull/4406), [#2931](https://github.com/elastic/connectors/issues/2931)
+* Fix connectors with Document Level Security enabled but access control sync scheduling disabled logging a platinum license error every 30 seconds. [#4405](https://github.com/elastic/connectors/pull/4405), [#4139](https://github.com/elastic/connectors/issues/4139)
+* Fix OneDrive full content syncs failing with `KeyError: '_allow_access_control'` when both Document Level Security and advanced sync rules were enabled. [#4404](https://github.com/elastic/connectors/pull/4404)
+* Fix ServiceNow Document Level Security exhausting Elasticsearch memory on large tenants, where every role member was expanded onto each content document. An opt-in compact mode stores role tokens instead: disable **Expand role members** to enable it. Changing the setting requires a full content sync and access control sync. [#4392](https://github.com/elastic/connectors/pull/4392)
+
+## 9.5.3 [connectors-9.5.3-release-notes]
+
+### Fixes [connectors-9.5.3-fixes]
+* Fix SharePoint Online syncs failing when a drive delta link expires (`410 Gone`). The connector now clears the expired delta link and restarts the drive sync from the root delta endpoint. [#4382](https://github.com/elastic/connectors/pull/4382), [#4370](https://github.com/elastic/connectors/pull/4370)
+* Fix long-running syncs failing permanently on transient non-JSON Elasticsearch bulk responses, such as `Client Closed Request`. Failed concurrent bulk tasks are no longer silently dropped. [#4386](https://github.com/elastic/connectors/pull/4386)
+* Fix connectors running under Elastic Agent ignoring the Elasticsearch output `ssl.verification_mode` policy setting, so certificate verification was always enforced. [#4394](https://github.com/elastic/connectors/pull/4394), [#4084](https://github.com/elastic/connectors/issues/4084)
+
+## 9.4.6 [connectors-9.4.6-release-notes]
+
+### Fixes [connectors-9.4.6-fixes]
+* Fix long-running syncs being falsely marked as idle when Elasticsearch was temporarily slow or refresh calls timed out. The connector service no longer forces an index refresh on every job status check, keeps the ingestion heartbeat alive through transient errors, and retries job status checks during active syncs. [#4368](https://github.com/elastic/connectors/pull/4368), [#4311](https://github.com/elastic/connectors/issues/4311)
+* Fix long-running syncs failing permanently on transient non-JSON Elasticsearch bulk responses, such as `Client Closed Request`. Failed concurrent bulk tasks are no longer silently dropped. [#4385](https://github.com/elastic/connectors/pull/4385)
+* Fix SharePoint Online syncs failing when a drive delta link expires (`410 Gone`). The connector now clears the expired delta link and restarts the drive sync from the root delta endpoint. [#4381](https://github.com/elastic/connectors/pull/4381), [#4370](https://github.com/elastic/connectors/pull/4370)
+
+## 9.5.2 [connectors-9.5.2-release-notes]
+
+### Fixes [connectors-9.5.2-fixes]
+* Fix long-running syncs being falsely marked as idle when Elasticsearch was temporarily slow or refresh calls timed out. The connector service no longer forces an index refresh on every job status check, keeps the ingestion heartbeat alive through transient errors, and retries job status checks during active syncs. [#4367](https://github.com/elastic/connectors/pull/4367), [#4311](https://github.com/elastic/connectors/issues/4311)
+
 ## 9.5.1 [connectors-9.5.1-release-notes]
 
 ### Fixes [connectors-9.5.1-fixes]

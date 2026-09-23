@@ -235,7 +235,7 @@ public class CollectionUtilsTests extends ESTestCase {
         assertSelfReferenceMessage(e, hint);
     }
 
-    /** Non-empty {@link Object[]} graphs without self-reference should complete without throwing. */
+    /** Non-empty {@link Object Object[]} graphs without self-reference should complete without throwing. */
     public void testEnsureNoSelfReferencesNonEmptyObjectArrays() {
         String hint = randomMessageHintOrNull("object array");
         ensureNoSelfReferences(new Object[] { "a", 1L, true }, hint);

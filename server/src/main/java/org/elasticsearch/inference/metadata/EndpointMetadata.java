@@ -36,6 +36,7 @@ import java.util.Optional;
  * <p>
  * The Elastic Inference Service populates these fields so that Kibana and semantic text fields determine the correct defaults.
  *
+ * @param modelIdentity        identifies the model behind the endpoint (creator, family, tier, version).
  * @param heuristics           contains information so clients of the Inference API can determine which models should be used as defaults
  *                             and presented to users in different scenarios.
  * @param internal             contains information that is only used within Elasticsearch. The internal information helps the Inference
@@ -46,6 +47,7 @@ import java.util.Optional;
  * @param deniedByRegionPolicy {@code true} when the caller's region policy prohibits access to this endpoint.
  */
 public record EndpointMetadata(
+    ModelIdentity modelIdentity,
     Heuristics heuristics,
     Internal internal,
     Display display,
@@ -58,6 +60,7 @@ public record EndpointMetadata(
     );
     public static final TransportVersion REGIONS_ADDED = TransportVersion.fromName("inference_endpoint_metadata_regions_added");
     public static final EndpointMetadata EMPTY_INSTANCE = new EndpointMetadata(
+        ModelIdentity.EMPTY_INSTANCE,
         Heuristics.EMPTY_INSTANCE,
         Internal.EMPTY_INSTANCE,
         Display.EMPTY_INSTANCE,
@@ -68,6 +71,7 @@ public record EndpointMetadata(
     public static final String HEURISTICS_FIELD_NAME = "heuristics";
     public static final String INTERNAL_FIELD_NAME = "internal";
     public static final String DISPLAY_FIELD_NAME = "display";
+    public static final String MODEL_IDENTITY_FIELD_NAME = "model_identity";
     public static final String REGIONS_FIELD_NAME = "regions";
     public static final String DENIED_BY_REGION_POLICY_FIELD_NAME = "denied_by_region_policy";
 
@@ -78,15 +82,21 @@ public record EndpointMetadata(
         "endpoint_metadata_fields",
         true,
         args -> new EndpointMetadata(
-            args[0] == null ? Heuristics.EMPTY_INSTANCE : (Heuristics) args[0],
-            args[1] == null ? Internal.EMPTY_INSTANCE : (Internal) args[1],
-            args[2] == null ? Display.EMPTY_INSTANCE : (Display) args[2],
-            args[3] == null ? List.of() : (List<EndpointRegion>) args[3],
-            args[4] == null ? false : (Boolean) args[4]
+            args[0] == null ? ModelIdentity.EMPTY_INSTANCE : (ModelIdentity) args[0],
+            args[1] == null ? Heuristics.EMPTY_INSTANCE : (Heuristics) args[1],
+            args[2] == null ? Internal.EMPTY_INSTANCE : (Internal) args[2],
+            args[3] == null ? Display.EMPTY_INSTANCE : (Display) args[3],
+            args[4] == null ? List.of() : (List<EndpointRegion>) args[4],
+            args[5] == null ? false : (Boolean) args[5]
         )
     );
 
     static {
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ModelIdentity.parse(p),
+            new ParseField(MODEL_IDENTITY_FIELD_NAME)
+        );
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> Heuristics.parse(p),
@@ -115,6 +125,7 @@ public record EndpointMetadata(
     }
 
     public EndpointMetadata {
+        Objects.requireNonNull(modelIdentity);
         Objects.requireNonNull(heuristics);
         Objects.requireNonNull(internal);
         Objects.requireNonNull(display);
@@ -123,6 +134,7 @@ public record EndpointMetadata(
 
     public EndpointMetadata(StreamInput in) throws IOException {
         this(
+            in.getTransportVersion().supports(ModelIdentity.MODEL_IDENTITY_ADDED) ? new ModelIdentity(in) : ModelIdentity.EMPTY_INSTANCE,
             new Heuristics(in),
             new Internal(in),
             new Display(in),
@@ -135,16 +147,6 @@ public record EndpointMetadata(
         return this.equals(EMPTY_INSTANCE);
     }
 
-    public boolean fingerprintMatches(EndpointMetadata other) {
-        return Objects.equals(internal.fingerprint(), other.internal.fingerprint());
-    }
-
-    public boolean hasNewerVersionThan(EndpointMetadata other) {
-        long thisVersion = Optional.ofNullable(internal.version()).orElse(0L);
-        long otherVersion = Optional.ofNullable(other.internal.version()).orElse(0L);
-        return thisVersion > otherVersion;
-    }
-
     public Params getXContentParamsExcludeInternalFields() {
         return new ToXContent.MapParams(Map.of(INCLUDE_INTERNAL_FIELDS_PARAM_NAME, Boolean.FALSE.toString()));
     }
@@ -154,17 +156,16 @@ public record EndpointMetadata(
         builder.startObject();
 
         builder.field(HEURISTICS_FIELD_NAME, heuristics);
-
         if (params.paramAsBoolean(INCLUDE_INTERNAL_FIELDS_PARAM_NAME, true)) {
             builder.field(INTERNAL_FIELD_NAME, internal);
         }
-
         builder.field(DISPLAY_FIELD_NAME, display);
-
+        if (modelIdentity.isEmpty() == false) {
+            builder.field(MODEL_IDENTITY_FIELD_NAME, modelIdentity);
+        }
         if (regions.isEmpty() == false) {
             builder.xContentList(REGIONS_FIELD_NAME, regions);
         }
-
         if (deniedByRegionPolicy) {
             builder.field(DENIED_BY_REGION_POLICY_FIELD_NAME, true);
         }
@@ -175,6 +176,9 @@ public record EndpointMetadata(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ModelIdentity.MODEL_IDENTITY_ADDED)) {
+            modelIdentity.writeTo(out);
+        }
         heuristics.writeTo(out);
         internal.writeTo(out);
         display.writeTo(out);
@@ -187,29 +191,36 @@ public record EndpointMetadata(
     /**
      * Describes an availability region for an inference endpoint.
      *
-     * @param csp    the cloud service provider (e.g., "aws", "gcp", "azure")
-     * @param region the provider-specific region identifier (e.g., "us-east-1")
-     * @param geo    the geographic area (e.g., "us", "eu")
+     * @param csp               the cloud service provider (e.g., "aws", "gcp", "azure")
+     * @param region            the provider-specific region identifier (e.g., "us-east-1")
+     * @param geo               the geographic area (e.g., "us", "eu")
+     * @param regionDisplayName an optional human-readable label for the region (e.g., "US East (N. Virginia)")
      */
-    public record EndpointRegion(@Nullable String csp, @Nullable String region, @Nullable String geo)
+    public record EndpointRegion(@Nullable String csp, @Nullable String region, @Nullable String geo, @Nullable String regionDisplayName)
         implements
             ToXContentObject,
             Writeable {
 
+        public static final TransportVersion REGION_DISPLAY_NAME_ADDED = TransportVersion.fromName(
+            "inference_endpoint_metadata_region_display_name_added"
+        );
+
         public static final ParseField CSP_FIELD = new ParseField("csp");
         public static final ParseField REGION_FIELD = new ParseField("region");
         public static final ParseField GEO_FIELD = new ParseField("geo");
+        public static final ParseField REGION_DISPLAY_NAME_FIELD = new ParseField("region_display_name");
 
         private static final ConstructingObjectParser<EndpointRegion, Void> PARSER = new ConstructingObjectParser<>(
             "endpoint_region",
             true,
-            args -> new EndpointRegion((String) args[0], (String) args[1], (String) args[2])
+            args -> new EndpointRegion((String) args[0], (String) args[1], (String) args[2], (String) args[3])
         );
 
         static {
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CSP_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REGION_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), GEO_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REGION_DISPLAY_NAME_FIELD);
         }
 
         public static EndpointRegion parse(XContentParser parser) throws IOException {
@@ -217,7 +228,12 @@ public record EndpointMetadata(
         }
 
         public EndpointRegion(StreamInput in) throws IOException {
-            this(in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+            this(
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.getTransportVersion().supports(REGION_DISPLAY_NAME_ADDED) ? in.readOptionalString() : null
+            );
         }
 
         @Override
@@ -232,6 +248,9 @@ public record EndpointMetadata(
             if (geo != null) {
                 builder.field(GEO_FIELD.getPreferredName(), geo);
             }
+            if (regionDisplayName != null) {
+                builder.field(REGION_DISPLAY_NAME_FIELD.getPreferredName(), regionDisplayName);
+            }
             builder.endObject();
             return builder;
         }
@@ -241,6 +260,9 @@ public record EndpointMetadata(
             out.writeOptionalString(csp);
             out.writeOptionalString(region);
             out.writeOptionalString(geo);
+            if (out.getTransportVersion().supports(REGION_DISPLAY_NAME_ADDED)) {
+                out.writeOptionalString(regionDisplayName);
+            }
         }
     }
 
@@ -293,6 +315,83 @@ public record EndpointMetadata(
             if (out.getTransportVersion().supports(MODEL_CREATOR_ADDED)) {
                 out.writeOptionalString(modelCreator);
             }
+        }
+
+        public boolean isEmpty() {
+            return this.equals(EMPTY_INSTANCE);
+        }
+    }
+
+    /**
+     * Identifies the model behind an inference endpoint. Populated from the Elastic Inference Service authorization response.
+     *
+     * @param creator the model creator / lab (e.g. "anthropic", "openai", "jina")
+     * @param family  the model family within the creator (e.g. "claude", "gpt", "gemini")
+     * @param tier    the performance/size tier within the family (e.g. "sonnet", "mini"); {@code null} when the model has no tier variant
+     * @param version the model version identifier (e.g. "4.8", "v5", "3.0"); {@code null} when not applicable
+     */
+    public record ModelIdentity(@Nullable String creator, @Nullable String family, @Nullable String tier, @Nullable String version)
+        implements
+            ToXContentObject,
+            Writeable {
+
+        public static final ModelIdentity EMPTY_INSTANCE = new ModelIdentity(null, null, null, null);
+
+        public static final TransportVersion MODEL_IDENTITY_ADDED = TransportVersion.fromName(
+            "inference_endpoint_metadata_model_identity_added"
+        );
+
+        public static final String CREATOR_FIELD = "creator";
+        public static final String FAMILY_FIELD = "family";
+        public static final String TIER_FIELD = "tier";
+        public static final String VERSION_FIELD = "version";
+
+        private static final ConstructingObjectParser<ModelIdentity, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_model_identity",
+            true,
+            args -> new ModelIdentity((String) args[0], (String) args[1], (String) args[2], (String) args[3])
+        );
+
+        static {
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CREATOR_FIELD));
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(FAMILY_FIELD));
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(TIER_FIELD));
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(VERSION_FIELD));
+        }
+
+        public static ModelIdentity parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public ModelIdentity(StreamInput in) throws IOException {
+            this(in.readOptionalString(), in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (creator != null) {
+                builder.field(CREATOR_FIELD, creator);
+            }
+            if (family != null) {
+                builder.field(FAMILY_FIELD, family);
+            }
+            if (tier != null) {
+                builder.field(TIER_FIELD, tier);
+            }
+            if (version != null) {
+                builder.field(VERSION_FIELD, version);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(creator);
+            out.writeOptionalString(family);
+            out.writeOptionalString(tier);
+            out.writeOptionalString(version);
         }
 
         public boolean isEmpty() {
@@ -461,6 +560,16 @@ public record EndpointMetadata(
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(fingerprint);
             out.writeOptionalVLong(version);
+        }
+
+        public boolean fingerprintMatches(Internal other) {
+            return Objects.equals(fingerprint, other.fingerprint);
+        }
+
+        public boolean isNewerThan(Internal other) {
+            long thisVersion = Optional.ofNullable(version).orElse(0L);
+            long otherVersion = Optional.ofNullable(other.version).orElse(0L);
+            return thisVersion > otherVersion;
         }
 
         public boolean isEmpty() {

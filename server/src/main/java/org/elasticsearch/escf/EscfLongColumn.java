@@ -14,7 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
-final class EscfLongColumn extends AbstractFixed64Column {
+public final class EscfLongColumn extends AbstractFixed64Column {
 
     EscfLongColumn(int docCount, FixedBitSet validity, BytesReference data) {
         super(docCount, validity, data);
@@ -31,8 +31,17 @@ final class EscfLongColumn extends AbstractFixed64Column {
     }
 
     @Override
-    long getLongValue(int row) {
+    public long getLongValue(int row) {
         return rawLong(row);
+    }
+
+    public long longValueAt(int row) {
+        return rawLong(row);
+    }
+
+    @Override
+    public DenseLongValuesCursor longValuesCursor() {
+        return super.longValuesCursor();
     }
 
     @Override

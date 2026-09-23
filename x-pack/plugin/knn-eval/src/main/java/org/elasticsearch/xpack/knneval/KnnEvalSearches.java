@@ -123,7 +123,7 @@ final class KnnEvalSearches {
         int searchSize,
         BytesReference pointInTimeId
     ) {
-        // num_candidates is validated against k, but a sampled query's extra hit pushes the window one past it
+        // Sampled queries search k + 1 to drop their own document; raise num_candidates to match, as knn rejects num_candidates < k
         Integer numCandidates = knnSettings.getNumCandidates() == null ? null : Math.max(knnSettings.getNumCandidates(), searchSize);
         KnnSearchBuilder.Builder knnSearch = new KnnSearchBuilder.Builder().field(spec.getField())
             .queryVector(query.getQueryVector())

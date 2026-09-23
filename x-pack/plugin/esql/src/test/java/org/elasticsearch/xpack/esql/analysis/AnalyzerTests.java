@@ -6789,6 +6789,19 @@ public class AnalyzerTests extends AnalyzerTestCase {
             """);
         assertNotNull(soleHighlight(plan).indexKey());
         assertThat(fieldNames(plan.output()), equalTo(List.of("book_no", "title", "idx", "highlight_title")));
+
+        // A second HIGHLIGHT reuses the key the first one carries up.
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | HIGHLIGHT "ring" ON title
+            | KEEP title, highlight_title
+            | HIGHLIGHT prefix = "again_" "ring" ON title
+            """);
+        List<Highlight> highlights = plan.collect(Highlight.class);
+        assertThat(highlights, hasSize(2));
+        assertNotNull(highlights.getFirst().indexKey());
+        assertThat(highlights.getLast().indexKey(), equalTo(highlights.getFirst().indexKey()));
+        assertThat(fieldNames(plan.output()), equalTo(List.of("title", "highlight_title", "again_title")));
         // No warning: every row is highlighted with its own index's analyzer.
         assertWarnings();
     }

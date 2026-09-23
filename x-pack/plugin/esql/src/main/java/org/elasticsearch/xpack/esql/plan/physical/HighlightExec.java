@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -133,8 +134,7 @@ public class HighlightExec extends UnaryExec {
     @Override
     protected AttributeSet computeReferences() {
         // The ON fields and the index key are inputs; the generated <prefix><field> columns are outputs, not references.
-        AttributeSet fieldReferences = Expressions.references(fields);
-        return indexKey == null ? fieldReferences : fieldReferences.combine(indexKey.references());
+        return Expressions.references(indexKey == null ? fields : CollectionUtils.combine(fields, indexKey));
     }
 
     @Override

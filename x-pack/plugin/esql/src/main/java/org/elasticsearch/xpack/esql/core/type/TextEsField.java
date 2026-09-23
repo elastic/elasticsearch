@@ -62,20 +62,17 @@ public class TextEsField extends EsField {
         boolean isAlias,
         TimeSeriesFieldType timeSeriesFieldType
     ) {
-        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, null, DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.NONE);
-    }
-
-    public TextEsField(
-        String name,
-        Map<String, EsField> properties,
-        boolean hasDocValues,
-        boolean isAlias,
-        TimeSeriesFieldType timeSeriesFieldType,
-        @Nullable String analyzerName,
-        int positionIncrementGap,
-        UnknownAnalyzer unknownAnalyzer
-    ) {
-        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, analyzerName, positionIncrementGap, unknownAnalyzer, null);
+        this(
+            name,
+            properties,
+            hasDocValues,
+            isAlias,
+            timeSeriesFieldType,
+            null,
+            DEFAULT_POSITION_INCREMENT_GAP,
+            UnknownAnalyzer.NONE,
+            null
+        );
     }
 
     public TextEsField(

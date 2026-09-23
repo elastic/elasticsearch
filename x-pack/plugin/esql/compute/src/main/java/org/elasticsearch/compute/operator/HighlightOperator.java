@@ -94,10 +94,6 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         @Nullable ExpressionEvaluator.Factory indexEvaluatorFactory
     ) implements OperatorFactory {
 
-        public Factory(HighlightConfig config, List<ExpressionEvaluator.Factory> fieldEvaluatorFactories) {
-            this(config, fieldEvaluatorFactories, null);
-        }
-
         @Override
         public Operator get(DriverContext driverContext) {
             ExpressionEvaluator[] fieldEvaluators = fieldEvaluatorFactories.stream()
@@ -126,13 +122,6 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final MemoryIndex memoryIndex;
     private final Variant[] variants;
     private final Map<BytesRef, Variant> variantByIndex;
-    // Rows arrive grouped by shard, so the previous row's index usually answers the next lookup.
-    private BytesRef lastIndex;
-    private Variant lastVariant;
-
-    public HighlightOperator(BlockFactory blockFactory, HighlightConfig config, ExpressionEvaluator[] fieldEvaluators) {
-        this(blockFactory, config, fieldEvaluators, null);
-    }
 
     public HighlightOperator(
         BlockFactory blockFactory,
@@ -175,13 +164,12 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     /** The analyzers, query, and highlighters rows of one analyzer combination are highlighted with. */
     private final class Variant {
         private final List<NamedAnalyzer> fieldAnalyzers;
-        private final Query query;
         private final CustomUnifiedHighlighter[] highlighters;
         private final TokenKeepSet keepSet;
 
         Variant(HighlightConfig.Variant variant, IndexSearcher searcher) {
             this.fieldAnalyzers = variant.fieldAnalyzers();
-            this.query = variant.query();
+            Query query = variant.query();
             assert fieldNames.size() == fieldAnalyzers.size()
                 : "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match analyzer count [" + fieldAnalyzers.size() + "]";
             this.highlighters = new CustomUnifiedHighlighter[fieldNames.size()];
@@ -328,11 +316,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             return variants[0];
         }
         BytesRef index = ((BytesRefBlock) indexBlock).getBytesRef(indexBlock.getFirstValueIndex(row), scratch);
-        if (index.equals(lastIndex) == false) {
-            lastIndex = BytesRef.deepCopyOf(index);
-            lastVariant = variantByIndex.getOrDefault(index, variants[0]);
-        }
-        return lastVariant;
+        return variantByIndex.getOrDefault(index, variants[0]);
     }
 
     private void initFields(Page page, int rowCount, HighlightField[] fields) {
@@ -634,7 +618,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     public String toString() {
         return getClass().getSimpleName()
             + "[query="
-            + variants[0].query
+            + config.variants().getFirst().query()
             + ", "
             + config.describe()
             + ", fields="

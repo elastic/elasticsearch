@@ -124,7 +124,8 @@ public class LoadMapping {
                     tsType,
                     analyzer,
                     positionIncrementGap,
-                    TextEsField.UnknownAnalyzer.NONE
+                    TextEsField.UnknownAnalyzer.NONE,
+                    null
                 );
             } else if (esDataType == KEYWORD) {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);

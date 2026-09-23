@@ -53,7 +53,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
                 getFieldAttribute("tag", KEYWORD)
             ),
             null
-        ).defaultAnalyzers();
+        ).variants().getFirst();
         assertThat(List.copyOf(resolved.keySet()), contains("title", "body", "note", "other", "tag"));
         assertThat(
             resolved.values().stream().map(NamedAnalyzer::name).toList(),
@@ -64,7 +64,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
 
     public void testWithAnalyzerOverridesMappingAndDeclared() {
         Resolved resolved = resolve(List.of(textField("title", "whitespace"), declaredField("note", "simple")), "keyword");
-        assertThat(resolved.defaultAnalyzers().values().stream().map(NamedAnalyzer::name).toList(), contains("keyword", "keyword"));
+        assertThat(resolved.variants().getFirst().values().stream().map(NamedAnalyzer::name).toList(), contains("keyword", "keyword"));
     }
 
     // Mapping analyzer this node cannot build. Resolve returns standard instead of failing the query.
@@ -87,7 +87,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
         List<String> warnings = new ArrayList<>();
         Resolved resolved = resolve(List.of(conflictingField("title")), null, false, warnings);
         assertThat(resolved.variants(), hasSize(1));
-        assertThat(resolved.defaultAnalyzers().get("title").name(), equalTo("standard"));
+        assertThat(resolved.variants().getFirst().get("title").name(), equalTo("standard"));
         assertThat(warnings, hasItem(containsString("indices disagree on the analyzer")));
     }
 
@@ -134,7 +134,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
         assertThat(warnings, hasSize(2));
         assertThat(
             warnings.get(0),
-            containsString("HIGHLIGHT on [title] uses [standard] for indices [custom_a, custom_b]: its analyzer is defined in the index")
+            containsString("HIGHLIGHT on [title] falls back to [standard] for indices [custom_a, custom_b]: its analyzer is defined in the")
         );
         assertThat(warnings.get(1), containsString("for indices [plugin]: analyzer [my_plugin_analyzer] is not registered"));
     }
@@ -143,7 +143,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
     public void testIndexLocalAnalyzerFallsBackAndWarns() {
         List<String> warnings = new ArrayList<>();
         Resolved resolved = resolve(List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL)), null, true, warnings);
-        assertThat(resolved.defaultAnalyzers().get("title").name(), equalTo("standard"));
+        assertThat(resolved.variants().getFirst().get("title").name(), equalTo("standard"));
         assertThat(warnings, hasItem(containsString("its analyzer is defined in the index settings")));
     }
 
@@ -185,7 +185,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
     }
 
     private static List<String> names(NamedExpression... onFields) {
-        return names(resolve(List.of(onFields), null).defaultAnalyzers());
+        return names(resolve(List.of(onFields), null).variants().getFirst());
     }
 
     private static List<String> names(Map<String, NamedAnalyzer> fieldAnalyzers) {
@@ -204,7 +204,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
         return new FieldAttribute(
             EMPTY,
             name,
-            new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName, gap, unknown)
+            new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName, gap, unknown, null)
         );
     }
 

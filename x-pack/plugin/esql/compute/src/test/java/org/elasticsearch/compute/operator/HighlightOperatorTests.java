@@ -85,7 +85,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
             contentTerm("fox"),
             CONTENT
         );
-        return new HighlightOperator.Factory(config, List.of(new LoadFromPageEvaluator.Factory(0)));
+        return new HighlightOperator.Factory(config, List.of(new LoadFromPageEvaluator.Factory(0)), null);
     }
 
     @Override
@@ -401,7 +401,8 @@ public class HighlightOperatorTests extends OperatorTestCase {
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
                 config("fox", 5, 0, 0).withExecutionContext(namedAnalyzers(analyzer, CONTENT.size()), contentTerm("fox"), CONTENT),
-                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) },
+                null
             )
         ) {
             IntBlock intBlock = blockFactory().newConstantIntBlockWith(1, 1);
@@ -816,7 +817,8 @@ public class HighlightOperatorTests extends OperatorTestCase {
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
                 config.withExecutionContext(namedAnalyzers(analyzer, CONTENT.size()), query, CONTENT),
-                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) },
+                null
             )
         ) {
             Page result = operator.process(new Page(input));
@@ -846,7 +848,8 @@ public class HighlightOperatorTests extends OperatorTestCase {
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
                 config.withExecutionContext(fieldAnalyzers, query, fieldNames),
-                evaluators
+                evaluators,
+                null
             )
         ) {
             return operator.process(new Page(fields));

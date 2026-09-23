@@ -125,7 +125,8 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             derivedFields,
             fields,
             null,
-            generatedFor(prefix, fields)
+            generatedFor(prefix, fields),
+            null
         );
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
@@ -118,20 +119,6 @@ public class Highlight extends UnaryPlan
      * analyzer so each row can be highlighted with its own index's analyzer. {@code null} otherwise.
      */
     private final @Nullable Attribute indexKey;
-
-    public Highlight(
-        Source source,
-        LogicalPlan child,
-        String prefix,
-        Expression query,
-        boolean implicitQuery,
-        boolean derivedFields,
-        List<NamedExpression> fields,
-        MapExpression options,
-        List<Attribute> generatedFields
-    ) {
-        this(source, child, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields, null);
-    }
 
     public Highlight(
         Source source,
@@ -267,19 +254,8 @@ public class Highlight extends UnaryPlan
     }
 
     /** The key must be in {@code newChild}'s output. */
-    public Highlight withIndexKey(LogicalPlan newChild, Attribute newIndexKey) {
-        return new Highlight(
-            source(),
-            newChild,
-            prefix,
-            query,
-            implicitQuery,
-            derivedFields,
-            fields,
-            options,
-            generatedFields,
-            newIndexKey
-        );
+    public Highlight withIndexKey(LogicalPlan newChild, Attribute key) {
+        return new Highlight(source(), newChild, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields, key);
     }
 
     /**
@@ -360,8 +336,7 @@ public class Highlight extends UnaryPlan
     @Override
     protected AttributeSet computeReferences() {
         // The ON fields and the index key are inputs; the generated <prefix><field> columns are outputs, not references.
-        AttributeSet fieldReferences = Expressions.references(fields);
-        return indexKey == null ? fieldReferences : fieldReferences.combine(indexKey.references());
+        return Expressions.references(indexKey == null ? fields : CollectionUtils.combine(fields, indexKey));
     }
 
     @Override

@@ -10,14 +10,9 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -26,10 +21,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
  * Hands HIGHLIGHT each row's {@code _index} when the queried indices disagree on an ON field's analyzer, so the row is
@@ -63,16 +62,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         if (highlight.options() != null && highlight.options().get(Highlight.ANALYZER) != null) {
             return false; // WITH analyzer applies to every row
         }
-        return highlight.fields().stream().anyMatch(ResolveHighlightIndexKey::hasPerIndexAnalyzers);
-    }
-
-    private static boolean hasPerIndexAnalyzers(NamedExpression field) {
-        EsField esField = field instanceof FieldAttribute fa ? fa.field() : null;
-        // UnionTypesCleanup has not unwrapped partially unmapped fields yet.
-        if (esField instanceof PotentiallyUnmappedSingleTypeEsField punk) {
-            esField = punk.mappedField();
-        }
-        return esField instanceof TextEsField text && text.analyzerGroups() != null;
+        return highlight.fields().stream().anyMatch(field -> HighlightAnalyzers.analyzerGroups(field) != null);
     }
 
     /**
@@ -80,23 +70,17 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
      * {@code null} when its rows have no single source index.
      */
     private static LogicalPlan withIndexKey(LogicalPlan plan, Holder<Attribute> key) {
+        // Reuse the key an earlier HIGHLIGHT carries up: a second alias of the same name would shadow it in Eval's output.
+        Attribute existing = firstNamed(plan.output(), INDEX_KEY_NAME, Attribute::synthetic);
+        if (existing != null) {
+            key.set(existing);
+            return plan;
+        }
         LogicalPlan result = switch (plan) {
             case EsRelation relation -> {
-                Attribute index = relation.output()
-                    .stream()
-                    .filter(a -> a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.INDEX))
-                    .findFirst()
-                    .orElse(null);
+                Attribute index = firstNamed(relation.output(), MetadataAttribute.INDEX, a -> a instanceof MetadataAttribute);
                 if (index == null) {
-                    index = new MetadataAttribute(
-                        relation.source(),
-                        MetadataAttribute.INDEX,
-                        DataType.KEYWORD,
-                        Nullability.TRUE,
-                        null,
-                        true,
-                        true
-                    );
+                    index = new MetadataAttribute(relation.source(), MetadataAttribute.INDEX, KEYWORD, Nullability.TRUE, null, true, true);
                     relation = relation.withAdditionalAttribute(index);
                 }
                 Alias alias = new Alias(relation.source(), INDEX_KEY_NAME, index, null, true);
@@ -125,5 +109,9 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
         };
         // Aggregations drop the key from the output.
         return result != null && result.outputSet().contains(key.get()) ? result : null;
+    }
+
+    private static Attribute firstNamed(List<Attribute> attributes, String name, Predicate<Attribute> filter) {
+        return attributes.stream().filter(a -> a.name().equals(name) && filter.test(a)).findFirst().orElse(null);
     }
 }

@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -37,6 +39,8 @@ import static org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders.DEFAUL
  */
 public final class HighlightAnalyzers {
 
+    private static final String INDEX_LOCAL_REASON = "its analyzer is defined in the index settings, which no node can rebuild by name";
+
     private HighlightAnalyzers() {}
 
     /**
@@ -45,11 +49,7 @@ public final class HighlightAnalyzers {
      * @param variants        {@code variants.getFirst()} applies to rows whose index is not in {@code variantByIndex}
      * @param variantByIndex  index name to the position in {@code variants} its rows use. Empty when all rows share one.
      */
-    public record Resolved(List<Map<String, NamedAnalyzer>> variants, Map<String, Integer> variantByIndex) {
-        public Map<String, NamedAnalyzer> defaultAnalyzers() {
-            return variants.getFirst();
-        }
-    }
+    public record Resolved(List<Map<String, NamedAnalyzer>> variants, Map<String, Integer> variantByIndex) {}
 
     /**
      * A mapping analyzer that fails to resolve on this node falls back to {@code standard} and emits a warning
@@ -70,23 +70,27 @@ public final class HighlightAnalyzers {
         Map<String, Map<String, NamedAnalyzer>> overridesByIndex = new TreeMap<>();
         for (NamedExpression field : onFields) {
             String name = field.name();
+            List<IndexAnalyzerGroup> groups = perIndex ? analyzerGroups(field) : null;
             if (commandAnalyzer != null) {
                 defaults.put(name, commandAnalyzer);
-            } else if (perIndex
-                && field instanceof FieldAttribute fa
-                && fa.field() instanceof TextEsField text
-                && text.analyzerGroups() != null) {
-                    NamedAnalyzer standard = PlannerUtils.resolveAnalyzer(DEFAULT_ANALYZER_NAME, analysisRegistry);
-                    for (IndexAnalyzerGroup group : text.analyzerGroups()) {
-                        NamedAnalyzer analyzer = groupAnalyzer(name, group, standard, analysisRegistry, warnings);
-                        for (String index : group.indices()) {
-                            overridesByIndex.computeIfAbsent(index, k -> new LinkedHashMap<>()).put(name, analyzer);
-                        }
-                    }
-                    defaults.put(name, standard);
-                } else {
-                    defaults.put(name, analyzerOf(field, analysisRegistry, warnings));
+            } else if (groups != null) {
+                defaults.put(name, PlannerUtils.resolveAnalyzer(DEFAULT_ANALYZER_NAME, analysisRegistry));
+                for (IndexAnalyzerGroup group : groups) {
+                    NamedAnalyzer analyzer = mappingAnalyzer(
+                        name,
+                        " for indices " + new TreeSet<>(group.indices()),
+                        group.analyzerName(),
+                        group.positionIncrementGap(),
+                        INDEX_LOCAL_REASON,
+                        analysisRegistry,
+                        warnings
+                    );
+                    group.indices()
+                        .forEach(index -> overridesByIndex.computeIfAbsent(index, k -> new LinkedHashMap<>()).put(name, analyzer));
                 }
+            } else {
+                defaults.put(name, analyzerOf(field, analysisRegistry, warnings));
+            }
         }
         // Indices that end up with the same analyzer and gap for every field share a variant.
         List<Map<String, NamedAnalyzer>> variants = new ArrayList<>();
@@ -116,78 +120,72 @@ public final class HighlightAnalyzers {
         }
     }
 
+    /** Which indices use which analyzer when the queried indices disagree on a mapped text field, otherwise {@code null}. */
+    public static @Nullable List<IndexAnalyzerGroup> analyzerGroups(NamedExpression field) {
+        EsField esField = field instanceof FieldAttribute fa ? fa.field() : null;
+        // Partially unmapped fields stay wrapped until UnionTypesCleanup.
+        if (esField instanceof PotentiallyUnmappedSingleTypeEsField punk) {
+            esField = punk.mappedField();
+        }
+        return esField instanceof TextEsField text ? text.analyzerGroups() : null;
+    }
+
     private static NamedAnalyzer analyzerOf(NamedExpression field, @Nullable AnalysisRegistry analysisRegistry, Consumer<String> warnings) {
         // Only a FieldAttribute still carries the mapping analyzer. RENAME and EVAL produce a ReferenceAttribute,
         // which keeps a TO_TEXT analyzer but not a mapping one, so a renamed mapped field falls back to standard.
         if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text) {
-            return mappingAnalyzer(field.name(), text, analysisRegistry, warnings);
+            String fallbackReason = switch (text.unknownAnalyzer()) {
+                case NONE -> null;
+                case CONFLICT -> "the queried indices disagree on the analyzer for this field";
+                case INDEX_LOCAL -> INDEX_LOCAL_REASON;
+            };
+            return mappingAnalyzer(
+                field.name(),
+                "",
+                text.analyzerName(),
+                text.positionIncrementGap(),
+                fallbackReason,
+                analysisRegistry,
+                warnings
+            );
         }
         String declared = AnalyzedTextExpression.valuesAnalyzerOf(field);
         return PlannerUtils.resolveAnalyzer(Objects.requireNonNullElse(declared, DEFAULT_ANALYZER_NAME), analysisRegistry);
     }
 
+    /**
+     * {@code analyzerName} with the field's {@code gap}, or {@code standard} and a warning when there is no name or this
+     * node cannot resolve it. {@code scope} names the indices the fallback applies to, empty when it applies to every row.
+     */
     private static NamedAnalyzer mappingAnalyzer(
         String fieldName,
-        TextEsField text,
+        String scope,
+        @Nullable String analyzerName,
+        int gap,
+        @Nullable String fallbackReason,
         @Nullable AnalysisRegistry analysisRegistry,
         Consumer<String> warnings
     ) {
-        String fallbackReason = switch (text.unknownAnalyzer()) {
-            case NONE -> null;
-            case CONFLICT -> "the queried indices disagree on the analyzer for this field";
-            case INDEX_LOCAL -> INDEX_LOCAL_REASON;
-        };
-        if (text.analyzerName() != null) {
+        if (analyzerName != null) {
             try {
-                return withGap(PlannerUtils.resolveAnalyzer(text.analyzerName(), analysisRegistry), text.positionIncrementGap());
+                NamedAnalyzer resolved = PlannerUtils.resolveAnalyzer(analyzerName, analysisRegistry);
+                return resolved.getPositionIncrementGap(resolved.name()) == gap ? resolved : new NamedAnalyzer(resolved, gap);
             } catch (InvalidArgumentException e) {
-                // index.analysis names arrive as INDEX_LOCAL, so this is a plugin analyzer this node did not load.
-                fallbackReason = unregisteredReason(text.analyzerName());
+                // index.analysis names are withheld, so this is a plugin analyzer this node did not load.
+                fallbackReason = "analyzer [" + analyzerName + "] is not registered on this node";
             }
         }
         if (fallbackReason != null) {
-            warnings.accept("HIGHLIGHT on [" + fieldName + "] falls back to [standard]: " + fallbackReason + WARNING_SUFFIX);
+            warnings.accept(
+                "HIGHLIGHT on ["
+                    + fieldName
+                    + "] falls back to [standard]"
+                    + scope
+                    + ": "
+                    + fallbackReason
+                    + ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this."
+            );
         }
         return PlannerUtils.resolveAnalyzer(DEFAULT_ANALYZER_NAME, analysisRegistry);
     }
-
-    /** Like {@link #mappingAnalyzer} for one group of indices; the warning names the indices that fall back. */
-    private static NamedAnalyzer groupAnalyzer(
-        String fieldName,
-        IndexAnalyzerGroup group,
-        NamedAnalyzer standard,
-        @Nullable AnalysisRegistry analysisRegistry,
-        Consumer<String> warnings
-    ) {
-        String fallbackReason = INDEX_LOCAL_REASON;
-        if (group.analyzerName() != null) {
-            try {
-                return withGap(PlannerUtils.resolveAnalyzer(group.analyzerName(), analysisRegistry), group.positionIncrementGap());
-            } catch (InvalidArgumentException e) {
-                fallbackReason = unregisteredReason(group.analyzerName());
-            }
-        }
-        warnings.accept(
-            "HIGHLIGHT on ["
-                + fieldName
-                + "] uses [standard] for indices "
-                + new TreeSet<>(group.indices())
-                + ": "
-                + fallbackReason
-                + WARNING_SUFFIX
-        );
-        return standard;
-    }
-
-    private static NamedAnalyzer withGap(NamedAnalyzer resolved, int gap) {
-        return resolved.getPositionIncrementGap(resolved.name()) == gap ? resolved : new NamedAnalyzer(resolved, gap);
-    }
-
-    private static String unregisteredReason(String analyzerName) {
-        return "analyzer [" + analyzerName + "] is not registered on this node";
-    }
-
-    private static final String INDEX_LOCAL_REASON = "its analyzer is defined in the index settings, which no node can rebuild by name";
-    private static final String WARNING_SUFFIX =
-        ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this.";
 }

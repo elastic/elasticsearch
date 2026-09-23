@@ -2113,22 +2113,18 @@ Return of the King Being the Third Part of The Lord of the Rings | null
 highlightPerIndexAnalyzerUsesEachIndexAnalyzer
 required_capability: highlight_per_index_analyzer
 
-// tag::highlightPerIndexAnalyzerForDocs[]
 FROM books,books_english METADATA _index
 | WHERE MATCH(title, "ring") AND book_no IN ("2714", "2936")
 | SORT _index, book_no
 | LIMIT 10
 | HIGHLIGHT
 | KEEP _index, book_no, highlight_title
-// end::highlightPerIndexAnalyzerForDocs[]
 ;
 
-// tag::highlightPerIndexAnalyzerForDocs-result[]
 _index:keyword | book_no:keyword | highlight_title:keyword
 books          | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
 books_english  | 2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 books_english  | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
-// end::highlightPerIndexAnalyzerForDocs-result[]
 ;
 
 

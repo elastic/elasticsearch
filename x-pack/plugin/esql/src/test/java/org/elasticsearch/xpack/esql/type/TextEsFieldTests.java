@@ -31,7 +31,8 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
             EsField.TimeSeriesFieldType.NONE,
             "english",
             0,
-            TextEsField.UnknownAnalyzer.NONE
+            TextEsField.UnknownAnalyzer.NONE,
+            null
         );
         var oldVersion = TransportVersionUtils.getPreviousVersion(TextEsField.FIELD_CAPS_INDEX_ANALYZER);
         assertEquals(new TextEsField("title", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE), copyInstance(field, oldVersion));

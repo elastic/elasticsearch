@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -176,18 +177,15 @@ public record HighlightConfig(
             + ", order_by_score="
             + orderByScore
             + ", analyzer="
-            + describeAnalyzers()
+            + (variants.isEmpty() ? analyzerName : describeAnalyzers(variants.getFirst()))
             + describePerIndexAnalyzers()
             + ", max_analyzed_offset="
             + maxAnalyzedOffset;
     }
 
-    /** One analyzer name, or {@code {field=analyzer, ...}} when fields differ. Uses {@link #analyzerName} when no variant is set. */
-    private String describeAnalyzers() {
-        if (variants.isEmpty()) {
-            return String.valueOf(analyzerName);
-        }
-        List<NamedAnalyzer> fieldAnalyzers = variants.getFirst().fieldAnalyzers();
+    /** One analyzer name, or {@code {field=analyzer, ...}} when fields differ. */
+    private String describeAnalyzers(Variant variant) {
+        List<NamedAnalyzer> fieldAnalyzers = variant.fieldAnalyzers();
         if (fieldAnalyzers.stream().map(NamedAnalyzer::name).distinct().count() == 1) {
             return fieldAnalyzers.getFirst().name();
         }
@@ -196,25 +194,14 @@ public record HighlightConfig(
             .collect(Collectors.joining(", ", "{", "}"));
     }
 
-    /** {@code {index=analyzer, ...}} for rows that use another variant than the first; empty when none do. */
+    /** {@code , per_index_analyzer={index=analyzer, ...}} for rows that use another variant than the first; empty when none do. */
     private String describePerIndexAnalyzers() {
         if (variantByIndex.isEmpty()) {
             return "";
         }
-        return variantByIndex.entrySet()
-            .stream()
-            .sorted(Map.Entry.comparingByKey())
-            .map(
-                e -> e.getKey()
-                    + "="
-                    + variants.get(e.getValue())
-                        .fieldAnalyzers()
-                        .stream()
-                        .map(NamedAnalyzer::name)
-                        .distinct()
-                        .collect(Collectors.joining("/"))
-            )
-            .collect(Collectors.joining(", ", ", per_index_analyzer={", "}"));
+        Map<String, String> byIndex = new TreeMap<>();
+        variantByIndex.forEach((index, variant) -> byIndex.put(index, describeAnalyzers(variants.get(variant))));
+        return ", per_index_analyzer=" + byIndex;
     }
 
     @Override

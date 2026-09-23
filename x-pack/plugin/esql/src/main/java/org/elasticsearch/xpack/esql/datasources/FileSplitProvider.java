@@ -651,8 +651,10 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Phase 1: sequential in-memory filter. No object-store IO. Each survivor keeps one unmodifiable
-     * partition map (hive values copied by reference, {@code _file.*} written in place). No {@link FileTask}.
+     * Phase 1: sequential in-memory filter. No object-store IO. Each file builds one temporary map
+     * (hive values copied by reference, {@code _file.*} written in place) so filter hints see every
+     * listing key. The map frozen onto the survivor is that temporary map when the projection is
+     * unknown, otherwise only the retained keys with a non-null value. No {@link FileTask}.
      */
     private SurvivorBatch buildSurvivors(SplitDiscoveryContext context, long requestedStrideBytes) {
         FileList fileList = context.fileList();
@@ -669,6 +671,7 @@ public class FileSplitProvider implements SplitProvider {
             context.declaredReadSpec()
         );
         Set<String> metadataColumnNames = context.metadataColumnNames();
+        Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
 
         int fileCount = fileList.fileCount();
         int certifiedSkips = 0;
@@ -676,13 +679,13 @@ public class FileSplitProvider implements SplitProvider {
         int[] fileIndices = new int[fileCount];
         ArrayList<Map<String, Object>> partitionValues = new ArrayList<>(fileCount);
         // One directory BytesRef per distinct parent for this query. Discarded with the batch builder;
-        // the refs stay reachable from the frozen maps. Full path URIs are not interned.
+        // a retained {@code _file.directory} keeps its ref alive on the frozen map. Full path URIs are not interned.
         Map<String, BytesRef> directoryIntern = new HashMap<>();
         int survivors = 0;
         // Unified schema is query-wide. One unmodifiable map is shared by every file; the
         // concurrent split path only reads it.
         Map<String, DataType> reconciledTypes = unifiedSchema == null ? null : Map.copyOf(attributesToTypeMap(unifiedSchema.attributes()));
-        // Hive / _file.* listing values already live in the frozen partition map. Copy and strip
+        // Hive / _file.* listing values live in the temporary map the filter reads. Copy and strip
         // unbound _file.* (or overlay engine per-file constants) only when a hint names one of those keys.
         boolean overlayPerFileConstants = filterHints.isEmpty() == false
             && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
@@ -710,13 +713,14 @@ public class FileSplitProvider implements SplitProvider {
             long modifiedMillis = fileList.lastModifiedMillis(i);
             Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
             FileMetadataColumns.putValues(values, filePath, fileList.size(i), modified, directoryIntern);
-            Map<String, Object> frozen = Collections.unmodifiableMap(values);
+            // Filter against the full listing map. The frozen survivor map may drop keys the hint still needs.
+            Map<String, Object> listingValues = Collections.unmodifiableMap(values);
             SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
             if (filterHints.isEmpty() == false) {
                 Map<String, Object> filterValues = copyFilterValues
-                    ? discoveryFilterValues(frozen, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
-                    : frozen;
+                    ? discoveryFilterValues(listingValues, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
+                    : listingValues;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
                     continue;
@@ -742,7 +746,7 @@ public class FileSplitProvider implements SplitProvider {
             }
 
             fileIndices[survivors++] = i;
-            partitionValues.add(frozen);
+            partitionValues.add(freezeRetainedPartitionValues(listingValues, retainedPartitionKeys));
         }
         if (survivors != fileCount) {
             fileIndices = Arrays.copyOf(fileIndices, survivors);
@@ -759,6 +763,37 @@ public class FileSplitProvider implements SplitProvider {
             anchorPinnedFirstFileWins,
             fileBackedQuerySchema
         );
+    }
+
+    /**
+     * {@code retainedKeys == null} keeps {@code listingValues} unchanged (unknown projection).
+     * Otherwise only retained keys with a non-null value are copied. A missing key and an explicit
+     * null both read back as {@code null}, so dropping them lets an empty projection be {@link Map#of()}.
+     */
+    private static Map<String, Object> freezeRetainedPartitionValues(
+        Map<String, Object> listingValues,
+        @Nullable Set<String> retainedKeys
+    ) {
+        if (retainedKeys == null) {
+            return listingValues;
+        }
+        if (retainedKeys.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> kept = null;
+        for (String key : retainedKeys) {
+            Object value = listingValues.get(key);
+            if (value != null) {
+                if (kept == null) {
+                    kept = new LinkedHashMap<>();
+                }
+                kept.put(key, value);
+            }
+        }
+        if (kept == null) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(kept);
     }
 
     @Nullable
@@ -2094,7 +2129,7 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Full-file {@link StorageObject} for {@code fileSplit}, seeded with listing length (and mtime
+     * Full-file {@link StorageObject} for {@code fileSplit}, seeded with the file length (and mtime
      * when known) so {@code length()} / {@code lastModified()} do not probe the object store. Size
      * {@code 0} is a real empty object; missing length falls back to the path-only constructor.
      * <p>
@@ -2122,18 +2157,28 @@ public class FileSplitProvider implements SplitProvider {
      * Builds a {@link StorageObject} that exposes only the bytes for the given {@link FileSplit}.
      * Always wraps the provider's base object in {@link RangeStorageObject} so format readers and
      * splittable decompressors only see the split's compressed byte span (including offset {@code 0}).
-     * The inner object is the full file, seeded from listing metadata when present — never from
-     * {@link FileSplit#length()}, which is the view span.
+     * The inner object is the full file. A span split carries that length in {@code _file_length};
+     * {@link FileSplit#length()} is the view span there. A whole-file split (first and last) is not
+     * stamped, and its {@link FileSplit#length()} is the file.
      */
     public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
         return new RangeStorageObject(newObjectForFile(storageProvider, fileSplit), fileSplit.offset(), fileSplit.length());
     }
 
+    /**
+     * Full-file length. Span splits stamp {@code _file_length} because {@link FileSplit#length()} is
+     * only the view. A split that is both first and last is the whole file, so its length is the file
+     * even when {@code _file.size} was not retained. Any other split falls back to a retained
+     * {@code _file.size}, then {@code null}.
+     */
     @Nullable
     private static Long fileLengthHint(FileSplit fileSplit) {
         Object configured = fileSplit.config().get(FILE_LENGTH_KEY);
         if (configured instanceof String s) {
             return Long.parseLong(s);
+        }
+        if (isFirstInFile(fileSplit) && isLastInFile(fileSplit)) {
+            return fileSplit.length();
         }
         Object listed = fileSplit.partitionValues().get(FileMetadataColumns.SIZE);
         return listed instanceof Number n ? n.longValue() : null;
@@ -2251,6 +2296,7 @@ public class FileSplitProvider implements SplitProvider {
 
                 Map<String, Object> splitConfig = new HashMap<>(config);
                 splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
+                splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
                 if (m == 0) {
                     splitConfig.put(FIRST_SPLIT_KEY, "true");
                 }
@@ -2731,6 +2777,7 @@ public class FileSplitProvider implements SplitProvider {
             long length = Math.subtractExact(end, start);
             Map<String, Object> splitConfig = new HashMap<>(config);
             splitConfig.put(RECORD_ALIGNED_MACRO_SPLIT_KEY, "true");
+            splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
             if (i == 0) {
                 splitConfig.put(FIRST_SPLIT_KEY, "true");
             }
@@ -2853,6 +2900,7 @@ public class FileSplitProvider implements SplitProvider {
                     long groupEnd = frame.compressedOffset() + frame.compressedSize();
                     Map<String, Object> splitConfig = new HashMap<>(config);
                     splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
+                    splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
                     if (splitCount == 0) {
                         splitConfig.put(FIRST_SPLIT_KEY, "true");
                     }

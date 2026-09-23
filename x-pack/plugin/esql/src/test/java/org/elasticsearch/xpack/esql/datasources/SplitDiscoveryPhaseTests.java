@@ -648,6 +648,38 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(List.of("id", "year"), schemaNames(recorder.lastContext));
     }
 
+    public void testRetainedPartitionKeysFollowPostPruneOutput() {
+        StoragePath path = StoragePath.of("s3://bucket/data/year=2024/a.parquet");
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(path, 100, Instant.EPOCH)),
+            "s3://bucket/data/year=*/a.parquet",
+            partitions
+        );
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet").withAttributes(
+            List.of(
+                fieldAttr("id", DataType.LONG),
+                fieldAttr("year", DataType.INTEGER),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG),
+                new ExternalMetadataAttribute(SRC, FileMetadataColumns.RECORD_REF, DataType.LONG)
+            )
+        );
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+        assertEquals(Set.of("year", FileMetadataColumns.SIZE), recorder.lastContext.retainedPartitionKeys());
+
+        recorder.lastContext = null;
+        discoverAsync(exec, factories);
+        assertEquals(Set.of("year", FileMetadataColumns.SIZE), recorder.lastContext.retainedPartitionKeys());
+
+        ExternalSourceExec dataOnly = exec.withAttributes(List.of(fieldAttr("id", DataType.LONG)));
+        recorder.lastContext = null;
+        SplitDiscoveryPhase.resolveExternalSplits(dataOnly, factories);
+        assertEquals(Set.of(), recorder.lastContext.retainedPartitionKeys());
+    }
+
     /**
      * A query that projects only metadata leaves no data columns, which is the same shape
      * {@code COUNT(*)} already produces: the prune is skipped and {@code adaptSchema} short-circuits

@@ -24,7 +24,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FuzzyQuery;
@@ -38,7 +37,6 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOFunction;
-import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -790,8 +788,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (caseInsensitive == false) {
                 Term term = new Term(name(), value);
                 if (context.getCircuitBreaker() != null) {
-                    Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    return docValuesWildcardQuery(term, context);
                 }
                 return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
             }
@@ -822,15 +819,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 return binaryQueries().regexp(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates, context.getCircuitBreaker());
             }
             if (context.getCircuitBreaker() != null) {
-                Term term = new Term(name(), value);
-                Automaton dfa = AutomatonQueries.toRegexpAutomaton(
-                    term,
-                    syntaxFlags,
-                    matchFlags,
-                    maxDeterminizedStates,
-                    context.getCircuitBreaker()
-                );
-                return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                return docValuesRegexpQuery(new Term(name(), value), syntaxFlags, matchFlags, maxDeterminizedStates, context);
             }
             return new RegexpQuery(
                 new Term(name(), value),

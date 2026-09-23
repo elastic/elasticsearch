@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -73,8 +74,8 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
-import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
-import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING;
+import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING;
+import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -276,14 +277,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final int maxConcurrentRecoveries = between(2, 5);
         Settings.Builder settings = Settings.builder()
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries);
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries);
         if (randomBoolean()) {
-            // Set INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING to a value equal to or greater than
-            // INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, which has no effect:
-            settings.put(
-                INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING.getKey(),
-                randomIntBetween(maxConcurrentRecoveries, Integer.MAX_VALUE)
-            );
+            settings.put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), "100%");
         }
         final var service = newStartedService(
             taskQueue.getThreadPool(),
@@ -343,14 +339,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(peakConcurrent.get(), equalTo(maxConcurrentRecoveries));
     }
 
-    public void testMaxConcurrentRelocationsSetting() {
+    public void testRelocationRecoveriesMaxProportion() {
         final var taskQueue = new DeterministicTaskQueue();
-        final int maxConcurrentRecoveries = between(5, 10);
-        // Ensure that there are at least two slots for any recovery and at least two slots for recoveries from unassigned only:
+        // Power-of-two limit to keep the derived proportion exactly representable through RatioValue's percent conversion.
+        final int maxConcurrentRecoveries = randomFrom(8, 16);
+        // Ensure that there are at least two slots for any recovery and at least two slots for recoveries from unassigned only.
         final int maxConcurrentRelocationRecoveries = between(2, maxConcurrentRecoveries - 2);
+        // ceil(maxConcurrentRecoveries * relocationProportion) = maxConcurrentRelocationRecoveries.
+        final double relocationProportion = (double) maxConcurrentRelocationRecoveries / maxConcurrentRecoveries;
         Settings settings = Settings.builder()
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING.getKey(), maxConcurrentRelocationRecoveries)
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
+            .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), relocationProportion)
             .build();
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(settings));
 
@@ -464,7 +463,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(started.get(), equalTo(2));
 
         clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 4).build());
+            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4).build());
         taskQueue.runAllRunnableTasks();
         assertThat(started.get(), equalTo(4));
         taskQueue.runAllTasks();
@@ -472,11 +471,24 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
-    public void testIncreasingMaxConcurrentRelocationRecoveriesStartsPendingTasks() {
+    public void testRelocationRecoveriesMaxProportionRejectsZero() {
+        for (final var zeroValue : List.of("0", "0%")) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.get(
+                    Settings.builder()
+                        .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), zeroValue)
+                        .build()
+                )
+            );
+        }
+    }
+
+    public void testIncreasingRelocationRecoveriesMaxProportionStartsPendingTasks() {
         final var taskQueue = new DeterministicTaskQueue();
         Settings settings = Settings.builder()
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING.getKey(), 2)
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 10)
+            .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), Double.MIN_NORMAL / 100.0)
             .build();
         final var clusterService = newClusterService(settings);
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
@@ -499,14 +511,88 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
 
         taskQueue.runAllRunnableTasks();
-        assertThat(started.get(), equalTo(2));
+        // ceil(10 * (Double.MIN_NORMAL / 100.0)) = 1, the minimum proportion still allows 1 slot.
+        assertThat(started.get(), equalTo(1));
 
+        // Increase proportion to 4 relocation slots.
         clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING.getKey(), 4).build());
+            .applySettings(
+                Settings.builder().put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), 0.4).build()
+            );
         taskQueue.runAllRunnableTasks();
         assertThat(started.get(), equalTo(4));
         taskQueue.runAllTasks();
         assertThat(started.get(), equalTo(10));
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testRelocationProportionWithUnlimitedIncomingRecoveryLimit() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), Double.MIN_NORMAL / 100.0)
+                .build()
+        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final var started = new AtomicInteger();
+
+        service.enqueue(
+            ProjectId.DEFAULT,
+            new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED),
+            mockIndexShard(newRelocationRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            listener -> {
+                started.incrementAndGet();
+                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            }
+        );
+
+        taskQueue.runAllRunnableTasks();
+        // ceil(Integer.MAX_VALUE * (Double.MIN_NORMAL / 100.0)) = 1, the minimum proportion still allows 1 slot.
+        assertThat(started.get(), equalTo(1));
+
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder().put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), "100%").build()
+            );
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(1));
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testRelocationRecoveriesMaxProportionRoundsUp() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // ceil(3 * 0.5) = 2 relocation slots.
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3)
+                .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), 0.5)
+                .build()
+        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final Set<RecoveryListener> runningRecoveries = new HashSet<>();
+
+        for (int i = 0; i < 3; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newRelocationRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                runningRecoveries::add
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(2));
+
+        final var initialListeners = Set.copyOf(runningRecoveries);
+        runningRecoveries.clear();
+        initialListeners.forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(1));
+        runningRecoveries.forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
+        taskQueue.runAllRunnableTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
@@ -542,7 +628,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         // Lower limit to 1
         clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build());
+            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1).build());
 
         // Complete one task, should not start more (still have 2 running)
         taskQueue.advanceTime();
@@ -1026,10 +1112,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.setExecutionDelayVariabilityMillis(100);
 
         final var maxConcurrentRecoveries = new AtomicInteger(between(1, 20));
-        final var maxConcurrentRelocations = new AtomicInteger(between(1, 20));
+        final var maxConcurrentRelocations = new AtomicInteger(between(1, maxConcurrentRecoveries.get()));
         Settings settings = Settings.builder()
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries.get())
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING.getKey(), maxConcurrentRelocations.get())
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries.get())
+            .put(
+                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(),
+                (double) maxConcurrentRelocations.get() / maxConcurrentRecoveries.get()
+            )
             .build();
         final var clusterService = newClusterService(settings);
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
@@ -1057,12 +1146,15 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         for (int iteration = 0; iteration < 20; iteration++) {
             maxConcurrentRecoveries.set(randomBoolean() ? between(1, 50) : Integer.MAX_VALUE);
-            maxConcurrentRelocations.set(randomBoolean() ? between(1, 50) : Integer.MAX_VALUE);
+            final int newMax = maxConcurrentRecoveries.get();
+            final double proportion = randomDoubleBetween(0.01, 1.0, true);
+            final int newRelocationMax = (int) Math.ceil(newMax * proportion);
+            maxConcurrentRelocations.set(newRelocationMax);
             clusterService.getClusterSettings()
                 .applySettings(
                     Settings.builder()
-                        .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries.get())
-                        .put(INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING.getKey(), maxConcurrentRelocations.get())
+                        .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), newMax)
+                        .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), proportion)
                         .build()
                 );
 
@@ -1182,7 +1274,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                         int nextLimit = between(1, 20);
                         clusterService.getClusterSettings()
                             .applySettings(
-                                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
+                                Settings.builder()
+                                    .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), nextLimit)
+                                    .build()
                             );
                         peakLimit.accumulateAndGet(nextLimit, Integer::max);
                         currentMaxConcurrentRecoveries.set(nextLimit);
@@ -1624,7 +1718,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static ClusterService newClusterService(int maxConcurrentRecoveries) {
         Settings settings = Settings.builder()
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
             .build();
         return newClusterService(settings);
     }
@@ -1633,7 +1727,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(
             settings,
-            Set.of(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING)
+            Set.of(
+                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.localNode()).thenReturn(localNode);

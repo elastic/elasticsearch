@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -113,12 +115,15 @@ public final class HivePartitionDetector implements PartitionDetector {
         }
 
         LinkedHashMap<StoragePath, Map<String, Object>> filePartitionValues = Maps.newLinkedHashMapWithExpectedSize(files.size());
+        // One interner for this detect pass. Sibling files share Integer/Long/keyword instances.
+        // The maps published on PartitionMetadata are not rewritten afterwards.
+        CastInterner interner = new CastInterner();
         for (int i = 0; i < files.size(); i++) {
             Map<String, String> raw = allRawPartitions.get(i);
             LinkedHashMap<String, Object> typed = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
             for (Map.Entry<String, String> e : raw.entrySet()) {
                 String surfaced = surfacedNames.get(e.getKey());
-                typed.put(surfaced, castValue(e.getValue(), partitionColumns.get(surfaced)));
+                typed.put(surfaced, castValue(e.getValue(), partitionColumns.get(surfaced), interner));
             }
             filePartitionValues.put(files.get(i).path(), typed);
         }
@@ -163,29 +168,44 @@ public final class HivePartitionDetector implements PartitionDetector {
         Map<String, String> partitions = new LinkedHashMap<>();
 
         for (String segment : segments) {
-            if (segment.isEmpty()) {
+            String key = segmentKey(segment);
+            if (key == null) {
                 continue;
             }
-            int eqIdx = segment.indexOf('=');
-            if (eqIdx <= 0 || eqIdx == segment.length() - 1) {
-                continue;
-            }
-            String afterEq = segment.substring(eqIdx + 1);
-            if (afterEq.indexOf('=') >= 0) {
-                continue;
-            }
-            if (segment.indexOf('.') >= 0) {
-                continue;
-            }
-            String key = segment.substring(0, eqIdx);
-            String value = decodePartitionValue(afterEq);
             if (partitions.containsKey(key)) {
                 continue;
             }
-            partitions.put(key, HIVE_DEFAULT_PARTITION.equals(value) ? null : value);
+            partitions.put(key, segmentValue(segment));
         }
 
         return partitions;
+    }
+
+    /**
+     * The partition key a {@code key=value} path segment binds, or {@code null} when not partition-shaped (empty,
+     * no/empty key or value, a second {@code =}, or a dot anywhere — disqualifying names like {@code f.parquet}).
+     * The one segment grammar, shared with the listing walk via {@code PartitionValueMatcher}: pruning is sound
+     * only while both layers parse identically.
+     */
+    static String segmentKey(String segment) {
+        if (segment.isEmpty()) {
+            return null;
+        }
+        int eqIdx = segment.indexOf('=');
+        if (eqIdx <= 0 || eqIdx == segment.length() - 1) {
+            return null;
+        }
+        if (segment.indexOf('=', eqIdx + 1) >= 0 || segment.indexOf('.') >= 0) {
+            return null;
+        }
+        return segment.substring(0, eqIdx);
+    }
+
+    /** The decoded value of a {@code key=value} path segment ({@code null} for the NULL-partition sentinel); only
+     * meaningful when {@link #segmentKey} accepted the segment. */
+    static String segmentValue(String segment) {
+        String value = decodePartitionValue(segment.substring(segment.indexOf('=') + 1));
+        return HIVE_DEFAULT_PARTITION.equals(value) ? null : value;
     }
 
     /**
@@ -208,7 +228,7 @@ public final class HivePartitionDetector implements PartitionDetector {
         }
     }
 
-    static DataType inferType(List<String> values) {
+    public static DataType inferType(List<String> values) {
         DataType integralType = tryAllIntegral(values);
         if (integralType != null) {
             return integralType;
@@ -280,26 +300,68 @@ public final class HivePartitionDetector implements PartitionDetector {
     }
 
     static Object castValue(String value, DataType type) {
+        return castValue(value, type, null);
+    }
+
+    /**
+     * Casts one raw partition token. When {@code interner} is non-null (one detect pass), identical
+     * {@link DataType#INTEGER}, {@link DataType#LONG}, and {@link DataType#KEYWORD} results share one
+     * instance. {@code Integer.parseInt} already caches -128..127; the interner covers values outside
+     * that range and every {@code Long}. Other types are left unshared. A null interner (filter
+     * literals) allocates as before. Does not touch any map the caller already published.
+     */
+    static Object castValue(String value, DataType type, @Nullable CastInterner interner) {
         if (value == null) {
             return null;
         }
+        Object cast;
         if (type == DataType.INTEGER) {
-            return Integer.parseInt(value);
-        }
-        if (type == DataType.LONG) {
-            return Long.parseLong(value);
-        }
-        if (type == DataType.UNSIGNED_LONG) {
-            return DeclaredTypeCoercions.coerceToUnsignedLong(value);
-        }
-        if (type == DataType.DOUBLE) {
-            return Double.parseDouble(value);
-        }
-        if (type == DataType.BOOLEAN) {
+            cast = Integer.parseInt(value);
+        } else if (type == DataType.LONG) {
+            cast = Long.parseLong(value);
+        } else if (type == DataType.UNSIGNED_LONG) {
+            cast = DeclaredTypeCoercions.coerceToUnsignedLong(value);
+        } else if (type == DataType.DOUBLE) {
+            cast = Double.parseDouble(value);
+        } else if (type == DataType.BOOLEAN) {
             // Match tryAllBoolean's case-insensitive inference: a folder typed BOOLEAN there (e.g. a standard
             // writer's flag=True/flag=False) must cast, so parse the same true/false-in-any-case token set.
-            return DeclaredTypeCoercions.strictParseBoolean(value);
+            cast = DeclaredTypeCoercions.strictParseBoolean(value);
+        } else {
+            cast = value;
         }
-        return value;
+        if (interner == null || cast == null) {
+            return cast;
+        }
+        if (type == DataType.INTEGER || type == DataType.LONG || type == DataType.KEYWORD) {
+            return interner.share(cast);
+        }
+        return cast;
+    }
+
+    /**
+     * Query-scoped (one {@link #detect} call) identity map for repeated hive scalars.
+     * Not retained after detect returns; the typed values stay reachable from the result maps.
+     */
+    static final class CastInterner {
+        private final Map<Integer, Integer> integers = new HashMap<>();
+        private final Map<Long, Long> longs = new HashMap<>();
+        private final Map<String, String> strings = new HashMap<>();
+
+        Object share(Object value) {
+            if (value instanceof Integer i) {
+                Integer existing = integers.putIfAbsent(i, i);
+                return existing == null ? i : existing;
+            }
+            if (value instanceof Long l) {
+                Long existing = longs.putIfAbsent(l, l);
+                return existing == null ? l : existing;
+            }
+            if (value instanceof String s) {
+                String existing = strings.putIfAbsent(s, s);
+                return existing == null ? s : existing;
+            }
+            return value;
+        }
     }
 }

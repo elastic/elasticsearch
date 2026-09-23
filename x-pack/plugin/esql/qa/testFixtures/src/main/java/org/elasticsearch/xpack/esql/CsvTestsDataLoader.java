@@ -25,6 +25,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
@@ -53,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -266,6 +268,9 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
+        // The flavor of k8s dataset ingested via Prometheus Remote Write.
+        new TestDataset("prometheus-k8s", "prometheus-k8s-mappings.json", "prometheus-k8s.csv", "prometheus-k8s-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
@@ -885,9 +890,10 @@ public class CsvTestsDataLoader {
 
     public static void deleteViews(RestClient client) throws IOException {
         if (clusterSupportsViews(client)) {
-            logger.debug("Deleting views");
-            for (var view : VIEW_CONFIGS.values()) {
-                deleteView(client, view.name);
+            var views = Sets.intersection(listViews(client), VIEW_CONFIGS.keySet());
+            if (views.isEmpty() == false) {
+                logger.debug("Deleting views {}", views);
+                deleteViews(client, views);
             }
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
@@ -1026,15 +1032,32 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void deleteView(RestClient client, String viewName) throws IOException {
+    private static Set<String> listViews(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "/_query/view/*"));
+        JsonNode json = new ObjectMapper().readTree(response.getEntity().getContent());
+        JsonNode views = json.get("views");
+        if (views == null || views.isArray() == false) {
+            return Set.of();
+        }
+        Set<String> names = new TreeSet<>();
+        for (JsonNode view : views) {
+            JsonNode name = view.get("name");
+            if (name != null) {
+                names.add(name.asText());
+            }
+        }
+        return names;
+    }
+
+    private static void deleteViews(RestClient client, Set<String> viewNames) throws IOException {
         final Set<Integer> ignoredDeleteStatusCodes = Set.of(400, 404, 405, 410, 500, 503);
         try {
-            client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
+            client.performRequest(new Request("DELETE", "/_query/view/" + String.join(",", viewNames)));
         } catch (ResponseException e) {
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500.
             // 503 (master_not_discovered_exception) is transient and can occur in BWC mixed-cluster tests after node restarts.
             if (ignoredDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
-                logger.info("View delete error: {}", e.getMessage());
+                logger.info("Views delete error: {}", e.getMessage());
                 throw e;
             }
         }

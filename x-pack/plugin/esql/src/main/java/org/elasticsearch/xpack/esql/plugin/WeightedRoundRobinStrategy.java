@@ -63,14 +63,19 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
             }
         }
 
+        int stride = context.placement().stride(splits.size(), nodes.size());
         if (allHaveSize == false) {
-            return RoundRobinStrategy.assignRoundRobin(splits, nodes);
+            return RoundRobinStrategy.assignRoundRobin(splits, nodes, stride);
         }
 
-        return assignByWeight(splits, nodes);
+        return assignByWeight(splits, nodes, stride);
     }
 
     static ExternalDistributionPlan assignByWeight(List<ExternalSplit> splits, List<DiscoveryNode> nodes) {
+        return assignByWeight(splits, nodes, 0);
+    }
+
+    static ExternalDistributionPlan assignByWeight(List<ExternalSplit> splits, List<DiscoveryNode> nodes, int rotation) {
         int n = splits.size();
         Integer[] order = new Integer[n];
         long[] costs = new long[n];
@@ -81,14 +86,17 @@ public final class WeightedRoundRobinStrategy implements ExternalDistributionStr
         Arrays.sort(order, Comparator.comparingLong((Integer i) -> costs[i]).reversed());
 
         Map<String, List<ExternalSplit>> assignments = new LinkedHashMap<>();
-        long[] nodeLoads = new long[nodes.size()];
+        int nodeCount = nodes.size();
+        long[] nodeLoads = new long[nodeCount];
         for (DiscoveryNode node : nodes) {
             assignments.put(node.getId(), new ArrayList<>());
         }
 
+        int start = Math.floorMod(rotation, nodeCount);
         for (int idx : order) {
-            int minIdx = 0;
-            for (int i = 1; i < nodeLoads.length; i++) {
+            int minIdx = start;
+            for (int step = 1; step < nodeCount; step++) {
+                int i = (start + step) % nodeCount;
                 if (nodeLoads[i] < nodeLoads[minIdx]) {
                     minIdx = i;
                 }

@@ -33,8 +33,10 @@ import java.util.stream.Collectors;
  *
  * <h2>Error budget</h2>
  * {@code maxErrors} and {@code maxErrorRatio} only apply to {@link Mode#SKIP_ROW} and
- * {@link Mode#NULL_FIELD}. They are ignored in {@link Mode#FAIL_FAST} (which always aborts
- * on the first error).  When both are set, whichever limit is hit first triggers failure.
+ * {@link Mode#NULL_FIELD}. They require an explicit mode of one of those two — a budget without a
+ * named mode is rejected at dataset registration time. A budget combined with {@link Mode#FAIL_FAST}
+ * is also rejected, since fail_fast always aborts on the first error regardless of any budget.
+ * When both are set, whichever limit is hit first triggers failure.
  * <table>
  *   <caption>Error budget comparison across engines</caption>
  *   <tr><th>ES/ESQL</th><th>DuckDB</th><th>ClickHouse</th></tr>
@@ -107,6 +109,14 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         /** The accepted spellings, lower case, for inclusion in a rejection message. */
         public static String supportedValues() {
             return Arrays.stream(values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.joining(", "));
+        }
+
+        /** The modes that accept an error budget ({@link #SKIP_ROW} and {@link #NULL_FIELD}), lower case. */
+        public static String budgetedValues() {
+            return Arrays.stream(values())
+                .filter(m -> m != FAIL_FAST)
+                .map(m -> m.name().toLowerCase(Locale.ROOT))
+                .collect(Collectors.joining(", "));
         }
     }
 
@@ -215,26 +225,62 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     }
 
     /**
-     * Resolves an {@link ErrorPolicy} from the user's {@code WITH} options. Returns
-     * {@code defaultPolicy} when none of {@link #CONFIG_ERROR_MODE},
-     * {@link #CONFIG_MAX_ERRORS}, or {@link #CONFIG_MAX_ERROR_RATIO} are set.
+     * Validates that a settings map does not supply {@link #CONFIG_MAX_ERRORS} or
+     * {@link #CONFIG_MAX_ERROR_RATIO} without an explicit {@link #CONFIG_ERROR_MODE}. Call this at
+     * dataset registration time so a bare budget is refused with a clear message rather than silently
+     * inferring {@link Mode#SKIP_ROW}.
      *
-     * <p>Validation matches what {@code FileSourceFactory} applied historically: invalid
-     * mode strings, non-numeric budgets, and {@code FAIL_FAST} combined with budget keys
-     * are all rejected with {@link IllegalArgumentException}.
+     * <p>This check applies only to dataset registration ({@code PUT /_query/dataset/...}). Inline
+     * {@code FROM "..." WITH (...)} queries are not validated here and still resolve to the reader's
+     * default for a bare budget; a warning is emitted at query time instead.
+     *
+     * <p>Does not replace {@link #fromConfig}: call this alongside it so the remaining validations
+     * (numeric range, {@code FAIL_FAST} + budget contradiction, etc.) still run.
+     *
+     * @throws IllegalArgumentException when a budget key is present but {@code error_mode} is absent
+     */
+    public static void validateRegistrationBudget(Map<String, Object> config) {
+        if (config == null) {
+            return;
+        }
+        boolean hasBudget = config.get(CONFIG_MAX_ERRORS) != null || config.get(CONFIG_MAX_ERROR_RATIO) != null;
+        boolean hasMode = config.get(CONFIG_ERROR_MODE) != null;
+        if (hasBudget && hasMode == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_MAX_ERRORS
+                    + "] and ["
+                    + CONFIG_MAX_ERROR_RATIO
+                    + "] each require an explicit ["
+                    + CONFIG_ERROR_MODE
+                    + "]; set it to one of ["
+                    + Mode.budgetedValues()
+                    + "]"
+            );
+        }
+    }
+
+    /**
+     * Resolves an {@link ErrorPolicy} from a settings map. Returns {@code policyWhenConfigAbsent}
+     * only when the map is {@code null} or none of {@link #CONFIG_ERROR_MODE},
+     * {@link #CONFIG_MAX_ERRORS}, or {@link #CONFIG_MAX_ERROR_RATIO} are present; it is not used as
+     * a fallback for a partial config that names only a budget or only a mode.
+     *
+     * <p>Validation: invalid mode strings, non-numeric budgets, and {@code FAIL_FAST} combined with
+     * budget keys are all rejected with {@link IllegalArgumentException}.
      *
      * <p>Prefer {@link #forReader} when the read is served by a known reader, so the fallback is the reader's
      * own default rather than a hard-coded one.
      */
-    public static ErrorPolicy fromConfig(Map<String, Object> config, ErrorPolicy defaultPolicy) {
+    public static ErrorPolicy fromConfig(Map<String, Object> config, ErrorPolicy policyWhenConfigAbsent) {
         if (config == null) {
-            return defaultPolicy;
+            return policyWhenConfigAbsent;
         }
         Object maxErrorsValue = config.get(CONFIG_MAX_ERRORS);
         Object maxErrorRatioValue = config.get(CONFIG_MAX_ERROR_RATIO);
         Object errorModeValue = config.get(CONFIG_ERROR_MODE);
         if (maxErrorsValue == null && maxErrorRatioValue == null && errorModeValue == null) {
-            return defaultPolicy;
+            return policyWhenConfigAbsent;
         }
 
         Mode mode = Mode.SKIP_ROW;
@@ -250,27 +296,10 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
             try {
                 mode = Mode.parse(modeStr);
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                    "Invalid value for ["
-                        + CONFIG_ERROR_MODE
-                        + "]: ["
-                        + errorModeValue
-                        + "]; supported values are ["
-                        + Mode.supportedValues()
-                        + "]",
-                    e
-                );
+                throw new IllegalArgumentException(rejection, e);
             }
             if (mode == null) {
-                throw new IllegalArgumentException(
-                    "Invalid value for ["
-                        + CONFIG_ERROR_MODE
-                        + "]: ["
-                        + errorModeValue
-                        + "]; supported values are ["
-                        + Mode.supportedValues()
-                        + "]"
-                );
+                throw new IllegalArgumentException(rejection);
             }
         }
 

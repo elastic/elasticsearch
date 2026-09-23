@@ -20,6 +20,7 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobStorageException;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -162,10 +164,23 @@ public final class AzureStorageProvider implements StorageProvider {
         this.environment = environment;
         this.executor = executor;
         this.maxConnections = maxConnections;
-        // Build the client eagerly so misconfigurations are caught early — except auth=managed_identity, whose
-        // endpoint can be derived from the per-query wasbs://<account>... path (unavailable at construction), so it
-        // is deferred to first use like on the pre-refactor path. With no configuration (config is null), also defer.
-        if (config != null && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY) {
+        // Build the client eagerly so misconfigurations are caught early — with three exceptions that defer
+        // to first use via clients(accountFromPath):
+        //
+        // auth=managed_identity and auth=federated_identity: the account endpoint is derived from the
+        // per-query wasbs://<account>... path (unavailable at construction), so the client cannot be built
+        // without it when neither account nor endpoint appears in the settings.
+        //
+        // auth=anonymous: the account endpoint is similarly path-derived. Additionally, anonymous is always
+        // untestable at the data-source level (testConnection() short-circuits before calling clients()),
+        // so eager construction would throw ISE needlessly. Prior to this deferral, anonymous datasources
+        // with no endpoint/account in settings threw at construction, breaking all queries through them.
+        //
+        // null config: defer so the plugin can load even without a configuration present.
+        if (config != null
+            && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY
+            && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.FEDERATED_IDENTITY
+            && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.ANONYMOUS) {
             BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, null);
             this.clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
         }
@@ -194,6 +209,79 @@ public final class AzureStorageProvider implements StorageProvider {
             }
         }
         return clients;
+    }
+
+    /**
+     * Tests connectivity by fetching account information from the configured account.
+     * Uses {@code Get Account Information} ({@code ?restype=account&comp=properties}), a data-plane
+     * operation that succeeds with any data-plane credential (account key, SAS token, or
+     * {@code Storage Blob Data Reader} RBAC at the account scope). Unlike {@code getProperties()}
+     * (which is a management-plane call requiring {@code Storage Account Contributor}), this probe
+     * works with account-scoped read permissions. No container name is required.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     *
+     * <p>{@code auth=managed_identity} and {@code auth=federated_identity} without an account or endpoint
+     * in the data source settings are detected up front and reported as {@code untestable}: the account is
+     * only resolvable from the per-query {@code wasbs://account…} URI, which is unavailable at data-source
+     * registration time. Any other {@link IllegalStateException} from client construction (e.g. incomplete
+     * static credentials, workload-identity disabled on the node) propagates and is surfaced by
+     * {@code DataSourceModule} as {@code {status: "failure"}}.
+     *
+     * <p>A 403 from {@code Get Account Information} is treated as {@code untestable}: the principal
+     * may have {@code Storage Blob Data Reader} at the container scope rather than the account scope,
+     * which is a valid configuration for reading blobs but insufficient for this account-level probe.
+     * Reporting failure in that case would be a false negative.
+     */
+    public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "Azure anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public containers; create a dataset to validate read access."
+            );
+        }
+        if (config != null) {
+            FileDataSourceConfiguration.AuthMode mode = config.resolveAuthMode();
+            // managed_identity and federated_identity derive the account from the dataset URI
+            // (wasbs://account.blob.core.windows.net/...). Without an account or endpoint in the
+            // settings there is nothing to probe; any other ISE (e.g. workload-identity disabled)
+            // propagates as failure so the operator sees the actionable error message.
+            if ((mode == FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY
+                || mode == FileDataSourceConfiguration.AuthMode.FEDERATED_IDENTITY)
+                && Strings.hasText(config.account()) == false
+                && Strings.hasText(config.endpoint()) == false) {
+                throw new TestConnectionNotSupportedException(
+                    "auth="
+                        + mode.name().toLowerCase(Locale.ROOT)
+                        + " without account or endpoint cannot be verified at the data source level",
+                    "The account or endpoint could not be resolved from the data source settings alone; "
+                        + "create a dataset to validate access."
+                );
+            }
+        }
+        try {
+            clients(null).sync().getAccountInfo();
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == 403 && isContainerScoped403(e)) {
+                throw new TestConnectionNotSupportedException(
+                    "Azure returned 403 on Get Account Information; credentials may be container-scoped",
+                    "Container-scoped credentials cannot be verified at the data source level; create a dataset to validate access."
+                );
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Returns {@code true} when a 403 from Get Account Information indicates container-scoped credentials
+     * (which are valid for the actual container but lack the account-wide listing privilege), and {@code false}
+     * when the credentials are definitively wrong (e.g. {@link BlobErrorCode#AUTHENTICATION_FAILED}).
+     * <p>
+     * A null error code is treated conservatively as container-scoped: the header may be absent on older
+     * API versions or on proxies that strip Azure-specific headers.
+     */
+    static boolean isContainerScoped403(BlobStorageException e) {
+        BlobErrorCode errorCode = e.getErrorCode();
+        return errorCode == null || errorCode == BlobErrorCode.AUTHORIZATION_PERMISSION_MISMATCH;
     }
 
     /**

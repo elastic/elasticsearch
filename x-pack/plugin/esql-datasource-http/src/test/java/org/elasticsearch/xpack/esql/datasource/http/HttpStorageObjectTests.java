@@ -11,7 +11,9 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -203,6 +205,87 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertThat(eue.getCause(), instanceOf(IOException.class));
     }
 
+    public void testCancelInFlightNotifiesListener() throws Exception {
+        HttpClient mockClient = mock(HttpClient.class);
+        CountDownLatch requestStarted = new CountDownLatch(1);
+        AtomicReference<CompletableFuture<HttpResponse<DirectReadBuffer>>> inFlight = new AtomicReference<>();
+        doAnswer(invocation -> {
+            CompletableFuture<HttpResponse<DirectReadBuffer>> future = new CompletableFuture<>();
+            inFlight.set(future);
+            requestStarted.countDown();
+            return future;
+        }).when(mockClient).sendAsync(any(), any());
+
+        HttpStorageObject object = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.parquet"),
+            HttpConfiguration.defaults()
+        );
+
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = object.startReadBytesAsync(0, 100, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                fail("expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                listenerCalled.countDown();
+            }
+        });
+
+        assertTrue("request must start", requestStarted.await(5, TimeUnit.SECONDS));
+        cancel.close();
+        assertTrue("listener must be notified after in-flight cancel", listenerCalled.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
+        assertEquals("read cancelled", error.get().getMessage());
+        assertTrue(inFlight.get().isCancelled());
+    }
+
+    public void testCancelInFlightClosedSocketStaysCancelledNotUnavailable() throws Exception {
+        HttpClient mockClient = mock(HttpClient.class);
+        AtomicReference<CompletableFuture<HttpResponse<DirectReadBuffer>>> inFlight = new AtomicReference<>();
+        doAnswer(invocation -> {
+            CompletableFuture<HttpResponse<DirectReadBuffer>> future = new CompletableFuture<>() {
+                @Override
+                public boolean cancel(boolean mayInterruptIfRunning) {
+                    return completeExceptionally(new IOException("closed"));
+                }
+            };
+            inFlight.set(future);
+            return future;
+        }).when(mockClient).sendAsync(any(), any());
+
+        HttpStorageObject object = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.parquet"),
+            HttpConfiguration.defaults()
+        );
+
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Releasable cancel = object.startReadBytesAsync(0, 100, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                fail("expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                listenerCalled.countDown();
+            }
+        });
+        cancel.close();
+        assertTrue(listenerCalled.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(TaskCancelledException.class));
+        assertThat(error.get(), not(instanceOf(ExternalUnavailableException.class)));
+        assertTrue(inFlight.get().isCompletedExceptionally());
+    }
+
     /**
      * The truncated-body case: a 206 range that closes short of the requested length. Driven through
      * the real {@link DirectByteBufferBodyHandlers} subscriber, then wrapped the way the JDK
@@ -215,6 +298,32 @@ public class HttpStorageObjectTests extends ESTestCase {
         int requested = 10;
         HttpClient mockClient = mock(HttpClient.class);
         mockSendAsyncLikeHttpClient(mockClient, HttpStatus.SC_PARTIAL_CONTENT, List.of(ByteBuffer.wrap(new byte[requested - 5])));
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        Exception thrown = readAsyncFailure(object, requested);
+
+        assertThat(thrown, instanceOf(ExternalUnavailableException.class));
+        assertFalse(((ExternalUnavailableException) thrown).throttling());
+        assertThat(thrown.getMessage(), containsString("shorter than expected"));
+        assertThat(thrown.getMessage(), containsString(path.toString()));
+        assertThat(thrown.getMessage(), not(containsString("transient read failure")));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    /**
+     * Same truncated-body case as {@link #testAsyncShortBodyIsRetryable503}, but the origin
+     * ignores {@code Range} and answers {@code 200 OK}. {@code readAsyncFailure} uses position
+     * {@code 0}, so skip is 0 and the short fill is the 200 path. The leaf EUE must survive the
+     * mapper; a one-level peel would retype it as a generic {@code typeTransportFailure}
+     * ("transient read failure").
+     */
+    public void testAsyncShortBodyOn200IsRetryable503() throws Exception {
+        int requested = 10;
+        HttpClient mockClient = mock(HttpClient.class);
+        mockSendAsyncLikeHttpClient(mockClient, HttpStatus.SC_OK, List.of(ByteBuffer.wrap(new byte[requested - 5])));
 
         StoragePath path = StoragePath.of("https://example.com/file.parquet");
         HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());

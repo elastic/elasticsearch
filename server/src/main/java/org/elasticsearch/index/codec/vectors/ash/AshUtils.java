@@ -14,8 +14,6 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import java.util.Arrays;
 import java.util.Random;
 
-import static org.elasticsearch.simdvec.ESVectorUtil.transposeMatrix;
-
 final class AshUtils {
 
     private AshUtils() {}
@@ -41,9 +39,9 @@ final class AshUtils {
      *
      * @param m the input matrix in row-major order, length k*k
      * @param k the matrix dimension
-     * @return the nearest orthogonal matrix in row-major order, length k*k
+     * @param r the output matrix in row-major order, length k*k
      */
-    public static float[] procrustes(float[] m, int k) {
+    public static void procrustes(float[] m, int k, float[] r) {
         // Scale M so that all singular values are in (0, sqrt(3)) for Newton-Schulz convergence.
         float spectralNorm = estimateSpectralNorm(m, k, 50);
         double scale = 1.0 / Math.max(spectralNorm, 1e-10);
@@ -56,9 +54,13 @@ final class AshUtils {
 
         // Newton-Schulz iteration: X <- X * (3I - X^T X) / 2
         int maxIter = 100;
+        // pre-allocate the arrays first
+        double[] xtx = new double[k * k];
+        double[] b = new double[k * k];
+        double[] xNew = new double[k * k];
+
         for (int iter = 0; iter < maxIter; iter++) {
             // Compute X^T X (k x k) using row-broadcast for cache efficiency
-            double[] xtx = new double[k * k];
             for (int l = 0; l < k; l++) {
                 int xBase = l * k;
                 for (int i = 0; i < k; i++) {
@@ -89,7 +91,7 @@ final class AshUtils {
             }
 
             // B = (3I - X^T X) / 2
-            double[] b = new double[k * k];
+            // don't need to clear b here, it's all overwritten anyway
             for (int i = 0; i < k; i++) {
                 for (int j = 0; j < k; j++) {
                     b[i * k + j] = -xtx[i * k + j] / 2.0;
@@ -99,7 +101,7 @@ final class AshUtils {
 
             // X_new = X @ B (row-broadcast for JIT vectorization)
             // this uses doubles, so can't use matrixMultiply nor ESVectorUtil methods
-            double[] xNew = new double[k * k];
+            Arrays.fill(xNew, 0);
             for (int i = 0; i < k; i++) {
                 int xBase = i * k;
                 int xNewBase = i * k;
@@ -111,15 +113,19 @@ final class AshUtils {
                     }
                 }
             }
+
+            // swap the arrays round for the next iteration
+            double[] xOld = x;
             x = xNew;
+            xNew = xOld;
+
+            Arrays.fill(xtx, 0);
         }
 
         // Convert back to float
-        float[] result = new float[k * k];
         for (int i = 0; i < k * k; i++) {
-            result[i] = (float) x[i];
+            r[i] = (float) x[i];
         }
-        return result;
     }
 
     /**
@@ -182,14 +188,14 @@ final class AshUtils {
     private static float[] topKEigenvectorsGram(float[] a, int m, int n, int k, long seed) {
         // Eigenvectors of A^T A are the right singular vectors, so iterate with X = A. A^T is
         // materialized so that the A^T @ W product reads sequentially.
-        float[] vT = blockPowerIteration(a, transposeMatrix(a, m, n), m, n, k, seed);
-        return transposeMatrix(vT, k, n);
+        float[] vT = blockPowerIteration(a, ESVectorUtil.transposeMatrix(a, m, n), m, n, k, seed);
+        return ESVectorUtil.transposeMatrix(vT, k, n);
     }
 
     private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
         // A is (m x n) with m < n, so A A^T (m x m) is the smaller Gram matrix: iterate with
         // X = A^T to get the left singular vectors U, then recover the right singular vectors.
-        float[] uT = blockPowerIteration(transposeMatrix(a, m, n), a, n, m, k, seed);
+        float[] uT = blockPowerIteration(ESVectorUtil.transposeMatrix(a, m, n), a, n, m, k, seed);
 
         // V = A^T U, computed transposed as V^T = U^T A (k x n) so that each vector occupies a
         // row and the normalization runs over contiguous data.
@@ -197,7 +203,7 @@ final class AshUtils {
         for (int j = 0; j < k; j++) {
             ESVectorUtil.l2Normalize(vT, j * n, n);
         }
-        return transposeMatrix(vT, k, n);
+        return ESVectorUtil.transposeMatrix(vT, k, n);
     }
 
     /**
@@ -225,11 +231,14 @@ final class AshUtils {
         float[] bT = randomGaussians(new Random(seed), q * k);
         qrOrthogonalize(bT, q, k);
 
+        float[] b = new float[q * k];
+        float[] w = new float[p * k];
         for (int iter = 0; iter < iters; iter++) {
-            float[] b = transposeMatrix(bT, k, q);                       // B (q x k)
-            float[] w = ESVectorUtil.matrixMultiply(x, b, p, q, k);      // W = X @ B (p x k)
-            float[] bNew = ESVectorUtil.matrixMultiply(xT, w, q, p, k);  // B <- X^T @ W (q x k)
-            bT = transposeMatrix(bNew, q, k);
+            ESVectorUtil.transposeMatrix(bT, k, q, b);       // B (q x k)
+            ESVectorUtil.matrixMultiply(x, b, p, q, k, w);   // W = X @ B (p x k)
+            ESVectorUtil.matrixMultiply(xT, w, q, p, k, b);  // B <- X^T @ W (q x k)
+
+            ESVectorUtil.transposeMatrix(b, q, k, bT);
             qrOrthogonalize(bT, q, k);
         }
 

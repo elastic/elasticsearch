@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -26,6 +30,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -875,11 +880,27 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     public void testNestedSubqueries() {
-        // nested subqueries are not supported yet
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("Nested subqueries are not supported"));
+        if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
+                | STATS c = count(*), s = sum(v) BY tag
+                | SORT tag
+                """, randomBoolean())) {
+                List<List<Object>> values = getValuesList(resp);
+                // local logs-1 has 10 rows with v in [0,9] (sum 45); each remote logs-2 has 10 rows with v = i*i (sum 285)
+                assertThat(values, hasSize(2));
+                assertThat(values.get(0), equalTo(List.of(10L, 45L, "local")));
+                assertThat(values.get(1), equalTo(List.of(20L, 570L, "remote")));
+                // logs-* (local), c*:logs-* (cluster-a), r*:logs-* (remote-b) — each cluster searched once
+                assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), logsShardsOnce());
+            }
+        } else {
+            // nested subqueries are not supported yet
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
+                """, randomBoolean()));
+            assertThat(ex.getMessage(), containsString("Nested subqueries are not supported"));
+        }
     }
 
     public void testSubqueryWithFork() {
@@ -1797,6 +1818,129 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_2");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
         }
+    }
+
+    // -- nested UnionAll with different source command combinations --
+
+    public void testNestedSubqueriesWithTsAndRow() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        int remote2MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM logs-*,
+                 (FROM (TS r*:metrics
+                        | STATS max_cpu = max(cpu), cnt = count(cpu) BY host
+                        | EVAL tag = CASE(max_cpu > 5, "ts-high", "ts-low"), v = cnt),
+                       (ROW tag = "row", v = TO_LONG(9), max_cpu = 99.0, cnt = TO_LONG(1))
+                 )
+            | EVAL max_cpu = COALESCE(max_cpu, 0.0)
+            | STATS total = count(*), max_of_max = TO_LONG(max(max_cpu)), sum_v = sum(v) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(4));
+            // local logs-1: 10 docs, max_cpu filled to 0.0 by COALESCE, sum_v = 0+1+…+9 = 45
+            assertThat(values.get(0), equalTo(List.of(10L, 0L, 45L, "local")));
+            // ROW: 1 doc, max_cpu = 99.0 → TO_LONG = 99, v = 9
+            assertThat(values.get(1), equalTo(List.of(1L, 99L, 9L, "row")));
+            // TS h2: max_cpu = 6.0 > 5 → tag = "ts-high"; count(cpu)=1 per TSID, so sum_v=1
+            assertThat(values.get(2), equalTo(List.of(1L, 6L, 1L, "ts-high")));
+            // TS h1: max_cpu = 3.0 ≤ 5 → tag = "ts-low"; count(cpu)=1 per TSID, so sum_v=1
+            assertThat(values.get(3), equalTo(List.of(1L, 3L, 1L, "ts-low")));
+            // logs-* is local; TS r*:metrics is remote-b; ROW has no shards
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, localShards(), REMOTE_CLUSTER_2, remote2MetricsShards)
+            );
+        }
+    }
+
+    public void testNestedSubqueriesWithAllSourceTypes() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+        int remote1MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
+        int remote2MetricsShards = populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM
+                (FROM logs-*
+                 | STATS c = count(*), s = sum(v), m = max(v)
+                 | EVAL src = "from-local"),
+                (FROM
+                     (FROM *:logs-*
+                      | WHERE v >= 1 AND v <= 9
+                      | LOOKUP JOIN values_lookup ON v == lookup_key
+                      | STATS c = count(*), s = sum(v), m = max(v)
+                      | EVAL src = "from-remote"),
+                      (TS *:metrics
+                       | WHERE cpu > 3
+                       | STATS c = count(cpu), s = TO_LONG(sum(cpu)), m = TO_LONG(max(cpu))
+                       | EVAL src = "ts-high-cpu"),
+                       (ROW c = TO_LONG(3), s = TO_LONG(42), m = TO_LONG(21), src = "row")
+                )
+            | STATS total_c = sum(c), total_s = sum(s), overall_max = max(m) BY src
+            | SORT src
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(4));
+            // local logs-1: 10 docs, sum = 45, max_v = 9
+            assertThat(values.get(0), equalTo(List.of(10L, 45L, 9L, "from-local")));
+            // both remotes, v in {1,4,9} (all match lookup keys 0-9): 6 docs, sum = 28, max = 9
+            assertThat(values.get(1), equalTo(List.of(6L, 28L, 9L, "from-remote")));
+            assertThat(values.get(2), equalTo(List.of(3L, 42L, 21L, "row")));
+            // TS *:metrics last-value per TSID: h2 last_cpu=6 passes WHERE cpu>3; count=1 TSID, sum=6, max=6
+            assertThat(values.get(3), equalTo(List.of(1L, 6L, 6L, "ts-high-cpu")));
+            // FROM logs-* (local) + *:logs-* (both remotes) + TS *:metrics (both remotes); LOOKUP JOIN and ROW add no shards
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(
+                    LOCAL_CLUSTER,
+                    localShards(),
+                    REMOTE_CLUSTER_1,
+                    remote1Shards() + remote1MetricsShards,
+                    REMOTE_CLUSTER_2,
+                    remote2Shards() + remote2MetricsShards
+                )
+            );
+        }
+    }
+
+    /**
+     * A CPS view union whose strict branches all resolve to empty remote subqueries must collapse to an empty relation rather than leave a
+     * branchless {@code ViewUnionAll} that throws from {@code Fork.expressionsResolved()} during analysis.
+     */
+    public void testViewUnionAllWithAllEmptyRemoteBranches() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String viewA = "missing_remote_view_a_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        String viewB = "missing_remote_view_b_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        try {
+            createViewOnCluster(LOCAL_CLUSTER, viewA, "FROM cluster-a:missing-view-a-*");
+            createViewOnCluster(LOCAL_CLUSTER, viewB, "FROM remote-b:missing-view-b-*");
+
+            try (EsqlQueryResponse response = runQuery("FROM missing_remote_view_* | STATS count = COUNT(*)", randomBoolean())) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+                // both view bodies resolve to empty remotes and collapse; no shards are searched
+                assertCCSExecutionInfoDetailsWithShards(response.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 0, REMOTE_CLUSTER_2, 0));
+            }
+        } finally {
+            deleteViewOnCluster(viewA);
+            deleteViewOnCluster(viewB);
+        }
+    }
+
+    private void createViewOnCluster(String clusterAlias, String viewName, String query) {
+        assertAcked(
+            client(clusterAlias).execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new View(viewName, query))
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
+    }
+
+    private void deleteViewOnCluster(String viewName) {
+        client(LOCAL_CLUSTER).execute(
+            DeleteViewAction.INSTANCE,
+            new DeleteViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new String[] { viewName })
+        ).actionGet(30, TimeUnit.SECONDS);
     }
 
     private int populateTimeSeriesIndex(String clusterAlias, String indexName) {

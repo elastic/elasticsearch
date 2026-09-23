@@ -842,6 +842,42 @@ c:long
 # FORK #
 ########
 
+// Exact KEEP makes the unmapped pattern empty and skips the FORK output refresh that this hits.
+loadAllForkOverMappedConflict
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM sample_data_str, sample_data
+| FORK (LIMIT 1) (LIMIT 1)
+| KEEP client_ip*, _fork
+| SORT _fork
+;
+
+client_ip:unsupported | _fork:keyword
+null                  | fork1
+null                  | fork2
+;
+
+// INLINE STATS keeps the input rows, so a sibling mention is loaded here instead of null-filled.
+loadAllForkInlineStatsLoadsSiblingMention
+required_capability: optional_fields_load_all_fork
+required_capability: optional_fields_load_all_inline_stats
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| FORK (KEEP message, unmapped_message) (INLINE STATS c = COUNT(*))
+| KEEP message, unmapped_message, c, _fork
+| SORT _fork
+;
+
+message:keyword | unmapped_message:keyword | c:long | _fork:keyword
+42              | 43                       | null   | fork1
+42              | 43                       | 1      | fork2
+;
+
 forkIdentityExpandsUnmappedFields
 required_capability: optional_fields_load_all_fork
 required_capability: fork_v9
@@ -1095,7 +1131,7 @@ Connection error? | Disconnection error      | fork1         | 1                
 42                | 43                       | fork2         | 2                     | e                       | 1232383
 ;
 
-forkAboveNoKeepDropsOthers
+forkAfterNoKeepDropsOthers
 required_capability: optional_fields_load_all_fork
 required_capability: fork_v9
 
@@ -1163,7 +1199,7 @@ fork1         | 42                     | 43                         | 43        
 fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null        | a                       | 1756468                         | 1
 ;
 
-forkReferencedOnlyAboveThreeBranches
+forkReferencedOnlyAfterThreeBranches
 required_capability: optional_fields_load_all_fork
 required_capability: fork_v9
 
@@ -2473,7 +2509,7 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp
 2024-10-23T13:55:01.543Z | null
 ;
 
-loadAllUnmappedFieldReferencedOnlyAboveSubqueries
+loadAllUnmappedFieldReferencedOnlyAfterSubqueries
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
@@ -4755,11 +4791,11 @@ FROM unmapped_source_stored, unmapped_source_mapped METADATA _index, _source
 | SORT id::long, _index
 ;
 
-   _index:keyword     | id:keyword    |    a:keyword  |  a.b:keyword  | deep.l1.l2.l3:keyword | arr:keyword | objarr:keyword   | objarr.j:keyword   | objarr.k:keyword |nest.inner.leaf:keyword  | _source:_source                       
-unmapped_source_mapped|6              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                        
+   _index:keyword     | id:keyword    |    a:keyword  |  a.b:keyword  | deep.l1.l2.l3:keyword | arr:keyword | objarr:keyword   | objarr.j:keyword   | objarr.k:keyword |nest.inner.leaf:keyword  | _source:_source
+unmapped_source_mapped|6              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
 unmapped_source_stored|6              |null           |null           |null                   |null         |null              |null                |[p, q]            |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
-unmapped_source_mapped|7              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                        
-unmapped_source_stored|7              |null           |null           |null                   |null         |null              |s                   |r                 |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                        
+unmapped_source_mapped|7              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_stored|7              |null           |null           |null                   |null         |null              |s                   |r                 |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
 unmapped_source_mapped|8              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
 unmapped_source_stored|8              |null           |null           |null                   |null         |null              |null                |null              |[t, u]                   |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
 ;
@@ -4768,9 +4804,9 @@ loadAllLogsdbAgreesWithStoredAndSyntheticSource
 required_capability: optional_fields_load_all_v2
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
-// logsdb defaults _source to synthetic, but IndexMode.LOGSDB does not override isStrictColumnar(), so _ignored_source 
-// stays enabled and a dynamic:false field is still recoverable. The same seven documents in three index modes must 
-// yield identical discovered columns. unmapped* is a wildcard so the three leaves are genuinely discovered rather 
+// logsdb defaults _source to synthetic, but IndexMode.LOGSDB does not override isStrictColumnar(), so _ignored_source
+// stays enabled and a dynamic:false field is still recoverable. The same seven documents in three index modes must
+// yield identical discovered columns. unmapped* is a wildcard so the three leaves are genuinely discovered rather
 // than demanded by name, and the sort is on the mapped @timestamp for the same reason.
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, synthetic_source_partial_mapping, logsdb_partial_mapping METADATA _index

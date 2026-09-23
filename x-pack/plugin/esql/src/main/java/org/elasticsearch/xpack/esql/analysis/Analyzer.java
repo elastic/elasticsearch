@@ -1933,10 +1933,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // the unmapped field in the other branch. If there's no available implicit cast, null-fill with EVAL
                     // (same as a missing union column) and warn if the field is observed, matching the multi-index path.
                     FieldAttribute mapped = mappedSiblingField(attr);
-                    if (mergePlan instanceof UnionAll
+                    if (mapped != null
+                        && mergePlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
-                        && branchCanSurfaceLoadedField(logicalPlan, attr.name())
-                        && mapped != null) {
+                        && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
                         FieldAttribute loaded = unmappedKeyword(attr);
                         AbstractConvertFunction cast = implicitCastFromKeyword(mapped.dataType(), loaded, context.configuration());
                         if (cast != null) {
@@ -2210,7 +2210,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Whether a field named {@code name} materialized at this branch's source would reach the branch output. A
          * {@link ResolvingProject} is asked whether the terms it was written with admit the name, so {@code KEEP *} lets it through
          * while a pattern-less {@code KEEP} does not. Any other {@link Project} has no pattern to consult and an {@link Aggregate}
-         * collapses the rows, so neither can surface it.
+         * collapses the rows, so neither can surface it. {@link InlineStats} keeps those input rows, so the check continues at the
+         * aggregate's input.
          */
         private static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
             return canSurfaceFromSource(plan, name, true);
@@ -2222,6 +2223,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case ResolvingProject resolvingProject when consultResolvingProject -> resolvingProject.admitsLateUnmappedField(name)
                     && canSurfaceFromSource(resolvingProject.child(), name, true);
                 case Project unused -> false;
+                case InlineStats inlineStats -> canSurfaceFromSource(inlineStats.aggregate().child(), name, consultResolvingProject);
                 case Aggregate unused -> false;
                 case Join join when join.config().type() == JoinTypes.LEFT -> canSurfaceFromSource(
                     join.left(),

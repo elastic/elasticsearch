@@ -242,6 +242,7 @@ public class IndexModuleTests extends ESTestCase {
             threadPoolMergeExecutorService,
             scriptService,
             clusterService,
+            null, // TODO: Use a real feature service here?
             null,
             indicesQueryCache,
             mapperRegistry,

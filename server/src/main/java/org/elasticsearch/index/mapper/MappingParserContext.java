@@ -26,6 +26,7 @@ import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -39,6 +40,7 @@ public class MappingParserContext {
     private final Function<String, RuntimeField.Parser> runtimeFieldParsers;
     private final IndexVersion indexVersionCreated;
     private final Supplier<TransportVersion> clusterTransportVersion;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
     private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
     private final ScriptCompiler scriptCompiler;
     private final IndexAnalyzers indexAnalyzers;
@@ -60,6 +62,7 @@ public class MappingParserContext {
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
         IndexVersion indexVersionCreated,
         Supplier<TransportVersion> clusterTransportVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
@@ -75,6 +78,7 @@ public class MappingParserContext {
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.indexVersionCreated = indexVersionCreated;
         this.clusterTransportVersion = clusterTransportVersion;
+        this.clusterSupportsFeature = clusterSupportsFeature;
         this.searchExecutionContextSupplier = searchExecutionContextSupplier;
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
@@ -93,6 +97,7 @@ public class MappingParserContext {
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
         IndexVersion indexVersionCreated,
         Supplier<TransportVersion> clusterTransportVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
@@ -108,6 +113,7 @@ public class MappingParserContext {
             runtimeFieldParsers,
             indexVersionCreated,
             clusterTransportVersion,
+            clusterSupportsFeature,
             searchExecutionContextSupplier,
             scriptCompiler,
             indexAnalyzers,
@@ -131,6 +137,7 @@ public class MappingParserContext {
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
         IndexVersion indexVersionCreated,
         Supplier<TransportVersion> clusterTransportVersion,
+        Predicate<NodeFeature> clusterSupportsFeature,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
@@ -144,6 +151,7 @@ public class MappingParserContext {
             runtimeFieldParsers,
             indexVersionCreated,
             clusterTransportVersion,
+            clusterSupportsFeature,
             searchExecutionContextSupplier,
             scriptCompiler,
             indexAnalyzers,
@@ -195,8 +203,7 @@ public class MappingParserContext {
      * Returns {@code true} if all nodes in the cluster support {@code feature}.
      */
     public boolean clusterHasFeature(NodeFeature feature) {
-        // TODO: wire to FeatureService
-        return true;
+        return clusterSupportsFeature.test(feature);
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {
@@ -312,6 +319,7 @@ public class MappingParserContext {
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
                 in.clusterTransportVersion,
+                in.clusterSupportsFeature,
                 in.searchExecutionContextSupplier,
                 in.scriptCompiler,
                 in.indexAnalyzers,
@@ -345,6 +353,7 @@ public class MappingParserContext {
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
                 in.clusterTransportVersion,
+                in.clusterSupportsFeature,
                 in.searchExecutionContextSupplier,
                 in.scriptCompiler,
                 in.indexAnalyzers,

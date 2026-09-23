@@ -81,6 +81,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 s -> null,
                 version,
                 () -> TransportVersion.current(),
+                f -> true,
                 () -> null,
                 null,
                 (type, name) -> Lucene.STANDARD_ANALYZER,

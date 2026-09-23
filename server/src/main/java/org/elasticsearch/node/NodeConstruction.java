@@ -976,6 +976,7 @@ class NodeConstruction {
             .bigArrays(bigArrays)
             .scriptService(scriptService)
             .clusterService(clusterService)
+            .featureService(featureService)
             .projectResolver(projectResolver)
             .client(client)
             .metaStateService(metaStateService)
@@ -1219,6 +1220,7 @@ class NodeConstruction {
         final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             settings,
             clusterService,
+            featureService,
             xContentRegistry,
             indicesModule.getMapperRegistry(),
             settingsModule.getIndexScopedSettings(),

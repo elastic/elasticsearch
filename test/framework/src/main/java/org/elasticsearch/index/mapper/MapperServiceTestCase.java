@@ -41,6 +41,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -109,6 +110,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -322,6 +324,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         private MapperMetrics mapperMetrics;
         private boolean applyDefaultMapping;
         private RootObjectMapperNamespaceValidator namespaceValidator;
+        private Predicate<NodeFeature> clusterSupportsFeature;
 
         public TestMapperServiceBuilder() {
             indexVersion = getVersion();
@@ -330,6 +333,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             scriptCompiler = MapperServiceTestCase.this::compileScript;
             mapperMetrics = MapperMetrics.NOOP;
             applyDefaultMapping = true;
+            clusterSupportsFeature = f -> true;
         }
 
         public TestMapperServiceBuilder indexVersion(IndexVersion indexVersion) {
@@ -362,6 +366,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             return this;
         }
 
+        public TestMapperServiceBuilder clusterSupportsFeature(Predicate<NodeFeature> clusterSupportsFeature) {
+            this.clusterSupportsFeature = clusterSupportsFeature;
+            return this;
+        }
+
         public MapperService build() {
             Collection<? extends Plugin> plugins = getPlugins();
             Collection<Setting<?>> pluginIndexSettings = plugins.stream()
@@ -383,6 +392,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
             var mapperService = new MapperService(
                 () -> TransportVersion.current(),
+                clusterSupportsFeature,
                 indexSettings,
                 createIndexAnalyzers(indexSettings),
                 parserConfig(),

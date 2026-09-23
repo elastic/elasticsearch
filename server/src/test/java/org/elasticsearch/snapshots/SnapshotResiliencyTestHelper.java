@@ -690,6 +690,9 @@ public class SnapshotResiliencyTestHelper {
                 );
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
 
+                // TODO: Evaluate if creating a new feature service here is correct
+                final FeatureService featureService = new FeatureService(List.of());
+
                 throttlingRecoveryService = new ThrottlingRecoveryService(
                     threadPool,
                     projectResolver,
@@ -700,6 +703,7 @@ public class SnapshotResiliencyTestHelper {
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
                     .pluginsService(pluginsService)
+                    .featureService(featureService)
                     .nodeEnvironment(nodeEnv)
                     .xContentRegistry(namedXContentRegistry)
                     .analysisRegistry(
@@ -957,6 +961,7 @@ public class SnapshotResiliencyTestHelper {
                     new IndexMetadataVerifier(
                         settings,
                         clusterService,
+                        featureService,
                         namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,

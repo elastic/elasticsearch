@@ -2067,35 +2067,32 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         Request putMapping = new Request("PUT", "/index/_mapping");
         putMapping.setJsonEntity("""
-        {
-          "properties": {
-            "test_constant": {
-              "type": "constant_keyword",
-              "value": "hidden_value"
-            },
-            "constant_value_alias": {
-              "type": "alias",
-              "path": "test_constant"
+            {
+              "properties": {
+                "test_constant": {
+                  "type": "constant_keyword",
+                  "value": "hidden_value"
+                },
+                "constant_value_alias": {
+                  "type": "alias",
+                  "path": "test_constant"
+                }
+              }
             }
-          }
-        }
-        """);
+            """);
         assertOK(client().performRequest(putMapping));
 
         // Positive control: the alias resolves normally without FLS.
         Response adminResponse = runESQLCommand("test-admin", """
-        FROM index
-        | KEEP constant_value_alias
-        | LIMIT 2
-        """);
+            FROM index
+            | KEEP constant_value_alias
+            | LIMIT 2
+            """);
         assertOK(adminResponse);
         assertMap(
             entityAsMap(adminResponse),
             matchesMap().extraOk()
-                .entry(
-                    "columns",
-                    List.of(matchesMap().entry("name", "constant_value_alias").entry("type", "keyword"))
-                )
+                .entry("columns", List.of(matchesMap().entry("name", "constant_value_alias").entry("type", "keyword")))
                 .entry("values", List.of(List.of("hidden_value"), List.of("hidden_value")))
         );
 
@@ -2106,37 +2103,31 @@ public class EsqlSecurityIT extends ESRestTestCase {
             () -> runESQLCommand("fls_alias_user", "FROM index | KEEP constant_value_alias")
         );
         assertThat(unknownField.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(
-            EntityUtils.toString(unknownField.getResponse().getEntity()),
-            containsString("Unknown column [constant_value_alias]")
-        );
+        assertThat(EntityUtils.toString(unknownField.getResponse().getEntity()), containsString("Unknown column [constant_value_alias]"));
 
         // LOAD can introduce the alias name, but must not recover the value of its
         // restricted concrete target.
         Response projection = runESQLCommand("fls_alias_user", """
-        SET unmapped_fields="load";
-        FROM index
-        | KEEP constant_value_alias
-        | LIMIT 2
-        """);
+            SET unmapped_fields="load";
+            FROM index
+            | KEEP constant_value_alias
+            | LIMIT 2
+            """);
         assertOK(projection);
         assertMap(
             entityAsMap(projection),
             matchesMap().extraOk()
-                .entry(
-                    "columns",
-                    List.of(matchesMap().entry("name", "constant_value_alias").entry("type", "keyword"))
-                )
+                .entry("columns", List.of(matchesMap().entry("name", "constant_value_alias").entry("type", "keyword")))
                 .entry("values", List.of(Arrays.asList((Object) null), Arrays.asList((Object) null)))
         );
 
         // Guessing the hidden constant through the alias must not match rows.
         Response filtered = runESQLCommand("fls_alias_user", """
-        SET unmapped_fields="load";
-        FROM index
-        | WHERE constant_value_alias == "hidden_value"
-        | STATS rows = COUNT(*)
-        """);
+            SET unmapped_fields="load";
+            FROM index
+            | WHERE constant_value_alias == "hidden_value"
+            | STATS rows = COUNT(*)
+            """);
         assertOK(filtered);
         assertMap(
             entityAsMap(filtered),

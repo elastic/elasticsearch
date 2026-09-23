@@ -393,8 +393,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         return fieldInfo.buildLoader().build(driverContext, 0);
     }
 
-    private ValuesSourceReaderOperator.LoaderAndConverter mappedKeywordLoader(boolean fieldVisible)
-        throws IOException {
+    private ValuesSourceReaderOperator.LoaderAndConverter mappedKeywordLoader(boolean fieldVisible) throws IOException {
         SearchExecutionContext context = createSearchExecutionContext(
             createMapperService(mapping(b -> b.startObject("hidden").field("type", "keyword").endObject())),
             null

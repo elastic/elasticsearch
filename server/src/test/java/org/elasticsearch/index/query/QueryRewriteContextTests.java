@@ -222,11 +222,7 @@ public class QueryRewriteContextTests extends ESTestCase {
         RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("_doc");
         rootBuilder.addRuntimeFields(Map.of(mappedRuntimeField.name(), mappedRuntimeField));
 
-        Mapping mapping = new Mapping(
-            rootBuilder.build(MapperBuilderContext.root(false, false)),
-            new MetadataFieldMapper[0],
-            Map.of()
-        );
+        Mapping mapping = new Mapping(rootBuilder.build(MapperBuilderContext.root(false, false)), new MetadataFieldMapper[0], Map.of());
 
         MockFieldMapper visible = new MockFieldMapper("visible");
         MockFieldMapper hidden = new MockFieldMapper("hidden");
@@ -253,34 +249,17 @@ public class QueryRewriteContextTests extends ESTestCase {
             mapping,
             List.of(visible, hidden, visibleTarget, hiddenTarget),
             List.of(),
-            List.of(
-                visibleAliasToHiddenTarget,
-                hiddenAliasToVisibleTarget,
-                visibleAliasToVisibleTarget
-            ),
+            List.of(visibleAliasToHiddenTarget, hiddenAliasToVisibleTarget, visibleAliasToVisibleTarget),
             List.of(),
             IndexMode.STANDARD
         );
 
-        MappedFieldType requestRuntimeField =
-            new TestRuntimeField.TestRuntimeFieldType("request_runtime", "keyword");
+        MappedFieldType requestRuntimeField = new TestRuntimeField.TestRuntimeFieldType("request_runtime", "keyword");
 
-        var settings = new IndexSettings(
-            newIndexMeta("test-index", Settings.EMPTY),
-            Settings.EMPTY
-        );
-        QueryRewriteContext context = newQueryRewriteContext(
-            settings,
-            mappingLookup,
-            Map.of("request_runtime", requestRuntimeField)
-        );
+        var settings = new IndexSettings(newIndexMeta("test-index", Settings.EMPTY), Settings.EMPTY);
+        QueryRewriteContext context = newQueryRewriteContext(settings, mappingLookup, Map.of("request_runtime", requestRuntimeField));
 
-        Set<String> visibleFields = Set.of(
-            "visible",
-            "visible_target",
-            "visible_alias_hidden_target",
-            "visible_alias_visible_target"
-        );
+        Set<String> visibleFields = Set.of("visible", "visible_target", "visible_alias_hidden_target", "visible_alias_visible_target");
         context.setFieldVisibilityPredicate(visibleFields::contains);
 
         assertSame(visible.fieldType(), context.getVisibleFieldType("visible"));
@@ -302,10 +281,7 @@ public class QueryRewriteContextTests extends ESTestCase {
         assertSame(visibleTarget.fieldType(), context.getVisibleFieldType("visible_alias_visible_target"));
 
         // Runtime fields are exempt from the mapping-field predicate.
-        assertSame(
-            mappingLookup.getFieldType("mapped_runtime"),
-            context.getVisibleFieldType("mapped_runtime")
-        );
+        assertSame(mappingLookup.getFieldType("mapped_runtime"), context.getVisibleFieldType("mapped_runtime"));
         assertSame(requestRuntimeField, context.getVisibleFieldType("request_runtime"));
     }
 

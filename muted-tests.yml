@@ -734,3 +734,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/160160
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogramTests
   issue: https://github.com/elastic/elasticsearch/issues/160168
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testDeleteAndRecreateIndexDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/160169

@@ -51,6 +51,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     private static final String FUNCTION_NAME = "get_delivery_date";
     private static final String FUNCTION_ARGUMENTS = "{\"order_id\": \"order_12345\"}";
     private static final String GOOGLE_TOOL_CALL_ID = "call_299965";
+    private static final String SECOND_TOOL_CALL_ID = "call_second";
+    private static final String SECOND_FUNCTION_NAME = "get_eta";
     private static final String THOUGHT_SIGNATURE = "El4KXAERTTIPHPmb/yri/Qyy9cz7xqWoMPh394Dk3bIAt2jgXMJoP2cOWRyqxOs";
     private static final String REASONING_FORMAT = "google-vertex-ai-v1";
     private static final String TOOL_RESULT_JSON = "{\"delivery_date\": \"2025-03-27\"}";
@@ -563,8 +565,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                         "name": "get_delivery_date",
                         "args": {
                           "order_id": "order_12345"
-                        }
-                      }
+                        },
+                        "id": "call_62136354"
+                      },
+                      "thoughtSignature": "skip_thought_signature_validator"
                     }
                   ]
                 }
@@ -658,12 +662,15 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                     {
                         "role": "model",
                         "parts": [
-                            { "functionCall" : {
-                                "name": "get_delivery_date",
-                                "args": {
-                                    "order_id" : "order_12345"
-                                    }
-                                }
+                            {
+                                "functionCall" : {
+                                    "name": "get_delivery_date",
+                                    "args": {
+                                        "order_id" : "order_12345"
+                                    },
+                                    "id": "call_62136354"
+                                },
+                                "thoughtSignature": "skip_thought_signature_validator"
                             }
                         ]
                     }
@@ -717,13 +724,16 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                     {
                         "role": "model",
                         "parts": [
-                            { "functionCall" : {
-                                "name": "get_index_mapping",
-                                "args": {
-                                    "indices": ["foo", "bar"],
-                                    "size": 10
-                                    }
-                                }
+                            {
+                                "functionCall" : {
+                                    "name": "get_index_mapping",
+                                    "args": {
+                                        "indices": ["foo", "bar"],
+                                        "size": 10
+                                    },
+                                    "id": "call_1"
+                                },
+                                "thoughtSignature": "skip_thought_signature_validator"
                             }
                         ]
                     }
@@ -811,12 +821,15 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                     {
                         "role": "model",
                         "parts": [
-                            { "functionCall" : {
-                                "name": "get_delivery_date",
-                                "args": {
-                                    "order_id" : "order_12345"
-                                    }
-                                }
+                            {
+                                "functionCall" : {
+                                    "name": "get_delivery_date",
+                                    "args": {
+                                        "order_id" : "order_12345"
+                                    },
+                                    "id": "call_62136354"
+                                },
+                                "thoughtSignature": "skip_thought_signature_validator"
                             }
                         ]
                     }
@@ -1223,14 +1236,14 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                         "role": "model",
                         "parts": [
                             {
-                                "functionCall": { "name": "%s", "args": %s },
+                                "functionCall": { "name": "%s", "args": %s, "id": "%s" },
                                 "thoughtSignature": "%s"
                             }
                         ]
                     }
                 ]
             }
-            """, FUNCTION_NAME, FUNCTION_ARGUMENTS, THOUGHT_SIGNATURE));
+            """, FUNCTION_NAME, FUNCTION_ARGUMENTS, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
     }
 
     public void testSerialization_ThoughtSummaryIsWrittenAsThoughtPartBeforeContent() throws IOException {
@@ -1290,7 +1303,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 "contents": [
                     {
                         "role": "model",
-                        "parts": [ { "functionCall": { "name": "%s", "args": { "order_id": "order_12345" } } } ]
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
                     },
                     {
                         "role": "user",
@@ -1306,7 +1324,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                     }
                 ]
             }
-            """, FUNCTION_NAME, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
     }
 
     public void testSerialization_ToolMessageOmitsIdWhenItWasSynthesizedFromTheFunctionName() throws IOException {
@@ -1318,7 +1336,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 "contents": [
                     {
                         "role": "model",
-                        "parts": [ { "functionCall": { "name": "%s", "args": { "order_id": "order_12345" } } } ]
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" } },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
                     },
                     {
                         "role": "user",
@@ -1345,7 +1368,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 "contents": [
                     {
                         "role": "model",
-                        "parts": [ { "functionCall": { "name": "%s", "args": { "order_id": "order_12345" } } } ]
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
                     },
                     {
                         "role": "user",
@@ -1361,7 +1389,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                     }
                 ]
             }
-            """, FUNCTION_NAME, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, deliveredOutput));
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, deliveredOutput));
     }
 
     public void testError_ToolMessageWithoutToolCallId() {
@@ -1395,12 +1423,386 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             """);
     }
 
+    /**
+     * The key scenario: a client that does not yet echo {@code reasoning_details} sends an assistant message with tool
+     * calls but no signatures. ES should use the sentinel so Gemini 3 does not reject the request with a 400.
+     */
+    public void testSerialization_FunctionCallWithoutSignature_UsesSkipValidatorSentinel() throws IOException {
+        var messages = List.of(assistantToolCall(GOOGLE_TOOL_CALL_ID), toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "id": "%s",
+                                    "response": %s
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
+    }
+
+    /**
+     * When parallel function calls are present and no signatures are supplied, only the first call gets the sentinel.
+     * Google only signs the first function call of a parallel step; subsequent calls are unsigned by design.
+     */
+    public void testSerialization_ParallelFunctionCallsWithoutSignature_OnlyFirstGetsSentinel() throws IOException {
+        var message = parallelAssistantToolCalls();
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            },
+                            {
+                                "functionCall": { "name": "%s", "args": {}, "id": "%s" }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, SECOND_FUNCTION_NAME, SECOND_TOOL_CALL_ID));
+    }
+
+    /**
+     * When real signatures are present they always take precedence over the sentinel. Both the id-bound path
+     * (signature keyed by the tool call id) and the unbound path (a signature with no id and no text) are verified.
+     */
+    public void testSerialization_RealSignatureTakesPrecedenceOverSentinel_IdBound() throws IOException {
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, GOOGLE_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": %s, "id": "%s" },
+                                "thoughtSignature": "%s"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, FUNCTION_ARGUMENTS, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_RealSignatureTakesPrecedenceOverSentinel_Unbound() throws IOException {
+        // An unbound signature (no id, no text) lands on the first function call positionally.
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, null, 0L, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": %s, "id": "%s" },
+                                "thoughtSignature": "%s"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, FUNCTION_ARGUMENTS, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_FunctionCallOmitsIdWhenSynthesizedFromFunctionName() throws IOException {
+        // When the response carried no id the parser falls back to the function name; there is no real id to echo.
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(FUNCTION_NAME, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function"))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": %s },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, FUNCTION_ARGUMENTS));
+    }
+
+    /**
+     * Parallel tool results (one OpenAI-style {@code tool} message per call) must be merged into a single Gemini
+     * {@code user} content with one {@code functionResponse} part per call. This is the exact shape that caused the
+     * "number of function response parts" 400 from Vertex AI.
+     */
+    public void testSerialization_ParallelToolResults_MergedIntoSingleFunctionResponseTurn() throws IOException {
+        var secondToolResult = "{\"eta\": \"2h\"}";
+        var messages = List.of(
+            parallelAssistantToolCalls(),
+            toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
+            toolResult(SECOND_TOOL_CALL_ID, secondToolResult)
+        );
+
+        assertJsonEquals(
+            serialize(requestOf(messages), emptyThinkingConfig),
+            Strings.format(
+                """
+                    {
+                        "contents": [
+                            {
+                                "role": "model",
+                                "parts": [
+                                    {
+                                        "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                        "thoughtSignature": "skip_thought_signature_validator"
+                                    },
+                                    {
+                                        "functionCall": { "name": "%s", "args": {}, "id": "%s" }
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    },
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                    """,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                SECOND_FUNCTION_NAME,
+                SECOND_TOOL_CALL_ID,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                TOOL_RESULT_JSON,
+                SECOND_FUNCTION_NAME,
+                SECOND_TOOL_CALL_ID,
+                secondToolResult
+            )
+        );
+    }
+
+    /**
+     * Tool results separated by a model turn must not be merged: each pair forms its own alternating turn.
+     */
+    public void testSerialization_SequentialToolResults_StaySeparateTurns() throws IOException {
+        var messages = List.of(
+            assistantToolCall(GOOGLE_TOOL_CALL_ID),
+            toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
+            assistantToolCall(SECOND_TOOL_CALL_ID),
+            toolResult(SECOND_TOOL_CALL_ID, TOOL_RESULT_JSON)
+        );
+
+        assertJsonEquals(
+            serialize(requestOf(messages), emptyThinkingConfig),
+            Strings.format(
+                """
+                    {
+                        "contents": [
+                            {
+                                "role": "model",
+                                "parts": [
+                                    {
+                                        "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                        "thoughtSignature": "skip_thought_signature_validator"
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "model",
+                                "parts": [
+                                    {
+                                        "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                        "thoughtSignature": "skip_thought_signature_validator"
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                    """,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                TOOL_RESULT_JSON,
+                FUNCTION_NAME,
+                SECOND_TOOL_CALL_ID,
+                FUNCTION_NAME,
+                SECOND_TOOL_CALL_ID,
+                TOOL_RESULT_JSON
+            )
+        );
+    }
+
+    /**
+     * A system message between two tool messages must not break the merge — system messages are lifted into
+     * {@code systemInstruction} and do not create a content turn of their own.
+     */
+    public void testSerialization_ToolResultsSeparatedBySystemMessage_AreStillMerged() throws IOException {
+        var messages = List.of(
+            parallelAssistantToolCalls(),
+            toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
+            new Message(new ContentObjects(List.of(new ContentObjectText("extra instruction"))), "system", null, null),
+            toolResult(SECOND_TOOL_CALL_ID, TOOL_RESULT_JSON)
+        );
+
+        assertJsonEquals(
+            serialize(requestOf(messages), emptyThinkingConfig),
+            Strings.format(
+                """
+                    {
+                        "contents": [
+                            {
+                                "role": "model",
+                                "parts": [
+                                    {
+                                        "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                        "thoughtSignature": "skip_thought_signature_validator"
+                                    },
+                                    {
+                                        "functionCall": { "name": "%s", "args": {}, "id": "%s" }
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    },
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "systemInstruction": {
+                            "parts": [
+                                { "text": "extra instruction" }
+                            ]
+                        }
+                    }
+                    """,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                SECOND_FUNCTION_NAME,
+                SECOND_TOOL_CALL_ID,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                TOOL_RESULT_JSON,
+                SECOND_FUNCTION_NAME,
+                SECOND_TOOL_CALL_ID,
+                TOOL_RESULT_JSON
+            )
+        );
+    }
+
     private static Message assistantToolCall(String toolCallId) {
         return new Message(
             null,
             ASSISTANT_ROLE,
             null,
             List.of(new ToolCall(toolCallId, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function"))
+        );
+    }
+
+    private static Message parallelAssistantToolCalls() {
+        return new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(
+                new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function"),
+                new ToolCall(SECOND_TOOL_CALL_ID, new ToolCall.FunctionField("{}", SECOND_FUNCTION_NAME), "function")
+            )
         );
     }
 

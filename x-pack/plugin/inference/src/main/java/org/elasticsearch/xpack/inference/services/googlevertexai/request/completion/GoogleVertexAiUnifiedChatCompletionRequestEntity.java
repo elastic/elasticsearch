@@ -64,6 +64,16 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
      * function call parts are missing the signature it previously issued for them.
      */
     private static final String THOUGHT_SIGNATURE = "thoughtSignature";
+    /**
+     * Google's documented placeholder that tells Gemini to skip thought signature validation. Used when a client
+     * replays a function call without the signature Gemini issued for it (e.g. because the client does not yet support
+     * {@code reasoning_details}), which Gemini 3 would otherwise reject with a 400.
+     * <p>
+     * The equivalent sentinel {@code context_engineering_is_the_way_to_go} is also accepted. Both are documented by
+     * Google for this use case; this one is used by gemini-cli, LiteLLM, and pydantic-ai.
+     * See <a href="https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures">thought signatures</a>.
+     */
+    private static final String SKIP_THOUGHT_SIGNATURE_VALIDATOR = "skip_thought_signature_validator";
 
     private static final String TOOLS = "tools";
     private static final String FUNCTION_DECLARATIONS = "functionDeclarations";
@@ -235,24 +245,56 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
     }
 
+    private static boolean isSystemMessage(Message message) {
+        return message.role().equalsIgnoreCase(SYSTEM_ROLE);
+    }
+
+    private static boolean isToolMessage(Message message) {
+        return message.role().equalsIgnoreCase(TOOL_ROLE);
+    }
+
+    /**
+     * Groups non-system messages into Gemini content turns. Gemini requires all {@code functionResponse} parts that
+     * answer a parallel function call turn to appear inside a single {@code user} content, whereas the unified API
+     * carries one {@code tool} message per tool call. Consecutive tool messages are therefore merged into one turn so
+     * that the number of {@code functionResponse} parts matches the number of {@code functionCall} parts in the
+     * preceding model turn.
+     */
+    private static List<List<Message>> toContentTurns(List<Message> messages) {
+        var turns = new ArrayList<List<Message>>();
+        for (var message : messages) {
+            if (isSystemMessage(message)) {
+                // System messages are written via systemInstruction; they do not produce a content turn.
+                continue;
+            }
+            if (isToolMessage(message) && turns.isEmpty() == false && isToolMessage(turns.getLast().getFirst())) {
+                // Append to the current tool turn so all responses for a parallel function call step are grouped.
+                turns.getLast().add(message);
+            } else {
+                var turn = new ArrayList<Message>();
+                turn.add(message);
+                turns.add(turn);
+            }
+        }
+        return turns;
+    }
+
     private void buildContents(XContentBuilder builder) throws IOException {
         var messages = unifiedChatInput.getRequest().messages();
 
         builder.startArray(CONTENTS);
-        for (Message message : messages) {
-            if (message.role().equalsIgnoreCase(SYSTEM_ROLE)) {
-                // System messages are built in another method
-                continue;
-            }
-
+        for (var turn : toContentTurns(messages)) {
+            var first = turn.getFirst();
             builder.startObject();
-            builder.field(ROLE, messageRoleToGoogleVertexAiSupportedRole(message.role()));
+            builder.field(ROLE, messageRoleToGoogleVertexAiSupportedRole(first.role()));
             builder.startArray(PARTS);
             {
-                if (message.role().equalsIgnoreCase(TOOL_ROLE)) {
-                    buildFunctionResponsePart(builder, message, messages);
+                if (isToolMessage(first)) {
+                    for (var toolMessage : turn) {
+                        buildFunctionResponsePart(builder, toolMessage, messages);
+                    }
                 } else {
-                    buildMessageParts(builder, message);
+                    buildMessageParts(builder, first);
                 }
             }
             builder.endArray();
@@ -267,8 +309,11 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
      * Thought signatures carried on the message's reasoning details are re-attached to the part they belong to. A
      * detail whose {@code id} matches a tool call binds its signature to that function call, which is what Gemini 3
      * validates. A signature with no {@code id} and no text belongs to the text of the message, so it is attached to
-     * the trailing text part, falling back to the first function call. Signatures that have nowhere to land are
-     * dropped: Google only validates them strictly on function calls.
+     * the trailing text part, falling back to the first function call.
+     * <p>
+     * When the first function call of a step has no signature at all,
+     * {@link #SKIP_THOUGHT_SIGNATURE_VALIDATOR} is used so that Gemini 3 does not reject
+     * the request with a 400. Real signatures always take precedence; the sentinel is only a fallback.
      */
     private void buildMessageParts(XContentBuilder builder, Message message) throws IOException {
         var texts = extractTextParts(message);
@@ -301,6 +346,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         }
 
         if (hasToolCalls) {
+            var firstCall = true;
             for (var toolCall : toolCalls) {
                 var signature = signaturesByToolCallId.get(toolCall.id());
                 if (signature == null && unboundSignature != null) {
@@ -309,12 +355,24 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                     signature = unboundSignature;
                     unboundSignature = null;
                 }
+                if (signature == null && firstCall) {
+                    // Gemini 3 requires a thought signature on the first functionCall of a step. When the client has
+                    // not sent reasoning_details (e.g. because the client predates that field), use Google's sentinel
+                    // so the request is not rejected with a 400.
+                    signature = SKIP_THOUGHT_SIGNATURE_VALIDATOR;
+                }
+                firstCall = false;
 
                 builder.startObject();
                 {
                     builder.startObject(FUNCTION_CALL);
                     builder.field(FUNCTION_CALL_NAME, toolCall.function().name());
                     builder.field(FUNCTION_CALL_ARGS, jsonStringToMap(toolCall.function().arguments()));
+                    // Only echo an id the model actually issued. When the id equals the function name it was
+                    // synthesized from that name because the response carried none.
+                    if (isModelIssuedId(toolCall.id(), toolCall.function().name())) {
+                        builder.field(FUNCTION_CALL_ID, toolCall.id());
+                    }
                     builder.endObject();
                     if (signature != null) {
                         builder.field(THOUGHT_SIGNATURE, signature);
@@ -326,8 +384,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     }
 
     /**
-     * Emits the {@code functionResponse} part for a tool message. Google requires the function name, which the
-     * unified tool message does not carry, so it is resolved from the tool call the message responds to.
+     * Emits one {@code functionResponse} part for a tool message. When multiple tool messages answer a parallel
+     * function call turn they are all written inside the same {@code parts} array, with one call to this method per
+     * message. Google requires the function name, which the unified tool message does not carry, so it is resolved
+     * from the tool call the message responds to.
      */
     private void buildFunctionResponsePart(XContentBuilder builder, Message message, List<Message> messages) throws IOException {
         var toolCallId = message.toolCallId();
@@ -346,7 +406,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             builder.field(FUNCTION_NAME, functionName);
             // Only echo an id the model actually issued. When the id equals the resolved function name it was
             // synthesized from that name because the response carried none, so there is no real id to send back.
-            if (toolCallId.equals(functionName) == false) {
+            if (isModelIssuedId(toolCallId, functionName)) {
                 builder.field(FUNCTION_CALL_ID, toolCallId);
             }
             builder.field(FUNCTION_RESPONSE_RESPONSE, toolResponse(message));
@@ -424,6 +484,15 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             }
         }
         return null;
+    }
+
+    /**
+     * Returns {@code true} when {@code id} is a real model-issued identifier rather than one synthesized from the
+     * function name. The response parser falls back to the function name as the id when the model returns no id, so
+     * an id that equals the name has no independent value and should not be echoed back.
+     */
+    private static boolean isModelIssuedId(@Nullable String id, String functionName) {
+        return id != null && id.equals(functionName) == false;
     }
 
     private void buildTools(XContentBuilder builder) throws IOException {

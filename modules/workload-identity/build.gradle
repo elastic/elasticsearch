@@ -41,10 +41,11 @@ dependencies {
   api project(":libs:ssl-config")
 
   // httpclient5 calls LoggerFactory.getLogger() in static initializers, making slf4j-api a
-  // hard runtime dependency even though Maven marks it optional. slf4j-nop discards HC5's wire
-  // logs silently; this module uses ES-native logging for all its own diagnostics.
-  // See also: repository-hdfs, which uses the same pattern for the same reason.
-  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  // hard dependency even though Maven marks it optional. Because this is a named JPMS module,
+  // org.slf4j must appear in the module-info.java `requires` clause and therefore also on the
+  // compile module path. slf4j-nop discards HC5's wire logs silently; it is pulled into the
+  // module layer automatically via service-binding (org.slf4j `uses SLF4JServiceProvider`).
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
 }
 

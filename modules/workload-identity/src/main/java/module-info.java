@@ -19,6 +19,11 @@ module org.elasticsearch.workloadidentity {
     requires org.apache.httpcomponents.core5.httpcore5;
     requires org.apache.httpcomponents.core5.httpcore5.h2;
 
+    // httpclient5 calls LoggerFactory.getLogger() in static initializers; the JPMS module layer
+    // resolver only includes org.slf4j if a named module requires it, so we must declare it here
+    // even though this module itself does not import any org.slf4j types.
+    requires org.slf4j;
+
     // HttpsWorkloadIdentityIssuerClient declares its logger as org.apache.logging.log4j.Logger
     // (rather than the org.elasticsearch.logging facade used elsewhere in this module) so it
     // can pass that logger directly to its RetryableAction-based token-request retrier, which

@@ -15,6 +15,7 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -117,7 +118,7 @@ public class AzureBlobStoreToFluxTests extends ESTestCase {
                 subscribers.add(subscriber);
                 AzureBlobStore.toFlux(() -> new SelfDescribingStream(length, seed), length, BUFFER_SIZE).subscribe(subscriber);
             }
-            assertTrue("uploads did not complete", done.await(60, TimeUnit.SECONDS));
+            safeAwait(done, TimeValue.timeValueSeconds(60));
             for (RecordingSubscriber subscriber : subscribers) {
                 subscriber.verify(length, problems);
             }

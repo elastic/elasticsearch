@@ -93,7 +93,7 @@ public class TrampolineSchedulerTests extends ESTestCase {
             }
         });
 
-        assertTrue(done.await(30, TimeUnit.SECONDS));
+        safeAwait(done, TimeValue.timeValueSeconds(30));
         assertThat("tasks of one worker ran concurrently", overlaps.get(), equalTo(0));
         assertThat("tasks ran outside the thread pool", offPoolRuns.get(), equalTo(0));
         for (int submitter = 0; submitter < submitters; submitter++) {
@@ -119,7 +119,7 @@ public class TrampolineSchedulerTests extends ESTestCase {
             safeAwait(release);
             blockerRunning.set(false);
         });
-        assertTrue(blockerStarted.await(10, TimeUnit.SECONDS));
+        safeAwait(blockerStarted);
 
         final long scheduledAt = System.nanoTime();
         final long delayMillis = 20;
@@ -131,7 +131,7 @@ public class TrampolineSchedulerTests extends ESTestCase {
         // the delay elapses while the blocking task is running: the delayed task must wait for it
         assertFalse(delayedDone.await(delayMillis * 5, TimeUnit.MILLISECONDS));
         release.countDown();
-        assertTrue(delayedDone.await(10, TimeUnit.SECONDS));
+        safeAwait(delayedDone);
         assertFalse("the delayed task ran while another task of the worker was running", delayedSawBlocker.get());
         assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - scheduledAt), greaterThanOrEqualTo(delayMillis));
     }
@@ -155,7 +155,7 @@ public class TrampolineSchedulerTests extends ESTestCase {
         assertTrue(delayed.isDisposed());
 
         release.countDown();
-        assertTrue(lastDone.await(10, TimeUnit.SECONDS));
+        safeAwait(lastDone);
         // give a wrongly surviving delayed task the chance to show up
         safeSleep(50);
         assertThat(ran, contains("last"));
@@ -173,7 +173,7 @@ public class TrampolineSchedulerTests extends ESTestCase {
             safeAwait(release);
             blockerDone.countDown();
         });
-        assertTrue(blockerStarted.await(10, TimeUnit.SECONDS));
+        safeAwait(blockerStarted);
         final List<Disposable> pending = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             final int task = i;
@@ -195,7 +195,7 @@ public class TrampolineSchedulerTests extends ESTestCase {
         );
 
         release.countDown();
-        assertTrue(blockerDone.await(10, TimeUnit.SECONDS));
+        safeAwait(blockerDone);
         safeSleep(50);
         assertThat(ran, empty());
     }
@@ -226,7 +226,7 @@ public class TrampolineSchedulerTests extends ESTestCase {
             });
         }
 
-        assertTrue(threeTicks.await(10, TimeUnit.SECONDS));
+        safeAwait(threeTicks);
         periodic.dispose();
         assertTrue(periodic.isDisposed());
         safeSleep(50);
@@ -247,7 +247,7 @@ public class TrampolineSchedulerTests extends ESTestCase {
         };
         scheduler.schedule(task);
         scheduler.schedule(task, 10, TimeUnit.MILLISECONDS);
-        assertTrue(done.await(10, TimeUnit.SECONDS));
+        safeAwait(done);
         assertThat(offPoolRuns.get(), equalTo(0));
     }
 
@@ -275,7 +275,7 @@ public class TrampolineSchedulerTests extends ESTestCase {
                     .subscribeOn(scheduler)
                     .subscribe(subscriber);
             }
-            assertTrue(done.await(60, TimeUnit.SECONDS));
+            safeAwait(done, TimeValue.timeValueSeconds(60));
             for (RecordingSubscriber subscriber : subscribers) {
                 subscriber.verify(items, problems);
             }

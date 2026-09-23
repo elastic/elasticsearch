@@ -78,7 +78,7 @@ public class AshSphericalScalarQuantizerBenchmark {
     // keeping this Arena alive keeps the MemorySegments accessible
     private Arena arena;
     private AshSphericalScalarQuantizer quantizer;
-    private MemorySegment vectors;
+    private MemorySegment[] vectors;
     private MemorySegment out;
 
     @Setup(Level.Trial)
@@ -92,21 +92,22 @@ public class AshSphericalScalarQuantizerBenchmark {
 
         Random random = new Random();
         out = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, dims);
-        vectors = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, numVectors * dims);
+        vectors = new MemorySegment[numVectors];
         for (int i = 0; i < numVectors; i++) {
             float[] vec = switch (distribution) {
                 case GAUSSIAN -> randomGaussians(random, dims);
                 case UNIFORM -> VectorTestUtils.randomFloatVector(random, dims);
                 case TIED -> tied(random, dims);
             };
-            MemorySegment.copy(vec, 0, vectors, ValueLayout.JAVA_FLOAT, i * dims * Float.BYTES, dims);
+            vectors[i] = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, dims);
+            MemorySegment.copy(vec, 0, vectors[i], ValueLayout.JAVA_FLOAT, 0, dims);
         }
     }
 
     @Benchmark
     public void quantize(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            float val = quantizer.quantizeExact(vectors.asSlice(i * dims * Float.BYTES, dims * Float.BYTES), 0, out, 0, dims);
+            float val = quantizer.quantizeExact(vectors[i], 0, out, 0, dims);
             bh.consume(val);
         }
     }

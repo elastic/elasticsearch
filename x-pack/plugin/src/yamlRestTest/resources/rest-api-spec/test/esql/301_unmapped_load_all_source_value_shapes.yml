@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
       capabilities:
         - method: POST
           path: /_query
@@ -154,6 +154,9 @@ teardown:
 ---
 'a literal dotted key and the nested form of the same path merge into one discovered column':
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "1"'
@@ -168,6 +171,9 @@ teardown:
 ---
 'five levels of nesting flatten to one dotted leaf':
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "2" | KEEP id, l1.*'
@@ -179,6 +185,9 @@ teardown:
 ---
 'an array of one scalar and one object yields both a parent column and a dotted leaf column':
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "3" | KEEP id, mixed*'
@@ -192,6 +201,9 @@ teardown:
 ---
 'keys differing only by case become two columns, and a wildcard character in a key is matched literally':
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keys | WHERE id == "4"'

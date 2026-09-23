@@ -325,13 +325,33 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof PutMappingRequest other) {
+            return writeIndexOnly == other.writeIndexOnly
+                && Arrays.equals(indices, other.indices)
+                && indicesOptions.equals(other.indicesOptions)
+                && Objects.equals(source, other.source)
+                && xContentType == other.xContentType
+                && Objects.equals(origin, other.origin)
+                && Objects.equals(concreteIndex, other.concreteIndex);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(indices), indicesOptions, source, xContentType, origin, concreteIndex, writeIndexOnly);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
         if (out.getTransportVersion().supports(MAPPINGS_AS_BYTESREFERENCE)) {
             out.writeBytesReference(source);
-            out.writeEnum(xContentType);
+            XContentHelper.writeTo(out, xContentType);
         } else {
             out.writeString(XContentHelper.convertToJson(source, false, xContentType));
         }

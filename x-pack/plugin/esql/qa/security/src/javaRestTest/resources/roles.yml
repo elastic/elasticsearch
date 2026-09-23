@@ -287,72 +287,72 @@ dls_fls_partial_mapping:
         grant: [ '*' ]
         except: [ 'org' ]
 
-dls_shapes:
+dls_unmapped_load_all:
   cluster: []
   indices:
-    - names: [ 'index-load-all-shapes' ]
+    - names: [ 'index-dynamic-disabled' ]
       privileges: [ 'read' ]
       query: '{"range": {"value": {"lt": 15}}}'
 
-fls_shapes_grant_value:
+fls_unmapped_load_all_grant_value:
   cluster: []
   indices:
-    - names: [ 'index-load-all-shapes' ]
+    - names: [ 'index-dynamic-disabled' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ 'value' ]
 
-fls_shapes_grant_value_org:
+fls_unmapped_load_all_grant_value_org:
   cluster: []
   indices:
-    - names: [ 'index-load-all-shapes' ]
+    - names: [ 'index-dynamic-disabled' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ 'value', 'org' ]
 
-fls_shapes_except_ssn:
+fls_unmapped_load_all_except_ssn:
   cluster: []
   indices:
-    - names: [ 'index-load-all-shapes' ]
+    - names: [ 'index-dynamic-disabled' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ '*' ]
         except: [ 'profile.ssn' ]
 
-fls_shapes_except_org:
+fls_unmapped_load_all_except_org:
   cluster: []
   indices:
-    - names: [ 'index-load-all-shapes' ]
+    - names: [ 'index-dynamic-disabled' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ '*' ]
         except: [ 'org' ]
 
-fls_shapes_no_source:
+fls_unmapped_load_all_no_source:
   cluster: []
   indices:
-    - names: [ 'index-load-all-shapes' ]
+    - names: [ 'index-dynamic-disabled' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ '*' ]
         except: [ '_source' ]
 
-read_load_all_shapes:
+read_unmapped_load_all:
   cluster: []
   indices:
-    - names: [ 'index-load-all-shapes' ]
+    - names: [ 'index-dynamic-disabled' ]
       privileges: [ 'read' ]
 
-read_lookup_load_all_shapes:
+read_lookup_unmapped_load_all:
   cluster: []
   indices:
-    - names: [ 'lookup-load-all-shapes' ]
+    - names: [ 'lookup-index-dynamic-disabled' ]
       privileges: [ 'read' ]
 
-fls_lookup_shapes_deny_secret:
+fls_lookup_unmapped_load_all_deny_secret:
   cluster: []
   indices:
-    - names: [ 'lookup-load-all-shapes' ]
+    - names: [ 'lookup-index-dynamic-disabled' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ '*' ]

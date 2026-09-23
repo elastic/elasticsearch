@@ -182,6 +182,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159938
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/160049
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference_bwc/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/160056
 
 # Examples:
 #

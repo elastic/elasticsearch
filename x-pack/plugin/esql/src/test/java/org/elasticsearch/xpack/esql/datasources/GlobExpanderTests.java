@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
@@ -3333,43 +3331,38 @@ public class GlobExpanderTests extends ESTestCase {
 
         @SuppressWarnings("RegexpMultiline")
         String pattern = "s3://bucket/data/**/*.parquet";
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            FileList serialResult = GlobExpander.expand(
-                pattern,
-                serial,
-                null,
-                HIVE_ON,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                4,
-                threadPool.generic()
-            );
-            FileList fanOutResult = GlobExpander.expand(
-                pattern,
-                fanOut,
-                null,
-                HIVE_ON,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                4,
-                threadPool.generic()
-            );
+        FileList serialResult = GlobExpander.expand(
+            pattern,
+            serial,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
+        FileList fanOutResult = GlobExpander.expand(
+            pattern,
+            fanOut,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
 
-            assertEquals("file counts must match", serialResult.fileCount(), fanOutResult.fileCount());
-            for (int i = 0; i < serialResult.fileCount(); i++) {
-                assertEquals("path at index " + i, serialResult.path(i), fanOutResult.path(i));
-                assertEquals("size at index " + i, serialResult.size(i), fanOutResult.size(i));
-                assertEquals("lastModifiedMillis at index " + i, serialResult.lastModifiedMillis(i), fanOutResult.lastModifiedMillis(i));
-            }
-            assertThat("fan-out must drain more than one prefix", fanOut.listedPrefixes.size(), greaterThan(1));
-        } finally {
-            terminate(threadPool);
+        assertEquals("file counts must match", serialResult.fileCount(), fanOutResult.fileCount());
+        for (int i = 0; i < serialResult.fileCount(); i++) {
+            assertEquals("path at index " + i, serialResult.path(i), fanOutResult.path(i));
+            assertEquals("size at index " + i, serialResult.size(i), fanOutResult.size(i));
+            assertEquals("lastModifiedMillis at index " + i, serialResult.lastModifiedMillis(i), fanOutResult.lastModifiedMillis(i));
         }
+        assertThat("fan-out must drain more than one prefix", fanOut.listedPrefixes.size(), greaterThan(1));
     }
 
     /**
@@ -3413,23 +3406,18 @@ public class GlobExpanderTests extends ESTestCase {
 
         @SuppressWarnings("RegexpMultiline")
         String pattern = "s3://bucket/data/**/*.parquet";
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            GlobExpander.expand(
-                pattern,
-                blocking,
-                null,
-                HIVE_ON,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                Integer.MAX_VALUE,
-                4,
-                threadPool.generic()
-            );
-        } finally {
-            terminate(threadPool);
-        }
+        GlobExpander.expand(
+            pattern,
+            blocking,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            4,
+            () -> false
+        );
         assertThat(peak.get(), greaterThan(1));
     }
 
@@ -3465,28 +3453,23 @@ public class GlobExpanderTests extends ESTestCase {
             }
         };
 
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            var e = expectThrows(
-                IllegalArgumentException.class,
-                () -> GlobExpander.expand(
-                    pattern,
-                    counting,
-                    null,
-                    HIVE_ON,
-                    Integer.MAX_VALUE,
-                    Integer.MAX_VALUE,
-                    100,
-                    Integer.MAX_VALUE,
-                    4,
-                    threadPool.generic()
-                )
-            );
-            assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
-            assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(300));
-        } finally {
-            terminate(threadPool);
-        }
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                pattern,
+                counting,
+                null,
+                HIVE_ON,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                100,
+                Integer.MAX_VALUE,
+                4,
+                () -> false
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
+        assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(300));
     }
 
     /**
@@ -3521,28 +3504,23 @@ public class GlobExpanderTests extends ESTestCase {
             }
         };
 
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            var e = expectThrows(
-                IllegalArgumentException.class,
-                () -> GlobExpander.expand(
-                    pattern,
-                    counting,
-                    null,
-                    HIVE_ON,
-                    10,
-                    Integer.MAX_VALUE,
-                    Integer.MAX_VALUE,
-                    Integer.MAX_VALUE,
-                    4,
-                    threadPool.generic()
-                )
-            );
-            assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
-            assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(40));
-        } finally {
-            terminate(threadPool);
-        }
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                pattern,
+                counting,
+                null,
+                HIVE_ON,
+                10,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                4,
+                () -> false
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
+        assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(40));
     }
 
     /**

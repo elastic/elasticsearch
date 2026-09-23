@@ -1526,7 +1526,7 @@ public class ExternalSourceResolver {
             maxListedObjects.getAsInt(),
             listingBound,
             listingConcurrency(),
-            executor
+            this::isCancelled
         );
     }
 
@@ -3720,7 +3720,7 @@ public class ExternalSourceResolver {
                 maxListedObjects.getAsInt(),
                 listingBound,
                 listingConcurrency(),
-                executor
+                this::isCancelled
             );
         } else if (isCacheable(provider) && listingBound == Integer.MAX_VALUE) {
             listing = cachedListing(path, storagePath, provider, hints, config);

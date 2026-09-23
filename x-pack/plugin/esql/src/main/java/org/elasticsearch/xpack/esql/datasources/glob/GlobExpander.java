@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
@@ -36,12 +37,15 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -189,7 +193,7 @@ public final class GlobExpander {
         int maxListedObjects,
         int listingBound,
         int concurrency,
-        @Nullable Executor executor
+        BooleanSupplier isCancelled
     ) throws IOException {
         FileList expanded = expand(
             path,
@@ -201,7 +205,7 @@ public final class GlobExpander {
             maxListedObjects,
             listingBound,
             concurrency,
-            executor
+            isCancelled
         );
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
@@ -291,7 +295,7 @@ public final class GlobExpander {
                 fileOrder,
                 effectiveBound,
                 1,
-                null
+                () -> false
             );
     }
 
@@ -306,7 +310,7 @@ public final class GlobExpander {
         int maxListedObjects,
         int listingBound,
         int concurrency,
-        @Nullable Executor executor
+        BooleanSupplier isCancelled
     ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
@@ -337,7 +341,7 @@ public final class GlobExpander {
                 fileOrder,
                 effectiveBound,
                 concurrency,
-                executor
+                isCancelled
             );
     }
 
@@ -373,7 +377,7 @@ public final class GlobExpander {
         FileOrderConfig fileOrder,
         int listingBound,
         int concurrency,
-        @Nullable Executor executor
+        BooleanSupplier isCancelled
     ) throws IOException {
         boolean rewritten = effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
         boolean bounded = listingBound != Integer.MAX_VALUE;
@@ -390,7 +394,7 @@ public final class GlobExpander {
                 fileOrder,
                 Integer.MAX_VALUE,
                 concurrency,
-                executor
+                isCancelled
             );
         }
 
@@ -411,7 +415,7 @@ public final class GlobExpander {
                 fileOrder,
                 listingBound,
                 concurrency,
-                executor
+                isCancelled
             );
         } catch (IOException e) {
             failure = e;
@@ -445,7 +449,7 @@ public final class GlobExpander {
                 fileOrder,
                 Integer.MAX_VALUE,
                 concurrency,
-                executor
+                isCancelled
             );
         } catch (IOException retryFailure) {
             if (failure != null) {
@@ -535,7 +539,7 @@ public final class GlobExpander {
             fileOrder,
             Integer.MAX_VALUE,
             1,
-            null
+            () -> false
         );
     }
 
@@ -573,7 +577,7 @@ public final class GlobExpander {
             fileOrder,
             Integer.MAX_VALUE,
             1,
-            null
+            () -> false
         );
     }
 
@@ -589,7 +593,7 @@ public final class GlobExpander {
         FileOrderConfig fileOrder,
         int listingBound,
         int concurrency,
-        @Nullable Executor executor
+        BooleanSupplier isCancelled
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -715,7 +719,7 @@ public final class GlobExpander {
 
         // Parallel prefix fan-out: descend one level to get branch prefixes, drain each concurrently.
         // Only when unbounded (a bound is a page budget for a single serial chain) and concurrency is available.
-        if (concurrency > 1 && executor != null && listingBound == Integer.MAX_VALUE) {
+        if (concurrency > 1 && listingBound == Integer.MAX_VALUE) {
             PrefixSet prefixSet = null;
             try {
                 prefixSet = deriveListingPrefixes(provider, prefix, PartitionPruningWalk.MAX_DIRECTORY_LISTINGS);
@@ -737,7 +741,7 @@ public final class GlobExpander {
                     partitionConfig,
                     fileOrder,
                     concurrency,
-                    executor
+                    isCancelled
                 );
             }
         }
@@ -883,7 +887,8 @@ public final class GlobExpander {
         int maxListedObjects,
         boolean recursive,
         AtomicInteger sharedListedCount,
-        AtomicInteger sharedKeptCount
+        AtomicInteger sharedKeptCount,
+        BooleanSupplier isCancelled
     ) throws IOException {
         List<StorageEntry> localMatched = new ArrayList<>();
         StorageEntry fileHintAnchor = null;
@@ -894,6 +899,9 @@ public final class GlobExpander {
 
         try (StorageIterator iterator = provider.listObjects(drainPrefix, recursive)) {
             while (iterator.hasNext()) {
+                if (isCancelled.getAsBoolean()) {
+                    throw new TaskCancelledException("listing cancelled");
+                }
                 StorageEntry entry = iterator.next();
                 checkListedObjectsLimit(sharedListedCount.incrementAndGet(), maxListedObjects);
                 String entryPath = entry.path().toString();
@@ -977,9 +985,14 @@ public final class GlobExpander {
     }
 
     /**
-     * Fan-out listing: drains each prefix in {@code prefixSet.prefixes()} concurrently and concatenates results in
-     * prefix order. Files at intermediate levels (collected during descent) are prepended. Caps are checked via
-     * shared atomics so a concurrent set of workers cannot each accumulate up to the cap before any check fires.
+     * Fan-out listing: drains each prefix in {@code prefixSet.prefixes()} concurrently using virtual threads and
+     * merges results in provider listing order. Files at intermediate levels (collected during descent) are included
+     * in the merge. Caps are checked via shared atomics so workers cannot each accumulate up to the cap before any
+     * check fires.
+     *
+     * <p>Virtual threads are used so that I/O-blocking drain tasks never occupy a carrier thread while waiting,
+     * eliminating the deadlock that would arise from blocking {@code esql_external_io} pool threads in a gather
+     * latch while submitting new work to the same pool.
      */
     private static FileList fanOutDrain(
         String pattern,
@@ -995,7 +1008,7 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         FileOrderConfig fileOrder,
         int concurrency,
-        Executor executor
+        BooleanSupplier isCancelled
     ) throws IOException {
         AtomicInteger sharedListedCount = new AtomicInteger();
         AtomicInteger sharedKeptCount = new AtomicInteger();
@@ -1011,32 +1024,38 @@ public final class GlobExpander {
         );
 
         List<DrainResult> drainResults;
-        try {
-            drainResults = BoundedParallelGather.gather(
-                prefixSet.prefixes(),
-                p -> drainOnePrefix(
-                    p,
-                    rootPrefixStr,
-                    provider,
-                    matcher,
-                    nameFilter,
-                    fileHints,
-                    maxDiscoveredFiles,
-                    maxListedObjects,
-                    recursive,
-                    sharedListedCount,
-                    sharedKeptCount
-                ),
-                concurrency,
-                executor
-            );
-        } catch (RuntimeException | IOException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IOException("listing fan-out failed", e);
+        // Virtual threads unmount from carrier threads during I/O blocking, so they never hold an
+        // esql_external_io pool slot while waiting — eliminating the gather-latch deadlock.
+        try (ExecutorService vtExec = Executors.newVirtualThreadPerTaskExecutor()) {
+            try {
+                drainResults = BoundedParallelGather.gather(
+                    prefixSet.prefixes(),
+                    p -> drainOnePrefix(
+                        p,
+                        rootPrefixStr,
+                        provider,
+                        matcher,
+                        nameFilter,
+                        fileHints,
+                        maxDiscoveredFiles,
+                        maxListedObjects,
+                        recursive,
+                        sharedListedCount,
+                        sharedKeptCount,
+                        isCancelled
+                    ),
+                    concurrency,
+                    vtExec
+                );
+            } catch (RuntimeException | IOException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IOException("listing fan-out failed", e);
+            }
         }
 
-        // Merge: topFiles first (listing order before the first branch), then each prefix drain in order.
+        // Merge all results — topFiles and each prefix drain — then sort by path to match the provider's
+        // natural listing order (lexicographic for S3), which is what a serial listing would produce.
         List<StorageEntry> matched = new ArrayList<>(topResult.matched());
         StorageEntry fileHintAnchor = topResult.fileHintAnchor();
         int excludedCount = topResult.excludedCount();
@@ -1070,6 +1089,10 @@ public final class GlobExpander {
             return listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pattern, null, listingWarnings, false);
         }
 
+        // Sort by path to reproduce the provider's natural listing order (lexicographic for S3) before applying
+        // any user-specified file ordering. This ensures fan-out results are deterministic and match what a serial
+        // listing would produce — topFiles found during prefix descent may otherwise appear out of position.
+        matched.sort(Comparator.comparing(e -> e.path().toString()));
         fileOrder.apply(matched);
         PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
         return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, false);
@@ -1368,7 +1391,7 @@ public final class GlobExpander {
                     // segment lists in full; expand() never hands this path a bound.
                     Integer.MAX_VALUE,
                     1,
-                    null
+                    () -> false
                 );
                 listingWarnings.addAll(expanded.listingWarnings());
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {

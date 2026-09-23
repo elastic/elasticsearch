@@ -26,6 +26,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
@@ -1257,6 +1259,27 @@ public abstract class StreamInput extends InputStream {
      */
     public <T> List<T> readCollectionAsList(final Writeable.Reader<T> reader) throws IOException {
         return readCollection(reader, ArrayList::new, Collections.emptyList());
+    }
+
+    /**
+     * Reads a list of {@link Releasable} objects, releasing any already-read entries if a subsequent
+     * read throws. The caller is responsible for releasing the returned list on success.
+     */
+    public <T extends Releasable> List<T> readReleasableCollectionAsList(Writeable.Reader<T> reader) throws IOException {
+        int count = readArraySize();
+        ArrayList<T> result = new ArrayList<>(count);
+        boolean success = false;
+        try {
+            for (int i = 0; i < count; i++) {
+                result.add(reader.read(this));
+            }
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(result);
+            }
+        }
     }
 
     /**

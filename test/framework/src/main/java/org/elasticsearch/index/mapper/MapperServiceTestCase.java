@@ -528,12 +528,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         builder.endObject();
         return new SourceToParse(
             id,
-            BytesReference.bytes(builder),
-            XContentType.JSON,
+            new BytesSource(BytesReference.bytes(builder), XContentType.JSON, true),
             routing,
             dynamicTemplates,
             dynamicTemplateParams,
-            true,
             xContentMeteringParserDecorator(),
             null
         );

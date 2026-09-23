@@ -10,21 +10,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
-import org.elasticsearch.sourcebatch.SourceRow;
-import org.elasticsearch.sourcebatch.SourceRowToXContent;
-import org.elasticsearch.sourcebatch.SourceRowXContentParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,105 +30,37 @@ public class SourceToParse {
 
     private final Map<String, Map<String, String>> dynamicTemplateParams;
 
-    private final Source source;
+    private final DocumentSource source;
 
     private final XContentMeteringParserDecorator meteringParserDecorator;
 
     public SourceToParse(
         @Nullable String id,
-        BytesReference source,
-        XContentType xContentType,
+        DocumentSource source,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
         Map<String, Map<String, String>> dynamicTemplateParams,
-        boolean includeSourceOnError,
         XContentMeteringParserDecorator meteringParserDecorator,
         @Nullable BytesRef tsid
-    ) {
-        this(
-            id,
-            source,
-            xContentType,
-            routing,
-            dynamicTemplates,
-            dynamicTemplateParams,
-            includeSourceOnError,
-            meteringParserDecorator,
-            tsid,
-            null,
-            null
-        );
-    }
-
-    public SourceToParse(
-        @Nullable String id,
-        SourceRowXContentParser.SchemaNode schemaTree,
-        SourceRow row,
-        XContentType xContentType,
-        @Nullable String routing,
-        Map<String, String> dynamicTemplates,
-        Map<String, Map<String, String>> dynamicTemplateParams,
-        boolean includeSourceOnError,
-        XContentMeteringParserDecorator meteringParserDecorator,
-        @Nullable BytesRef tsid
-    ) {
-        this(
-            id,
-            null,
-            xContentType,
-            routing,
-            dynamicTemplates,
-            dynamicTemplateParams,
-            includeSourceOnError,
-            meteringParserDecorator,
-            tsid,
-            schemaTree,
-            row
-        );
-    }
-
-    private SourceToParse(
-        @Nullable String id,
-        @Nullable BytesReference source,
-        XContentType xContentType,
-        @Nullable String routing,
-        Map<String, String> dynamicTemplates,
-        Map<String, Map<String, String>> dynamicTemplateParams,
-        boolean includeSourceOnError,
-        XContentMeteringParserDecorator meteringParserDecorator,
-        @Nullable BytesRef tsid,
-        @Nullable SourceRowXContentParser.SchemaNode schemaTree,
-        @Nullable SourceRow row
     ) {
         this.id = id;
+        this.source = Objects.requireNonNull(source);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
         this.dynamicTemplateParams = dynamicTemplateParams;
         this.meteringParserDecorator = meteringParserDecorator;
         this.tsid = tsid;
-        this.source = new Source(schemaTree, row, source, xContentType, includeSourceOnError);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
+        this(id, source, xContentType, null);
     }
 
-    public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
+    public SourceToParse(String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
+        this(id, new BytesSource(source, xContentType, true), routing, Map.of(), Map.of(), XContentMeteringParserDecorator.NOOP, null);
     }
 
-    public SourceToParse(
-        String id,
-        BytesReference source,
-        XContentType xContentType,
-        String routing,
-        Map<String, String> dynamicTemplates,
-        BytesRef tsid
-    ) {
-        this(id, source, xContentType, routing, dynamicTemplates, Map.of(), true, XContentMeteringParserDecorator.NOOP, tsid);
-    }
-
-    public Source source() {
+    public DocumentSource source() {
         return source;
     }
 
@@ -178,86 +100,5 @@ public class SourceToParse {
 
     public BytesRef tsid() {
         return tsid;
-    }
-
-    // TODO: Eventually will want to combine this with our other source abstractions IndexSource, etc.
-    public static class Source {
-
-        private final boolean includeSourceOnError;
-        private final SourceRowXContentParser.SchemaNode schemaTree;
-        private final SourceRow row;
-        private final XContentType xContentType;
-        private BytesReference originalSourceBytes;
-
-        private Source(
-            SourceRowXContentParser.SchemaNode schemaTree,
-            SourceRow row,
-            BytesReference originalSourceBytes,
-            XContentType xContentType,
-            boolean includeSourceOnError
-        ) {
-            // originalSourceBytes must be null if row is not null. And vice versa.
-            assert originalSourceBytes == null || row == null;
-            this.schemaTree = schemaTree;
-            this.row = row;
-            // we always convert back to byte array, since we store it and Field only supports bytes.
-            // so, we might as well do it here, and improve the performance of working with direct byte arrays.
-            this.originalSourceBytes = originalSourceBytes == null ? null
-                : originalSourceBytes.hasArray() ? originalSourceBytes
-                : new BytesArray(originalSourceBytes.toBytesRef());
-            this.xContentType = Objects.requireNonNull(xContentType);
-            this.includeSourceOnError = includeSourceOnError;
-        }
-
-        public static Source fromBytes(BytesReference originalSourceBytes, XContentType xContentType) {
-            return new Source(null, null, originalSourceBytes, xContentType, false);
-        }
-
-        public boolean isEmpty() {
-            return (row != null && row.isEmpty()) || (row == null && (originalSourceBytes == null || originalSourceBytes.length() == 0));
-        }
-
-        public XContentType xContentType() {
-            return xContentType;
-        }
-
-        public XContentParser parser(XContentParserConfiguration configuration) throws IOException {
-            if (row != null) {
-                // TODO: batch row parsing does not currently support XContentParserConfiguration or includeSourceOnError. Need to evaluate
-                // these features.
-                return new SourceRowXContentParser(schemaTree, row);
-            } else {
-                return XContentHelper.createParser(
-                    configuration.withIncludeSourceOnError(includeSourceOnError),
-                    originalSourceBytes,
-                    xContentType
-                );
-            }
-        }
-
-        public int estimatedSizeInBytes() {
-            if (originalSourceBytes != null) {
-                return originalSourceBytes.length();
-            }
-            if (row != null) {
-                // TODO: Consider including the size of the schema
-                return row.sizeInBytes();
-            }
-            return 0;
-        }
-
-        // Synchronized for now to be safe. Probably unnecessary.
-        public synchronized BytesReference originalBytes() {
-            if (originalSourceBytes == null) {
-                try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-                    SourceRowToXContent.writeRowFromSchema(row, schemaTree, builder);
-                    originalSourceBytes = BytesReference.bytes(builder);
-                } catch (IOException e) {
-                    assert false : e.getMessage();
-                    throw new UncheckedIOException(e);
-                }
-            }
-            return originalSourceBytes;
-        }
     }
 }

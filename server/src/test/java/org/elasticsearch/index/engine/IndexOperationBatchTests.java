@@ -622,15 +622,18 @@ public class IndexOperationBatchTests extends ESTestCase {
             assertThat(record.uids()[0], equalTo(Uid.encodeId("doc-0")));
             assertThat(record.routings()[0], equalTo("route-0"));
             assertThat(record.contentTypes()[0], equalTo(XContentType.JSON));
-            assertThat(record.noOpReasons()[0], nullValue());
 
             assertThat(record.seqNo(1), equalTo(11L));
-            assertThat(record.noOpReasons()[1], equalTo("post-lucene failure"));
             assertThat(record.uids()[1], nullValue());
 
             assertThat(record.seqNo(2), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
             assertThat(record.uids()[2], nullValue());
-            assertThat(record.noOpReasons()[2], nullValue());
+
+            // sparse status arrays: row 1 is the no-op (with its reason parallel), row 2 the
+            // preflight failure; indexed row 0 is listed nowhere
+            assertArrayEquals(new int[] { 1 }, record.noOpRows());
+            assertArrayEquals(new String[] { "post-lucene failure" }, record.noOpReasons());
+            assertArrayEquals(new int[] { 2 }, record.preflightRows());
         }
     }
 
@@ -692,6 +695,27 @@ public class IndexOperationBatchTests extends ESTestCase {
                 assertThat("routing at i=" + i, record.routing(i), nullValue());
                 assertThat("seqNo at i=" + i, record.seqNo(i), equalTo((long) i));
             }
+        }
+    }
+
+    public void testToTranslogRecordAssertsContiguousSeqNos() throws IOException {
+        // The record stores only the first replayable row's seqNo, so the engine-stamped seqNos
+        // must form a contiguous range across replayable rows; a gap trips the assertion.
+        final int n = 2;
+        try (EscfBatch escf = escfBatch(n)) {
+            final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
+                items(n),
+                0,
+                n,
+                escf,
+                Engine.Operation.Origin.PRIMARY,
+                1L,
+                0L
+            );
+            ByteUtils.writeLongLE(10L, batch.seqNoBytes().bytes, 0);
+            ByteUtils.writeLongLE(12L, batch.seqNoBytes().bytes, 8); // gap: 10 then 12
+            final byte[] statuses = new byte[n]; // all ROW_INDEXED
+            expectThrows(AssertionError.class, () -> batch.toTranslogRecord(statuses, null));
         }
     }
 

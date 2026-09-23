@@ -18,6 +18,8 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalObjectChangedException extends ExternalException {
 
+    // ---- Legacy constructors ----
+
     public ExternalObjectChangedException(String message, Throwable cause) {
         super(message, cause);
     }
@@ -28,6 +30,24 @@ public final class ExternalObjectChangedException extends ExternalException {
 
     public ExternalObjectChangedException(String message, Object... args) {
         super(message, args);
+    }
+
+    // ---- Structured constructors (condition is always OBJECT_CHANGED) ----
+
+    /**
+     * Structured constructor for the mid-query object-replacement case. The message is built from
+     * {@link Condition#OBJECT_CHANGED} using the object name from {@code path}.
+     */
+    public ExternalObjectChangedException(StoragePath path, Throwable cause) {
+        super(Condition.OBJECT_CHANGED, path, "", "", cause);
+    }
+
+    /**
+     * Structured constructor without a cause.
+     * See {@link #ExternalObjectChangedException(StoragePath, Throwable)}.
+     */
+    public ExternalObjectChangedException(StoragePath path) {
+        super(Condition.OBJECT_CHANGED, path, "", "");
     }
 
     @Override

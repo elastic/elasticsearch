@@ -59,7 +59,7 @@ public class KnownLengthBodyFillTests extends ESTestCase {
                 assertEquals(
                     store
                         + " response body exceeded expected length reading ["
-                        + path
+                        + path.objectName()
                         + "]: cumulative="
                         + ((long) prefix + overflow.length)
                         + ", expected="
@@ -67,7 +67,7 @@ public class KnownLengthBodyFillTests extends ESTestCase {
                     eue.getMessage()
                 );
                 assertThat(eue.getMessage(), startsWith(store + " "));
-                assertThat(eue.getMessage(), containsString(path.toString()));
+                assertThat(eue.getMessage(), containsString(path.objectName()));
                 assertEquals(prefix, fill.offset());
                 assertEquals(0, closeCalls.get());
                 assertArrayEquals(filled, copiedBytes(dest, prefix));
@@ -97,7 +97,7 @@ public class KnownLengthBodyFillTests extends ESTestCase {
                 assertEquals(
                     store
                         + " response body shorter than expected reading ["
-                        + path
+                        + path.objectName()
                         + "]: received="
                         + payload.length
                         + ", expected="
@@ -105,7 +105,7 @@ public class KnownLengthBodyFillTests extends ESTestCase {
                     eue.getMessage()
                 );
                 assertThat(eue.getMessage(), startsWith(store + " "));
-                assertThat(eue.getMessage(), containsString(path.toString()));
+                assertThat(eue.getMessage(), containsString(path.objectName()));
             }
         }
     }

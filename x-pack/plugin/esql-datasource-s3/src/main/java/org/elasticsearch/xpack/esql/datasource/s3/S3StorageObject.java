@@ -40,6 +40,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -243,7 +244,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return new ExternalUnavailableException(throttling, retryAfterMs, cause, "S3 store unavailable (HTTP {})", s3.statusCode());
         }
         if (cause instanceof S3Exception precondition && precondition.statusCode() == 412) {
-            return new ExternalObjectChangedException("External data object was modified during read", cause);
+            return new ExternalObjectChangedException(path, cause);
         }
         if (cause instanceof S3Exception clockSkew
             && clockSkew.awsErrorDetails() != null
@@ -271,7 +272,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             );
         }
         if (cause instanceof NoSuchKeyException) {
-            return new IOException("External data object not found", cause);
+            return new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "", cause);
         }
         if (isClosedClient(cause)) {
             return new ExternalUnavailableException(false, cause, "S3 client unavailable: {}", S3FailureDetail.of(cause));
@@ -440,7 +441,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         String current = pinnedEtag.get();
         if (etag == null || etag.isBlank() || isStrongEtag(etag) == false) {
             if (current != null) {
-                throw new ExternalObjectChangedException("External data object was modified during read");
+                throw new ExternalObjectChangedException(path);
             }
             return;
         }
@@ -451,7 +452,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             current = pinnedEtag.get();
         }
         if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("External data object was modified during read");
+            throw new ExternalObjectChangedException(path);
         }
     }
 
@@ -516,7 +517,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("External data object not found");
+            throw new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "");
         }
         return cachedLength;
     }

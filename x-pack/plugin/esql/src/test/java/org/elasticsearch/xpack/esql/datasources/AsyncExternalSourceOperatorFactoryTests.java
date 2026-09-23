@@ -4161,7 +4161,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             int call = callCount.incrementAndGet();
             if (call >= 2) {
-                throw new IOException("Simulated read error on file: " + object.path());
+                throw new IOException("Simulated read error on file: " + object.path().objectName());
             }
             Page page = createTestPage();
             return new CloseableIterator<>() {

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
@@ -47,7 +49,9 @@ import java.util.concurrent.ExecutionException;
  *     down) — is client-actionable backpressure, not a server fault. It already maps to 429 (TOO_MANY_REQUESTS)
  *     via {@code ExceptionsHelper.status}, so it is returned unchanged rather than mistaken for a broken
  *     invariant and reported as 500.</li>
- *     <li>An {@link IllegalArgumentException} already maps to 400; it is returned as-is.</li>
+ *     <li>An {@link IllegalArgumentException} from a format reader may embed a full storage URI; it is wrapped
+     *     in an {@link ExternalClientException} (400) with a path-free message, and the original is logged at
+     *     {@code WARN} on this node so operators have full context without the URI crossing the wire.</li>
  *     <li>An {@link IOException}/{@link UncheckedIOException}, or one of the specific third-party
  *     decoding exceptions in {@link #MALFORMED_DATA_EXCEPTIONS}, means we could not read or interpret
  *     the resource — a client-class {@link ExternalClientException} (400). Retryable transport failures
@@ -64,6 +68,8 @@ import java.util.concurrent.ExecutionException;
  * failure, not the worker thread that was interrupted.
  */
 public final class ExternalFailures {
+
+    private static final Logger logger = LogManager.getLogger(ExternalFailures.class);
 
     private ExternalFailures() {}
 
@@ -85,14 +91,55 @@ public final class ExternalFailures {
     private static final int MAX_CAUSE_DEPTH = 12;
 
     /**
+     * Storage-URI scheme prefixes that must never appear in an {@link ExternalException} message
+     * handed to a caller. Used by the {@code assert} guard in {@link #classify}.
+     */
+    private static final String[] STORAGE_URI_SCHEMES = { "s3://", "gs://", "az://", "azblob://" };
+
+    /**
+     * Returns {@code true} when the message of {@code e} (and its direct cause, if any) contains none of
+     * the known storage-URI schemes. A {@code false} result means a full object-store path leaked into a
+     * user-facing exception message.
+     * <p>
+     * Only checks the top two levels of the cause chain: deeper levels are serialized as {@code caused_by}
+     * in the REST response and may legitimately carry raw SDK messages (the full path appears there only
+     * for operator-side debugging; it does not appear in the top-level {@code reason} shown to end users).
+     */
+    static boolean noStoragePathLeaked(RuntimeException e) {
+        if (containsStoragePath(e.getMessage())) {
+            return false;
+        }
+        Throwable cause = e.getCause();
+        return cause == null || containsStoragePath(cause.getMessage()) == false;
+    }
+
+    private static boolean containsStoragePath(String msg) {
+        if (msg == null) {
+            return false;
+        }
+        for (String scheme : STORAGE_URI_SCHEMES) {
+            if (msg.contains(scheme)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns the {@link RuntimeException} to throw for the given read failure. May instead throw if
      * {@code t} is an {@link Error}, which must propagate unchanged.
+     * <p>
+     * Under {@code -ea} (assertions enabled), verifies that the result's top-level message and its direct
+     * cause (if any) contain no known storage-URI scheme — a debug guard that fires immediately if a new
+     * throw site embeds a full path instead of using the structured constructors on {@link ExternalException}.
+     * See {@link #noStoragePathLeaked}.
      */
     public static RuntimeException classify(Throwable t) {
         if (t instanceof Error error) {
             throw error;
         }
         if (t instanceof ElasticsearchException ese) {
+            assert noStoragePathLeaked(ese) : "storage path leaked in ExternalException: " + ese.getMessage();
             return ese;
         }
         if (t instanceof EsRejectedExecutionException rejected) {
@@ -102,14 +149,21 @@ public final class ExternalFailures {
             return rejected;
         }
         if (t instanceof IllegalArgumentException iae) {
-            return iae;
+            // IAE from format readers may embed storage URIs in the message. Wrap with a path-free message
+            // so the full URI never crosses a node boundary; log at WARN on this node for operator debugging.
+            logger.warn("External read failed with IllegalArgumentException (cause omitted from response)", iae);
+            return new ExternalClientException(iae, "Malformed external data ({})", iae.getClass().getSimpleName());
         }
+        RuntimeException result;
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
-            return new ExternalClientException(t, "Failed to read external source: {}", detail(t));
+            result = new ExternalClientException(t, "Failed to read external source: {}", detail(t));
+        } else {
+            // Use detail() rather than the raw getMessage() so a null-message fault (e.g. a bare NPE) surfaces
+            // its class name instead of a useless "null", while the original cause stays chained for the stack.
+            result = new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
         }
-        // Use detail() rather than the raw getMessage() so a null-message fault (e.g. a bare NPE) surfaces
-        // its class name instead of a useless "null", while the original cause stays chained for the stack.
-        return new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
+        assert noStoragePathLeaked(result) : "storage path leaked in classified exception: " + result.getMessage();
+        return result;
     }
 
     /**

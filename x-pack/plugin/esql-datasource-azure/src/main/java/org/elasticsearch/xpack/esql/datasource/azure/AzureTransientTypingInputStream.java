@@ -71,6 +71,6 @@ final class AzureTransientTypingInputStream extends FilterInputStream {
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path.objectName());
     }
 }

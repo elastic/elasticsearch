@@ -117,6 +117,13 @@ public class ExternalSourceResolver {
      */
     public static final String DATASOURCE_CONFIG_KEY = "_datasource";
 
+    /**
+     * Config key under which {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} stores the dataset
+     * context (dataset name, data source name, data source type). Stripped by {@link #storageConfig} so providers
+     * never see it; used at the operator level to annotate classified failures with dataset context.
+     */
+    public static final String DATASET_CONTEXT_KEY = "_dataset_context";
+
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY);
 
     /**
@@ -151,7 +158,7 @@ public class ExternalSourceResolver {
         }
         Map<String, Object> result = new HashMap<>(datasource);
         config.forEach((k, v) -> {
-            if (DATASOURCE_CONFIG_KEY.equals(k) == false) {
+            if (DATASOURCE_CONFIG_KEY.equals(k) == false && DATASET_CONTEXT_KEY.equals(k) == false) {
                 result.put(k, v);
             }
         });

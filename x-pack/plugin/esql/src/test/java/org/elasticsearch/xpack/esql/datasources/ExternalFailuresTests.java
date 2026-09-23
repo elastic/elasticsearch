@@ -81,10 +81,16 @@ public class ExternalFailuresTests extends ESTestCase {
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(ExternalFailures.classify(ese)));
     }
 
-    public void testIllegalArgumentExceptionKeptAs400() {
-        var iae = new IllegalArgumentException("bad arg");
-        assertSame(iae, ExternalFailures.classify(iae));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(iae)));
+    public void testIllegalArgumentExceptionWrappedAs400() {
+        // IAE may embed storage paths; classify() wraps it so the message is path-free and logs the original at WARN.
+        var iae = new IllegalArgumentException("bad arg containing s3://bucket/prefix/file.parquet");
+        RuntimeException classified = ExternalFailures.classify(iae);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertNotSame(iae, classified);
+        assertSame(iae, classified.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertThat(classified.getMessage(), org.hamcrest.Matchers.containsString("IllegalArgumentException"));
+        assertThat(classified.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("s3://")));
     }
 
     public void testIoErrorsBecomeClientException() {
@@ -118,7 +124,7 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     public void testCredentialsExpiredPassesThroughAs400() {
-        var expired = new ExternalCredentialsExpiredException("Session credentials expired reading [s3://b/k]");
+        var expired = new ExternalCredentialsExpiredException("Session credentials expired reading [k]");
         assertSame(expired, ExternalFailures.classify(expired));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(expired)));
         assertSame(expired, ExternalFailures.surface(expired, "ctx"));
@@ -127,7 +133,7 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     public void testObjectChangedPassesThroughAs503() {
-        var changed = new ExternalObjectChangedException("Object changed during read of [s3://b/k]");
+        var changed = new ExternalObjectChangedException("Object changed during read of [k]");
         assertSame(changed, ExternalFailures.classify(changed));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(changed)));
         assertSame(changed, ExternalFailures.surface(changed, "ctx"));
@@ -278,6 +284,57 @@ public class ExternalFailuresTests extends ESTestCase {
         IOException real = new IOException("Object not found: s3://bucket/x.csv");
         IOException described = new IOException("Failed to list bucket [b]", real);
         assertSame(described, ExternalFailures.rootCause(described));
+    }
+
+    public void testNoStoragePathLeakedGuard() {
+        // Clean messages pass.
+        assertTrue(ExternalFailures.noStoragePathLeaked(new ExternalClientException("Access denied reading [file.parquet]")));
+        assertTrue(ExternalFailures.noStoragePathLeaked(new ExternalClientException("External store unavailable (HTTP 503)")));
+        // Top-level message containing a storage URI fails.
+        assertFalse(ExternalFailures.noStoragePathLeaked(new ExternalClientException("Access denied [s3://bucket/prefix/file.parquet]")));
+        assertFalse(ExternalFailures.noStoragePathLeaked(new ExternalClientException("Read error [gs://bucket/file.parquet]")));
+        assertFalse(ExternalFailures.noStoragePathLeaked(new ExternalClientException("Read error [az://account/container/blob]")));
+        // Cause message containing a storage URI also fails (the cause appears in the API response as caused_by).
+        var withCause = new ExternalClientException(
+            new RuntimeException("s3://bucket/prefix/file.parquet: connection reset"),
+            "Failed to read external source: {}",
+            "connection reset"
+        );
+        assertFalse(ExternalFailures.noStoragePathLeaked(withCause));
+        // https:// in a remedy sentence is not a storage path.
+        assertTrue(ExternalFailures.noStoragePathLeaked(new ExternalClientException("Access denied. See https://docs.example.com")));
+    }
+
+    public void testDatasetContextAppendsToMessage() {
+        var ex = new ExternalClientException("Access denied reading [file.parquet]");
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("dataset")));
+
+        ex.setDatasetContext("tmax", "noaa", "s3");
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("in dataset [tmax]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("from data source [noaa]"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("(s3)"));
+
+        // setDatasetContext with only dataset name (no datasource)
+        var ex2 = new ExternalClientException("Access denied reading [file.parquet]");
+        ex2.setDatasetContext("tmax", null, null);
+        assertThat(ex2.getMessage(), org.hamcrest.Matchers.containsString("in dataset [tmax]"));
+        assertThat(ex2.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("from data source")));
+
+        // setDatasetLabel with a pre-formatted string
+        var ex3 = new ExternalClientException("Access denied reading [file.parquet]");
+        ex3.setDatasetLabel("in dataset [tmax] from data source [noaa] (s3)");
+        assertThat(ex3.getMessage(), org.hamcrest.Matchers.containsString("in dataset [tmax] from data source [noaa] (s3)"));
+    }
+
+    public void testDatasetContextAppendsAfterDetail() {
+        var ex = new ExternalClientException("Access denied reading [file.parquet]");
+        ex.setDetail("some reader detail");
+        ex.setDatasetContext("tmax", "noaa", "s3");
+        // Order: base message, then detail, then dataset context
+        String msg = ex.getMessage();
+        int detailPos = msg.indexOf("some reader detail");
+        int ctxPos = msg.indexOf("in dataset [tmax]");
+        assertTrue("detail must appear before dataset context", detailPos < ctxPos);
     }
 
 }

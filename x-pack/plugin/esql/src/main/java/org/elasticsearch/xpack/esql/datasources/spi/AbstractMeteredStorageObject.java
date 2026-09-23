@@ -88,7 +88,7 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
     protected static CircuitBreakingException unwrapBreakerTrip(Throwable failure, String context, StoragePath path) {
         if (ExceptionsHelper.unwrap(failure, CircuitBreakingException.class) instanceof CircuitBreakingException trip) {
             CircuitBreakingException withPath = new CircuitBreakingException(
-                context + " [" + path + "]: " + trip.getMessage(),
+                context + " [" + path.objectName() + "]: " + trip.getMessage(),
                 trip.getBytesWanted(),
                 trip.getByteLimit(),
                 trip.getDurability()

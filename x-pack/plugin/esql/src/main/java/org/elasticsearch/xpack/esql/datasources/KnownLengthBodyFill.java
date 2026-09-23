@@ -63,7 +63,7 @@ public final class KnownLengthBodyFill {
             return new ExternalUnavailableException(
                 "{} response body exceeded expected length reading [{}]: cumulative={}, expected={}",
                 store,
-                path,
+                path.objectName(),
                 (long) offset + remaining,
                 expectedLength
             );
@@ -102,7 +102,7 @@ public final class KnownLengthBodyFill {
         return new ExternalUnavailableException(
             "{} response body shorter than expected reading [{}]: received={}, expected={}",
             store,
-            path,
+            path.objectName(),
             offset,
             expectedLength
         );
@@ -113,7 +113,7 @@ public final class KnownLengthBodyFill {
      * it stays next to the other mismatch EUEs.
      */
     public ExternalUnavailableException beyondContentLength(long skip) {
-        return new ExternalUnavailableException("Position {} is beyond content length reading [{}]", skip, path);
+        return new ExternalUnavailableException("Position {} is beyond content length reading [{}]", skip, path.objectName());
     }
 
     /** Bytes copied so far. Callers set {@code dest.buffer().position(0).limit(offset())} after a successful fill. */

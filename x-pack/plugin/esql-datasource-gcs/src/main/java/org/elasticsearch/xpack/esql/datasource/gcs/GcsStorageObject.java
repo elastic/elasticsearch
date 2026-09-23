@@ -25,6 +25,8 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -157,7 +159,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("External data object not found");
+            throw new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "");
         }
         return cachedLength;
     }
@@ -455,16 +457,17 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             if (ExternalUnavailableException.isRetryableStatus(se.getCode())) {
                 boolean throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
                 long retryAfterMs = throttling ? retryAfterMsFromChain(se) : 0L;
-                return new ExternalUnavailableException(throttling, retryAfterMs, cause, "GCS store unavailable (HTTP {})", se.getCode());
+                Condition condition = throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE;
+                return new ExternalUnavailableException(condition, path, "HTTP " + se.getCode(), "", throttling, retryAfterMs, cause);
             }
             if (se.getCode() == 412) {
-                return new ExternalObjectChangedException("External data object was modified during read", cause);
+                return new ExternalObjectChangedException(path, cause);
             }
             if (se.getCode() == 404) {
-                return new IOException("External data object not found", cause);
+                return new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "", cause);
             }
         }
-        return new IOException(context + ": " + GcsFailureDetail.of(cause), cause);
+        return new IOException(context + " [" + path.objectName() + "]: " + GcsFailureDetail.of(cause), cause);
     }
 
     /**
@@ -547,7 +550,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             }
         }
         if (pinned.equals(generation) == false) {
-            throw new ExternalObjectChangedException("External data object was modified during read");
+            throw new ExternalObjectChangedException(path);
         }
         if (blob.getSize() != null) {
             cachedLength = blob.getSize();
@@ -578,7 +581,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             } else if (e.getCode() == 403) {
                 fetchMetadataViaRangeRead();
             } else {
-                throw new IOException("Failed to get external object metadata: " + GcsFailureDetail.of(e), e);
+                throw new ExternalClientException(Condition.METADATA_UNAVAILABLE, path, GcsFailureDetail.of(e), "", e);
             }
         }
     }
@@ -597,10 +600,15 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 setNotFound();
                 return;
             }
-            throw new IOException(
-                "Failed to get external object metadata (metadata denied, range read also failed): " + GcsFailureDetail.of(e),
+            ExternalClientException metadataEx = new ExternalClientException(
+                Condition.METADATA_UNAVAILABLE,
+                path,
+                GcsFailureDetail.of(e),
+                "",
                 e
             );
+            metadataEx.setDetail("metadata access denied and range read also failed");
+            throw metadataEx;
         }
 
         if (objectExists) {

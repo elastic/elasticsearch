@@ -305,7 +305,7 @@ public class ExternalFieldExtractOperatorTests extends ComputeTestCase {
      * before the second fails, so leak tracking also verifies cleanup of partial registry output.
      */
     public void testIoFailureDuringMaterializationIsClassified() {
-        IOException failure = new IOException("Access denied reading object s3://bucket/hits.parquet");
+        IOException failure = new IOException("Access denied reading object hits.parquet");
         try (SourceExtractors registry = new SourceExtractors()) {
             int successfulId = registry.register(new IntListExtractor(new int[] { 10 }));
             int failingId = registry.register(new ThrowingExtractor(failure));

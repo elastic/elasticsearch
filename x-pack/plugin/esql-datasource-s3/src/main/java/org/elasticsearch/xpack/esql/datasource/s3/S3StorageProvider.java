@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -870,23 +871,11 @@ public class S3StorageProvider implements StorageProvider {
                     s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
                 );
             }
-            return new ExternalUnavailableException(
-                throttling,
-                retryAfterMs,
-                cause,
-                "S3 store unavailable resolving [{}] (HTTP {})",
-                path,
-                s3.statusCode()
-            );
+            Condition condition = throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE;
+            return new ExternalUnavailableException(condition, path, "HTTP " + s3.statusCode(), "", throttling, retryAfterMs, cause);
         }
         if (S3StorageObject.isSdkClientTransportFailure(cause)) {
-            return new ExternalUnavailableException(
-                false,
-                cause,
-                "S3 store unavailable resolving [{}]: {}",
-                path,
-                S3FailureDetail.of(cause)
-            );
+            return new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, S3FailureDetail.of(cause), "", false, 0L, cause);
         }
         return null;
     }

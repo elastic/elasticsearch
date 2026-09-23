@@ -132,6 +132,7 @@ import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFacto
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -2312,8 +2313,41 @@ public class LocalExecutionPlanner {
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
+        annotateDatasetLabel(externalSource, factory);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
+    }
+
+    private static void annotateDatasetLabel(ExternalSourceExec externalSource, SourceOperator.SourceOperatorFactory factory) {
+        if (!(factory instanceof AsyncExternalSourceOperatorFactory asyncFactory)) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ctx = externalSource.config() == null
+            ? null
+            : (Map<String, Object>) externalSource.config().get(ExternalSourceResolver.DATASET_CONTEXT_KEY);
+        String datasetName = externalSource.datasetName();
+        String datasourceName = ctx == null ? null : (String) ctx.get("datasource");
+        String datasourceType = ctx == null ? null : (String) ctx.get("type");
+        if (datasetName == null && datasourceName == null) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        if (datasetName != null && datasetName.isEmpty() == false) {
+            sb.append("in dataset [").append(datasetName).append("]");
+        }
+        if (datasourceName != null && datasourceName.isEmpty() == false) {
+            if (sb.length() > 0) {
+                sb.append(" ");
+            }
+            sb.append("from data source [").append(datasourceName).append("]");
+            if (datasourceType != null && datasourceType.isEmpty() == false) {
+                sb.append(" (").append(datasourceType).append(")");
+            }
+        }
+        if (sb.length() > 0) {
+            asyncFactory.setDatasetLabel(sb.toString());
+        }
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {

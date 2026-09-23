@@ -101,14 +101,17 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
      * defaults it to {@code false} for keyword (see {@code IndexSettings#INDEX_DISABLED_BY_DEFAULT}), and postings are exactly what
      * these tests are about.
      */
-    protected MapperService codecMapperService() throws IOException {
-        Settings settings = Settings.builder()
+    protected static Settings codecSettings() {
+        return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
+    }
+
+    protected MapperService codecMapperService() throws IOException {
         return createMapperService(
-            settings,
+            codecSettings(),
             mapping(b -> b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject())
         );
     }
@@ -174,6 +177,34 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
             b -> b.startArray(FIELD).value(sampleValue()).nullValue().value(sampleValue()).endArray()
         );
         assertEquals("only the two values are indexed", 2, postings(fields).size());
+    }
+
+    /**
+     * A mapper with a {@code null_value} puts a value in a null's place, so the array did index something after all and needs no
+     * empty postings field. {@code DocumentParser} counts only value tokens, so it reports such an array as having produced nothing;
+     * the field itself has to be the one to notice. Skipped for the types that have no {@code null_value} parameter.
+     */
+    public void testNullValueSubstitutionGetsNoEmptyPostings() throws IOException {
+        assumeTrue(fieldTypeName() + " has no null_value parameter", supportsNullValue());
+        MapperService mapperService = createMapperService(
+            codecSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).field("null_value", "NA").endObject())
+        );
+        assertEquals(
+            "one null becomes one substituted value and nothing else",
+            1,
+            postings(fieldsFor(mapperService, b -> b.startArray(FIELD).nullValue().endArray())).size()
+        );
+        assertEquals(
+            "and two nulls become two",
+            2,
+            postings(fieldsFor(mapperService, b -> b.startArray(FIELD).nullValue().nullValue().endArray())).size()
+        );
+    }
+
+    /** Whether the field type takes a {@code null_value}; the text types do not. */
+    protected boolean supportsNullValue() {
+        return false;
     }
 
     public void testAllNullArrayIndexesAlongsideValue() throws IOException {

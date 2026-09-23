@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 
 /**
@@ -28,9 +30,6 @@ import org.apache.lucene.index.IndexableFieldType;
  * would.
  */
 public final class EmptyPostingsField extends Field {
-
-    /** Keys the field on the document. A type of its own, since the field name already keys the doc-values payload. */
-    private record Key(String fieldName) {}
 
     /** Produces no tokens, so the field is inverted into nothing. */
     private static final class EmptyTokenStream extends TokenStream {
@@ -73,15 +72,17 @@ public final class EmptyPostingsField extends Field {
     }
 
     /**
-     * Adds the field to {@code doc}, at most once per document: a document is one entry in the column the batch path builds, whatever
-     * its slot count, so a second one would not have anything to correspond to.
+     * Adds the field to {@code doc}, unless the document already has {@code fieldName} indexed. A document that indexed a value — or
+     * that had a {@code null_value} put in a null's place — already carries the field's index options and needs nothing more; a
+     * second field would only be dead weight, and it is not something the batch path, which emits one entry per document, could
+     * correspond to.
      */
-    public static void record(LuceneDocument doc, String fieldName, FieldType type) {
-        final Key key = new Key(fieldName);
-        if (doc.getByKey(key) == null) {
-            final EmptyPostingsField field = new EmptyPostingsField(fieldName, type);
-            doc.putKeyIfAbsent(key, field);
-            doc.add(field);
+    public static void record(LuceneDocument doc, String fieldName, IndexableFieldType type) {
+        for (IndexableField existing : doc.getFields()) {
+            if (existing.fieldType().indexOptions() != IndexOptions.NONE && existing.name().equals(fieldName)) {
+                return;
+            }
         }
+        doc.add(new EmptyPostingsField(fieldName, type));
     }
 }

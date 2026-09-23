@@ -18,4 +18,9 @@ public class KeywordColumnarNullHandlingTests extends AbstractColumnarNullHandli
     protected String fieldTypeName() {
         return "keyword";
     }
+
+    @Override
+    protected boolean supportsNullValue() {
+        return true;
+    }
 }

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.BufferedInputStream;
@@ -662,8 +663,8 @@ public class SearchDirectoryTests extends ESTestCase {
      * only ever references a single BCC (generational files are carried over into the latest BCC), so no assertion is tripped. However,
      * {@code mergeMetadata} pins every generational file to its <em>first-seen</em> BCC ({@code putIfAbsent}), so once soft-deletes are
      * introduced in two different flushes the live commit references generational files across two distinct BCCs, while the reader that
-     * would open them may lag behind (reader-heap pressure defers the refresh; only {@code segmentInfosAndCommit} is reverted, not the
-     * merged metadata / pins). When the lagging refresh finally opens the older segment's generational file for the first time, it must
+     * would open them may lag behind (the {@link StatelessReaderHeapBreaker#LIMIT_SETTING stateless.search.reader_heap_breaker.limit}
+     * breaker defers the refresh; only {@code segmentInfosAndCommit} is reverted, not the merged metadata / pins). When the lagging refresh finally opens the older segment's generational file for the first time, it must
      * acquire the BCC that file was first written to.
      * <p>
      * Before the fix, only the latest notification's BCC is pinned, so acquiring the older BCC throws and the refresh fails the shard.

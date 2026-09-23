@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 public class TextEsField extends EsField {
 
     /** Same transport version as {@code IndexFieldCapabilities#indexAnalyzer}. */
-    public static final TransportVersion FIELD_CAPS_INDEX_ANALYZER = TransportVersion.fromName("field_caps_index_analyzer");
+    public static final TransportVersion FIELD_CAPS_INDEX_ANALYZER = TransportVersion.fromName("esql_highlight_implicit_query_and_fields");
 
     /** {@link TextFieldMapper.Defaults#POSITION_INCREMENT_GAP}, used when {@link #analyzerName} is {@code null}. */
     public static final int DEFAULT_POSITION_INCREMENT_GAP = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;

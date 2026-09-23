@@ -1008,12 +1008,12 @@ public class S3StorageProvider implements StorageProvider {
             }
             if (isAuthorizationHeaderMalformed(e)) {
                 // Custom endpoint with no region: ListBuckets fails with AuthorizationHeaderMalformed
-                // because the request was signed for the wrong region. Queries recover via HeadBucket
-                // region-discovery, but that retry needs a bucket name. The data source is reachable —
-                // set region in the settings or create a dataset to validate access.
+                // because the request was signed for the wrong region. Region is a dataset-level setting,
+                // not a data-source-level one, so the probe cannot discover it here. Queries recover via
+                // HeadBucket region-discovery, but that retry needs a bucket name from the dataset URI.
                 throw new TestConnectionNotSupportedException(
                     "S3 returned AuthorizationHeaderMalformed on ListBuckets; region cannot be determined at the data source level",
-                    "Set the region in the data source settings, or create a dataset to validate access."
+                    "Create a dataset with the region configured to validate access."
                 );
             }
             throw e;

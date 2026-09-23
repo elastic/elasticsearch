@@ -137,7 +137,7 @@ public final class HivePartitionDetector implements PartitionDetector {
      * map to the prefixed form, with one notice on {@code warningSink} per rename. Returns
      * {@code null} — caller bails to {@link PartitionMetadata#EMPTY}, the detector's established
      * shape for unusable layouts — if a rename target collides with another detected key. That
-     * branch is defensive: {@link #extractPartitions} rejects dotted segments, so no parsed key
+     * branch is defensive: {@link #extractPartitions} rejects a dotted key, so no parsed key
      * can currently equal a {@code _partition.}-prefixed name; the guard keeps the invariant
      * explicit should the segment grammar ever relax.
      */
@@ -158,15 +158,38 @@ public final class HivePartitionDetector implements PartitionDetector {
         return surfaced;
     }
 
-    private static Map<String, String> extractPartitions(StoragePath storagePath) {
-        String path = storagePath.path();
+    /**
+     * Non-empty directory segments of a path string, object name dropped. Empty pieces from {@code //} are
+     * skipped, then the last remaining segment — the object name — is dropped. A trailing slash does not put
+     * that name back: {@code /data/year=2024/file.parquet/} and {@code /data/year=2024/file.parquet} both yield
+     * {@code data}, {@code year=2024}. Hive detection and {@code hivePartitionValue} share this cut so a file
+     * named {@code a=b.parquet} or {@code month=15} is not read as a partition folder.
+     * {@link TemplatePartitionDetector#directorySegments} delegates here.
+     */
+    public static List<String> directorySegments(String path) {
         if (path == null || path.isEmpty()) {
+            return List.of();
+        }
+        List<String> nonEmpty = new ArrayList<>();
+        for (String segment : path.split("/")) {
+            if (segment.isEmpty() == false) {
+                nonEmpty.add(segment);
+            }
+        }
+        if (nonEmpty.isEmpty()) {
+            return List.of();
+        }
+        nonEmpty.remove(nonEmpty.size() - 1);
+        return nonEmpty;
+    }
+
+    private static Map<String, String> extractPartitions(StoragePath storagePath) {
+        List<String> segments = directorySegments(storagePath.path());
+        if (segments.isEmpty()) {
             return Map.of();
         }
 
-        String[] segments = path.split("/");
         Map<String, String> partitions = new LinkedHashMap<>();
-
         for (String segment : segments) {
             String key = segmentKey(segment);
             if (key == null) {
@@ -182,8 +205,10 @@ public final class HivePartitionDetector implements PartitionDetector {
     }
 
     /**
-     * The partition key a {@code key=value} path segment binds, or {@code null} when not partition-shaped (empty,
-     * no/empty key or value, a second {@code =}, or a dot anywhere — disqualifying names like {@code f.parquet}).
+     * The partition key a {@code key=value} path segment binds, or {@code null} when the segment is not
+     * partition-shaped. Rejected: an empty segment, an empty key ({@code =value}, {@code ==}), a second
+     * {@code =}, or a dot in the key. A dot or an empty tail in the value is a value ({@code price=1.5},
+     * {@code k=}). Keys stay raw: {@code a%2Eb} is the column {@code a%2Eb}, not {@code a.b}.
      * The one segment grammar, shared with the listing walk via {@code PartitionValueMatcher}: pruning is sound
      * only while both layers parse identically.
      */
@@ -192,13 +217,17 @@ public final class HivePartitionDetector implements PartitionDetector {
             return null;
         }
         int eqIdx = segment.indexOf('=');
-        if (eqIdx <= 0 || eqIdx == segment.length() - 1) {
+        if (eqIdx <= 0) {
             return null;
         }
-        if (segment.indexOf('=', eqIdx + 1) >= 0 || segment.indexOf('.') >= 0) {
+        if (segment.indexOf('=', eqIdx + 1) >= 0) {
             return null;
         }
-        return segment.substring(0, eqIdx);
+        String key = segment.substring(0, eqIdx);
+        if (key.indexOf('.') >= 0) {
+            return null;
+        }
+        return key;
     }
 
     /** The decoded value of a {@code key=value} path segment ({@code null} for the NULL-partition sentinel); only

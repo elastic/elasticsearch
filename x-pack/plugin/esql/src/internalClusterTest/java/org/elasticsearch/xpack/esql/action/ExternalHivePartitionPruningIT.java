@@ -756,9 +756,9 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
 
     /**
      * Registers {@code d=-0e0}, {@code d=0e0} and {@code d=1e5}, one single-row file each, with ids 0, 1 and 2. The
-     * zeros are spelled in exponent form because a Hive segment containing a dot is not a partition; that spelling is
-     * also what types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*} in the glob, which takes the textual
-     * rewrite instead of the listing walk; the default {@code **} glob is the one the walk narrows.
+     * zeros are spelled in exponent form, which types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*}
+     * in the glob, which takes the textual rewrite instead of the listing walk; the default {@code **} glob is the one
+     * the walk narrows.
      */
     private String registerSignedZeroTree(String name, String format, boolean keyedGlob) throws IOException {
         Path root = createTempDir().resolve(name);
@@ -771,6 +771,51 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + (keyedGlob ? "/d=*/**/*." : "/**/*.") + format;
         return registerDataset(name, glob, Map.of("partition_detection", "hive"));
+    }
+
+    /** An empty Hive folder {@code k=} is the value {@code ""}. {@code k == "x"} returns the other file. */
+    public void testCsvEmptyPartitionFolderFilters() throws Exception {
+        String name = "csv_empty_k";
+        Path root = createTempDir().resolve(name);
+        Path empty = root.resolve("k=");
+        Path valued = root.resolve("k=x");
+        Files.createDirectories(empty);
+        Files.createDirectories(valued);
+        Files.writeString(empty.resolve("f.csv"), "id\n1\n", StandardCharsets.UTF_8);
+        Files.writeString(valued.resolve("f.csv"), "id\n2\n", StandardCharsets.UTF_8);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset(name, glob, Map.of("partition_detection", "hive"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE k == \"x\" | KEEP id"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(2));
+        }
+    }
+
+    /** {@code price=1.5} is a partition value. A filter on {@code year} returns both prices. */
+    public void testCsvDottedPricePartitionValue() throws Exception {
+        String name = "csv_dotted_price";
+        Path root = createTempDir().resolve(name);
+        Path decimal = root.resolve("year=2024").resolve("price=1.5");
+        Path integral = root.resolve("year=2024").resolve("price=2");
+        Files.createDirectories(decimal);
+        Files.createDirectories(integral);
+        Files.writeString(decimal.resolve("f1.csv"), "v\n1\n", StandardCharsets.UTF_8);
+        Files.writeString(integral.resolve("f2.csv"), "v\n2\n", StandardCharsets.UTF_8);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset(name, glob, Map.of("partition_detection", "hive"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE year == 2024 | KEEP v, price | SORT v"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(((Number) rows.get(0).get(1)).doubleValue(), equalTo(1.5));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertThat(((Number) rows.get(1).get(1)).doubleValue(), equalTo(2.0));
+        }
     }
 
     /** Registers the 8-file {@code year/month/day} fixture and asserts the filter's pruning + rows. */

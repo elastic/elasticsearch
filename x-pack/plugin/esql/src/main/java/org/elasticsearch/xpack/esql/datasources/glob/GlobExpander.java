@@ -1700,8 +1700,7 @@ public final class GlobExpander {
 
     @Nullable
     private static FoundValue hivePartitionValue(StoragePath path, String column) {
-        String[] segments = path.path().split("/");
-        for (String segment : segments) {
+        for (String segment : HivePartitionDetector.directorySegments(path.path())) {
             String key = PartitionValueMatcher.folderKey(segment);
             if (column.equals(key)) {
                 return new FoundValue(PartitionValueMatcher.folderValue(segment));

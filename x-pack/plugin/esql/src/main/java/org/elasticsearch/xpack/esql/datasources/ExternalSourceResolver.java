@@ -833,6 +833,17 @@ public class ExternalSourceResolver {
             LOGGER.error("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
             return clientError;
         }
+        // Recover a typed client exception from behind a transparent wrapper for the same reason the IAE arm above
+        // does. Storage connectors now throw ExternalClientException (400) directly for access-denied and
+        // object-not-found cases — it is an ElasticsearchException, not an IOException, so the IOException arm
+        // below would not catch it. Unwrapping it here keeps status consistent across the cacheable and
+        // non-cacheable rails.
+        ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
+        if (clientException != null) {
+            recordDiscoveryFailure();
+            LOGGER.error("Failed to resolve external source [{}]: {}", path, clientException.getMessage(), e);
+            return clientException;
+        }
         // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
         // does. The file-metadata rail raises IOException (missing object, access denied) and it arrives wrapped
         // in the schema cache's ExecutionException on the cacheable rail — so without this a missing bucket is a

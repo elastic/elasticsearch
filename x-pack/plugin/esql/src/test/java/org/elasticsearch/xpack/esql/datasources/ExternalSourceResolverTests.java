@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -4220,6 +4221,28 @@ public class ExternalSourceResolverTests extends ESTestCase {
         for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
             assertThat(String.valueOf(c.getMessage()), not(containsString("java.io.")));
         }
+    }
+
+    /**
+     * An {@link ExternalClientException} buried in the cache's {@code ExecutionException} must keep its 400.
+     * Storage connectors raise {@code ExternalClientException} (not {@code IOException}) for access-denied and
+     * object-not-found; without an explicit arm the exception fell through to the terminal 500 branch.
+     */
+    public void testAnExternalClientExceptionKeepsIts400ThroughAWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        ExternalClientException original = new ExternalClientException(
+            ExternalClientException.Condition.OBJECT_NOT_FOUND,
+            StoragePath.of("s3://b/x.parquet"),
+            "",
+            "",
+            null
+        );
+        ExecutionException wrapper = new ExecutionException(original);
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", wrapper);
+
+        assertSame("the original ExternalClientException must be surfaced, not a re-wrap", original, mapped);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
     }
 
     /**

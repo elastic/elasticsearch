@@ -4607,12 +4607,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return unionAll;
             }
 
+            // A conversion that only resolves on a later Resolution pass (e.g. because it sits above a command that waits for
+            // ResolveUnmapped) can be equal to one pushed down on an earlier pass. The UnionAll then already exposes the converted
+            // column under the same synthetic name, so pushing it again would add another same-named column on every pass and the
+            // plan would never converge. Reuse the existing output attribute instead, provided every branch computes it with an
+            // equal conversion; otherwise leave the conversion where it is.
+            Map<String, Attribute> unionOutputByName = new HashMap<>();
+            unionAll.output().forEach(a -> unionOutputByName.putIfAbsent(a.name(), a));
+            Map<AbstractConvertFunction, Attribute> alreadyPushedDown = new HashMap<>();
+            Set<AbstractConvertFunction> notReusable = new HashSet<>();
+
             // push down the conversion functions into the unionAll branches
             List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
             Map<String, AbstractConvertFunction> newOutputToConvertFunctions = new HashMap<>();
             boolean outputChanged = false;
             for (LogicalPlan child : unionAll.children()) {
                 List<Attribute> childOutput = child.output();
+                Map<String, Attribute> childOutputByName = new HashMap<>();
+                childOutput.forEach(a -> childOutputByName.putIfAbsent(a.name(), a));
                 List<Alias> newAliases = new ArrayList<>();
                 List<FieldAttribute> resolvedUnionFields = new ArrayList<>();
                 List<Attribute.IdIgnoringWrapper> branchUnionFieldAttributes = new ArrayList<>();
@@ -4633,26 +4645,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 branchUnionFieldAttributes,
                                 context
                             );
+                            String convertedName = Attribute.rawTemporaryName(
+                                oldAttr.name(),
+                                "converted_to",
+                                convert.dataType().typeName()
+                            );
+                            Attribute existingUnionOutput = unionOutputByName.get(convertedName);
+                            if (existingUnionOutput != null) {
+                                Attribute existingChildOutput = childOutputByName.get(convertedName);
+                                Expression conversion = resolved instanceof FieldAttribute rf && rf.synthetic() ? rf : pushedDownConvert;
+                                if (existingChildOutput != null && isSameConversion(child, existingChildOutput, conversion)) {
+                                    alreadyPushedDown.putIfAbsent(convert, existingUnionOutput);
+                                } else {
+                                    notReusable.add(convert);
+                                }
+                                continue;
+                            }
                             if (resolved instanceof FieldAttribute resolvedField && resolvedField.synthetic()) {
                                 newChildOutput.add(resolvedField);
                                 resolvedUnionFields.add(resolvedField);
                                 newOutputToConvertFunctions.putIfAbsent(resolvedField.name(), convert);
                             } else {
-                                String newAliasName = Attribute.rawTemporaryName(
-                                    oldAttr.name(),
-                                    "converted_to",
-                                    convert.dataType().typeName()
-                                );
                                 Alias newAlias = new Alias(
                                     oldAttr.source(),
-                                    newAliasName, // oldAttrName$$converted_to$$targetType
+                                    convertedName, // oldAttrName$$converted_to$$targetType
                                     pushedDownConvert,
                                     null, // generate a new id
                                     true // this'll be used to Project the synthetic attributes out when finishing analysis
                                 );
                                 newAliases.add(newAlias);
                                 newChildOutput.add(newAlias.toAttribute());
-                                newOutputToConvertFunctions.putIfAbsent(newAliasName, convert);
+                                newOutputToConvertFunctions.putIfAbsent(convertedName, convert);
                             }
                             outputChanged = true;
                         }
@@ -4661,11 +4684,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, resolvedUnionFields, newChildOutput));
             }
 
+            alreadyPushedDown.forEach((convert, attr) -> {
+                if (notReusable.contains(convert) == false) {
+                    convertFunctionsToAttributes.putIfAbsent(convert, attr);
+                }
+            });
+
             // Populate convertFunctionsToAttributes. The values of convertFunctionsToAttributes are the new ReferenceAttributes
             // in the new UnionAll outputs created for the updated unionAll output after pushing down the conversion functions.
             return outputChanged
                 ? rebuildUnionAll(unionAll, newChildren, newOutputToConvertFunctions, convertFunctionsToAttributes)
                 : unionAll;
+        }
+
+        /**
+         * Whether {@code existing}, a column of {@code branch}'s output, was produced by a conversion equal to {@code conversion}: either
+         * the same synthetic multi-typed field, or an {@link Alias} of an equal pushed-down conversion function.
+         */
+        private static boolean isSameConversion(LogicalPlan branch, Attribute existing, Expression conversion) {
+            if (conversion instanceof FieldAttribute resolvedField) {
+                return existing instanceof FieldAttribute existingField && existingField.field().equals(resolvedField.field());
+            }
+            Holder<Boolean> same = new Holder<>(false);
+            branch.forEachDown(Eval.class, eval -> {
+                for (Alias alias : eval.fields()) {
+                    if (alias.id().equals(existing.id()) && alias.child().equals(conversion)) {
+                        same.set(true);
+                    }
+                }
+            });
+            return same.get();
         }
 
         /**

@@ -1643,6 +1643,7 @@ c:long | client_ip:ip
 // must reuse the attribute the WHERE's equal conversion already pushed into the subquery branches.
 subqueryInFromWithSameConversionResolvedOnLaterPassNullify
 required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_conversion_resolved_on_later_pass
 required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
@@ -1658,6 +1659,7 @@ c:long | ip:keyword
 
 subqueryInFromWithSameConversionResolvedOnLaterPassLoad
 required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_conversion_resolved_on_later_pass
 required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;

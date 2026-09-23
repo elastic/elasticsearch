@@ -40,7 +40,7 @@ configurations.consumable('nativeLibs') {
 
 var zstdVersion = "1.5.7-1"
 var vecVersion = "1.0.150"
-var libSimdjsonVersion = "0.2.0"
+var libSimdjsonVersion = "0.3.0"
 
 // vec and libsimdjson come either from published artifacts or from source builds in their
 // owning projects. The plugin chooses which based on "modes" (see libs/simdvec/build.gradle

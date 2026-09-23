@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
@@ -24,8 +25,10 @@ import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -35,18 +38,24 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -54,6 +63,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
@@ -64,6 +74,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -659,6 +670,56 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertEquals(KnnEvalSpec.MAX_QUERIES, response.getResults().getLast().includedQueries());
     }
 
+    /** A failure that would repeat for every query stops the evaluation and surfaces its cause, instead of a 200 full of failures. */
+    public void testEvaluationLevelFailuresStopTheSweep() {
+        Exception cause = randomFrom(
+            new SearchContextMissingException(new ShardSearchContextId("session", 1)),
+            new NoShardAvailableActionException(new ShardId("index", "uuid", 0)),
+            new NodeClosedException(DiscoveryNodeUtils.create("node")),
+            new ConnectTransportException(DiscoveryNodeUtils.create("node"), "gone"),
+            new EsRejectedExecutionException("search queue full"),
+            new CircuitBreakingException("too much memory", CircuitBreaker.Durability.TRANSIENT),
+            new TaskCancelledException("cancelled"),
+            new ElasticsearchSecurityException("forbidden", RestStatus.FORBIDDEN),
+            new IndexNotFoundException("no such index", "index"),
+            new SearchPhaseExecutionException(
+                "query",
+                "all shards failed",
+                new ShardSearchFailure[] { new ShardSearchFailure(new SearchContextMissingException(new ShardSearchContextId("s", 2))) }
+            )
+        );
+        RecordingClient client = new RecordingClient();
+        client.searchFailure = cause;
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> execute(client, 10, null, 5.0f).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+
+        assertThat(e.getMessage(), containsString("[_knn_eval] stopped at query [q0]: the failure is not specific to it"));
+        assertSame(cause, e.getCause());
+        assertEquals(1, client.evaluationSearchesAttempted);
+        assertEquals(0, client.candidateSearches);
+        assertTrue(client.pointInTimeClosed);
+    }
+
+    public void testQuerySpecificFailuresAreReportedPerQuery() {
+        RecordingClient client = new RecordingClient();
+        client.searchFailure = randomFrom(
+            new IllegalArgumentException("failed to parse query vector"),
+            new SearchPhaseExecutionException(
+                "query",
+                "all shards failed",
+                new ShardSearchFailure[] { new ShardSearchFailure(new IllegalArgumentException("wrong dimensions")) }
+            )
+        );
+        KnnEvalResponse response = safeGet(execute(client, 10, null, 5.0f));
+
+        assertEquals(10, response.getFailures().size());
+        assertEquals(0, client.candidateSearches);
+        assertTrue(client.pointInTimeClosed);
+    }
+
     private double runAndGetScore(int numQueries) {
         KnnEvalResponse response = run(new RecordingClient(), numQueries, 5.0f);
         assertEquals(1, response.getResults().size());
@@ -737,12 +798,15 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         private boolean pointInTimeOpened = false;
         private boolean pointInTimeClosed = false;
         private boolean failSearch = false;
+        @Nullable
+        private Exception searchFailure;
         private boolean candidateMissesAreBetter = false;
         private boolean forceCandidateMiss = false;
         private boolean baselineShortfall = false;
         private TaskId searchParentTask = TaskId.EMPTY_TASK_ID;
         private int baselineSearchesRemaining = 1;
         private int candidateSearches;
+        private int evaluationSearchesAttempted;
 
         /** Consecutive searches sharing a settings entry, collapsed into one entry per pass. */
         private List<Pass> passes() {
@@ -846,9 +910,10 @@ public class TransportKnnEvalActionTests extends ESTestCase {
 
         /** Answers one evaluation search, recording which settings entry it belonged to. */
         private void evaluationSearch(SearchRequest request, ActionListener<SearchResponse> listener) {
+            evaluationSearchesAttempted++;
             searchParentTask = request.getParentTask();
-            if (failSearch) {
-                listener.onFailure(new ElasticsearchException("search rejected"));
+            if (failSearch || searchFailure != null) {
+                listener.onFailure(searchFailure == null ? new ElasticsearchException("search rejected") : searchFailure);
                 return;
             }
             // SearchRequest#validate rejects indices alongside a point-in-time

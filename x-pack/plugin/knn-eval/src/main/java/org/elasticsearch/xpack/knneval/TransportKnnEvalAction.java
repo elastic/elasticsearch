@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.knneval;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
@@ -20,27 +22,37 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Iterator;
@@ -60,6 +72,19 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     /** Bounds the idle gap between consecutive searches, not the sweep: each search through the point in time renews it. */
     static final TimeValue POINT_IN_TIME_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
     static final long MAX_EXACT_VECTOR_COMPARISONS = 100_000_000L;
+
+    /** Failures about the cluster or this evaluation rather than one query; every remaining search would fail the same way. */
+    private static final Class<?>[] EVALUATION_FAILURES = {
+        SearchContextMissingException.class,
+        NoShardAvailableActionException.class,
+        NodeClosedException.class,
+        ConnectTransportException.class,
+        EsRejectedExecutionException.class,
+        CircuitBreakingException.class,
+        TaskCancelledException.class,
+        ElasticsearchSecurityException.class,
+        IndexNotFoundException.class,
+        ClusterBlockException.class };
 
     private final Client client;
     private final ClusterService clusterService;
@@ -305,8 +330,8 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
 
     private final class EvaluationRunner {
 
-        /** Set once the task is seen cancelled; the listener has been failed, so no further pass or search may start. */
-        private volatile boolean cancelled;
+        /** Set once the listener has been failed, on cancellation or an evaluation-level failure: no further pass or search may start. */
+        private volatile boolean stopped;
         private final Task task;
         private final KnnEvalState state;
         private final BytesReference pointInTimeId;
@@ -355,7 +380,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             Iterator<KnnEvalQuery> untilCancelled = new Iterator<>() {
                 @Override
                 public boolean hasNext() {
-                    return cancelled == false && remaining.hasNext();
+                    return stopped == false && remaining.hasNext();
                 }
 
                 @Override
@@ -365,21 +390,54 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             };
             ThrottledIterator.run(untilCancelled, (ref, query) -> {
                 if (checkCancelled(task, listener)) {
-                    cancelled = true;
+                    stopped = true;
                     ref.close();
                     return;
                 }
                 SearchRequest request = KnnEvalSearches.buildSearch(state.spec, query, knnSettings, state.searchSize, pointInTimeId);
                 client.search(request, ActionListener.releaseAfter(ActionListener.wrap(response -> consumer.accept(query, response), e -> {
-                    // one query's search failing is reported against that query; the rest of the sweep still has to run
-                    state.addFailure(query, e);
+                    if (failsTheEvaluation(e)) {
+                        stop(
+                            new ElasticsearchException(
+                                "["
+                                    + RestKnnEvalAction.ENDPOINT
+                                    + "] stopped at query ["
+                                    + query.getId()
+                                    + "]: the failure is not specific to it",
+                                e
+                            )
+                        );
+                    } else {
+                        // one query's search failing is reported against that query; the rest of the sweep still has to run
+                        state.addFailure(query, e);
+                    }
                 }), ref));
             }, 1, () -> {
-                if (cancelled == false) {
+                if (stopped == false) {
                     onComplete.run();
                 }
             });
         }
+
+        private void stop(Exception e) {
+            stopped = true;
+            listener.onFailure(e);
+        }
+    }
+
+    /** Whether a search failed for a reason that is not specific to its query, so that reporting it per query would hide it. */
+    static boolean failsTheEvaluation(Exception e) {
+        if (ExceptionsHelper.unwrap(e, EVALUATION_FAILURES) != null) {
+            return true;
+        }
+        if (ExceptionsHelper.unwrapCause(e) instanceof SearchPhaseExecutionException searchFailure) {
+            for (ShardSearchFailure shardFailure : searchFailure.shardFailures()) {
+                if (shardFailure.getCause() != null && ExceptionsHelper.unwrap(shardFailure.getCause(), EVALUATION_FAILURES) != null) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean checkCancelled(Task task, ActionListener<KnnEvalResponse> listener) {

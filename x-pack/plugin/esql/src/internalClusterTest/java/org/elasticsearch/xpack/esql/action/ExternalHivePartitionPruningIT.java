@@ -88,6 +88,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     private static final String[] REGIONS = { "US", "EU", "AP" };
     private static final long US_ID = 0L;
 
+    private static final int SIGNED_ZERO_FILES = 3;
+
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
         return List.of(CsvDataSourcePlugin.class, ParquetDataSourcePlugin.class);
@@ -655,6 +657,86 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
                 equalTo(4)
             );
         }
+    }
+
+    // -- Signed zero: the engine compares doubles with ==, under which -0.0 and 0.0 are equal --
+    // A pruner that orders -0.0 before 0.0 drops a zero folder that the filter matches, and nothing downstream can bring
+    // the file back. The fixture is registerSignedZeroTree: d=-0e0 holds id 0, d=0e0 holds id 1, d=1e5 holds id 2.
+
+    public void testCsvNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
+        assertSignedZeroEquality(registerSignedZeroTree("csv_signed_zero", "csv", false));
+    }
+
+    public void testParquetNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
+        assertSignedZeroEquality(registerSignedZeroTree("pq_signed_zero", "parquet", false));
+    }
+
+    /**
+     * Every comparison operator, against both zero literals, on the read layer's split pruning. {@code IN} is not here:
+     * the engine's own {@code IN} orders doubles with {@code Double.compare} and separates the zeros, unlike {@code ==}.
+     */
+    public void testCsvSignedZeroPartitionAcrossComparisonOperators() throws Exception {
+        String dataset = registerSignedZeroTree("csv_signed_zero_ops", "csv", false);
+        for (String zero : List.of("0.0", "-0.0")) {
+            assertPrune(dataset, "WHERE d == " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE d >= " + zero, SIGNED_ZERO_FILES, 3, List.of(0L, 1L, 2L));
+            assertPrune(dataset, "WHERE d <= " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE d != " + zero, SIGNED_ZERO_FILES, 1, List.of(2L));
+            assertPrune(dataset, "WHERE d > " + zero, SIGNED_ZERO_FILES, 1, List.of(2L));
+            assertPrune(dataset, "WHERE d < " + zero, SIGNED_ZERO_FILES, 0, List.of());
+            assertPrune(dataset, "WHERE NOT d != " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE NOT d > " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE NOT d < " + zero, SIGNED_ZERO_FILES, 3, List.of(0L, 1L, 2L));
+        }
+    }
+
+    /** The same equality through the listing walk: a glob naming {@code d=*} lets the hint decide which folders exist. */
+    public void testCsvKeyedGlobKeepsTheNegativeZeroFolder() throws Exception {
+        String dataset = registerSignedZeroTree("csv_signed_zero_keyed", "csv", true);
+        for (String zero : List.of("0.0", "-0.0")) {
+            assertPrune(dataset, "WHERE d == " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE d >= " + zero, SIGNED_ZERO_FILES, 3, List.of(0L, 1L, 2L));
+            assertPrune(dataset, "WHERE d <= " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+        }
+    }
+
+    /** A request filter on {@code d} arrives as the multivalue comparison functions, which share the comparator. */
+    public void testCsvRequestFilterKeepsBothZeroFolders() throws Exception {
+        String dataset = registerSignedZeroTree("csv_signed_zero_rf", "csv", false);
+        for (double zero : new double[] { 0.0, -0.0 }) {
+            assertPruneFilter(dataset, QueryBuilders.termQuery("d", zero), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPruneFilter(dataset, QueryBuilders.termsQuery("d", new double[] { zero, 7.0 }), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPruneFilter(dataset, QueryBuilders.rangeQuery("d").gte(zero).lte(zero), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+        }
+    }
+
+    /**
+     * The zero folders are readable and the non-zero folder answers its own equality, so an empty answer to
+     * {@code d == 0.0} can only come from pruning.
+     */
+    private void assertSignedZeroEquality(String dataset) {
+        assertPrune(dataset, "WHERE id == 0", SIGNED_ZERO_FILES, SIGNED_ZERO_FILES, List.of(0L));
+        assertPrune(dataset, "WHERE d == 100000.0", SIGNED_ZERO_FILES, 1, List.of(2L));
+        assertPrune(dataset, "WHERE d == 0.0", SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+    }
+
+    /**
+     * Registers {@code d=-0e0}, {@code d=0e0} and {@code d=1e5}, one single-row file each, with ids 0, 1 and 2. The
+     * zeros are spelled in exponent form because a Hive segment containing a dot is not a partition; that spelling is
+     * also what types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*} in the glob so the listing walk
+     * prunes too.
+     */
+    private String registerSignedZeroTree(String name, String format, boolean keyedGlob) throws IOException {
+        Path root = createTempDir().resolve(name);
+        String[] folders = { "-0e0", "0e0", "1e5" };
+        for (int i = 0; i < folders.length; i++) {
+            Path dir = root.resolve("d=" + folders[i]);
+            Files.createDirectories(dir);
+            writeRow(dir, i, format);
+        }
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + (keyedGlob ? "/d=*/**/*." : "/**/*.") + format;
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
     }
 
     /** Registers the 8-file {@code year/month/day} fixture and asserts the filter's pruning + rows. */

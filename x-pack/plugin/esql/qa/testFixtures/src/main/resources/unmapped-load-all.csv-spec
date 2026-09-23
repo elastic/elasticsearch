@@ -3379,6 +3379,84 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
+// event_duration is long on partial_mapping and unmapped in the view; LOAD_ALL casts the view's _source value to long.
+loadAllViewMappedLongCastsOnUnmappedView
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, no_mapping_view
+| KEEP event_duration
+| SORT event_duration
+| LIMIT 3
+;
+
+event_duration:long
+725447
+725447
+1232381
+;
+
+// The unmapped view is listed first; its fabricated keyword must still yield to the sibling long.
+loadAllViewUnmappedViewFirstLongCastsToSiblingType
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_view, partial_mapping_sample_data
+| KEEP event_duration
+| SORT event_duration
+| LIMIT 3
+;
+
+event_duration:long
+725447
+725447
+1232381
+;
+
+// txt is text on the mapped index; the view's _source string has no cast from keyword, so it stays null.
+loadAllViewMappedTextNullsOnUnmappedViewWithSourceValue
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM text_state_mapped, text_state_unmapped_view
+| KEEP doc_id, txt
+| SORT doc_id
+;
+warning:Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+unmapped-1     | null
+;
+
+// aggregate_metric_double has no cast from keyword, so the view row stays null even though _source holds the metric.
+loadAllViewMappedAmdNullsOnUnmappedViewWithSourceValue
+required_capability: optional_fields_load_all_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM k8s-downsampled | WHERE cluster == "qa" AND pod == "three" AND @timestamp == "2024-05-09T23:30:00.000Z"),
+     (FROM k8s_unmapped_view | WHERE cluster == "qa" AND pod == "three" | SORT @timestamp | LIMIT 1)
+| KEEP network.eth0.tx
+;
+ignoreOrder:true
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+network.eth0.tx:aggregate_metric_double
+{"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+null
+;
+
 ###########################################################
 # Object and array expansion: flatten to leaf columns     #
 ###########################################################

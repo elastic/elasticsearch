@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -47,6 +48,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -1119,6 +1121,33 @@ public class HeapAttackIT extends HeapAttackTestCase {
     enum TDigestFieldType {
         TDIGEST,
         HISTOGRAM
+    }
+
+    public void testStreamingApiAvoidsCircuitBreak() throws IOException {
+        assumeTrue("ES|QL streaming is not available in release builds yet", Build.current().isSnapshot());
+        int docs = 256;
+        String esqlQuery = "FROM bigtext | KEEP f";
+        initGiantTextField(docs, false, 1);
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> fetchBigText(esqlQuery));
+
+            var s = streamQuery(esqlQuery, 1);
+            assertThat("streaming must not surface an error", s.errors(), empty());
+            assertThat(s.columns(), hasSize(1));
+            assertMap(s.columns().get(0), matchesMap().entry("name", "f").entry("type", "text"));
+            assertThat(s.rowCount(), equalTo((long) docs));
+            assertMap(s.footer(), matchesMap().extraOk().entry("is_partial", false));
+            assertFalse("footer must not contain an error key", s.footer().containsKey("error"));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
+    }
+
+    private Map<String, Object> fetchBigText(String esqlQuery) throws IOException {
+        StringBuilder query = startQuery();
+        query.append(esqlQuery).append("\"}");
+        return responseAsMap(query(query.toString(), "columns"));
     }
 
     private void initManyTDigests(int numHistograms, int numCentroidsPerHistogram, TDigestFieldType fieldType) throws IOException {

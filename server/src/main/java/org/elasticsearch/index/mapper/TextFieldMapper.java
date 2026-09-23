@@ -1863,7 +1863,7 @@ public final class TextFieldMapper extends FieldMapper {
         // The payload is what the array left behind, so it settles both questions: an array the mapper wrote nothing for leaves no
         // payload and so no field to give index options to, and one whose slots hold a value indexed a term and already has them.
         if (doc.getByKey(fieldType().name()) instanceof ColumnarBinaryDocValuesField payload && payload.hasValue() == false) {
-            EmptyPostingsField.record(doc, fieldType().name(), emptyPostingsFieldType);
+            doc.add(new EmptyPostingsField(fieldType().name(), emptyPostingsFieldType));
         }
     }
 

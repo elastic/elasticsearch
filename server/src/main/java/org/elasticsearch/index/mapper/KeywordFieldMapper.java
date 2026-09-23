@@ -1620,7 +1620,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // payload and so no field to give index options to, and one whose slots hold a value — including a null_value put in a
         // null's place — indexed a term and already has them.
         if (doc.getByKey(fieldType().name()) instanceof ColumnarBinaryDocValuesField payload && payload.hasValue() == false) {
-            EmptyPostingsField.record(doc, fieldType().name(), emptyPostingsFieldType);
+            doc.add(new EmptyPostingsField(fieldType().name(), emptyPostingsFieldType));
         }
     }
 

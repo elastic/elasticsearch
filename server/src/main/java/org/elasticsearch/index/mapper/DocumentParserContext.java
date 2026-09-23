@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -228,7 +229,7 @@ public abstract class DocumentParserContext {
     private final Set<String> ignoredFields;
     private final Set<String> ignoredFieldsView;
     // Arrays that produced no value to index, resolved once the document is complete; see recordArrayWithoutIndexedValue.
-    private List<ArrayWithoutIndexedValue> arraysWithoutIndexedValue;
+    private Set<ArrayWithoutIndexedValue> arraysWithoutIndexedValue;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final Set<String> singleValuedFields;
     private final Map<String, BytesRef> pendingMultiValueViolations;
@@ -794,8 +795,10 @@ public abstract class DocumentParserContext {
      */
     public void recordArrayWithoutIndexedValue(Mapper mapper, LuceneDocument doc) {
         if (arraysWithoutIndexedValue == null) {
-            arraysWithoutIndexedValue = new ArrayList<>();
+            arraysWithoutIndexedValue = new LinkedHashSet<>();
         }
+        // A set, so that a field written as several valueless arrays is still handed back once: the answer is the same every time,
+        // and the mappers are then free to act on it without guarding against being asked twice.
         arraysWithoutIndexedValue.add(new ArrayWithoutIndexedValue(mapper, doc));
     }
 

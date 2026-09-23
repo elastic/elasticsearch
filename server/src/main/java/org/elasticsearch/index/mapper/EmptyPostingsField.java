@@ -29,9 +29,6 @@ import org.apache.lucene.index.IndexableFieldType;
  */
 public final class EmptyPostingsField extends Field {
 
-    /** Keys the field on the document. A type of its own, since the field name already keys the doc-values payload. */
-    private record Key(String fieldName) {}
-
     /** Produces no tokens, so the field is inverted into nothing. */
     private static final class EmptyTokenStream extends TokenStream {
         @Override
@@ -40,13 +37,11 @@ public final class EmptyPostingsField extends Field {
         }
     }
 
-    private EmptyPostingsField(String fieldName, IndexableFieldType type) {
+    /**
+     * @param type built by {@link #typeFor}, and only for a field whose values are indexed
+     */
+    public EmptyPostingsField(String fieldName, IndexableFieldType type) {
         super(fieldName, new EmptyTokenStream(), type);
-    }
-
-    /** A new instance, for the batch path, which emits its fields itself rather than through a document. */
-    public static EmptyPostingsField create(String fieldName, IndexableFieldType type) {
-        return new EmptyPostingsField(fieldName, type);
     }
 
     /**
@@ -72,19 +67,4 @@ public final class EmptyPostingsField extends Field {
         return type;
     }
 
-    /**
-     * Adds the field to {@code doc}, at most once per document: a document is one entry in the column the batch path builds, whatever
-     * its slot count, so a second one would not have anything to correspond to.
-     *
-     * <p>Callers are responsible for only reaching here for a document that indexed nothing under {@code fieldName}; one that indexed
-     * a value already carries the field's index options and needs nothing more.
-     */
-    public static void record(LuceneDocument doc, String fieldName, IndexableFieldType type) {
-        final Key key = new Key(fieldName);
-        if (doc.getByKey(key) == null) {
-            final EmptyPostingsField field = new EmptyPostingsField(fieldName, type);
-            doc.putKeyIfAbsent(key, field);
-            doc.add(field);
-        }
-    }
 }

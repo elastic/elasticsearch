@@ -234,6 +234,25 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         }
     }
 
+    /** A field written as two valueless arrays is still handed back to its mapper once, so it gets one empty postings field. */
+    public void testObjectArrayWritesFieldTwiceWithNoValue() throws IOException {
+        MapperService mapperService = createMapperService(
+            codecSettings(),
+            mapping(b -> b.startObject("outer." + FIELD).field("type", fieldTypeName()).field("index", true).endObject())
+        );
+        String source = "{\"outer\":[{\"" + FIELD + "\":[null]},{\"" + FIELD + "\":[null]}]}";
+        List<IndexableField> fields = new ArrayList<>();
+        for (IndexableField field : mapperService.documentMapper()
+            .parse(new SourceToParse("1", new BytesArray(source), XContentType.JSON))
+            .rootDoc()
+            .getFields()) {
+            if (field.name().equals("outer." + FIELD)) {
+                fields.add(field);
+            }
+        }
+        assertEquals("one empty postings field, not one per array", 1, postings(fields).size());
+    }
+
     public void testAllNullArrayIndexesAlongsideValue() throws IOException {
         indexAlongsideValue(codecMapperService(), b -> b.startArray(FIELD).nullValue().endArray());
     }

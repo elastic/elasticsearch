@@ -122,7 +122,7 @@ public final class LuceneEmptyPostingsColumn extends TokenStreamColumn implement
 
             @Override
             public void appendCurrentFields(List<? super IndexableField> out) {
-                out.add(EmptyPostingsField.create(name(), fieldType()));
+                out.add(new EmptyPostingsField(name(), fieldType()));
             }
         };
     }

@@ -51,6 +51,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -94,6 +95,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -459,6 +461,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // Wait for gen2's BCC blob to be written (gen2 local upload done while gen1's copy is blocked).
             safeAwait(testHarness.bccWrittenLatch);
+            safeAwait(testHarness.copyStartedLatch);
+            assertThat(testHarness.firstCopyStartedNameRef.get(), equalTo(blobNameFromGeneration(commit1.getGeneration())));
 
             try {
                 // check ordering
@@ -474,6 +478,55 @@ public class StatelessCommitServiceTests extends ESTestCase {
             PlainActionFuture<Void> commit2FullyUploaded = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit2.getGeneration(), commit2FullyUploaded);
             safeGet(commit2FullyUploaded);
+        }
+    }
+
+    /**
+     * Documents that split-target copy submission is intentionally <em>not</em> gated behind the local
+     * uploaded-BCC state transition: the copy is enqueued before {@code markBccUploaded}, so it may start
+     * while the uploaded-BCC consumer (which runs during that transition) is still in progress. Copy
+     * submission only needs to be ordered ahead of the next upload's copy — see the ordering guarantee
+     * asserted by {@link #testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes} and #154606.
+     *
+     * <p>If copy submission were ever moved back behind the local-state commit, the {@code copyStartedLatch}
+     * await below would block until the test times out.
+     */
+    public void testSplitTargetCopyMayStartBeforeBccIsMarkedUploaded() throws Exception {
+        CountDownLatch bccConsumerStarted = new CountDownLatch(1);
+        CountDownLatch allowBccConsumerToComplete = new CountDownLatch(1);
+        try (var testHarness = new SplitCopyObservingNode()) {
+            StatelessCommitRef commit = testHarness.generateIndexCommits(1).getFirst();
+            // Block the copy as soon as it starts so we can observe that it started while the uploaded-BCC
+            // consumer is still blocked, without the copy racing ahead to completion.
+            testHarness.copyBlockedNameRef.set(blobNameFromGeneration(commit.getGeneration()));
+
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+            testHarness.commitService.addConsumerForNewUploadedBcc(testHarness.shardId, ignored -> {
+                bccConsumerStarted.countDown();
+                safeAwait(allowBccConsumerToComplete);
+            });
+
+            testHarness.commitService.onCommitCreation(commit);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit.getGeneration());
+
+            // The uploaded-BCC consumer runs during markBccUploaded and is blocked here, so the local
+            // uploaded-BCC state transition has not completed yet.
+            safeAwait(bccConsumerStarted);
+
+            try {
+                // The copy was submitted before markBccUploaded, so it can start even though the local-state
+                // transition is still in progress.
+                safeAwait(testHarness.copyStartedLatch);
+                assertThat(testHarness.firstCopyStartedNameRef.get(), equalTo(blobNameFromGeneration(commit.getGeneration())));
+            } finally {
+                testHarness.copyBlocker.countDown();
+                allowBccConsumerToComplete.countDown();
+            }
+
+            PlainActionFuture<Void> fullyUploaded = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit.getGeneration(), fullyUploaded);
+            safeGet(fullyUploaded);
         }
     }
 
@@ -505,13 +558,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize
+                        long blobSize,
+                        @Nullable Executor executor
                     ) throws IOException {
                         int attempt = copyAttempts.incrementAndGet();
                         if (attempt <= failuresBeforeSuccess) {
                             throw new IOException("simulated copy failure (attempt " + attempt + ")");
                         }
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                     }
                 }
                 return new WrappedContainer(innerContainer);
@@ -565,11 +619,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize
+                        long blobSize,
+                        @Nullable Executor executor
                     ) throws IOException {
                         copyRunning.countDown();
                         safeAwait(copyCanProceed);
-                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                         copySucceeded.set(true);
                     }
                 }
@@ -2574,7 +2629,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // Assert all commits are uploaded
             assertBusy(() -> {
                 assertThat(testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId), nullValue());
-                assertThat(testHarness.commitService.hasPendingBccUploads(testHarness.shardId), is(false));
+                assertThat(testHarness.commitService.hasBccUploadInProgress(testHarness.shardId), is(false));
                 final BlobContainer blobContainer = testHarness.objectStoreService.getProjectBlobContainer(
                     testHarness.shardId,
                     primaryTerm
@@ -3004,33 +3059,111 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testPendingUploadSizeCalculation() throws IOException {
-        var commitUploadStarted = new CountDownLatch(1);
-        var commitUploadBlocked = new CountDownLatch(1);
+    public void testOldestPendingUploadCommitCalculation() throws IOException {
+        var time = new AtomicLong(1000);
 
-        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> {
-            commitUploadStarted.countDown();
-            safeAwait(commitUploadBlocked);
-            r.run();
-        }, 2)) {
-            StatelessCommitRef commitRef = testHarness.generateIndexCommits(1).get(0);
-            testHarness.commitService.onCommitCreation(commitRef);
-            var vbcc = testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
-            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commitRef.getGeneration());
+        var commitUploadStarted = new CyclicBarrier(2);
+        var commitUploadBlocked = new CyclicBarrier(2);
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                class WrappedBlobContainer extends FilterBlobContainer {
+                    WrappedBlobContainer(BlobContainer delegate) {
+                        super(delegate);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return new WrappedBlobContainer(child);
+                    }
+
+                    @Override
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        InputStream inputStream,
+                        long blobSize,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
+                        safeAwait(commitUploadStarted);
+                        safeAwait(commitUploadBlocked);
+                        super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    }
+                }
+
+                return new WrappedBlobContainer(innerContainer);
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                    @Override
+                    public long relativeTimeInMillis() {
+                        return time.get();
+                    }
+                };
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                // Disable commit uploads unless we trigger them in the test.
+                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100).build();
+            }
+        }) {
+            time.set(10);
+
+            StatelessCommitRef commit1Ref = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(commit1Ref);
+            testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1Ref.getGeneration());
 
             safeAwait(commitUploadStarted);
 
-            var shardStats = testHarness.commitService.getShardCommitStats().findFirst().get();
-            assertEquals(vbcc.getTotalSizeInBytes(), shardStats.pendingUploadBytes());
+            // There is only one pending upload commit so it is also the oldest.
+            var shardStatsCommit1Pending = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(Long.valueOf(10), shardStatsCommit1Pending.oldestCommitUploadStartTimeRelativeMillis());
 
-            commitUploadBlocked.countDown();
-            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commitRef.getGeneration());
+            safeAwait(commitUploadBlocked);
+            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commit1Ref.getGeneration());
 
-            var shardStatsAfterUpload = testHarness.commitService.getShardCommitStats().findFirst().get();
-            assertEquals(0, shardStatsAfterUpload.pendingUploadBytes());
+            // Since there are no commits pending upload, the oldest commit is now undefined.
+            var shardStatsCommit1Uploaded = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(null, shardStatsCommit1Uploaded.oldestCommitUploadStartTimeRelativeMillis());
+
+            time.set(20);
+
+            StatelessCommitRef commit2Ref = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(commit2Ref);
+            testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit2Ref.getGeneration());
+
+            // Same idea as above
+            safeAwait(commitUploadStarted);
+            var shardStatsCommit2Pending = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(Long.valueOf(20), shardStatsCommit2Pending.oldestCommitUploadStartTimeRelativeMillis());
+
+            // But now we'll create another commit that should become the oldest after upload of previous generation.
+            time.set(30);
+
+            StatelessCommitRef commit3Ref = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(commit3Ref);
+            testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit3Ref.getGeneration());
+
+            safeAwait(commitUploadBlocked);
+            waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commit2Ref.getGeneration());
+
+            // Commit3 should now be the oldest
+            var shardStatsCommit2Uploaded = testHarness.commitService.getShardCommitStats().findFirst().get();
+            assertEquals(Long.valueOf(30), shardStatsCommit2Uploaded.oldestCommitUploadStartTimeRelativeMillis());
+
+            // Unblock commit3 upload.
+            safeAwait(commitUploadStarted);
+            safeAwait(commitUploadBlocked);
 
             testHarness.commitService.closeShard(testHarness.shardId);
-
             var shardStatsAfterClose = testHarness.commitService.getShardCommitStats().findFirst();
             // No stats for closed shards.
             assertTrue(shardStatsAfterClose.isEmpty());
@@ -3476,6 +3609,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
      *       down once that blob is written atomically.</li>
      *   <li>{@link #copyBlockedNameRef} — set to the blob name whose copy should block on
      *       {@link #copyBlocker} until it is counted down.</li>
+     *   <li>{@link #copyStartedLatch} and {@link #firstCopyStartedNameRef} — observe which copy starts first.</li>
      * </ul>
      */
     private class SplitCopyObservingNode extends FakeStatelessNode {
@@ -3483,6 +3617,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         final CountDownLatch bccWrittenLatch = new CountDownLatch(1);
         final AtomicReference<String> copyBlockedNameRef = new AtomicReference<>();
         final CountDownLatch copyBlocker = new CountDownLatch(1);
+        final CountDownLatch copyStartedLatch = new CountDownLatch(1);
+        final AtomicReference<String> firstCopyStartedNameRef = new AtomicReference<>();
 
         SplitCopyObservingNode() throws IOException {
             super(
@@ -3530,12 +3666,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     BlobContainer sourceBlobContainer,
                     String sourceBlobName,
                     String blobName,
-                    long blobSize
+                    long blobSize,
+                    @Nullable Executor executor
                 ) throws IOException {
+                    if (firstCopyStartedNameRef.compareAndSet(null, blobName)) {
+                        copyStartedLatch.countDown();
+                    }
                     if (blobName.equals(copyBlockedNameRef.get())) {
                         safeAwait(copyBlocker);
                     }
-                    super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                    super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                 }
             }
             return new WrappedContainer(innerContainer);

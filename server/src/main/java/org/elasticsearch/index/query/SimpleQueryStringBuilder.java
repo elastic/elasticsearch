@@ -408,7 +408,7 @@ public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQuery
                 context,
                 QueryParserHelper.parseFieldsAndWeights(defaultFields)
             );
-            isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
+            isAllField = context.hasAllFieldsWildcardDefaultField();
         }
 
         if (isAllField) {

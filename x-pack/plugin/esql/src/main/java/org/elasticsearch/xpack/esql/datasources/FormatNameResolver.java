@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Function;
 
 /**
  * Single source of truth for resolving format names from dataset configuration.
@@ -26,8 +31,11 @@ import java.util.Set;
  * <ol>
  *   <li>{@code reader} config key — reader alias mapped to format name</li>
  *   <li>{@code format} config key: explicit format override (the sentinel {@link #FORMAT_AUTO}
- *       and an empty value mean "no override" and fall through to the extension)</li>
- *   <li>File extension extracted from the source path</li>
+ *       and an empty value mean "no override" and fall through to pattern inference)</li>
+ *   <li>The unique format implied by the resource pattern (comma segments and brace alternatives on
+ *       each object name). Compression suffixes are not a second type ({@code *.csv} and {@code *.csv.gz}
+ *       are both csv). Zero or two-plus implied formats are refused — the caller must set {@code format}
+ *       or split datasets.</li>
  * </ol>
  * <p>
  * An explicit {@code reader}/{@code format} override selects the format but does not opt the resource out
@@ -48,40 +56,14 @@ public final class FormatNameResolver {
      */
     public static final String FORMAT_AUTO = "auto";
 
-    /** Reader alias accepted via the {@code reader} dataset setting for the parquet-rs native reader. */
-    public static final String READER_PARQUET_RS = "parquet-rs";
     /** Reader alias accepted via the {@code reader} dataset setting for the Java parquet reader. */
     public static final String READER_JAVA = "java";
     /** Format name registered by the Java parquet reader. */
     public static final String FORMAT_PARQUET = "parquet";
-    /** Format name registered by the parquet-rs native reader. */
-    public static final String FORMAT_PARQUET_RS = "parquet-rs";
 
-    /**
-     * Gates the prototype parquet-rs native reader and its public {@code reader=parquet-rs} selector.
-     * Snapshot-on, release-off; override in release with {@code -Des.esql_external_parquet_rs_feature_flag_enabled=true}.
-     * Lives here (and not in the parquet-rs plugin module) so this esql-core resolver can gate the alias while
-     * {@code ParquetRsPlugin} — which already depends on this class — reuses the same flag for format registration.
-     */
-    public static final FeatureFlag ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG = new FeatureFlag("esql_external_parquet_rs");
-
-    private static final Map<String, String> READER_ALIAS_TO_FORMAT = parquetRsEnabled()
-        ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
-        : Map.of(READER_JAVA, FORMAT_PARQUET);
-
-    /** Reader aliases that are known but disabled in this build (complement of {@link #READER_ALIAS_TO_FORMAT}). */
-    static final Set<String> DISABLED_READER_ALIASES = parquetRsEnabled() ? Set.of() : Set.of(READER_PARQUET_RS);
-
-    /** The parquet-rs reader is live iff the parquet-rs sub-flag is on. */
-    public static boolean parquetRsEnabled() {
-        return ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
-    }
+    private static final Map<String, String> READER_ALIAS_TO_FORMAT = Map.of(READER_JAVA, FORMAT_PARQUET);
 
     private FormatNameResolver() {}
-
-    private static IllegalArgumentException disabledReaderError(String alias) {
-        return new IllegalArgumentException("Reader [" + alias + "] is disabled; supported values: " + supportedReaderAliases());
-    }
 
     /**
      * Normalizes a raw {@code format} value to its canonical stored form — {@code trim()} then
@@ -120,12 +102,12 @@ public final class FormatNameResolver {
      * <p>
      * <b>Not compound-extension aware:</b> the extension fallback here is a naive last-dot, so a compound name like
      * {@code hits.csv.gz} resolves to the codec suffix {@code "gz"}, not {@code "csv"}. A caller that keys operator
-     * dispatch or reader lookup on the format over a possibly-compressed resource must use {@link #resolveFormatName}
-     * (or {@link #resolveReader}), which routes through the compound-aware registry. Kept for the config-override-only
-     * path ({@code FileSourceFactory} passes an empty source path); {@code PushFiltersToSource} still calls it over the
-     * exec source path and so misses filter pushdown on compressed text — migrating that caller is tracked separately.
+     * dispatch or reader lookup on the format over a possibly-compressed resource must use {@link #datasetFormat}
+     * (or {@link #resolveFormatName} / {@link #resolveReader}), which route through the compound-aware registry.
+     * Kept for the config-override-only path ({@code FileSourceFactory#canHandle} with an explicit format passes an
+     * empty source path).
      *
-     * @return the format name (e.g. "parquet", "parquet-rs", "orc"), or null if undetermined
+     * @return the format name (e.g. "parquet", "orc"), or null if undetermined
      */
     public static String resolve(Map<String, Object> config, String sourcePath) {
         if (config != null) {
@@ -135,9 +117,6 @@ public final class FormatNameResolver {
                 String formatName = READER_ALIAS_TO_FORMAT.get(alias);
                 if (formatName != null) {
                     return formatName;
-                }
-                if (DISABLED_READER_ALIASES.contains(alias)) {
-                    throw disabledReaderError(alias);
                 }
             }
             String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
@@ -176,6 +155,158 @@ public final class FormatNameResolver {
     }
 
     /**
+     * Registry format name for cache-key identity: config {@code reader}/{@code format} first, then
+     * the inner extension's claimed format with a compression suffix stripped. Does not wrap a codec
+     * or instantiate the reader, so a whole-file-compression veto cannot throw. Returns {@code null}
+     * when undetermined.
+     */
+    @Nullable
+    public static String resolveFormatNameForIdentity(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
+        String explicit = explicitFormatName(config);
+        if (explicit != null) {
+            return explicit;
+        }
+        if (registry == null) {
+            return null;
+        }
+        return registry.formatNameForObject(objectName);
+    }
+
+    public static String datasetFormat(Map<String, Object> config, String resource, FormatReaderRegistry registry) {
+        return datasetFormat(config, resource, candidate -> {
+            if (registry == null) {
+                return null;
+            }
+            try {
+                return resolveFormatName(null, candidate, registry);
+            } catch (FormatReaderRegistry.UnreadableObjectException e) {
+                return null;
+            }
+        });
+    }
+
+    public static String datasetFormat(Map<String, Object> config, String resource, Function<String, String> impliedFormatOfObjectName) {
+        String explicit = explicitFormatName(config);
+        if (explicit != null) {
+            return explicit;
+        }
+        Set<String> implied = new TreeSet<>();
+        if (resource != null && resource.isEmpty() == false) {
+            for (String segment : resourceSegments(resource)) {
+                String objectName = objectNameOfSegment(segment);
+                if (objectName.isEmpty()) {
+                    continue;
+                }
+                for (String candidate : GlobExpander.expandBracesKeepingWildcards(objectName)) {
+                    String format = impliedFormatOfObjectName.apply(candidate);
+                    if (format != null) {
+                        implied.add(format);
+                    }
+                }
+            }
+        }
+        if (implied.size() != 1) {
+            throw new IllegalArgumentException(ambiguousDatasetFormatMessage(resource, implied));
+        }
+        return implied.iterator().next();
+    }
+
+    public static void rejectConflictingListedFormats(FileList listing, String datasetFormat, FormatReaderRegistry registry) {
+        if (listing == null || listing.isResolved() == false || registry == null) {
+            return;
+        }
+        for (int i = 0; i < listing.fileCount(); i++) {
+            rejectConflictingObjectFormat(listing.path(i), datasetFormat, registry);
+        }
+    }
+
+    public static void rejectConflictingObjectFormat(StoragePath path, String datasetFormat, FormatReaderRegistry registry) {
+        if (path == null || registry == null) {
+            return;
+        }
+        String objectName = path.objectName();
+        if (objectName == null || objectName.isEmpty()) {
+            return;
+        }
+        try {
+            String inferred = resolveFormatName(null, objectName, registry);
+            if (inferred.equalsIgnoreCase(datasetFormat) == false) {
+                throw new IllegalArgumentException(listedFormatConflictMessage(path.toString(), inferred, datasetFormat));
+            }
+        } catch (FormatReaderRegistry.UnreadableObjectException e) {
+            // Unrecognized extension under a declared format is allowed.
+        }
+    }
+
+    public static String ambiguousDatasetFormatMessage(String resource) {
+        return "Cannot determine a single format for ["
+            + resource
+            + "]; set the dataset's [format] setting, or split mixed formats into separate datasets.";
+    }
+
+    static String ambiguousDatasetFormatMessage(String resource, Set<String> implied) {
+        if (implied == null || implied.isEmpty()) {
+            return ambiguousDatasetFormatMessage(resource);
+        }
+        return "Cannot determine a single format for ["
+            + resource
+            + "]: implied formats "
+            + implied
+            + "; set the dataset's [format] setting, or split mixed formats into separate datasets.";
+    }
+
+    public static String listedFormatConflictMessage(String file, String inferred, String datasetFormat) {
+        return "File ["
+            + file
+            + "] has format ["
+            + inferred
+            + "] which differs from the dataset format ["
+            + datasetFormat
+            + "]; split mixed formats into separate datasets, or tighten the resource pattern.";
+    }
+
+    @Nullable
+    private static String explicitFormatName(Map<String, Object> config) {
+        if (config == null) {
+            return null;
+        }
+        Object readerOverride = config.get(CONFIG_READER);
+        if (readerOverride != null) {
+            String alias = readerOverride.toString().trim().toLowerCase(Locale.ROOT);
+            String formatName = READER_ALIAS_TO_FORMAT.get(alias);
+            if (formatName == null) {
+                throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
+            }
+            return formatName;
+        }
+        return parseExplicitFormat(config.get(CONFIG_FORMAT));
+    }
+
+    /**
+     * Top-level comma segments for object-store resources; HTTP/HTTPS never treat commas as list separators.
+     */
+    private static List<String> resourceSegments(String resource) {
+        try {
+            StoragePath sp = StoragePath.of(resource);
+            if (sp.scheme().equalsIgnoreCase("http") || sp.scheme().equalsIgnoreCase("https")) {
+                return List.of(resource);
+            }
+        } catch (IllegalArgumentException e) {
+            // Not a parseable URI — still split on top-level commas.
+        }
+        return GlobExpander.commaSegments(resource);
+    }
+
+    private static String objectNameOfSegment(String segment) {
+        try {
+            String objectName = StoragePath.of(segment).objectName();
+            return objectName == null ? "" : objectName;
+        } catch (IllegalArgumentException e) {
+            return segment;
+        }
+    }
+
+    /**
      * Resolves the format reader using config and source path, looking up the result in the registry.
      * <p>
      * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and looked
@@ -192,9 +323,6 @@ public final class FormatNameResolver {
                 String alias = readerOverride.toString().trim().toLowerCase(Locale.ROOT);
                 String formatName = READER_ALIAS_TO_FORMAT.get(alias);
                 if (formatName == null) {
-                    if (DISABLED_READER_ALIASES.contains(alias)) {
-                        throw disabledReaderError(alias);
-                    }
                     throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
                 }
                 return registry.byNameForObject(formatName, objectName);
@@ -207,15 +335,42 @@ public final class FormatNameResolver {
         return registry.byExtension(objectName);
     }
 
-    private static String formatFromExtension(String sourcePath) {
-        if (sourcePath == null) {
+    /**
+     * Extracts the file extension from an object name or path, stripping any trailing query
+     * string ({@code ?}) or fragment ({@code #}) from within the extension substring.
+     * Returns the clean extension without a leading dot and lowercased (e.g. {@code "csv"}),
+     * or {@code null} when no usable extension is present.
+     *
+     * <p>Only the substring after the last dot is examined, so a {@code ?} or {@code #}
+     * that precedes the last dot (e.g. a glob pattern like {@code day?.csv}) does not affect
+     * the result. A special character that follows the last dot (e.g. {@code file.csv?versionId=abc})
+     * is stripped, recovering the clean extension.
+     *
+     * <p>This is the single source of truth for extension extraction, shared by
+     * {@link #formatFromExtension} and {@code FileDataSourceValidator} so the two paths
+     * cannot diverge on extension handling.
+     */
+    @Nullable
+    public static String extractCleanExtension(String objectName) {
+        if (objectName == null) {
             return null;
         }
-        int lastDot = sourcePath.lastIndexOf('.');
-        if (lastDot < 0 || lastDot >= sourcePath.length() - 1) {
+        // StoragePath.of() strips ?/# from the path for http/https (presigned URLs); for object-store
+        // schemes ? and # are literal key characters and objectName() preserves them.
+        String nameToScan;
+        try {
+            nameToScan = StoragePath.of(objectName).objectName();
+        } catch (IllegalArgumentException e) {
+            nameToScan = objectName;
+        }
+        if (nameToScan.isEmpty()) {
             return null;
         }
-        String ext = sourcePath.substring(lastDot + 1);
+        int lastDot = nameToScan.lastIndexOf('.');
+        if (lastDot < 0 || lastDot >= nameToScan.length() - 1) {
+            return null;
+        }
+        String ext = nameToScan.substring(lastDot + 1);
         int queryStart = ext.indexOf('?');
         if (queryStart >= 0) {
             ext = ext.substring(0, queryStart);
@@ -225,5 +380,9 @@ public final class FormatNameResolver {
             ext = ext.substring(0, fragmentStart);
         }
         return ext.isEmpty() ? null : ext.toLowerCase(Locale.ROOT);
+    }
+
+    private static String formatFromExtension(String sourcePath) {
+        return extractCleanExtension(sourcePath);
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.StoreMetricsDirectory;
@@ -299,7 +300,8 @@ public final class StatelessDirectoryFactory {
                 cacheBlobReaderService,
                 MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                 shardId,
-                false
+                false,
+                IndexVersion.current()
             );
 
             var blobStore = new FsBlobStore(8192, dataPath, true);

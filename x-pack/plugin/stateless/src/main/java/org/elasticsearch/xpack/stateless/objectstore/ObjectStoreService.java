@@ -345,7 +345,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Multipart upload threshold for the stateless object store. When set, this value is injected into the native multipart threshold
-     * setting for the configured backend ({@code buffer_size} for S3, {@code multipart_upload_size_threshold} for GCS,
+     * setting for the configured backend ({@code buffer_size} for S3, {@code multipart_upload_chunk_size} for GCS,
      * {@code max_single_part_upload_size} for Azure). Blobs smaller than this threshold use a single-part PUT; larger blobs use
      * multipart. The minimum is 5 MB, matching the smallest valid part size across all supported object store backends.
      * When unset, each backend uses its own default.
@@ -361,7 +361,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     // Repository modules are testImplementation-only dependencies; these duplicate the per-backend setting keys
     // so ObjectStoreType can inject the threshold without a compile-time dependency on those modules.
     static final String S3_MULTIPART_THRESHOLD_SETTING_KEY = "buffer_size";
-    static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_size_threshold";
+    static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_chunk_size";
     static final String AZURE_MULTIPART_THRESHOLD_SETTING_KEY = "max_single_part_upload_size";
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
@@ -1282,7 +1282,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                                 sourceContainerForTerm,
                                 blob.name(),
                                 blob.name(),
-                                blob.length()
+                                blob.length(),
+                                null
                             );
                         } catch (NoSuchFileException e) {
                             logger.warn("missing blob during copyShard, assuming benign race [{}]", blob.name());
@@ -1317,7 +1318,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         var destContainer = termContainer.apply(getProjectBlobContainer(destination));
         var blobName = virtualBcc.getBlobName();
         logger.debug("CopyCommit copying {} from [{}] to [{}]", blobName, sourceContainer.path(), destContainer.path());
-        destContainer.copyBlob(OperationPurpose.RESHARDING, sourceContainer, blobName, blobName, virtualBcc.getTotalSizeInBytes());
+        destContainer.copyBlob(
+            OperationPurpose.RESHARDING,
+            sourceContainer,
+            blobName,
+            blobName,
+            virtualBcc.getTotalSizeInBytes(),
+            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
+        );
     }
 
     private boolean assertShardsAreInSameProject(ShardId source, ShardId destination) {
@@ -1655,7 +1663,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         public void skipNBytes(long n) throws LocalIOException {
             try {
-                delegate.skip(n);
+                delegate.skipNBytes(n);
             } catch (IOException e) {
                 throw new LocalIOException(e);
             }
@@ -1827,19 +1835,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         public void onFailure(Exception e) {
             // Might be 100 files only log when debug enabled
+            final var level = lifecycle.started() ? Level.WARN : Level.DEBUG;
             if (logger.isDebugEnabled()) {
-                logger.warn(() -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
+                logger.log(level, () -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
             } else {
-                logger.warn("exception while attempting to delete blob files", e);
+                logger.log(level, () -> "exception while attempting to delete blob files", e);
             }
         }
 
         @Override
         public void onAfter() {
             translogDeleteSchedulePermit.release();
-            if (translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
+            if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
                 threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            assert lifecycle.closed() : lifecycle;
+            // no need to retry or even log, we're shutting down
         }
 
         @Override

@@ -8,13 +8,18 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -184,5 +189,101 @@ public class IndexingOperationListenerTests extends ESTestCase {
         assertEquals(2, preDelete.get());
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
+    }
+
+    public void testPerOperationHooksCalledOnlyWithoutBatchOverride() {
+        final int docCount = randomIntBetween(1, 16);
+        final IndexOperationBatch batch = primaryBatch(docCount);
+        final ShardId shardId = new ShardId(new Index("index", "_na_"), 0);
+
+        AtomicInteger delegatingPreIndex = new AtomicInteger();
+        AtomicInteger delegatingPostIndex = new AtomicInteger();
+        AtomicInteger delegatingPostIndexException = new AtomicInteger();
+        IndexingOperationListener delegatingListener = new IndexingOperationListener() {
+            @Override
+            public Engine.Index preIndex(ShardId indexShardId, Engine.Index operation) {
+                delegatingPreIndex.incrementAndGet();
+                return operation;
+            }
+
+            @Override
+            public void postIndex(ShardId indexShardId, Engine.Index index, Engine.IndexResult result) {
+                delegatingPostIndex.incrementAndGet();
+            }
+
+            @Override
+            public void postIndex(ShardId indexShardId, Engine.Index index, Exception ex) {
+                delegatingPostIndexException.incrementAndGet();
+            }
+        };
+
+        AtomicInteger overridingBatchCalls = new AtomicInteger();
+        AtomicInteger overridingPerOperationCalls = new AtomicInteger();
+        IndexingOperationListener overridingListener = new IndexingOperationListener() {
+            @Override
+            public IndexOperationBatch preIndexBatch(ShardId indexShardId, IndexOperationBatch indexBatch) {
+                overridingBatchCalls.incrementAndGet();
+                return indexBatch;
+            }
+
+            @Override
+            public void postIndexBatch(ShardId indexShardId, IndexOperationBatch indexBatch, List<Engine.IndexResult> results) {
+                overridingBatchCalls.incrementAndGet();
+            }
+
+            @Override
+            public void postIndexBatch(ShardId indexShardId, IndexOperationBatch indexBatch, Exception ex) {
+                overridingBatchCalls.incrementAndGet();
+            }
+
+            @Override
+            public Engine.Index preIndex(ShardId indexShardId, Engine.Index operation) {
+                overridingPerOperationCalls.incrementAndGet();
+                return operation;
+            }
+
+            @Override
+            public void postIndex(ShardId indexShardId, Engine.Index index, Engine.IndexResult result) {
+                overridingPerOperationCalls.incrementAndGet();
+            }
+
+            @Override
+            public void postIndex(ShardId indexShardId, Engine.Index index, Exception ex) {
+                overridingPerOperationCalls.incrementAndGet();
+            }
+        };
+
+        IndexingOperationListener.CompositeListener compositeListener = new IndexingOperationListener.CompositeListener(
+            List.of(delegatingListener, overridingListener),
+            logger
+        );
+        compositeListener.preIndexBatch(shardId, batch);
+        compositeListener.postIndexBatch(shardId, batch, successResults(batch));
+        compositeListener.postIndexBatch(shardId, batch, new RuntimeException());
+
+        assertEquals(docCount, delegatingPreIndex.get());
+        assertEquals(docCount, delegatingPostIndex.get());
+        assertEquals(docCount, delegatingPostIndexException.get());
+        assertEquals(3, overridingBatchCalls.get());
+        assertEquals(0, overridingPerOperationCalls.get());
+    }
+
+    private static IndexOperationBatch primaryBatch(int docCount) {
+        final BulkItemRequest[] items = new BulkItemRequest[docCount];
+        for (int d = 0; d < docCount; d++) {
+            items[d] = new BulkItemRequest(
+                d,
+                new IndexRequest("index").id("doc-" + d).source(new BytesArray("{\"n\":" + d + "}"), XContentType.JSON)
+            );
+        }
+        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+    }
+
+    private static List<Engine.IndexResult> successResults(IndexOperationBatch batch) {
+        final List<Engine.IndexResult> results = new ArrayList<>(batch.docCount());
+        for (int d = 0; d < batch.docCount(); d++) {
+            results.add(new Engine.IndexResult(1, 1, d, true, batch.id(d)));
+        }
+        return results;
     }
 }

@@ -25,7 +25,7 @@ import java.io.IOException;
 
 /**
  * Round-trips the column iterator through a real {@link Directory} for the empty, dense, and sparse
- * shapes, checking that iteration, value ordinals ({@link ColumnIterator#index()}),
+ * shapes, checking that iteration, ranks ({@link ColumnIterator#rank()}),
  * {@link ColumnIterator#advanceExact}, and {@link ColumnIterator#intoBitSet} all agree with a
  * reference {@link FixedBitSet} of the documents that have a value.
  */
@@ -160,7 +160,7 @@ public class ColumnIteratorTests extends ESTestCase {
         BitSetIterator reference = new BitSetIterator(expected, cardinality);
         for (int doc = reference.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = reference.nextDoc()) {
             assertEquals(doc, iterator.nextDoc());
-            assertEquals("value ordinal at doc " + doc, rank, iterator.index());
+            assertEquals("rank at doc " + doc, rank, iterator.rank());
             rank++;
         }
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
@@ -174,17 +174,17 @@ public class ColumnIteratorTests extends ESTestCase {
             boolean present = expected.get(doc);
             assertEquals("iterator at doc " + doc, present, iterator.advanceExact(doc));
             if (present) {
-                assertEquals("value ordinal at doc " + doc, seen, iterator.index());
+                assertEquals("rank at doc " + doc, seen, iterator.rank());
                 seen++;
             }
         }
     }
 
     /**
-     * Bulk {@link ColumnIterator#ranks} agrees with the per-document {@code advanceExact}/{@code index()}
+     * Bulk {@link ColumnIterator#ranks} agrees with the per-document {@code advanceExact}/{@code rank()}
      * pair it replaces, over batches that mix present and absent documents. The sparse shape is the one
      * that can disagree: it resolves whole runs arithmetically from {@code docIDRunEnd()} rather than
-     * advancing to each document, so a run reported too long would silently hand back wrong ordinals.
+     * advancing to each document, so a run reported too long would silently hand back wrong ranks.
      */
     private void assertRanks(ColumnIteratorReader reader, FixedBitSet expected, int maxDoc) throws IOException {
         final int[] expectedRank = new int[maxDoc];
@@ -212,7 +212,7 @@ public class ColumnIteratorTests extends ESTestCase {
             final int[] ranks = new int[length];
             reader.iterator().ranks(docs, offset, length, ranks);
             for (int i = 0; i < length; i++) {
-                assertEquals("ordinal of doc " + docs[offset + i], expectedRank[docs[offset + i]], ranks[i]);
+                assertEquals("rank of doc " + docs[offset + i], expectedRank[docs[offset + i]], ranks[i]);
             }
         }
     }
@@ -227,7 +227,7 @@ public class ColumnIteratorTests extends ESTestCase {
         for (int doc = 0; doc < maxDoc; doc++) {
             if (expected.get(doc)) {
                 assertTrue("doc " + doc + " has a value but advanceExact says otherwise", iterator.advanceExact(doc));
-                assertEquals("ordinal at doc " + doc, rank, iterator.index());
+                assertEquals("rank at doc " + doc, rank, iterator.rank());
                 rank++;
             }
         }

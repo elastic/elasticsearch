@@ -18,8 +18,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -27,9 +26,7 @@ import java.util.Optional;
 
 public abstract sealed class Int8VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     final int dimensions;
     final int vectorByteSize;
@@ -98,7 +95,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             offsets,
             vectorByteSize,
             numNodes,
-            addrsScratch::get,
+            addrsScratch,
             a -> sparseScorer.score(a, query, dimensions, numNodes, MemorySegment.ofArray(scores))
         );
     }
@@ -119,10 +116,10 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(
+            return IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
-                scratch::getScratch,
+                scratch,
                 seg -> normalize(DISTANCE_FUNCS.dotProductI8(query, seg, dimensions))
             );
         }
@@ -156,7 +153,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, seg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
                 float cos = DISTANCE_FUNCS.cosineI8(query, seg, dimensions);
                 return normalize(cos);
             });
@@ -187,7 +184,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, seg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
                 float sqDist = DISTANCE_FUNCS.squareDistanceI8(query, seg, dimensions);
                 return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
             });
@@ -218,7 +215,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             checkOrdinal(node);
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            return IndexInputUtils.withSlice(input, vectorByteSize, scratch::getScratch, seg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
                 float dp = DISTANCE_FUNCS.dotProductI8(query, seg, dimensions);
                 return VectorUtil.scaleMaxInnerProductScore(dp);
             });

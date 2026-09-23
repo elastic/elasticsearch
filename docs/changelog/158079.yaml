@@ -1,0 +1,6 @@
+area: Infra/Plugins
+issues:
+ - 157751
+pr: 158079
+summary: Fix stable plugin entitlement policy
+type: bug

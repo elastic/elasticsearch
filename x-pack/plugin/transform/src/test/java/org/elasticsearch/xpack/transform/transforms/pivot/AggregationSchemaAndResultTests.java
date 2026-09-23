@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -154,6 +155,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 SettingsConfig.EMPTY,
                 pivotConfig,
                 new SourceConfig(new String[] { "source-index" }),
+                IndicesOptions.LENIENT_EXPAND_OPEN,
                 listener
             ),
             mappings -> {
@@ -234,6 +236,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 SettingsConfig.EMPTY,
                 pivotConfig,
                 new SourceConfig(new String[] { "source-index" }),
+                IndicesOptions.LENIENT_EXPAND_OPEN,
                 listener
             ),
             mappings -> {

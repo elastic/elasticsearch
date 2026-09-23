@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158596
+summary: Cap block hash growth at aggregation limit
+type: enhancement

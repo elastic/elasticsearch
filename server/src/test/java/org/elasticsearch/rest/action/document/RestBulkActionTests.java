@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -452,6 +453,37 @@ public class RestBulkActionTests extends ESTestCase {
             );
             assertThat(ex.getMessage(), containsString("invalid [slice] value"));
         }
+    }
+
+    public void testInvalidParamsDoNotRegisterBulkSessionTask() {
+        var param = randomFrom(
+            Map.entry("wait_for_active_shards", Set.of("all")),
+            Map.entry("refresh", Set.of("false", "true", "wait_for", ""))
+        );
+        // Alphabetic, so it is also never a valid shard count.
+        String value = randomValueOtherThanMany(param.getValue()::contains, () -> randomAlphaOfLengthBetween(1, 10));
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        NoOpNodeClient client = new NoOpNodeClient(threadPool);
+        RestBulkAction action = new RestBulkAction(
+            Settings.EMPTY,
+            ClusterSettings.createBuiltInClusterSettings(),
+            new IncrementalBulkService(client, new IndexingPressure(Settings.EMPTY), MeterRegistry.NOOP, taskManager, threadPool)
+        );
+        FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(Map.of(param.getKey(), value))
+            .withBody(new FakeHttpBodyStream())
+            .withHeaders(
+                Map.of("Content-Type", List.of(XContentType.JSON.mediaType()), "Content-Length", List.of(String.valueOf(between(1, 1024))))
+            )
+            .build();
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), client)
+        );
+        assertThat(e.getMessage(), containsString("[" + value + "]"));
+        assertThat(taskManager.getTasks().values(), empty());
     }
 
     public void testIncrementalParsing() {

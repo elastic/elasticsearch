@@ -239,7 +239,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -916,14 +915,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Waits for the specified data stream to have the expected number of backing indices.
      */
-    public static List<String> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
+    public static List<Index> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
         return waitForDataStreamIndices(dataStreamName, expectedSize, false);
     }
 
     /**
      * Waits for the specified data stream to have the expected number of backing or failure indices.
      */
-    public static List<String> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
+    public static List<Index> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
         // We listen to the cluster state on the master node to ensure all other nodes have already acked the new cluster state.
         // This avoids inconsistencies in subsequent API calls which might hit a non-master node.
         final var listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
@@ -934,18 +933,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
         });
         safeAwait(listener, TimeValue.timeValueSeconds(30));
-        final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
+        final var backingIndices = getDataStreamBackingIndices(dataStreamName, failureStore);
         assertEquals(
             Strings.format(
                 "Retrieved number of data stream indices doesn't match expectation for data stream [%s]. Expected %d but got %s",
                 dataStreamName,
                 expectedSize,
-                backingIndexNames
+                backingIndices
             ),
             expectedSize,
-            backingIndexNames.size()
+            backingIndices.size()
         );
-        return backingIndexNames;
+        return backingIndices;
     }
 
     /**
@@ -959,6 +958,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Returns a list of the data stream's backing or failure index names.
      */
     public static List<String> getDataStreamBackingIndexNames(String dataStreamName, boolean failureStore) {
+        return getDataStreamBackingIndices(dataStreamName, failureStore).stream().map(Index::getName).toList();
+    }
+
+    /**
+     * Returns a list of the data stream's backing or failure indices.
+     */
+    public static List<Index> getDataStreamBackingIndices(String dataStreamName, boolean failureStore) {
         GetDataStreamAction.Response response = safeGet(
             client().execute(
                 GetDataStreamAction.INSTANCE,
@@ -968,7 +974,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(response.getDataStreams().size(), equalTo(1));
         DataStream dataStream = response.getDataStreams().getFirst().getDataStream();
         assertThat(dataStream.getName(), equalTo(dataStreamName));
-        return dataStream.getDataStreamIndices(failureStore).getIndices().stream().map(Index::getName).toList();
+        return dataStream.getDataStreamIndices(failureStore).getIndices();
     }
 
     /**
@@ -1633,29 +1639,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             + nbDocsOnReplica
                             + "]";
 
-                        if (nbDocsOnPrimary != nbDocsOnReplica) {
-                            // Number of docs is the same on primary/replica so compare and prints the complete list of docs
-                            assertThat(message, docsOnReplica, equalTo(docsOnPrimary));
-                        } else {
-                            // Primary/replica don't have the same number of docs, compare each doc and only prints the different docs
-                            // This can help when only a subset of documents are different, but it can print all remaining docs if a doc
-                            // is missing in one of the shard.
-                            var diffOnPrimary = new ArrayList<DocIdSeqNoAndSource>();
-                            var diffOnReplica = new ArrayList<DocIdSeqNoAndSource>();
-                            for (int doc = 0; doc < nbDocsOnPrimary; doc++) {
-                                var docOnPrimary = docsOnPrimary.get(doc);
-                                var docOnReplica = docsOnReplica.get(doc);
-                                if (Objects.equals(docOnPrimary, docOnReplica) == false) {
-                                    diffOnPrimary.add(docOnPrimary);
-                                    diffOnReplica.add(docOnReplica);
-                                    break;
-                                }
-                            }
-                            assertThat(
-                                message + ", num_docs_different=[" + diffOnPrimary.size() + "]",
-                                diffOnReplica,
-                                equalTo(diffOnPrimary)
-                            );
+                        if (docsOnPrimary.equals(docsOnReplica) == false) {
+                            // Only compute and print docs missing from either shard when the complete lists differ.
+                            final var primaryDocs = new HashSet<>(docsOnPrimary);
+                            final var replicaDocs = new HashSet<>(docsOnReplica);
+                            final var docsOnlyOnPrimary = docsOnPrimary.stream().filter(doc -> replicaDocs.contains(doc) == false).toList();
+                            final var docsOnlyOnReplica = docsOnReplica.stream().filter(doc -> primaryDocs.contains(doc) == false).toList();
+                            fail(message + ", docs_only_on_primary=" + docsOnlyOnPrimary + ", docs_only_on_replica=" + docsOnlyOnReplica);
                         }
                     }
                 }
@@ -2914,6 +2904,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     indexName,
                     dataStreamName,
                     templateIndexMode,
+                    registryInstalledTemplate,
                     projectMetadata,
                     resolvedAt,
                     indexTemplateAndCreateRequestSettings,

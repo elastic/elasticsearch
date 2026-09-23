@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,6 +51,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         "Highlight",
         Highlight::new
     );
+
+    /** Minimum transport version that knows how to deserialize this plan node. */
+    public static final TransportVersion ESQL_HIGHLIGHT = TransportVersion.fromName("esql_highlight");
 
     public static final String DEFAULT_PREFIX = "highlight_";
 

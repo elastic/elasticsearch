@@ -25,6 +25,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
@@ -213,14 +214,22 @@ public class InferenceFunctionEvaluator {
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(textEmbedding.inputText(), foldContext),
-                        textEmbedding.inputTimeout()
+                        // Folding embeds a single constant text, so the batch size is irrelevant here.
+                        InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
+                        textEmbedding.inputTimeout(),
+                        Source.EMPTY,
+                        false
                     );
                     case Embedding embedding -> new EmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(embedding.inputText(), foldContext),
                         embedding.inputDataType(),
-                        embedding.inputTimeout()
+                        // Folding embeds a single constant text, so the batch size is irrelevant here.
+                        InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
+                        embedding.inputTimeout(),
+                        Source.EMPTY,
+                        false
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,

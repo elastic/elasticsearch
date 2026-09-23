@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -23,28 +24,28 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -172,24 +173,20 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     public void testRangeTranslation() {
-        // A one-sided range on a NON-integral field is a two-valued (Coalesce-to-false) comparison against the field's
-        // extreme value (any-value on multivalue fields; the Coalesce keeps a missing field two-valued so
-        // must_not-over-missing matches all). Integral one-sided ranges take the mv_in_range path (tested below).
+        // A one-sided range on a NON-integral field is mv_greater / mv_less — two-valued any-value predicates that keep
+        // a missing field false so must_not-over-missing matches all, and that push as bare one-sided ranges. Integral
+        // one-sided ranges take the mv_in_range path (tested below).
         Expression lower = translate(QueryBuilders.rangeQuery("score").gte(1));
-        assertThat(lower, instanceOf(Coalesce.class));
-        Expression lowerCmp = ((Coalesce) lower).children().get(0);
-        assertThat(lowerCmp, instanceOf(GreaterThanOrEqual.class));
-        assertThat(((GreaterThanOrEqual) lowerCmp).left(), instanceOf(MvMax.class));
-        // single upper bound -> two-valued comparison against the field's min value
+        assertThat(lower, instanceOf(MvGreater.class));
+        assertNotNull(((MvGreater) lower).options()); // inclusive → include_bound: true
+        // single upper bound -> inclusive mv_less
         Expression upper = translate(QueryBuilders.rangeQuery("score").lte(10));
-        assertThat(upper, instanceOf(Coalesce.class));
-        Expression upperCmp = ((Coalesce) upper).children().get(0);
-        assertThat(upperCmp, instanceOf(LessThanOrEqual.class));
-        assertThat(((LessThanOrEqual) upperCmp).left(), instanceOf(MvMin.class));
-        // exclusive single bound -> strict comparison, still two-valued and over the extreme value
+        assertThat(upper, instanceOf(MvLess.class));
+        assertNotNull(((MvLess) upper).options());
+        // exclusive single bound -> bare (strict) mv_greater
         Expression exclusive = translate(QueryBuilders.rangeQuery("score").gt(1));
-        assertThat(exclusive, instanceOf(Coalesce.class));
-        assertThat(((Coalesce) exclusive).children().get(0), instanceOf(GreaterThan.class));
+        assertThat(exclusive, instanceOf(MvGreater.class));
+        assertNull(((MvGreater) exclusive).options());
         // closed range -> the two-valued any-value range intrinsic
         assertThat(translate(QueryBuilders.rangeQuery("score").gte(1).lte(10)), instanceOf(MvInRange.class));
     }
@@ -558,20 +555,16 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     public void testDateRangeCoarseUpperBoundRoundsUp() {
         Expression e = translate(QueryBuilders.rangeQuery("@timestamp").lte("2020-06-15"));
-        assertThat(e, instanceOf(Coalesce.class));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        assertThat(cmp, instanceOf(LessThanOrEqual.class));
-        Literal bound = (Literal) ((LessThanOrEqual) cmp).right();
+        assertThat(e, instanceOf(MvLess.class));
+        Literal bound = (Literal) ((MvLess) e).bound();
         assertEquals(millis("2020-06-15T23:59:59.999Z"), bound.value());
     }
 
     /** A coarse lower bound rounds DOWN to the first millis of its unit — {@code gte "2020-06-15"} starts at midnight. */
     public void testDateRangeCoarseLowerBoundRoundsDown() {
         Expression e = translate(QueryBuilders.rangeQuery("@timestamp").gte("2020-06-15"));
-        assertThat(e, instanceOf(Coalesce.class));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        assertThat(cmp, instanceOf(GreaterThanOrEqual.class));
-        Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
+        assertThat(e, instanceOf(MvGreater.class));
+        Literal bound = (Literal) ((MvGreater) e).bound();
         assertEquals(millis("2020-06-15T00:00:00.000Z"), bound.value());
     }
 
@@ -582,9 +575,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     public void testDateRangeNowMathResolvesAgainstQueryNow() {
         Expression e = translate(QueryBuilders.rangeQuery("@timestamp").gte("now-1d"));
-        assertThat(e, instanceOf(Coalesce.class));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
+        assertThat(e, instanceOf(MvGreater.class));
+        Literal bound = (Literal) ((MvGreater) e).bound();
         assertEquals(millis("2020-06-14T12:00:00.000Z"), bound.value());
     }
 
@@ -626,9 +618,95 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.FALSE, translate(QueryBuilders.rangeQuery("status").gt(Integer.MAX_VALUE).lte(Integer.MAX_VALUE)));
     }
 
-    /** A range with neither bound is a tautology — it matches everything. */
-    public void testRangeWithNoBoundsMatchesEverything() {
-        assertEquals(Literal.TRUE, translate(QueryBuilders.rangeQuery("status")));
+    /**
+     * A translator whose binder returns the same attribute for the same name on every lookup, as the plan does. The shared
+     * {@link #BINDER} mints a fresh attribute per call, and a fresh attribute carries a fresh id, so two translations of
+     * the same field would never compare equal even when they are the same expression.
+     */
+    private static QueryDslTranslator translatorWithStableBinding() {
+        Map<String, Expression> bound = new HashMap<>();
+        return new QueryDslTranslator(name -> bound.computeIfAbsent(name, BINDER), FIELDS, CONFIG);
+    }
+
+    // Every field the binder knows, of every type, plus one it does not.
+    private static final List<String> ALL_BOUND_FIELDS = List.of(
+        "status",
+        "tags",
+        "bytes",
+        "score",
+        "@timestamp",
+        "ts_nanos",
+        "active",
+        "body",
+        "client_ip",
+        "nope"
+    );
+
+    /**
+     * A range with neither bound is an exists query, not a tautology: RangeQueryBuilder.doToQuery answers it that way.
+     * Pinned as identical to the exists translation for every field type, including text and boolean — where a bounded
+     * range degrades — and a missing field, where both must fold to false.
+     */
+    public void testRangeWithNoBoundsTranslatesExactlyAsExists() {
+        for (String field : ALL_BOUND_FIELDS) {
+            QueryDslTranslator translator = translatorWithStableBinding();
+            QueryDslTranslator.TranslationResult range = translator.translate(QueryBuilders.rangeQuery(field));
+            assertEquals("range on [" + field + "]", translator.translate(QueryBuilders.existsQuery(field)).applied(), range.applied());
+            assertThat("range on [" + field + "] translates in full", range.unsupported(), empty());
+        }
+    }
+
+    /** Negating it is the case that used to return no rows: it must negate the exists, not a literal true. */
+    public void testMustNotRangeWithNoBoundsNegatesExists() {
+        for (String field : ALL_BOUND_FIELDS) {
+            QueryDslTranslator translator = translatorWithStableBinding();
+            assertEquals(
+                "must_not range on [" + field + "]",
+                translator.translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(field))).applied(),
+                translator.translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery(field))).applied()
+            );
+        }
+    }
+
+    /**
+     * Options that only shape bounds leave a bound-less range meaning exists, because the index checks for missing
+     * bounds first. A time zone in particular must not make it untranslatable, as it does once a bound is present.
+     */
+    public void testRangeOptionsWithoutBoundsStillTranslateAsExists() {
+        QueryDslTranslator translator = translatorWithStableBinding();
+        Expression exists = translator.translate(QueryBuilders.existsQuery("@timestamp")).applied();
+        for (RangeQueryBuilder range : List.of(
+            QueryBuilders.rangeQuery("@timestamp").timeZone("+01:00"),
+            QueryBuilders.rangeQuery("@timestamp").format("yyyy-MM-dd"),
+            QueryBuilders.rangeQuery("@timestamp").includeLower(false).includeUpper(false),
+            QueryBuilders.rangeQuery("@timestamp").timeZone("Europe/Paris").format("yyyy").includeLower(false)
+        )) {
+            QueryDslTranslator.TranslationResult result = translator.translate(range);
+            assertEquals(range.toString(), exists, result.applied());
+            assertThat(range.toString(), result.unsupported(), empty());
+        }
+    }
+
+    /** One bound is a real range, not exists — the check keys on both bounds being absent, not either. */
+    public void testRangeWithOneBoundIsNotTreatedAsExists() {
+        for (RangeQueryBuilder range : List.of(
+            QueryBuilders.rangeQuery("status").gte(1),
+            QueryBuilders.rangeQuery("status").lt(1),
+            QueryBuilders.rangeQuery("bytes").gt(0L)
+        )) {
+            assertThat(range.toString(), translate(range), not(instanceOf(IsNotNull.class)));
+        }
+    }
+
+    /** Moving the bound-less check ahead of the time zone check must not stop a bounded range with a time zone degrading. */
+    public void testTimeZoneWithABoundStillDegrades() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.rangeQuery("@timestamp").gte("2020-01-01").timeZone("+01:00")
+        );
+        assertThat(
+            result.unsupported().stream().map(QueryDslTranslator.UnsupportedClause::construct).toList(),
+            contains("range[time_zone]")
+        );
     }
 
     /** When rounding pushes the lower bound past the upper (an exclusive one-day date range), it matches nothing. */
@@ -667,8 +745,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
     public void testNumericBoundOnDateNanosIsMillisScaledToNanos() {
         long millis = millis("2020-06-15T00:00:00.000Z");
         Expression e = translate(QueryBuilders.rangeQuery("ts_nanos").gte(millis));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
+        Literal bound = (Literal) ((MvGreater) e).bound();
         assertEquals(millis * 1_000_000L, bound.value());
     }
 
@@ -685,8 +762,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
     public void testNumericUpperBoundOnDateNanosRoundsUpToLastNano() {
         long millis = millis("2020-06-15T00:00:00.000Z");
         Expression e = translate(QueryBuilders.rangeQuery("ts_nanos").lte(millis));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        Literal bound = (Literal) ((LessThanOrEqual) cmp).right();
+        Literal bound = (Literal) ((MvLess) e).bound();
         assertEquals(millis * 1_000_000L + 999_999L, bound.value());
     }
 

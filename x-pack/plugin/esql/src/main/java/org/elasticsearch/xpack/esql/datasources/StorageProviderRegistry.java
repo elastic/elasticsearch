@@ -42,7 +42,9 @@ import java.util.function.BooleanSupplier;
  *
  * <p>All non-file providers are automatically wrapped with per-scheme concurrency limiting and retry logic for
  * transient storage failures (503, 429, connection resets, timeouts). Wrap order:
- * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}
+ * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}.
+ * Non-empty WITH-config providers are additionally pooled: {@code createProvider} returns a
+ * lease wrapper whose {@code close()} returns the client to {@link StorageProviderCache}.
  *
  * <p>Concurrency limiters are shared per-scheme and adaptive backoff state is shared per-throttle-scope across all
  * providers (including per-query config providers), because cloud API rate limits are per account/IP, not per client
@@ -66,7 +68,8 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
 
     // Cache for providers created with a non-empty per-query configuration map.
-    // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
+    // Returns a pool lease per call; overlapping queries share one SDK client, idle clients
+    // expire after 5 minutes from the last return, and in-use clients are never true-closed.
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
@@ -75,8 +78,11 @@ public class StorageProviderRegistry implements Closeable {
     @Nullable
     private final DataSourceCredentials credentials;
     private final int throttleMaxRetryDurationSeconds;
-    /** Per-node in-flight-read permit count sizing each per-scheme {@link ConcurrencyLimiter}; 0 disables limiting. */
-    private final int maxConcurrentRequests;
+    /**
+     * Per-node blob-store concurrency (permit count and whether the setting can raise it). Shared across
+     * schemes; 0 permits disables limiting.
+     */
+    private final ExternalSourceSettings.BlobStoreConcurrency concurrency;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
     /**
@@ -129,7 +135,7 @@ public class StorageProviderRegistry implements Closeable {
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
-        this.maxConcurrentRequests = ExternalSourceSettings.blobStoreConcurrency(this.settings);
+        this.concurrency = ExternalSourceSettings.blobStoreConcurrencyInfo(this.settings);
     }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
@@ -182,6 +188,18 @@ public class StorageProviderRegistry implements Closeable {
         }
         String normalized = scheme.toLowerCase(Locale.ROOT);
         return factories.containsKey(normalized) || providers.containsKey(normalized);
+    }
+
+    /**
+     * Returns the {@link StorageProviderFactory} registered for {@code scheme}, or {@code null} if none is registered.
+     * Intended for use by {@code DataSourceModule.testConnection}.
+     */
+    @Nullable
+    public StorageProviderFactory getFactory(String scheme) {
+        if (Strings.isNullOrEmpty(scheme)) {
+            return null;
+        }
+        return factories.get(scheme.toLowerCase(Locale.ROOT));
     }
 
     /**
@@ -306,16 +324,16 @@ public class StorageProviderRegistry implements Closeable {
      * single query cannot starve others on the same backend.
      */
     public ConcurrencyBudgetAllocator allocatorForScheme(String scheme) {
-        if ("file".equals(scheme) || maxConcurrentRequests <= 0) {
+        if ("file".equals(scheme) || concurrency.permits() <= 0) {
             return null;
         }
-        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(maxConcurrentRequests));
+        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(concurrency.permits()));
     }
 
-    private ConcurrencyLimiter limiterForScheme(String scheme) {
+    ConcurrencyLimiter limiterForScheme(String scheme) {
         return limiters.computeIfAbsent(
             scheme,
-            k -> maxConcurrentRequests <= 0 ? ConcurrencyLimiter.UNLIMITED : new ConcurrencyLimiter(maxConcurrentRequests)
+            k -> concurrency.permits() <= 0 ? ConcurrencyLimiter.UNLIMITED : new ConcurrencyLimiter(k, concurrency)
         );
     }
 
@@ -352,6 +370,15 @@ public class StorageProviderRegistry implements Closeable {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         if (throttleMaxRetryDurationSeconds > 0) {
             policy = policy.withTotalDurationBudget(throttleMaxRetryDurationSeconds * 1000L);
+        } else {
+            // No time budget: cap throttle retries to a small count so a stalled read does not
+            // block for hours. With budget=0 the sanity cap is the only bound; 10 retries matches
+            // pre-cap behaviour and limits worst-case delay to ~5 min.
+            policy = policy.withThrottleConfig(
+                10,
+                RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS,
+                RetryPolicy.DEFAULT_THROTTLE_MAX_DELAY_MS
+            );
         }
         return policy;
     }

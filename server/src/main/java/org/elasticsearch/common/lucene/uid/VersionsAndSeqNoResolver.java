@@ -351,15 +351,17 @@ public final class VersionsAndSeqNoResolver {
      * The result is either null or the live and latest version of the given uid.
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term) throws IOException {
-        return loadDocIdAndSeqNo(reader, term, true);
+        return loadDocIdAndSeqNo(reader, term, false);
     }
 
     /**
      * Loads the internal docId and sequence number of the latest copy for a given uid from the provided reader.
-     * When {@code loadSeqNo} is false, {@code UNASSIGNED_SEQ_NO} is returned instead of reading the doc value.
+     * When {@code allowMissingSeqNo} is true, a {@code _seq_no} doc value that has been pruned (see
+     * {@link org.elasticsearch.index.engine.PruningMergePolicy}) is tolerated and {@code UNASSIGNED_SEQ_NO} is returned instead of
+     * failing. This is required on sequence-number-disabled indices, where the {@code _seq_no} of fully replicated documents is pruned.
      * The result is either null or the live and latest version of the given uid.
      */
-    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term, boolean loadSeqNo) throws IOException {
+    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term, boolean allowMissingSeqNo) throws IOException {
         final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
         final List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -367,7 +369,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             final PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            final DocIdAndSeqNo result = lookup.lookupDocIdAndSeqNo(term, leaf, loadSeqNo);
+            final DocIdAndSeqNo result = lookup.lookupDocIdAndSeqNo(term, leaf, allowMissingSeqNo);
             if (result != null) {
                 return result;
             }

@@ -30,6 +30,10 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class PromqlPlanSetOperatorTests extends AbstractPromqlPlanOptimizerTests {
 
+    public PromqlPlanSetOperatorTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testSimpleUnionShape() {
         LogicalPlan plan = planPromql("PROMQL index=k8s step=1m network.bytes_in or network.cost", false);
         assertTrue(plan.resolved());

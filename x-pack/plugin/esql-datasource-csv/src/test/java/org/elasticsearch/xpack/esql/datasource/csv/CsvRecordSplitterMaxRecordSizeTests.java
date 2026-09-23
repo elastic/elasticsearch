@@ -128,7 +128,7 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
             '"',
             '\\',
             "//",
-            "",
+            null,
             StandardCharsets.UTF_8,
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,

@@ -82,10 +82,11 @@ public final class RoundToDouble7Evaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock fieldBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (fieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fieldBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

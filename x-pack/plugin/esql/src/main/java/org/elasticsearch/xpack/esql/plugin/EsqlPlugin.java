@@ -623,6 +623,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.clusterService().getSettings(),
                 services.threadPool(),
                 ThreadPool.Names.SEARCH,
+                computePool(),
                 blockFactoryProvider.blockFactory()
             ),
             blockFactoryProvider,

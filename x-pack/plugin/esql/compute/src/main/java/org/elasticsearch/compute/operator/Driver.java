@@ -26,6 +26,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -391,6 +392,7 @@ public class Driver implements Releasable, Describable {
         LongSupplier currentTimeNanosSupplier,
         long lastStatusUpdate
     ) {
+        assert Transports.assertNotTransportThread("closing operators can block while releasing mapped inputs");
         var iterator = activeOperators.listIterator(operators.nextIndex());
         while (iterator.hasPrevious()) {
             if (iterator.previous().isFinished()) {
@@ -515,6 +517,7 @@ public class Driver implements Releasable, Describable {
     }
 
     protected void drainAndCloseOperators(@Nullable Exception e) {
+        assert Transports.assertNotTransportThread("closing operators can block while releasing mapped inputs");
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {

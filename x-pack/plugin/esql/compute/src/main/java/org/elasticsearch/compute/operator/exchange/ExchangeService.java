@@ -78,7 +78,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final TimeValue INACTIVE_SINKS_INTERVAL_DEFAULT = TimeValue.timeValueMinutes(5);
 
     private final ThreadPool threadPool;
+    /**
+     * Handles exchange transport requests and the inactive-sink reaper.
+     */
     private final Executor executor;
+    /**
+     * Pool that owns ES|QL drivers. Cancellation listeners run on the transport worker that handles a task ban,
+     * and failing a sink closes those drivers. Releasing a mapped Lucene input can block until every other thread
+     * leaves that mapped session, so that work runs here instead of on the transport worker.
+     */
+    private final Executor driverExecutor;
     private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
@@ -88,8 +97,23 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final Map<String, BidirectionalBatchExchangeServer> batchExchangeServers = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
+        this(settings, threadPool, executorName, executorName, blockFactory);
+    }
+
+    /**
+     * {@code executorName} handles exchange transport requests and inactive-sink reaping.
+     * {@code driverExecutorName} is the pool that runs ES|QL drivers. Exchange cancellation closes drivers on that pool.
+     */
+    public ExchangeService(
+        Settings settings,
+        ThreadPool threadPool,
+        String executorName,
+        String driverExecutorName,
+        BlockFactory blockFactory
+    ) {
         this.threadPool = threadPool;
         this.executor = threadPool.executor(executorName);
+        this.driverExecutor = threadPool.executor(driverExecutorName);
         this.blockFactory = blockFactory;
         final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, INACTIVE_SINKS_INTERVAL_DEFAULT);
         // Run the reaper every half of the keep_alive interval
@@ -204,6 +228,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * W will abort the sink handler if the given failure is not null.
      */
     public void finishSinkHandler(String exchangeId, @Nullable Exception failure) {
+        // Callers on a transport worker include task-ban listeners. Hop before failing the sink so the worker
+        // can return; finishSinkHandlerOnThisThread does not hop again when that task runs inline.
+        if (failure != null && Transports.isTransportThread(Thread.currentThread())) {
+            runOnDriverPool(() -> finishSinkHandlerOnThisThread(exchangeId, failure));
+            return;
+        }
+        finishSinkHandlerOnThisThread(exchangeId, failure);
+    }
+
+    private void finishSinkHandlerOnThisThread(String exchangeId, @Nullable Exception failure) {
         final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
         if (sinkHandler != null) {
             if (failure != null) {
@@ -211,6 +245,41 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             }
             assert sinkHandler.isFinished() : "Exchange sink " + exchangeId + " wasn't finished yet";
         }
+    }
+
+    /**
+     * Runs {@code action} on {@link #driverExecutor}.
+     * Task-ban handlers run on a transport worker and invoke cancellation listeners on that worker.
+     * Failing an exchange sink finishes the attached driver, and closing the driver can block in mapped-file
+     * release. That work has to run on the pool that owns the driver so the transport worker can return.
+     */
+    public void runOnDriverPool(Runnable action) {
+        driverExecutor.execute(threadPool.getThreadContext().preserveContext(new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+
+            @Override
+            protected void doRun() {
+                action.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("driver pool task failed", e);
+                assert false : e;
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
+                    logger.debug("driver pool shut down before a cancellation task ran", e);
+                } else {
+                    logger.warn("driver pool rejected a cancellation task", e);
+                }
+            }
+        }));
     }
 
     /**
@@ -321,7 +390,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 listener.onResponse(new ExchangeResponse(blockFactory, null, true));
             } else {
                 final CancellableTask task = (CancellableTask) exchangeTask;
-                task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
+                task.addListener(
+                    () -> runOnDriverPool(
+                        () -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled()))
+                    )
+                );
                 sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
             }
         }

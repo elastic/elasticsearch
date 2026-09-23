@@ -38,9 +38,12 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -52,6 +55,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.Transports;
 import org.junit.After;
 import org.junit.Before;
 
@@ -59,12 +63,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -79,13 +86,15 @@ public class ExchangeServiceTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
+    private static final String ESQL_DRIVER_EXECUTOR = "esql_driver_executor";
 
     @Before
     public void setThreadPool() {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT),
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_DRIVER_EXECUTOR, 1, 1024, "esql_driver", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
     }
 
@@ -696,6 +705,65 @@ public class ExchangeServiceTests extends ESTestCase {
         }
     }
 
+    public void testCancelExchangeOnDriverExecutor() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(
+            Settings.EMPTY,
+            threadPool,
+            ESQL_TEST_EXECUTOR,
+            ESQL_DRIVER_EXECUTOR,
+            blockFactory()
+        );
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            CancellableTask parentTask = (CancellableTask) node0.getTaskManager()
+                .register("transport", "test", new CancellableParentRequest());
+            try {
+                String exchangeId = "exchange";
+                ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
+                AtomicReference<Thread> failureThread = new AtomicReference<>();
+                AtomicReference<Exception> failure = new AtomicReference<>();
+                CountDownLatch failed = new CountDownLatch(1);
+                sinkHandler.addCompletionListener(ActionListener.wrap(unused -> fail("sink completed successfully"), e -> {
+                    failureThread.set(Thread.currentThread());
+                    failure.set(e);
+                    failed.countDown();
+                }));
+                var sourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
+                Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+                sourceHandler.addRemoteSink(
+                    exchange0.newRemoteSink(parentTask, exchangeId, node0, connection),
+                    false,
+                    () -> {},
+                    1,
+                    ActionListener.noop()
+                );
+                assertBusy(() -> {
+                    boolean exchangeTaskRegistered = node1.getTaskManager()
+                        .getCancellableTasks()
+                        .values()
+                        .stream()
+                        .anyMatch(task -> ExchangeService.EXCHANGE_ACTION_NAME.equals(task.getAction()));
+                    assertTrue("exchange request was not registered", exchangeTaskRegistered);
+                });
+                PlainActionFuture<Void> cancellation = new PlainActionFuture<>();
+                node0.getTaskManager().cancelTaskAndDescendants(parentTask, "proxy timeout", false, cancellation);
+                cancellation.actionGet(10, TimeUnit.SECONDS);
+                assertTrue("sink was not failed", failed.await(10, TimeUnit.SECONDS));
+                assertThat(failure.get(), instanceOf(TaskCancelledException.class));
+                Thread thread = failureThread.get();
+                assertThat(EsExecutors.executorName(thread), equalTo(ESQL_DRIVER_EXECUTOR));
+                assertFalse(Transports.isTransportThread(thread));
+            } finally {
+                node0.getTaskManager().unregister(parentTask);
+            }
+        }
+    }
+
     public void testNoCyclicException() throws Exception {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         try (EsqlRefCountingListener refs = new EsqlRefCountingListener(future)) {
@@ -752,6 +820,24 @@ public class ExchangeServiceTests extends ESTestCase {
 
     private int randomExchangeBuffer() {
         return randomBoolean() ? randomIntBetween(1, 3) : randomIntBetween(1, 128);
+    }
+
+    private static final class CancellableParentRequest implements TaskAwareRequest {
+        @Override
+        public void setParentTask(TaskId taskId) {}
+
+        @Override
+        public void setRequestId(long requestId) {}
+
+        @Override
+        public TaskId getParentTask() {
+            return TaskId.EMPTY_TASK_ID;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
     }
 
     private static class FilterTransportChannel implements TransportChannel {

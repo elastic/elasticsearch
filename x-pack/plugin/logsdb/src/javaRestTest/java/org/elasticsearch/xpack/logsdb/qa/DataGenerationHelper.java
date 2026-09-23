@@ -23,6 +23,7 @@ import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
 import org.elasticsearch.datageneration.fields.leaf.FlattenedFieldDataGenerator;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.datageneration.GeoShapeDataSourceHandler;
@@ -30,8 +31,10 @@ import org.elasticsearch.xpack.spatial.datageneration.ShapeDataSourceHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -45,15 +48,15 @@ public class DataGenerationHelper {
     private final Template template;
     private final Mapping mapping;
 
-    public DataGenerationHelper() {
-        this(b -> {});
-    }
-
     public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator) {
         this(builderConfigurator, true);
     }
 
     public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator, boolean useMultiFields) {
+        // Randomly exercise the subobjects:false + dynamic:false + array-of-objects combination.
+        // With this combination, mapped dotted fields (e.g. "objarr.k") must be indexed from
+        // array-of-objects form ("objarr":[{"k":"v"}]) in the same way as plain objects.
+        final boolean forceSubobjectsFalseArrays = ESTestCase.randomBoolean();
         this.keepArraySource = ESTestCase.randomBoolean();
 
         var specificationBuilder = DataGeneratorSpecification.builder()
@@ -128,6 +131,39 @@ public class DataGenerationHelper {
             specificationBuilder.withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER));
         }
 
+        if (forceSubobjectsFalseArrays) {
+            specificationBuilder.withDataSourceHandlers(List.of(new DataSourceHandler() {
+                @Override
+                public DataSourceResponse.ObjectMappingParametersGenerator handle(
+                    DataSourceRequest.ObjectMappingParametersGenerator request
+                ) {
+                    if (request.isRoot()) {
+                        return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
+                            var params = new HashMap<String, Object>();
+                            params.put("subobjects", "false");
+                            params.put("dynamic", "false");
+                            return params;
+                        });
+                    }
+                    if (request.isNested() && request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED) {
+                        // Nested objects are not valid inside subobjects:false; downgrade to plain object
+                        // by overriding the "type" the MappingGenerator already set.
+                        return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
+                            var params = new HashMap<String, Object>();
+                            params.put("type", "object");
+                            return params;
+                        });
+                    }
+                    return null;
+                }
+
+                @Override
+                public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
+                    return new DataSourceResponse.ObjectArrayGenerator(() -> Optional.of(1));
+                }
+            }));
+        }
+
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);
 
@@ -181,7 +217,6 @@ public class DataGenerationHelper {
     void generateDocument(XContentBuilder document, Map<String, Object> additionalFields) throws IOException {
         var generated = documentGenerator.generate(template, mapping);
         generated.putAll(additionalFields);
-
         document.map(generated);
     }
 }

@@ -1276,6 +1276,39 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":{"to":{"obj":{"id":[1,20,3,10]}}}}""", syntheticSource);
     }
 
+    public void testNumericFieldWithOffsetsEmptyNestedArrayThenScalar() throws IOException {
+        // Regression test: when a numeric field with synthetic_source_keep=arrays appears in two
+        // elements of an object array -- first as [[]] (triggers markEmptyArray, offsetToOrd.length=0)
+        // and then as a scalar (doc value added, no offset recorded) -- the loader previously
+        // reported count()=1 but wrote 0 values, leaving XContentBuilder in VALUE_EXPECTED state
+        // and causing JsonGenerationException on the next field.
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("obj").startObject("properties");
+            {
+                b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
+            }
+            b.endObject().endObject();
+            b.startObject("other").field("type", "keyword").endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("obj");
+            {
+                // [[]] triggers markEmptyArray: empty offsetToOrd recorded, no doc value
+                b.startObject().startArray("id").startArray().endArray().endArray().endObject();
+                // scalar in object context: doc value 42 added, shouldRecordOffsets()=false
+                b.startObject().field("id", 42).endObject();
+            }
+            b.endArray();
+            b.field("other", "z");
+        });
+        // [[]] is lost (field storesArraysNatively=true, no _ignored_source blob for it).
+        // The "other" field must be present in the synthetic source, proving the builder
+        // was not left in VALUE_EXPECTED state after writing "id".
+        assertEquals("""
+            {"obj":{"id":42},"other":"z"}""", syntheticSource);
+    }
+
     public void testObjectArrayWithinNestedObjectsArray() throws IOException {
         DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").startObject("properties");

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -1662,6 +1663,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoadAll("FROM test | WHERE emp_no NOT IN (FROM test | KEEP emp_no)"));
     }
 
+    public void testLoadAllModeAllowsInSubqueryInOr() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        test().statement(setUnmappedLoadAll("FROM test | WHERE emp_no IN (FROM test | KEEP emp_no) OR languages > 1"));
+    }
+
     public void testLoadAllModeLoadsUnmappedFieldAsInSubqueryLeftKey() {
         expectInSubqueryLeftKeyResolvedLoadAll("unmapped_message", """
             FROM partial_mapping_sample_data
@@ -1754,6 +1760,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | KEEP message, dur
             """));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("message", "dur")));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            assertThat(Expressions.names(relation.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        }
     }
 
     public void testLoadAllModeAllowsSubqueryWithLookupJoin() {

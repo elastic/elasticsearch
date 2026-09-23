@@ -93,11 +93,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
         boolean hasMerge = plan.anyMatch(p -> p instanceof MergePlan);
-        boolean hasInSubquery = plan.anyMatch(p -> p instanceof AbstractSubqueryJoin);
+        boolean hasSubqueryJoin = plan.anyMatch(p -> p instanceof AbstractSubqueryJoin);
         LogicalPlan result;
-        if (hasMerge == false && hasInSubquery == false) {
+        if (hasMerge == false && hasSubqueryJoin == false) {
             result = stampAll(plan).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
-        } else if (pattern.isNone() && hasInSubquery == false) {
+        } else if (pattern.isNone()) {
             // Exact KEEP/STATS above a merge must not stamp or pass $$unmapped_fields through: alignment
             // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
             return plan;
@@ -208,9 +208,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
 
     /**
      * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link MergePlan} is
-     * n-ary: each branch is annotated with its own pattern. {@link AbstractSubqueryJoin} is binary: the
-     * join output is the left side, so the right subquery is annotated from its own plan, not the outer
-     * pattern. Every other node is only walked to reach those; recursion stops at a union so a parent
+     * n-ary: each branch is annotated with its own pattern. {@link AbstractSubqueryJoin} is binary: join
+     * output is the left side. The right is an independently executed key subquery, so it is annotated
+     * with {@link UnmappedFieldsPattern#NONE} rather than its own KEEP pattern, otherwise
+     * {@code $$unmapped_fields} becomes an extra output column after IN arity was already accepted.
+     * Every other node is only walked to reach those; recursion stops at a union so a parent
      * pattern cannot stamp through it.
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
@@ -222,7 +224,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return merge.replaceChildren(newChildren);
         }
         if (plan instanceof AbstractSubqueryJoin join) {
-            return join.replaceChildren(annotate(join.left(), pattern), annotate(join.right(), computeUnmappedFieldsToKeep(join.right())));
+            return join.replaceChildren(annotate(join.left(), pattern), annotate(join.right(), UnmappedFieldsPattern.NONE));
         }
         if (pattern.isNone()) {
             return plan;

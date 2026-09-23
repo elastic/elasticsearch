@@ -12,7 +12,10 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -22,12 +25,15 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for {@link org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep}, the rule that annotates each non-LOOKUP
@@ -498,6 +504,43 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             """);
     }
 
+    public void testInSubqueryRightKeepWildcardOmitsUnmappedFieldsAttribute() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test | WHERE emp_no IN (FROM test | KEEP emp_no*)
+            """));
+        assertInSubqueryRightHasNoUnmappedFields(plan);
+    }
+
+    public void testNotInSubqueryRightKeepWildcardOmitsUnmappedFieldsAttribute() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test | WHERE emp_no NOT IN (FROM test | KEEP emp_no*)
+            """));
+        assertInSubqueryRightHasNoUnmappedFields(plan);
+    }
+
+    public void testInSubqueryRightInsertedProjectOmitsUnmappedFieldsAttribute() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        var ids = new EsIndex(
+            "ids",
+            Map.of("id", keywordField("id")),
+            Map.of("ids", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+        LogicalPlan plan = analyzer().addIndex(ids).statement(setUnmappedLoadAll("FROM ids | WHERE id IN (FROM ids | LIMIT 1)"));
+        assertInSubqueryRightHasNoUnmappedFields(plan);
+    }
+
+    public void testMarkJoinRightKeepWildcardOmitsUnmappedFieldsAttribute() {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test | WHERE emp_no IN (FROM test | KEEP emp_no*) OR languages > 1
+            """));
+        assertInSubqueryRightHasNoUnmappedFields(plan);
+    }
+
     public void testRenameUnmappedFieldsIsAnOrdinarySourceField() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME _unmapped_fields AS extras");
         assertKept(pattern, "unmapped_extra");
@@ -788,6 +831,11 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         ).pattern();
         assertNotKept(leftPattern, "unmapped_extra");
         assertKept(leftPattern, "first_name_suffix");
+        assertInSubqueryRightHasNoUnmappedFields(plan);
+    }
+
+    private static void assertInSubqueryRightHasNoUnmappedFields(LogicalPlan plan) {
+        AbstractSubqueryJoin join = EsqlTestUtils.singleValue(plan.collect(AbstractSubqueryJoin.class));
         assertThat(
             CollectionUtils.collect(
                 EsqlTestUtils.singleValue(join.right().collect(EsRelation.class)).output(),
@@ -795,6 +843,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             ),
             empty()
         );
+        assertThat(Expressions.names(join.right().output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {

@@ -3114,7 +3114,7 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime          | client_ip:ip | event_duration:long | message:keyword | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 43                       | 2                     | e                       | 1232383
 ;
 

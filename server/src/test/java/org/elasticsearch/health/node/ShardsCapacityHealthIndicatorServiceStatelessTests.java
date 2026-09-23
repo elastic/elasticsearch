@@ -182,9 +182,9 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
 
     @SuppressWarnings("unchecked")
     public void testDetailsIncludesProjectsOrderedByUsedShards() throws IOException {
-        ProjectId mostUsed = ProjectId.fromId("proja");
-        ProjectId middleUsed = ProjectId.fromId("projb");
-        ProjectId leastUsed = ProjectId.fromId("projc");
+        ProjectId project1 = ProjectId.fromId("proj1");
+        ProjectId project2 = ProjectId.fromId("proj2");
+        ProjectId project3 = ProjectId.fromId("proj3");
         // The three projects will have 20+10+5 primaries (and the same number of replicas).
         // Setting the limit to 44 (only 9 shards of room) will make the indicator YELLOW
         int maxShardsPerNode = 44;
@@ -192,17 +192,17 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
             maxShardsPerNode,
             1,
             1,
-            Map.of(mostUsed, List.of(createIndex(20)), middleUsed, List.of(createIndex(10)), leastUsed, List.of(createIndex(5)))
+            Map.of(project1, List.of(createIndex(20)), project2, List.of(createIndex(10)), project3, List.of(createIndex(5)))
         );
         var indicatorResult = newIndicatorService(TestProjectResolvers.allProjects()).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(YELLOW, indicatorResult.status());
         Map<String, Object> expectedProjects = Map.of(
-            "proja",
+            "proj1",
             Map.of("current_used_shards", 20),
-            "projb",
+            "proj2",
             Map.of("current_used_shards", 10),
-            "projc",
+            "proj3",
             Map.of("current_used_shards", 5)
         );
         Map<String, Object> details = xContentToMap(indicatorResult.details());
@@ -217,8 +217,8 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         assertThat(
             Strings.toString(indicatorResult.details()),
             containsString(
-                "\"projects\":{\"proja\":{\"current_used_shards\":20},\"projb\":{\"current_used_shards\":10},"
-                    + "\"projc\":{\"current_used_shards\":5}}"
+                "\"projects\":{\"proj1\":{\"current_used_shards\":20},\"proj2\":{\"current_used_shards\":10},"
+                    + "\"proj3\":{\"current_used_shards\":5}}"
             )
         );
     }
@@ -229,24 +229,24 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
      */
     @SuppressWarnings("unchecked")
     public void testDetailsProjectsHonorsSize() throws IOException {
-        ProjectId mostUsed = ProjectId.fromId("proja");
-        ProjectId middleUsed = ProjectId.fromId("projb");
-        ProjectId leastUsed = ProjectId.fromId("projc");
+        ProjectId project1 = ProjectId.fromId("proj1");
+        ProjectId project2 = ProjectId.fromId("proj2");
+        ProjectId project3 = ProjectId.fromId("proj3");
         int maxShardsPerNode = 44;
         createClusterService(
             maxShardsPerNode,
             1,
             1,
-            Map.of(mostUsed, List.of(createIndex(20)), middleUsed, List.of(createIndex(10)), leastUsed, List.of(createIndex(5)))
+            Map.of(project1, List.of(createIndex(20)), project2, List.of(createIndex(10)), project3, List.of(createIndex(5)))
         );
         var indicatorService = newIndicatorService(TestProjectResolvers.allProjects());
         var indicatorResult = indicatorService.calculate(true, 2, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(YELLOW, indicatorResult.status());
         Map<String, Object> expectedTopProjects = Map.of(
-            "proja",
+            "proj1",
             Map.of("current_used_shards", 20),
-            "projb",
+            "proj2",
             Map.of("current_used_shards", 10)
         );
         Map<String, Object> details = xContentToMap(indicatorResult.details());
@@ -255,7 +255,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         String detailsJson = Strings.toString(indicatorResult.details());
         assertThat(
             detailsJson,
-            containsString("\"projects\":{\"proja\":{\"current_used_shards\":20},\"projb\":{\"current_used_shards\":10}}")
+            containsString("\"projects\":{\"proj1\":{\"current_used_shards\":20},\"proj2\":{\"current_used_shards\":10}}")
         );
         assertThat(detailsJson, not(containsString("projc")));
 

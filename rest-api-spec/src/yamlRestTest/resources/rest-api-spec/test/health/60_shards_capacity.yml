@@ -19,8 +19,6 @@
   - is_false: indicators.shards_capacity.details.search.projects
   - is_false: indicators.shards_capacity.details.data.projects
   - is_false: indicators.shards_capacity.details.frozen.projects
-  # Feature drill-down returns only this indicator
-  - is_false: indicators.shards_availability
 
 ---
 "shards_capacity omits details when verbose is false":

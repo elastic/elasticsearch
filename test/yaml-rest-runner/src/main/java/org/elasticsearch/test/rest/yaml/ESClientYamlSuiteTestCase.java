@@ -391,8 +391,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             // createParameters() entry point. It is legitimately allowed to resolve to
             // nothing - e.g. a yamlRestCompatTest task whose project has no compat tests
             // at all, so the classpath exposes no rest-api-spec/test root. Only enforce
-            // the typo guard for explicit, non-empty user-supplied suite paths.
-            assert strPath.isEmpty() || found : "Path " + strPath + " does not exist in any YAML test root: " + Arrays.toString(roots);
+            // the typo guard for explicit, non-empty user-supplied suite paths, and only
+            // when there is at least one root to search (empty roots means no compat tests
+            // exist for this module at all, which is also legitimate).
+            assert strPath.isEmpty() || roots.length == 0 || found
+                : "Path " + strPath + " does not exist in any YAML test root: " + Arrays.toString(roots);
         }
         return files;
     }

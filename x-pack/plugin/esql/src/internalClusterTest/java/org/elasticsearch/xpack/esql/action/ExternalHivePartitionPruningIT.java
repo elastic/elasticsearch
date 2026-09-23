@@ -561,6 +561,22 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         assertPrune(dataset, "WHERE year == 2025", TOTAL_FILES, 4, idsWhere((y, m, d) -> y == 2025));
     }
 
+    /**
+     * {@code city=New%20York} is the on-disk spelling of New York. An IN must return that row and Paris, and not
+     * Berlin, on both a keyed {@code city=*} glob and a {@code **} glob.
+     */
+    public void testKeyedCityInKeepsPercentEncodedFolder() throws Exception {
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String dataset = registerCityTree("csv_city_keyed", "/city=*/**/*.csv");
+        assertPrune(dataset, "WHERE city IN (\"New York\", \"Paris\")", 3, 2, List.of(1L, 2L));
+    }
+
+    public void testGlobstarCityInKeepsPercentEncodedFolder() throws Exception {
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String dataset = registerCityTree("csv_city_globstar", "/**/*.csv");
+        assertPrune(dataset, "WHERE city IN (\"New York\", \"Paris\")", 3, 2, List.of(1L, 2L));
+    }
+
     /** Same, across all three keys, so every segment of the glob is rewritten. */
     public void testKeyedGlobPrunesOnAllThreeKeys() throws Exception {
         String dataset = registerKeyedTree("csv_keyed_full", "csv");
@@ -815,6 +831,25 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     @FunctionalInterface
     private interface PartitionPredicate {
         boolean test(int year, int month, int day);
+    }
+
+    /**
+     * Three city folders, one row each: {@code New%20York} (id 1), {@code Paris} (id 2), {@code Berlin} (id 3).
+     * {@code globSuffix} is appended to the directory URI and must contain {@code **} so the local provider recurses.
+     */
+    private String registerCityTree(String name, String globSuffix) throws IOException {
+        Path root = createTempDir().resolve(name);
+        writeCity(root, "New%20York", 1);
+        writeCity(root, "Paris", 2);
+        writeCity(root, "Berlin", 3);
+        String glob = StoragePath.fileUri(root) + globSuffix;
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
+    }
+
+    private static void writeCity(Path root, String folderValue, int id) throws IOException {
+        Path dir = root.resolve("city=" + folderValue);
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("f.csv"), "id\n" + id + "\n", StandardCharsets.UTF_8);
     }
 
     /**

@@ -53,7 +53,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
     private static final Set<String> TOKENS_BLACKLIST = Set.of("INLINESTATS", "UNKNOWN_CMD");
     /**
      * Keywords grouped by introduction version, in display order.
-     * {@code null} is unversioned.
+     * {@code null} is the 9.0 base.
      */
     private static final Map<String, Set<String>> KEYWORDS_BY_VERSION = new LinkedHashMap<>();
 
@@ -65,8 +65,6 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
                 "AS",
                 "ASC",
                 "BY",
-                "CHANGE_POINT",
-                "COMPLETION",
                 "DESC",
                 "DISSECT",
                 "DROP",
@@ -74,55 +72,43 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
                 "EVAL",
                 "FALSE",
                 "FIRST",
-                "FORK",
                 "FROM",
-                "FUSE",
                 "GROK",
-                "GROUP",
                 "IN",
                 "INFO",
-                "INLINE",
-                "IP_LOCATION",
                 "IS",
                 "JOIN",
                 "KEEP",
-                "KEY",
                 "LAST",
                 "LIKE",
                 "LIMIT",
                 "LOOKUP",
                 "METADATA",
-                "METRICS_INFO",
-                "MMR",
                 "MV_EXPAND",
                 "NOT",
                 "NULL",
                 "NULLS",
                 "ON",
                 "OR",
-                "PROMQL",
-                "REGISTERED_DOMAIN",
                 "RENAME",
-                "RERANK",
                 "RLIKE",
                 "ROW",
-                "SAMPLE",
-                "SCORE",
-                "SET",
                 "SHOW",
                 "SORT",
                 "STATS",
                 "TRUE",
-                "TS",
-                "TS_COLLAPSE",
-                "TS_INFO",
-                "URI_PARTS",
-                "USER_AGENT",
                 "USING",
                 "WHERE",
                 "WITH"
             )
         );
+        KEYWORDS_BY_VERSION.put("9.1+", Set.of("CHANGE_POINT", "COMPLETION", "FORK", "SAMPLE"));
+        KEYWORDS_BY_VERSION.put("9.2+", Set.of("FUSE", "GROUP", "INLINE", "KEY", "RERANK", "SCORE", "SET", "TS"));
+        KEYWORDS_BY_VERSION.put(
+            "9.4+",
+            Set.of("METRICS_INFO", "MMR", "PROMQL", "REGISTERED_DOMAIN", "TS_INFO", "URI_PARTS", "USER_AGENT")
+        );
+        KEYWORDS_BY_VERSION.put("9.5+", Set.of("IP_LOCATION", "TS_COLLAPSE"));
         KEYWORDS_BY_VERSION.put("9.6+", Set.of("DEDUP", "HIGHLIGHT"));
     }
 

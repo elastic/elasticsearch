@@ -1033,12 +1033,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             while (shardsToCheck.hasNext()) {
                 final ShardRouting shardRouting = shardsToCheck.next();
                 final ProjectIndex index = projectIndex(shardRouting);
-                final MoveDecisionWithDeciderName moveDecisionWithDeciderName = decideMoveWithDeciderName(
+                final MoveDecisionWithDeciderNames moveDecisionWithDeciderNames = decideMoveWithDeciderName(
                     index,
                     shardRouting,
                     bestNonPreferredShardMovementsTracker::shardIsBetterThanCurrent
                 );
-                final MoveDecision moveDecision = moveDecisionWithDeciderName.moveDecision();
+                final MoveDecision moveDecision = moveDecisionWithDeciderNames.moveDecision();
                 // A THROTTLE allocation decision can happen when not simulating
                 assert moveDecision.isDecisionTaken() == false
                     || allocation.isSimulating() == false
@@ -1056,7 +1056,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
-                        bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecisionWithDeciderName);
+                        bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecisionWithDeciderNames);
                     } else if (moveDecision.getAllocationDecision() == AllocationDecision.YES
                         || canAllocateDecisions == CanAllocateDecisions.YES_OR_NOT_PREFERRED) {
                             executeMove(shardRouting, index, moveDecision, MoveType.CANNOT_REMAIN);
@@ -1064,8 +1064,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 1,
                                 canRemainMoveAttributes(
                                     "no",
-                                    moveDecisionWithDeciderName.canRemainDeciderName(),
-                                    moveDecisionWithDeciderName.canAllocateNotPreferredDeciderName(),
+                                    moveDecisionWithDeciderNames.canRemainDeciderName(),
+                                    moveDecisionWithDeciderNames.canAllocateNotPreferredDeciderName(),
                                     shardRouting.primary(),
                                     nodeName(shardRouting.currentNodeId()),
                                     nodeName(moveDecision.getTargetNode())
@@ -1106,13 +1106,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * @param shardMoved True if a shard moved in this balancing round, false otherwise
          * @return The move decision to act on, recalculated if necessary
          */
-        private MoveDecisionWithDeciderName refreshDecisionIfRequired(
+        private MoveDecisionWithDeciderNames refreshDecisionIfRequired(
             ProjectIndex index,
             BestShardMovementsTracker.StoredShardMovement storedShardMovement,
             boolean shardMoved
         ) {
             if (notPreferredLogger.isDebugEnabled() == false && shardMoved == false) {
-                return storedShardMovement.moveDecisionWithDeciderName();
+                return storedShardMovement.moveDecisionWithDeciderNames();
             }
 
             final var oldDebugMode = allocation.getDebugMode();
@@ -1230,9 +1230,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *                              {@link Type#NOT_PREFERRED}. If the predicate returns true, a search for relocation targets will be
          *                              performed, if it returns false no search will be performed and {@link MoveDecision#NOT_TAKEN} will
          *                              be returned.
-         * @return The {@link MoveDecisionWithDeciderName} for the shard
+         * @return The {@link MoveDecisionWithDeciderNames} for the shard
          */
-        private MoveDecisionWithDeciderName decideMoveWithDeciderName(
+        private MoveDecisionWithDeciderNames decideMoveWithDeciderName(
             ProjectIndex index,
             ShardRouting shardRouting,
             Predicate<ShardRouting> nonPreferredPredicate
@@ -1251,7 +1251,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final var canRemainResult = allocation.deciders().canRemainWithDeciderName(shardRouting, routingNode, allocation);
             final Decision canRemainDecision = canRemainResult.decision();
             if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
-                return new MoveDecisionWithDeciderName(MoveDecision.createRemainYesDecision(canRemainDecision), null, null);
+                return new MoveDecisionWithDeciderNames(MoveDecision.createRemainYesDecision(canRemainDecision), null, null);
             }
 
             // Check predicate to decide whether to assess movement options
@@ -1291,7 +1291,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 canAllocateNotPreferredDeciderName = null;
             }
 
-            return new MoveDecisionWithDeciderName(moveDecision, canRemainResult.deciderName(), canAllocateNotPreferredDeciderName);
+            return new MoveDecisionWithDeciderNames(moveDecision, canRemainResult.deciderName(), canAllocateNotPreferredDeciderName);
         }
 
         private MoveDecision decideMove(
@@ -1370,7 +1370,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         private class BestShardMovementsTracker {
 
-            public record StoredShardMovement(ShardRouting shardRouting, MoveDecisionWithDeciderName moveDecisionWithDeciderName) {}
+            public record StoredShardMovement(ShardRouting shardRouting, MoveDecisionWithDeciderNames moveDecisionWithDeciderNames) {}
 
             // LinkedHashMap so we iterate in insertion order
             private final Map<String, StoredShardMovement> bestShardMovementsByNode = new LinkedHashMap<>();
@@ -1396,10 +1396,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return comparison < 0;
             }
 
-            public void putBestMoveDecision(ShardRouting shardRouting, MoveDecisionWithDeciderName moveDecisionWithDeciderName) {
+            public void putBestMoveDecision(ShardRouting shardRouting, MoveDecisionWithDeciderNames moveDecisionWithDeciderNames) {
                 bestShardMovementsByNode.put(
                     shardRouting.currentNodeId(),
-                    new StoredShardMovement(shardRouting, moveDecisionWithDeciderName)
+                    new StoredShardMovement(shardRouting, moveDecisionWithDeciderNames)
                 );
             }
 
@@ -2280,11 +2280,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      *                                           to the target node (only populated when canRemain is "no" and canAllocate is
      *                                           "not preferred")
      */
-    private record MoveDecisionWithDeciderName(
+    private record MoveDecisionWithDeciderNames(
         MoveDecision moveDecision,
         @Nullable String canRemainDeciderName,
         @Nullable String canAllocateNotPreferredDeciderName
     ) {}
 
-    private static final MoveDecisionWithDeciderName NOT_TAKEN = new MoveDecisionWithDeciderName(MoveDecision.NOT_TAKEN, null, null);
+    private static final MoveDecisionWithDeciderNames NOT_TAKEN = new MoveDecisionWithDeciderNames(MoveDecision.NOT_TAKEN, null, null);
 }

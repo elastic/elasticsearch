@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -254,6 +255,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             planRunner,
             services,
             ActionListener.wrap(result -> {
+                // Replay driver warnings (from new-style DriverContext accumulation) to response headers.
+                // Old-style warnings (from old data nodes via Warning: response headers) are already
+                // propagated by ResponseHeadersCollector in ComputeListener.
+                for (String w : result.completionInfo().warnings()) {
+                    HeaderWarning.addWarning(w);
+                }
                 recordCCSTelemetry(task, executionInfo, request, null);
                 var response = toResponse(task, request, configuration, result);
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";

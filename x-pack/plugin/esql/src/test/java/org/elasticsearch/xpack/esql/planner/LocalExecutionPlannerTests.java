@@ -24,6 +24,7 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -236,7 +237,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             shardContexts,
             null,
-            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
+            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1)),
+            QueryWarnings.EMIT
         );
     }
 

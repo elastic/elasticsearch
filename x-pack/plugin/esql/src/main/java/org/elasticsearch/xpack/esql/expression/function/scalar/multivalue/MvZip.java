@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -135,7 +137,8 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
             source(),
             toEvaluator.apply(mvLeft),
             toEvaluator.apply(mvRight),
-            toEvaluator.apply(delim == null ? COMMA : delim)
+            toEvaluator.apply(delim == null ? COMMA : delim),
+            context -> new BreakingBytesRefBuilder(context.breaker(), "mv_zip")
         );
     }
 
@@ -163,7 +166,14 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     }
 
     @Evaluator
-    static void process(BytesRefBlock.Builder builder, int position, BytesRefBlock leftField, BytesRefBlock rightField, BytesRef delim) {
+    static void process(
+        BytesRefBlock.Builder builder,
+        int position,
+        BytesRefBlock leftField,
+        BytesRefBlock rightField,
+        BytesRef delim,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder work
+    ) {
         int leftFieldValueCount = leftField.getValueCount(position);
         int rightFieldValueCount = rightField.getValueCount(position);
 
@@ -191,13 +201,13 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
             return;
         }
 
-        BytesRefBuilder work = new BytesRefBuilder();
         // single value
         if (leftFieldValueCount == 1 && rightFieldValueCount == 1) {
+            work.clear();
             work.append(leftField.getBytesRef(leftFirst, fieldScratch));
             work.append(delim);
             work.append(rightField.getBytesRef(rightFirst, fieldScratch));
-            builder.appendBytesRef(work.get());
+            builder.appendBytesRef(work.bytesRefView());
             return;
         }
         // multiple values
@@ -209,20 +219,20 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
             work.append(leftField.getBytesRef(leftIndex + leftFirst, fieldScratch));
             work.append(delim);
             work.append(rightField.getBytesRef(rightIndex + rightFirst, fieldScratch));
-            builder.appendBytesRef(work.get());
+            builder.appendBytesRef(work.bytesRefView());
             leftIndex++;
             rightIndex++;
         }
         while (leftIndex < leftFieldValueCount) {
             work.clear();
             work.append(leftField.getBytesRef(leftIndex + leftFirst, fieldScratch));
-            builder.appendBytesRef(work.get());
+            builder.appendBytesRef(work.bytesRefView());
             leftIndex++;
         }
         while (rightIndex < rightFieldValueCount) {
             work.clear();
             work.append(rightField.getBytesRef(rightIndex + rightFirst, fieldScratch));
-            builder.appendBytesRef(work.get());
+            builder.appendBytesRef(work.bytesRefView());
             rightIndex++;
         }
         builder.endPositionEntry();

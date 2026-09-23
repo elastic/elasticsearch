@@ -105,12 +105,7 @@ public final class DateFormatNanosConstantEvaluator implements EvalOperator.Expr
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = driverContext.createWarnings(source.source().getLineNumber(), source.source().getColumnNumber(), source.text());
     }
     return warnings;
   }

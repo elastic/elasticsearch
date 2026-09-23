@@ -17,6 +17,8 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.BitSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -285,6 +287,73 @@ public class HeaderWarning {
     }
 
     /**
+     * Reverse {@link #escapeAndEncode}: percent-decode then unescape backslashes and quotes.
+     * Used when reading warning values out of RFC 7234 headers so that the plain text can
+     * be re-formatted without double-escaping or double-encoding.
+     */
+    public static String decodeAndUnescape(String s) {
+        return unescapeBackslashesAndQuotes(decode(s));
+    }
+
+    /**
+     * Reverse the percent-encoding applied by {@link #encode}: {@code %XX} sequences are
+     * decoded back to the original UTF-8 characters.
+     */
+    static String decode(String s) {
+        if (s.indexOf('%') < 0) {
+            return s;
+        }
+        byte[] bytes = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(bytes.length);
+        for (int i = 0; i < bytes.length; i++) {
+            byte b = bytes[i];
+            if (b == '%' && i + 2 < bytes.length) {
+                int hi = Character.digit((char) bytes[i + 1], 16);
+                int lo = Character.digit((char) bytes[i + 2], 16);
+                if (hi >= 0 && lo >= 0) {
+                    out.write((hi << 4) | lo);
+                    i += 2;
+                    continue;
+                }
+            }
+            out.write(b);
+        }
+        return out.toString(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Reverse the escaping applied by {@link #escapeBackslashesAndQuotes}: {@code \\} → {@code \}
+     * and {@code \"} → {@code "}. Used when reading warning values out of RFC 7234 headers so
+     * that the plain text can be re-formatted without double-escaping.
+     */
+    static String unescapeBackslashesAndQuotes(String s) {
+        boolean unescapingNeeded = false;
+        for (int i = 0; i < s.length() - 1; i++) {
+            if (s.charAt(i) == '\\') {
+                unescapingNeeded = true;
+                break;
+            }
+        }
+        if (unescapingNeeded == false) {
+            return s;
+        }
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                if (next == '\\' || next == '"') {
+                    sb.append(next);
+                    i++;
+                    continue;
+                }
+            }
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /**
      * Escape and encode a string as a valid RFC 7230 quoted-string.
      *
      * @param s the string to escape and encode
@@ -402,6 +471,25 @@ public class HeaderWarning {
             }
         }
         return "";
+    }
+
+    /**
+     * Reads and consumes all {@code Warning} response headers from {@code threadContext},
+     * parses each RFC 7234 header value, and returns the decoded warning strings.
+     * Used as a backwards-compatibility fallback when reading responses from nodes
+     * that propagate warnings via HTTP headers rather than in the serialized stream.
+     */
+    public static Set<String> readWarningsFromThreadContext(ThreadContext threadContext) {
+        List<String> headerWarnings = threadContext.takeResponseHeaders("Warning");
+        if (headerWarnings.isEmpty()) {
+            return Set.of();
+        }
+        LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
+        for (String header : headerWarnings) {
+            String extracted = extractWarningValueFromWarningHeader(header, false);
+            parsed.add(decodeAndUnescape(extracted));
+        }
+        return parsed;
     }
 
     public static void addWarning(String message, Object... params) {

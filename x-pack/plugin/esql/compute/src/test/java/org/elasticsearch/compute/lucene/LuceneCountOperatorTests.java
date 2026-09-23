@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
@@ -95,7 +96,8 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
             dataPartitioning,
             1,
             between(1, 8),
-            limit
+            limit,
+            QueryWarnings.EMIT
         );
     }
 

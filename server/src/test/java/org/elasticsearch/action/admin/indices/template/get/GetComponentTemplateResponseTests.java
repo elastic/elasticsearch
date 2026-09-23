@@ -23,12 +23,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomAliases;
@@ -92,7 +95,10 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
-            response.toXContent(builder, EMPTY_PARAMS);
+            Iterator<? extends ToXContent> chunks = response.toXContentChunked(EMPTY_PARAMS);
+            while (chunks.hasNext()) {
+                chunks.next().toXContent(builder, EMPTY_PARAMS);
+            }
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(
@@ -114,5 +120,23 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
             templates.put(randomAlphaOfLength(4), ComponentTemplateTests.randomInstance());
         }
         return templates;
+    }
+
+    /**
+     * Each component template must be serialized as its own chunk so that the peak heap needed to render the response is bounded by a
+     * single template rather than the whole set. The response also emits the enclosing object and array open/close markers, so the
+     * expected chunk count is the number of templates plus four.
+     */
+    public void testChunking() {
+        int numberOfTemplates = randomIntBetween(0, 100);
+        Map<String, ComponentTemplate> templates = new HashMap<>();
+        for (int i = 0; i < numberOfTemplates; i++) {
+            templates.put(randomAlphaOfLength(10) + i, ComponentTemplateTests.randomInstance());
+        }
+        var response = new GetComponentTemplateAction.Response(
+            templates,
+            randomBoolean() ? null : RolloverConfigurationTests.randomRolloverConditions()
+        );
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, r -> r.getComponentTemplates().size() + 4);
     }
 }

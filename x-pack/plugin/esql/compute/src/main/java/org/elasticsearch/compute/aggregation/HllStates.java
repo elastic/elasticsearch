@@ -192,7 +192,11 @@ final class HllStates {
 
         BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
             if (source instanceof FlatHllPartitionedState flat) {
-                return new BytesRefSequence.Flat(flat.partitionData[partition], flat.partitionOffsets[partition], flat.partitionCounts[partition]);
+                return new BytesRefSequence.Flat(
+                    flat.partitionData[partition],
+                    flat.partitionOffsets[partition],
+                    flat.partitionCounts[partition]
+                );
             }
             return new BytesRefSequence.Paged(((PagedHllPartitionedState) source).partitionArrays[partition]);
         }
@@ -220,9 +224,7 @@ final class HllStates {
         }
 
         private static long bytesUsedByIntPage(int length) {
-            return RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) length * Integer.BYTES
-            );
+            return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) length * Integer.BYTES);
         }
 
         private static final class FlatHllPartitionedState implements GroupingAggregatorFunction.PartitionedState {
@@ -236,15 +238,13 @@ final class HllStates {
             private int[] partitionCounts;
 
             FlatHllPartitionedState(CircuitBreaker breaker, int initialKeysPerPartition, int initialBytesPerPartition) {
-                baseBytes = BASE_RAM_USAGE
-                    + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionData outer ref[]
+                baseBytes = BASE_RAM_USAGE + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionData outer ref[]
                     + bytesUsedByPointerPage(NUM_PARTITIONS)   // partitionOffsets outer ref[]
                     + bytesUsedByIntPage(NUM_PARTITIONS)       // partitionDataUsed
                     + bytesUsedByIntPage(NUM_PARTITIONS);      // partitionCounts
                 final int initialOffsets = ArrayUtil.oversize(Math.max(initialKeysPerPartition + 1, 2), Integer.BYTES);
                 final int initialBytes = ArrayUtil.oversize(Math.max(initialBytesPerPartition, 1), 1);
-                long perPartitionBytes = (long) NUM_PARTITIONS * initialBytes
-                    + (long) NUM_PARTITIONS * bytesUsedByIntPage(initialOffsets);
+                long perPartitionBytes = (long) NUM_PARTITIONS * initialBytes + (long) NUM_PARTITIONS * bytesUsedByIntPage(initialOffsets);
                 breaker.addEstimateBytesAndMaybeBreak(baseBytes + perPartitionBytes, LABEL);
                 partitionDataUsed = new int[NUM_PARTITIONS];
                 partitionCounts = new int[NUM_PARTITIONS];

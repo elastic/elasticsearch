@@ -143,7 +143,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `manage_pipeline`
 :   All operations on ingest pipelines.
 
-`manage_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: preview`
+`manage_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: ga`
 :   All read and write operations on [cross-project search](docs-content://explore-analyze/cross-project-search.md) project routing. Builds on `read_project_routing` by adding the ability to create and delete named project routing expressions.
 
 `manage_reindex` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
@@ -261,7 +261,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `read_pipeline`
 :   Read-only access to ingest pipeline (get, simulate).
 
-`read_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: preview`
+`read_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: ga`
 :   Read-only access to [cross-project search](docs-content://explore-analyze/cross-project-search.md) project routing, including viewing project routing expressions and project metadata. Include `read_project_routing` for custom roles with the `read` index privilege to ensure users have access to the project picker in {{kib}}.
 
 `read_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`

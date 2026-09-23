@@ -84,8 +84,11 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    private static String registerRepository(UnaryOperator<Settings.Builder> settingsUnaryOperator, String... expectedWarnings)
-        throws IOException {
+    private static String registerRepository(
+        boolean verify,
+        UnaryOperator<Settings.Builder> settingsUnaryOperator,
+        String... expectedWarnings
+    ) throws IOException {
         final var repoName = randomRepoName();
         final var request = newXContentRequest(
             HttpMethod.PUT,
@@ -103,12 +106,16 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
                 .endObject()
         );
         request.setOptions(expectWarnings(expectedWarnings));
+        if (verify == false || randomBoolean()) {
+            request.addParameter("verify", String.valueOf(verify));
+        }
         assertOK(client().performRequest(request));
         return repoName;
     }
 
     public void testUpgradeAssistantReportsUnsupportedConditionalWrites() throws IOException {
         final var repoName = registerRepository(
+            randomBoolean(),
             b -> b.put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), randomBoolean()),
             """
                 [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a \
@@ -128,6 +135,7 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
 
     public void testUpgradeAssistantReportsInsecureCredentials() throws IOException {
         final var repoName = registerRepository(
+            true,
             b -> b.put(S3Repository.ACCESS_KEY_SETTING.getKey(), ACCESS_KEY).put(S3Repository.SECRET_KEY_SETTING.getKey(), SECRET_KEY),
             """
                 [access_key] setting was deprecated in Elasticsearch and will be removed in a future release. \
@@ -164,7 +172,7 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
     public void testUpgradeAssistantReportsDeprecatedClientSettings() throws IOException {
         for (var deprecatedClientSetting : DEPRECATED_CLIENT_SETTING_TEST_VALUES.entrySet()) {
             final var settingKey = deprecatedClientSetting.getKey();
-            final var repoName = registerRepository(b -> b.put(settingKey, deprecatedClientSetting.getValue()), Strings.format("""
+            final var repoName = registerRepository(true, b -> b.put(settingKey, deprecatedClientSetting.getValue()), Strings.format("""
                 [s3.client.%s.%s] setting was deprecated in Elasticsearch and will be removed in a future release. \
                 See the breaking changes documentation for the next major version.""", PLACEHOLDER_CLIENT, settingKey));
             try {
@@ -177,6 +185,51 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
             } finally {
                 assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
             }
+        }
+    }
+
+    public void testUpgradeAssistantReportsUnknownClient() throws IOException {
+        final var clientName = randomValueOtherThanMany(c -> c.equals(CLIENT) || c.equals("default"), ESRestTestCase::randomIdentifier);
+        final var repoName = registerRepository(false, b -> b.put("client", clientName));
+        try {
+            assertDeprecationIssue(
+                repoName,
+                S3Repository.CLIENT_CREATION_FAILURE_DEPRECATION_MESSAGE,
+                ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                S3Repository.clientCreationFailureDeprecationWarning(clientName)
+            );
+        } finally {
+            assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
+        }
+    }
+
+    public void testUpgradeAssistantReportsMissingEndpointScheme() throws IOException {
+        final var endpointWithoutScheme = randomIdentifier() + ".ignore";
+        final var repoName = registerRepository(false, b -> b.put("endpoint", endpointWithoutScheme).put("region", regionSupplier.get()));
+        try {
+            assertDeprecationIssue(
+                repoName,
+                S3Repository.MISSING_ENDPOINT_SCHEME_DEPRECATION_MESSAGE,
+                ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                S3Repository.missingEndpointSchemeDeprecationWarning(endpointWithoutScheme, "https://" + endpointWithoutScheme)
+            );
+        } finally {
+            assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
+        }
+    }
+
+    public void testUpgradeAssistantReportsRegionGuessedFromEndpoint() throws IOException {
+        final var endpoint = "https://s3.eu-west-1.amazonaws.com";
+        final var repoName = registerRepository(false, b -> b.put("endpoint", endpoint));
+        try {
+            assertDeprecationIssue(
+                repoName,
+                S3Repository.REGION_NOT_CONFIGURED_DEPRECATION_MESSAGE,
+                ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                S3Repository.regionGuessedFromEndpointDeprecationWarning(endpoint, "eu-west-1")
+            );
+        } finally {
+            assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
         }
     }
 

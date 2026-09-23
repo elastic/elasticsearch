@@ -72,7 +72,8 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.simdvec",
         "org.elasticsearch.tdigest",
         "org.elasticsearch.useragent.api",
-        "org.elasticsearch.xcontent"
+        "org.elasticsearch.xcontent",
+        "org.elasticsearch.zstd"
     );
 
     private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");

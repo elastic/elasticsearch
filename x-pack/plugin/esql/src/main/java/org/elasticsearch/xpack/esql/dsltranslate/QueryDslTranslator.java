@@ -591,6 +591,13 @@ public final class QueryDslTranslator {
     }
 
     private Expression range(RangeQueryBuilder range) {
+        // Neither bound: RangeQueryBuilder.doToQuery answers this as an exists query before it reads the time zone, the
+        // format or the field's type, so it means "has a value", not "matches everything". Checked first so none of those
+        // options can make it untranslatable. TRUE disagrees wherever the field is missing: it returns those rows too,
+        // and under must_not it returns none of the rows the index returns.
+        if (range.from() == null && range.to() == null) {
+            return new IsNotNull(Source.EMPTY, fieldBinder.apply(range.fieldName()));
+        }
         // A time zone shifts what the bounds mean; we parse them zone-naively, so honoring it is not something we can
         // fake. Reject rather than answer a differently-scoped question.
         if (range.timeZone() != null) {
@@ -602,9 +609,6 @@ public final class QueryDslTranslator {
 
         boolean hasLower = range.from() != null;
         boolean hasUpper = range.to() != null;
-        if (hasLower == false && hasUpper == false) {
-            return Literal.TRUE;
-        }
 
         // A date range carries its own rules the generic numeric path cannot fake: date math ("now-15m"), and a coarse
         // bound rounding to the edge of its unit ("2020-01" as an upper bound means the last millis of that month). The

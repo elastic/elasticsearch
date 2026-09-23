@@ -54,7 +54,7 @@ MAVEN_DIR="${MAVEN_AGGREGATION_DIR:-build/dra-maven-aggregation}"
 if [[ ! -d "$MAVEN_DIR" ]]; then
   echo "DRA maven aggregation tree not found: $MAVEN_DIR" >&2
   echo "  (produced by :prepareDraSnapshotMavenAggregation; must not be confused with" >&2
-  echo "   :zipAggregation output at elasticsearch-maven-aggregation-*.zip which is" >&2
+  echo "   :nmcpZipAggregation output at elasticsearch-maven-aggregation-*.zip which is" >&2
   echo "   Maven Central compliant and unsuitable for the DRA snapshot layout)" >&2
   exit 1
 fi

@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.Arrays;
 
@@ -24,8 +22,9 @@ import java.util.Arrays;
  * from the emitted page, not just null-fill the failing cell. This class accumulates per-cell failure
  * positions across all decoded columns for a batch and, at the emit point, applies {@link Block#filter}
  * to compact the page to the surviving (non-failed) rows. It also enforces the error budget
- * ({@code max_errors} / {@code max_error_ratio}) cumulatively across all batches for the iterator's
- * lifetime.
+ * ({@code max_errors} / {@code max_error_ratio}) via a {@link SharedErrorBudget} that may be shared
+ * with the adapter ({@code SchemaAdaptingIterator}) so the combined drop total is checked against a
+ * single budget.
  *
  * <h2>Budget scope</h2>
  * One helper per iterator means the budget is per <em>file</em>, and on a range-split read per
@@ -37,15 +36,17 @@ import java.util.Arrays;
  *
  * <h2>Lifecycle</h2>
  * <ol>
- *   <li>Create once per iterator via {@link #forPolicy} — returns {@code null} for non-{@code SKIP_ROW}
- *       modes so callers hold a nullable reference and pay zero overhead on the hot non-skip path.</li>
+ *   <li>Create once per iterator via {@link #forPolicy} or {@link #forSharedBudget} /
+ *       {@link #forSharedBudgetOwner} — all return {@code null} for non-{@code SKIP_ROW} modes so
+ *       callers hold a nullable reference and pay zero overhead on the hot non-skip path.</li>
  *   <li>Per batch: call {@link #beginBatch(int)} with the number of source rows in the batch, then
  *       call {@link #markFailed(int)} for every coercion failure position (idempotent: multiple column
  *       failures on the same row count as one dropped row).</li>
  *   <li>At the emit point: call {@link #filterBlocks(Block[], BlockFactory)} to compact the blocks and
  *       remove all failed rows; call {@link #addToTotals(int, int)} to update the cumulative budget
- *       counters; call {@link #checkBudget(SkipWarnings)} to throw a {@link ParsingException} (HTTP 400)
- *       if the configured error budget is exceeded.</li>
+ *       counters; call {@link #checkBudget(SkipWarnings)} to throw a
+ *       {@link org.elasticsearch.xpack.esql.parser.ParsingException} (HTTP 400) if the configured
+ *       error budget is exceeded.</li>
  * </ol>
  *
  * <h2>Coordinate spaces</h2>
@@ -60,19 +61,22 @@ import java.util.Arrays;
  * block's width.
  *
  * <h2>Exception contract</h2>
- * Budget-exceeded failures surface as {@link ParsingException} (an HTTP 400 client-data error), matching
- * {@code CsvFormatReader.checkBudget}. NDJSON diverges with {@code EsqlIllegalArgumentException}; this
- * class uses {@link ParsingException} so a third variant is never introduced.
+ * Budget-exceeded failures surface as
+ * {@link org.elasticsearch.xpack.esql.parser.ParsingException} (an HTTP 400 client-data error),
+ * matching {@code CsvFormatReader.checkBudget}. NDJSON diverges with
+ * {@code EsqlIllegalArgumentException}; this class uses
+ * {@link org.elasticsearch.xpack.esql.parser.ParsingException} so a third variant is never introduced.
  */
 public final class ColumnarRowDropHelper {
 
-    private final ErrorPolicy policy;
-    private final String fileLocation;
-
-    /** Cumulative error count (dropped rows) across all batches this iterator has processed. */
-    private long errorCount;
-    /** Cumulative source-row count across all batches this iterator has processed. */
-    private long rowCount;
+    /** Shared budget for cumulative error/row accounting. */
+    private final SharedErrorBudget budget;
+    /**
+     * When {@code true}, {@link #addToTotals} charges both rows and errors to the budget
+     * (reader/owner mode). When {@code false}, only errors are charged — the source rows were
+     * already counted by the reader side that owns the budget (adapter mode).
+     */
+    private final boolean addsRows;
 
     /** Number of positions in the current batch. Set by {@link #beginBatch}. */
     private int batchSize;
@@ -85,23 +89,54 @@ public final class ColumnarRowDropHelper {
     /** Count of distinct failed positions in the current batch. */
     private int failedCount;
 
-    private ColumnarRowDropHelper(ErrorPolicy policy, String fileLocation) {
-        this.policy = policy;
-        this.fileLocation = fileLocation;
+    private ColumnarRowDropHelper(SharedErrorBudget budget, boolean addsRows) {
+        this.budget = budget;
+        this.addsRows = addsRows;
     }
 
     /**
      * Factory method: returns a new helper when the error policy is {@link ErrorPolicy.Mode#SKIP_ROW},
-     * or {@code null} for any other mode. Callers store the result as a nullable field; a null reference
-     * means no helper is active and all per-batch logic should be skipped — so the mode check belongs
-     * here and callers should not repeat it.
+     * or {@code null} for any other mode. Creates a private {@link SharedErrorBudget} — use
+     * {@link #forSharedBudget} / {@link #forSharedBudgetOwner} when the budget must be shared with
+     * a second helper. Callers store the result as a nullable field; a null reference means no helper
+     * is active and all per-batch logic should be skipped — so the mode check belongs here and callers
+     * should not repeat it.
      */
     @Nullable
     public static ColumnarRowDropHelper forPolicy(@Nullable ErrorPolicy policy, String fileLocation) {
-        if (policy != null && policy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
-            return new ColumnarRowDropHelper(policy, fileLocation);
-        }
-        return null;
+        SharedErrorBudget budget = SharedErrorBudget.forPolicy(policy, fileLocation);
+        return budget != null ? new ColumnarRowDropHelper(budget, true) : null;
+    }
+
+    /**
+     * Creates a helper in <em>adapter mode</em> that shares the given {@link SharedErrorBudget}.
+     * Returns {@code null} when {@code budget} is {@code null} (non-{@code SKIP_ROW} read — no
+     * helper needed).
+     * <p>
+     * In adapter mode {@link #addToTotals} increments only the error count, not the row count,
+     * because the source rows were already counted by the reader side that owns the budget
+     * (see {@link #forSharedBudgetOwner}).
+     */
+    @Nullable
+    public static ColumnarRowDropHelper forSharedBudget(@Nullable SharedErrorBudget budget) {
+        return budget != null ? new ColumnarRowDropHelper(budget, false) : null;
+    }
+
+    /**
+     * Creates a helper in <em>owner mode</em> that shares the given {@link SharedErrorBudget}.
+     * Returns {@code null} when {@code budget} is {@code null} (non-{@code SKIP_ROW} read — no
+     * helper needed).
+     * <p>
+     * In owner mode {@link #addToTotals} increments both the row count and the error count.
+     * Use this when the helper is the sole caller of {@link #addToTotals} for the shared budget —
+     * i.e. no separate path (such as a {@code ListCorruptionHandler}) calls
+     * {@link SharedErrorBudget#addReaderBatch} independently. When another component already charges
+     * the reader-side batch counts, use {@link #forSharedBudget} (adapter mode) instead, so rows
+     * are not double-counted in the {@code max_error_ratio} denominator.
+     */
+    @Nullable
+    public static ColumnarRowDropHelper forSharedBudgetOwner(@Nullable SharedErrorBudget budget) {
+        return budget != null ? new ColumnarRowDropHelper(budget, true) : null;
     }
 
     /**
@@ -238,8 +273,12 @@ public final class ColumnarRowDropHelper {
     }
 
     /**
-     * Updates cumulative error and row totals. Call once per batch after all per-batch accounting
-     * is complete.
+     * Updates cumulative error and row totals in the shared budget. Call once per batch after all
+     * per-batch accounting is complete.
+     * <p>
+     * In owner mode ({@link #forPolicy} / {@link #forSharedBudgetOwner}), both {@code sourceRows}
+     * and {@code errors} are charged to the budget. In adapter mode ({@link #forSharedBudget}),
+     * only {@code errors} are charged — the source rows were already counted by the reader.
      *
      * @param sourceRows the number of source rows in the batch (before any coercion-failure filtering)
      * @param errors     the total number of dropped rows in this batch (may differ from
@@ -247,17 +286,21 @@ public final class ColumnarRowDropHelper {
      *                   path are counted separately)
      */
     public void addToTotals(int sourceRows, int errors) {
-        this.rowCount += sourceRows;
-        this.errorCount += errors;
+        if (addsRows) {
+            budget.addReaderBatch(sourceRows, errors);
+        } else {
+            budget.addErrors(errors);
+        }
     }
 
     /**
-     * Checks whether the error budget has been exceeded and throws a {@link ParsingException}
-     * (HTTP 400 — client-data problem) if so. Emits a budget-exceeded warning before throwing,
-     * matching {@code CsvFormatReader.checkBudget}'s contract.
+     * Checks whether the error budget has been exceeded and throws a
+     * {@link org.elasticsearch.xpack.esql.parser.ParsingException} (HTTP 400 — client-data problem)
+     * if so. Emits a budget-exceeded warning before throwing, matching
+     * {@code CsvFormatReader.checkBudget}'s contract.
      * <p>
-     * The thrown exception is the reliable channel: it always carries the counts, the file and the configured
-     * limits. The warning is best-effort — see the {@code warnings} note below.
+     * The thrown exception is the reliable channel: it always carries the counts, the file and the
+     * configured limits. The warning is best-effort — see the {@code warnings} note below.
      *
      * @param warnings the reader's per-value coercion-warning collector, or {@code null} when it has
      *                 none. The budget line goes into that same collector — as CSV does — so the
@@ -270,44 +313,18 @@ public final class ColumnarRowDropHelper {
      *                 That is why the exception, not the header, states the failure.
      */
     public void checkBudget(@Nullable SkipWarnings warnings) {
-        if (policy.isBudgetExceeded(errorCount, rowCount)) {
-            if (warnings != null) {
-                warnings.add(budgetExceededWarning(policy, fileLocation, errorCount, rowCount, "dropped rows"));
-            }
-            throw new ParsingException(
-                Source.EMPTY,
-                "Error budget exceeded: [{}] dropped rows in [{}] decoded rows in [{}]; " + "maximum allowed is [{}] errors or [{}] ratio",
-                errorCount,
-                rowCount,
-                fileLocation,
-                policy.maxErrors(),
-                policy.maxErrorRatio()
-            );
-        }
+        budget.checkBudget(warnings, "dropped rows");
     }
 
     /**
-     * The budget-exceeded warning line. Exposed because a columnar reader may keep its own error
-     * counter alongside this helper's — the Parquet LIST path charges recovered structural errors
-     * into the same budget as its dropped rows — and must emit the same line the readers that go
-     * through {@link #checkBudget} do, rather than a second wording of the same event.
+     * The budget-exceeded warning line. Delegates to {@link SharedErrorBudget#budgetExceededWarning}
+     * and is kept for backward compatibility with call sites in columnar readers that still use this
+     * static method.
      *
      * @param errorKind what the count covers, in plural form: {@code "dropped rows"} for this
      *                  helper's own trip, or a caller-specific kind when the budget is shared
      */
     public static String budgetExceededWarning(ErrorPolicy policy, String fileLocation, long errorCount, long rowCount, String errorKind) {
-        return "Columnar error budget exceeded at ["
-            + fileLocation
-            + "]: ["
-            + errorCount
-            + "] "
-            + errorKind
-            + " in ["
-            + rowCount
-            + "] decoded rows, maximum ["
-            + policy.maxErrors()
-            + "] errors or ratio ["
-            + policy.maxErrorRatio()
-            + "]";
+        return SharedErrorBudget.budgetExceededWarning(policy, fileLocation, errorCount, rowCount, errorKind);
     }
 }

@@ -33,7 +33,7 @@ import java.io.IOException;
  *
  * <p>What both layouts have is here: how many documents and values the column holds, how many of those slots
  * are null, what the values would occupy stored plainly, where each document's slots begin
- * ({@link #valueAddresses()}), whether the values arrive in order, and what the column recorded of the terms
+ * ({@link #addressing()}), whether the values arrive in order, and what the column recorded of the terms
  * it holds most.
  *
  * <p>Where the nulls are is not shared, because the two layouts can afford different answers. {@link Plain}
@@ -64,15 +64,15 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     long valueBytes();
 
     /**
-     * The first value address of each document, and one past the end, present only when the slots and the
-     * documents are not in step. When every document holds exactly one slot the table is dropped and a
-     * document's value address is its rank.
+     * How many slots each document holds and where every block of those counts begins, present only when
+     * the slots and the documents are not in step. When every document holds exactly one slot it is dropped
+     * and a document's value address is its rank.
      *
      * <p>Shared by both layouts, unlike the nulls: finding where a document's slots are is the same question
-     * whichever layout names them. The table stores its data in the data file, read off-heap from the mapped
-     * input, and its small monotonic-block metadata here.
+     * whichever layout names them. Both parts store their data in the data file, read off-heap from the
+     * mapped input, and keep their small metadata here.
      */
-    MonotonicWriter.Table valueAddresses();
+    SlotAddressing addressing();
 
     /**
      * Whether the column's values arrive in non-decreasing term order, as they do under an index sort on
@@ -154,7 +154,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long numNullSlots,
         long valueBytes,
-        MonotonicWriter.Table valueAddresses,
+        SlotAddressing addressing,
         MonotonicWriter.Table nullSlots,
         ValueStream.Metadata values,
         boolean valuesSorted,
@@ -175,7 +175,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 numValues,
                 numNullSlots,
                 valueBytes,
-                valueAddresses,
+                addressing,
                 nullSlots,
                 values,
                 valuesSorted,
@@ -197,7 +197,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     /**
      * A column that names its values with ordinals into {@link #dictionary()}. A value the dictionary does
      * not hold escapes into {@link #escapes()}, found by counting the escapes before it, which
-     * {@link #escapeRanks()} makes bounded work by recording how many came before every block of values.
+     * {@link #escapeRanks()} makes bounded work by recording how many came before every
+     * {@link #escapeRankBlockSize()} values.
      *
      * <p>Two ordinals are reserved. {@link #NULL_ORDINAL} names a null, so the {@link #dictionarySize()} terms
      * take the ordinals from {@link #FIRST_TERM_ORDINAL} up, and {@link #escapeOrdinal()} — the first ordinal
@@ -216,11 +217,12 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long numNullSlots,
         long valueBytes,
-        MonotonicWriter.Table valueAddresses,
+        SlotAddressing addressing,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
         ValueStream.Metadata escapes,
         MonotonicWriter.Table escapeRanks,
+        int escapeRankBlockSize,
         int dictionarySize,
         boolean valuesSorted,
         Summary summary
@@ -255,11 +257,12 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 numValues,
                 numNullSlots,
                 valueBytes,
-                valueAddresses,
+                addressing,
                 dictionary,
                 ordinals,
                 escapes,
                 escapeRanks,
+                escapeRankBlockSize,
                 dictionarySize,
                 valuesSorted,
                 summary
@@ -273,13 +276,14 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             ordinals.writeTo(out);
             escapes.writeTo(out);
             if (escapes.numValues() > 0) {
+                out.writeVInt(escapeRankBlockSize);
                 writeTable(out, escapeRanks);
             }
         }
     }
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return plain(iterator, 0, 0, 0, MonotonicWriter.Table.NONE, MonotonicWriter.Table.NONE, ValueStream.Metadata.empty(), true, false);
+        return plain(iterator, 0, 0, 0, SlotAddressing.NONE, MonotonicWriter.Table.NONE, ValueStream.Metadata.empty(), true, false);
     }
 
     /** A column that stores its values as they were written. */
@@ -288,7 +292,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         int numDocsWithField,
         long numValues,
         long numNullSlots,
-        MonotonicWriter.Table valueAddresses,
+        SlotAddressing addressing,
         MonotonicWriter.Table nullSlots,
         ValueStream.Metadata values,
         boolean valuesSorted,
@@ -300,7 +304,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             numValues,
             numNullSlots,
             values.valueBytes(),
-            valueAddresses,
+            addressing,
             nullSlots,
             values,
             valuesSorted,
@@ -316,11 +320,12 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long numNullSlots,
         long valueBytes,
-        MonotonicWriter.Table valueAddresses,
+        SlotAddressing addressing,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
         ValueStream.Metadata escapes,
         MonotonicWriter.Table escapeRanks,
+        int escapeRankBlockSize,
         int dictionarySize,
         boolean valuesSorted
     ) {
@@ -330,11 +335,12 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             numValues,
             numNullSlots,
             valueBytes,
-            valueAddresses,
+            addressing,
             dictionary,
             ordinals,
             escapes,
             escapeRanks,
+            escapeRankBlockSize,
             dictionarySize,
             valuesSorted,
             null
@@ -356,7 +362,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         // layout follows, and gated on counts already on the wire above. How the nulls among those slots are
         // recorded is not shared, so that goes in the body.
         if (hasValueAddresses()) {
-            writeTable(out, valueAddresses());
+            addressing().writeTo(out);
         }
         out.writeByte(layout().id());
         writeBody(out);
@@ -396,7 +402,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numNullSlots = in.readVLong();
         long valueBytes = in.readVLong();
         boolean valuesSorted = in.readByte() == SORTED;
-        MonotonicWriter.Table valueAddresses = numValues != numDocsWithField ? readTable(in) : MonotonicWriter.Table.NONE;
+        SlotAddressing addressing = numValues != numDocsWithField ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
             case PLAIN -> {
@@ -408,7 +414,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     numDocsWithField,
                     numValues,
                     numNullSlots,
-                    valueAddresses,
+                    addressing,
                     nullSlots,
                     values,
                     valuesSorted,
@@ -420,18 +426,20 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 final ValueStream.Metadata dictionary = ValueStream.Metadata.readFrom(in);
                 final NumericColumnMetadata ordinals = NumericColumnMetadata.readFrom(in, maxDoc, formatVersion);
                 final ValueStream.Metadata escapes = ValueStream.Metadata.readFrom(in);
-                MonotonicWriter.Table escapeRanks = escapes.numValues() > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
+                final int escapeRankBlockSize = escapes.numValues() > 0 ? in.readVInt() : 0;
+                final MonotonicWriter.Table escapeRanks = escapes.numValues() > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
                 yield dictionary(
                     iterator,
                     numDocsWithField,
                     numValues,
                     numNullSlots,
                     valueBytes,
-                    valueAddresses,
+                    addressing,
                     dictionary,
                     ordinals,
                     escapes,
                     escapeRanks,
+                    escapeRankBlockSize,
                     dictionarySize,
                     valuesSorted
                 );

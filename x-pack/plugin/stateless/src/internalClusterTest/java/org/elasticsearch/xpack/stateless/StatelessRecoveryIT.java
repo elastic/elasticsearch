@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -388,9 +389,10 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
         // noinspection OptionalGetWithoutIsPresent because it fails the test if absent
         final RecoveryState recoveryState = indicesAdmin().prepareRecoveries(indexName)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(RecoveryState::getPrimary)
             .findFirst()
             .get();

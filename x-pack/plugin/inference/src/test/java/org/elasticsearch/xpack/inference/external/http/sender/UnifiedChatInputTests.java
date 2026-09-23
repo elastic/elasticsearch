@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.hamcrest.Matchers;
@@ -42,7 +42,7 @@ public class UnifiedChatInputTests extends InferenceObjectRamBytesUsedTest<Unifi
         assertThat(
             a.getRequest(),
             Matchers.is(
-                UnifiedCompletionRequest.of(
+                UnifiedCompletionRequestBody.of(
                     List.of(
                         new Message(new ContentString("hello"), "a role", null, null),
                         new Message(new ContentString("awesome"), "a role", null, null)

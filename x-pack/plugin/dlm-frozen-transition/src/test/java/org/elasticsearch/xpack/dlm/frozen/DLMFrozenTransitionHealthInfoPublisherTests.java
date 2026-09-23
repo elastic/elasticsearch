@@ -38,6 +38,7 @@ import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.health.node.DlmFrozenTransitionsHealthInfo;
 import org.elasticsearch.health.node.DlmFrozenTransitionsHealthInfo.TransitionState;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -199,7 +200,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
     public void testOverdueUnmarkedIndexReportedAsUnmarked() {
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        String oldIndexName = addDataStreamWithFrozenLifecycle(
+        Index oldIndex = addDataStreamWithFrozenLifecycle(
             projectBuilder,
             "eligible-ds",
             oldIndexTime(),
@@ -210,7 +211,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
         assertThat(info.totalOverdueIndicesCount(), is(1));
-        assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(oldIndexName, TransitionState.UNMARKED)));
+        assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(oldIndex.getName(), TransitionState.UNMARKED)));
     }
 
     public void testEligibleIndexNotYetPastThresholdIsNotReported() {
@@ -230,7 +231,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         // appear as MARKED once it is overdue.
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        String markedIndexName = addDataStreamWithFrozenLifecycle(
+        Index markedIndex = addDataStreamWithFrozenLifecycle(
             projectBuilder,
             "marked-ds",
             oldIndexTime(),
@@ -238,17 +239,17 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
             TimeValue.timeValueDays(30)
         );
         setProjectState(projectBuilder);
-        errorStore.recordError(projectId, markedIndexName, new RuntimeException("some failure"));
+        errorStore.recordError(projectId, markedIndex, new RuntimeException("some failure"));
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
         assertThat(info.totalOverdueIndicesCount(), is(1));
-        assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndexName, TransitionState.MARKED)));
+        assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndex.getName(), TransitionState.MARKED)));
     }
 
     public void testMarkedIndexReportedAsRunningWhenTransitionIsRunning() throws Exception {
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        String markedIndexName = addDataStreamWithFrozenLifecycle(
+        Index markedIndex = addDataStreamWithFrozenLifecycle(
             projectBuilder,
             "running-ds",
             oldIndexTime(),
@@ -257,14 +258,14 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         );
         setProjectState(projectBuilder);
 
-        var task = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable(markedIndexName, projectId);
+        var task = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable(markedIndex.getName(), projectId);
         task.blockUntil = new CountDownLatch(1);
         try {
             transitionExecutor.submit(task);
             safeAwait(task.started);
 
             DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-            assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndexName, TransitionState.RUNNING)));
+            assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndex.getName(), TransitionState.RUNNING)));
         } finally {
             task.blockUntil.countDown();
         }
@@ -273,7 +274,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
     public void testMarkedIndexReportedAsQueuedWhenTransitionIsQueued() throws Exception {
         ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
-        String markedIndexName = addDataStreamWithFrozenLifecycle(
+        Index markedIndex = addDataStreamWithFrozenLifecycle(
             projectBuilder,
             "queued-ds",
             oldIndexTime(),
@@ -291,11 +292,11 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
             transitionExecutor.submit(filler);
             safeAwait(filler.started);
 
-            var target = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable(markedIndexName, projectId);
+            var target = new DLMFrozenTransitionExecutorTestCase.TestDLMFrozenTransitionRunnable(markedIndex.getName(), projectId);
             transitionExecutor.submit(target);
 
             DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
-            assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndexName, TransitionState.QUEUED)));
+            assertThat(info.overdueIndices().get(projectId), equalTo(Map.of(markedIndex.getName(), TransitionState.QUEUED)));
         } finally {
             fillerRelease.countDown();
         }
@@ -342,18 +343,18 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         ProjectId projectId2 = randomValueOtherThan(projectId1, ESTestCase::randomProjectIdOrDefault);
 
         ProjectMetadata.Builder builder1 = ProjectMetadata.builder(projectId1);
-        String indexName1 = addDataStreamWithFrozenLifecycle(builder1, "ds-project1", oldIndexTime(), false, TimeValue.timeValueDays(30));
+        Index index1 = addDataStreamWithFrozenLifecycle(builder1, "ds-project1", oldIndexTime(), false, TimeValue.timeValueDays(30));
         setProjectState(builder1);
 
         ProjectMetadata.Builder builder2 = ProjectMetadata.builder(projectId2);
-        String indexName2 = addDataStreamWithFrozenLifecycle(builder2, "ds-project2", oldIndexTime(), false, TimeValue.timeValueDays(30));
+        Index index2 = addDataStreamWithFrozenLifecycle(builder2, "ds-project2", oldIndexTime(), false, TimeValue.timeValueDays(30));
         setProjectState(builder2);
 
         DlmFrozenTransitionsHealthInfo info = publisher.buildHealthInfo(clusterService.state());
 
         assertThat(info.totalOverdueIndicesCount(), is(2));
-        assertThat(info.overdueIndices().get(projectId1), equalTo(Map.of(indexName1, TransitionState.UNMARKED)));
-        assertThat(info.overdueIndices().get(projectId2), equalTo(Map.of(indexName2, TransitionState.UNMARKED)));
+        assertThat(info.overdueIndices().get(projectId1), equalTo(Map.of(index1.getName(), TransitionState.UNMARKED)));
+        assertThat(info.overdueIndices().get(projectId2), equalTo(Map.of(index2.getName(), TransitionState.UNMARKED)));
     }
 
     public void testPublishHealthInfoSendsRequestToHealthNode() {
@@ -385,7 +386,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
      *
      * @return the name of the old (non-write) index
      */
-    private String addDataStreamWithFrozenLifecycle(
+    private Index addDataStreamWithFrozenLifecycle(
         ProjectMetadata.Builder projectBuilder,
         String dataStreamName,
         long oldIndexCreationDate,
@@ -402,7 +403,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
         );
     }
 
-    private String addDataStreamWithFrozenLifecycle(
+    private Index addDataStreamWithFrozenLifecycle(
         ProjectMetadata.Builder projectBuilder,
         String dataStreamName,
         long oldIndexCreationDate,
@@ -437,7 +438,7 @@ public class DLMFrozenTransitionHealthInfoPublisherTests extends ESTestCase {
                 .setLifecycle(DataStreamLifecycle.dataLifecycleBuilder().frozenAfter(frozenAfter).build())
                 .build()
         );
-        return oldIndex.getIndex().getName();
+        return oldIndex.getIndex();
     }
 
     private void setProjectState(ProjectMetadata.Builder projectBuilder) {

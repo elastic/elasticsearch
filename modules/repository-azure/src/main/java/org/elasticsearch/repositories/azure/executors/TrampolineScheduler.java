@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.azure.executors;
 
 import reactor.core.Disposable;
+import reactor.core.Disposables;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -17,14 +18,12 @@ import reactor.core.scheduler.Schedulers;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -124,13 +123,13 @@ public final class TrampolineScheduler implements Scheduler {
         long delay,
         TimeUnit unit,
         Consumer<Runnable> scheduleNow,
-        @Nullable TrampolineWorker owner
+        @Nullable Disposable.Composite owner
     ) {
         assert delay > 0L : delay;
         final TimedTask timed = new TimedTask(task, owner);
         try {
             timed.setTimer(
-                threadPool.schedule(() -> timed.fire(scheduleNow), new TimeValue(delay, unit), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                threadPool.schedule(() -> timed.fireOnce(scheduleNow), new TimeValue(delay, unit), EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         } catch (RejectedExecutionException e) {
             timed.dispose();
@@ -149,7 +148,7 @@ public final class TrampolineScheduler implements Scheduler {
         long period,
         TimeUnit unit,
         Consumer<Runnable> scheduleNow,
-        @Nullable TrampolineWorker owner
+        @Nullable Disposable.Composite owner
     ) {
         final TimedTask periodic = new TimedTask(task, owner);
         try {
@@ -166,13 +165,13 @@ public final class TrampolineScheduler implements Scheduler {
     }
 
     /**
-     * A worker of the trampolining scheduler plus time-based scheduling. Timed tasks are tracked so that disposing the worker cancels them.
+     * A worker of the trampolining scheduler plus time-based scheduling. Its timed tasks are held in a composite so that disposing the
+     * worker cancels them, and the composite's state is the worker's: once disposed it rejects new tasks.
      */
     final class TrampolineWorker implements Worker {
 
         private final Worker delegate;
-        private final Set<TimedTask> timed = ConcurrentCollections.newConcurrentSet();
-        private volatile boolean disposed;
+        private final Disposable.Composite timed = Disposables.composite();
 
         TrampolineWorker(Worker delegate) {
             this.delegate = delegate;
@@ -188,12 +187,12 @@ public final class TrampolineScheduler implements Scheduler {
             if (delay <= 0L) {
                 return scheduleNow(task);
             }
-            return scheduleDelayed(task, delay, unit, this::scheduleNow, this);
+            return scheduleDelayed(task, delay, unit, this::scheduleNow, timed);
         }
 
         @Override
         public Disposable schedulePeriodically(Runnable task, long initialDelay, long period, TimeUnit unit) {
-            return TrampolineScheduler.this.schedulePeriodically(task, initialDelay, period, unit, this::scheduleNow, this);
+            return TrampolineScheduler.this.schedulePeriodically(task, initialDelay, period, unit, this::scheduleNow, timed);
         }
 
         /**
@@ -203,7 +202,7 @@ public final class TrampolineScheduler implements Scheduler {
          * handle. A disposed task therefore stays queued and runs as a no-op.
          */
         private Disposable scheduleNow(Runnable task) {
-            if (disposed) {
+            if (timed.isDisposed()) {
                 throw Exceptions.failWithRejected();
             }
             final WorkerTask queued = new WorkerTask(task);
@@ -233,7 +232,7 @@ public final class TrampolineScheduler implements Scheduler {
 
             @Override
             public boolean isDisposed() {
-                return disposed || TrampolineWorker.this.disposed;
+                return disposed || timed.isDisposed();
             }
 
             @Override
@@ -244,20 +243,13 @@ public final class TrampolineScheduler implements Scheduler {
 
         @Override
         public void dispose() {
-            if (disposed) {
-                return;
-            }
-            disposed = true;
-            for (TimedTask task : timed) {
-                task.dispose();
-            }
-            timed.clear();
+            timed.dispose();
             delegate.dispose();
         }
 
         @Override
         public boolean isDisposed() {
-            return disposed;
+            return timed.isDisposed();
         }
 
         @Override
@@ -274,22 +266,15 @@ public final class TrampolineScheduler implements Scheduler {
 
         private final Runnable task;
         @Nullable
-        private final TrampolineWorker owner;
+        private final Disposable.Composite owner;
         private volatile boolean disposed;
         private volatile org.elasticsearch.threadpool.Scheduler.Cancellable timer;
 
-        TimedTask(Runnable task, @Nullable TrampolineWorker owner) {
+        TimedTask(Runnable task, @Nullable Disposable.Composite owner) {
             this.task = Objects.requireNonNull(task);
             this.owner = owner;
-            if (owner != null) {
-                if (owner.disposed) {
-                    throw Exceptions.failWithRejected();
-                }
-                owner.timed.add(this);
-                if (owner.disposed) {
-                    owner.timed.remove(this);
-                    throw Exceptions.failWithRejected();
-                }
+            if (owner != null && owner.add(this) == false) {
+                throw Exceptions.failWithRejected();
             }
         }
 
@@ -298,6 +283,14 @@ public final class TrampolineScheduler implements Scheduler {
             if (disposed) {
                 timer.cancel();
             }
+        }
+
+        /** Fires a one-shot task: it leaves the owner's composite first, since there is no timer left to cancel. */
+        void fireOnce(Consumer<Runnable> scheduleNow) {
+            if (owner != null) {
+                owner.remove(this);
+            }
+            fire(scheduleNow);
         }
 
         void fire(Consumer<Runnable> scheduleNow) {
@@ -320,7 +313,7 @@ public final class TrampolineScheduler implements Scheduler {
         public void dispose() {
             disposed = true;
             if (owner != null) {
-                owner.timed.remove(this);
+                owner.remove(this);
             }
             final org.elasticsearch.threadpool.Scheduler.Cancellable timer = this.timer;
             if (timer != null) {
@@ -330,7 +323,7 @@ public final class TrampolineScheduler implements Scheduler {
 
         @Override
         public boolean isDisposed() {
-            return disposed || (owner != null && owner.disposed);
+            return disposed || (owner != null && owner.isDisposed());
         }
 
         @Override

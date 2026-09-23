@@ -385,6 +385,64 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         return deciders.canAllocateNotPreferredDeciderLabel(shard, routingNode, allocation);
     }
 
+    // === canForceAllocateDuringReplaceNotPreferredDeciderLabel tests ===
+
+    public void testCanForceAllocateDuringReplaceNotPreferredDeciderLabelYesDecision() {
+        assertThat(
+            doCanForceAllocateDuringReplaceNotPreferredDeciderLabel(
+                new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.YES)))
+            ),
+            nullValue()
+        );
+    }
+
+    public void testCanForceAllocateDuringReplaceNotPreferredDeciderLabelNotPreferredDecision() {
+        assertThat(
+            doCanForceAllocateDuringReplaceNotPreferredDeciderLabel(
+                new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.NOT_PREFERRED)))
+            ),
+            equalTo(TestAllocationDecider.class.getSimpleName())
+        );
+    }
+
+    public void testCanForceAllocateDuringReplaceNotPreferredDeciderLabelNoDecision() {
+        // NO overrides NOT_PREFERRED; label is null even though NOT_PREFERRED was seen first
+        assertThat(
+            doCanForceAllocateDuringReplaceNotPreferredDeciderLabel(
+                new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new TestAllocationDecider(() -> Decision.NO)))
+            ),
+            nullValue()
+        );
+    }
+
+    public void testCanForceAllocateDuringReplaceNotPreferredDeciderLabelIgnoredShardNotBlocked() {
+        // Unlike canAllocateNotPreferredDeciderLabel, this method uses withDeciders (no shard-ignored
+        // check), so it identifies the responsible decider even when the shard is marked ignored for
+        // the target node — which is the correct behaviour for the vacate path.
+        ShardRouting shard = createUnassignedShard();
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(randomIdentifier(), null);
+        AllocationDeciders deciders = new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.NOT_PREFERRED)));
+        RoutingAllocation allocation = createRoutingAllocation(deciders);
+        allocation.setDebugMode(RoutingAllocation.DebugMode.OFF);
+        allocation.addIgnoreShardForNode(shard.shardId(), routingNode.nodeId());
+
+        // canAllocateNotPreferredDeciderLabel returns null: shard-ignored check short-circuits to NO
+        assertThat(deciders.canAllocateNotPreferredDeciderLabel(shard, routingNode, allocation), nullValue());
+        // canForceAllocateDuringReplaceNotPreferredDeciderLabel skips the ignored check
+        assertThat(
+            deciders.canForceAllocateDuringReplaceNotPreferredDeciderLabel(shard, routingNode, allocation),
+            equalTo(TestAllocationDecider.class.getSimpleName())
+        );
+    }
+
+    private String doCanForceAllocateDuringReplaceNotPreferredDeciderLabel(AllocationDeciders deciders) {
+        ShardRouting shard = createUnassignedShard();
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(randomIdentifier(), null);
+        RoutingAllocation allocation = createRoutingAllocation(deciders);
+        allocation.setDebugMode(RoutingAllocation.DebugMode.OFF);
+        return deciders.canForceAllocateDuringReplaceNotPreferredDeciderLabel(shard, routingNode, allocation);
+    }
+
     private static final class FirstNotPreferredDecider extends AllocationDecider {
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

@@ -1295,22 +1295,27 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
+            boolean usedVacatePath = false;
             MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemainDecision, this::decideCanAllocate);
             if (moveDecision.cannotRemainAndCannotMove()) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
                 if (shardsOnReplacedNode) {
                     moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemainDecision, this::decideCanForceAllocateForVacate);
+                    usedVacatePath = true;
                 }
             }
 
             // For canRemain=NO moves where the best available node only offers NOT_PREFERRED allocation,
-            // capture which decider is responsible for that constraint.
+            // capture which decider is responsible for that constraint. The vacate path uses
+            // canForceAllocateDuringReplace rather than canAllocate, so we query the matching label method.
             final String canAllocateNotPreferredDeciderName;
             if (canRemainDecision.type() == Decision.Type.NO
                 && moveDecision.getAllocationDecision() == AllocationDecision.NOT_PREFERRED
                 && moveDecision.getTargetNode() != null) {
-                canAllocateNotPreferredDeciderName = allocation.deciders()
-                    .canAllocateNotPreferredDeciderLabel(shardRouting, routingNodes.node(moveDecision.getTargetNode().getId()), allocation);
+                final var targetNode = routingNodes.node(moveDecision.getTargetNode().getId());
+                canAllocateNotPreferredDeciderName = usedVacatePath
+                    ? allocation.deciders().canForceAllocateDuringReplaceNotPreferredDeciderLabel(shardRouting, targetNode, allocation)
+                    : allocation.deciders().canAllocateNotPreferredDeciderLabel(shardRouting, targetNode, allocation);
             } else {
                 canAllocateNotPreferredDeciderName = null;
             }

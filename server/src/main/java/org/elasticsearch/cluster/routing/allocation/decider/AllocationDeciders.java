@@ -180,6 +180,38 @@ public class AllocationDeciders {
         return decision.type() == Decision.Type.NOT_PREFERRED ? labelHolder[0] : null;
     }
 
+    /**
+     * Returns the {@link Class#getSimpleName()} of the first {@link AllocationDecider} that returned
+     * {@link Decision.Type#NOT_PREFERRED} for
+     * {@link AllocationDecider#canForceAllocateDuringReplace(ShardRouting, RoutingNode, RoutingAllocation)}, or {@code null}
+     * when the overall decision is not {@code NOT_PREFERRED}. Used to label metrics for vacate-path moves where the only
+     * viable target node is not preferred. Uses {@code withDeciders} (no shard-ignored check), consistent with
+     * {@link #canForceAllocateDuringReplace}.
+     */
+    public @Nullable String canForceAllocateDuringReplaceNotPreferredDeciderLabel(
+        ShardRouting shardRouting,
+        RoutingNode node,
+        RoutingAllocation allocation
+    ) {
+        final String[] labelHolder = { null };
+        final Decision decision = withDeciders(allocation, decider -> {
+            Decision d = decider.canForceAllocateDuringReplace(shardRouting, node, allocation);
+            if (d.type() == Decision.Type.NOT_PREFERRED && labelHolder[0] == null) {
+                labelHolder[0] = decider.getClass().getSimpleName();
+            }
+            return d;
+        },
+            (decider, dec) -> Strings.format(
+                "Can not force allocate during replace [%s] on node [%s]. [%s]: %s",
+                shardRouting,
+                node.node(),
+                decider,
+                dec
+            )
+        );
+        return decision.type() == Decision.Type.NOT_PREFERRED ? labelHolder[0] : null;
+    }
+
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
         return withDeciders(
             allocation,

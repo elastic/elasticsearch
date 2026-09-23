@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<ServiceAccountInfo> {
 
@@ -44,14 +45,27 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
                 new ServiceAccountInfo.UserManaged(
                     randomValueOtherThan(userManaged.principal(), this::randomPrincipal),
                     userManaged.roles(),
-                    userManaged.enabled()
+                    userManaged.enabled(),
+                    userManaged.description()
                 ),
                 new ServiceAccountInfo.UserManaged(
                     userManaged.principal(),
                     randomValueOtherThan(userManaged.roles(), () -> randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8))),
-                    userManaged.enabled()
+                    userManaged.enabled(),
+                    userManaged.description()
                 ),
-                new ServiceAccountInfo.UserManaged(userManaged.principal(), userManaged.roles(), userManaged.enabled() == false),
+                new ServiceAccountInfo.UserManaged(
+                    userManaged.principal(),
+                    userManaged.roles(),
+                    userManaged.enabled() == false,
+                    userManaged.description()
+                ),
+                new ServiceAccountInfo.UserManaged(
+                    userManaged.principal(),
+                    userManaged.roles(),
+                    userManaged.enabled(),
+                    randomValueOtherThan(userManaged.description(), ServiceAccountInfoTests::randomDescription)
+                ),
                 randomBuiltIn()
             );
         };
@@ -64,7 +78,7 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
 
     public void testRolesAreCopiedOnConstruction() {
         final List<String> roles = new ArrayList<>(List.of("role-a"));
-        final ServiceAccountInfo.UserManaged info = new ServiceAccountInfo.UserManaged("my-team/worker", roles, true);
+        final ServiceAccountInfo.UserManaged info = new ServiceAccountInfo.UserManaged("my-team/worker", roles, true, null);
         roles.add("role-b");
         assertThat(info.roles(), equalTo(List.of("role-a")));
     }
@@ -90,6 +104,30 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
         );
     }
 
+    /**
+     * A node that knows user-managed accounts but not their descriptions is sent the account without one, rather than
+     * being refused the account altogether: the description carries no meaning, so the account is still whole.
+     */
+    public void testTheDescriptionIsDroppedForNodesThatDoNotKnowIt() throws IOException {
+        final ServiceAccountInfo.UserManaged userManaged = new ServiceAccountInfo.UserManaged(
+            randomPrincipal(),
+            randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)),
+            randomBoolean(),
+            randomAlphaOfLengthBetween(1, 20)
+        );
+        // The version just before the description was added still knows user-managed accounts.
+        final TransportVersion beforeDescription = TransportVersionUtils.getPreviousVersion(
+            ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION
+        );
+        assertTrue(beforeDescription.supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO));
+        final ServiceAccountInfo copy = copyInstance(userManaged, beforeDescription);
+        assertThat(
+            copy,
+            equalTo(new ServiceAccountInfo.UserManaged(userManaged.principal(), userManaged.roles(), userManaged.enabled(), null))
+        );
+        assertThat(((ServiceAccountInfo.UserManaged) copy).description(), nullValue());
+    }
+
     private static TransportVersion beforeUserManagedAccountInfo() {
         return TransportVersionUtils.getPreviousVersion(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO);
     }
@@ -103,8 +141,13 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
         return new ServiceAccountInfo.UserManaged(
             randomPrincipal(),
             randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)),
-            randomBoolean()
+            randomBoolean(),
+            randomDescription()
         );
+    }
+
+    private static String randomDescription() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
     }
 
     private String randomPrincipal() {

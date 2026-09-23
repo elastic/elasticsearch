@@ -125,38 +125,38 @@ describe("generatePipelines", () => {
     expect(usingDefaults!.pipeline.env?.["CUSTOM_ENV_VAR"]).toBe("value");
   });
 
-  const fwcSteps = (targetBranch: string) => {
+  const laterBranchBwcSteps = (targetBranch: string) => {
     process.env["GITHUB_PR_TARGET_BRANCH"] = targetBranch;
 
     const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);
-    return pipelines.find((pipeline) => pipeline.name === "fwc-snapshots");
+    return pipelines.find((pipeline) => pipeline.name === "later-branch-bwc");
   };
 
-  test("should run forward compatibility against the one branch ahead of 9.5", () => {
-    const fwc = fwcSteps("9.5");
+  test("should run later-branch bwc from the one branch ahead of 9.5", () => {
+    const steps = laterBranchBwcSteps("9.5");
 
-    expect(fwc?.pipeline.steps?.[0].steps?.[0].matrix).toEqual({
+    expect(steps?.pipeline.steps?.[0].steps?.[0].matrix).toEqual({
       setup: { LATER_BRANCH: ["main"], PART: ["1", "2", "3", "4", "5", "6"] },
     });
   });
 
-  test("should run forward compatibility against every branch ahead of 9.4, oldest first", () => {
-    const fwc = fwcSteps("9.4");
+  test("should run later-branch bwc from every branch ahead of 9.4, oldest first", () => {
+    const steps = laterBranchBwcSteps("9.4");
 
-    expect(fwc?.pipeline.steps?.[0].steps?.[0].matrix).toEqual({
+    expect(steps?.pipeline.steps?.[0].steps?.[0].matrix).toEqual({
       setup: { LATER_BRANCH: ["9.5", "main"], PART: ["1", "2", "3", "4", "5", "6"] },
     });
   });
 
-  test("should not run forward compatibility on main, where nothing is ahead", () => {
-    expect(fwcSteps("main")).toBeUndefined();
+  test("should not run later-branch bwc on main, where nothing is ahead", () => {
+    expect(laterBranchBwcSteps("main")).toBeUndefined();
   });
 
-  test("should not run forward compatibility on the excluded maintenance branch", () => {
-    expect(fwcSteps("8.19")).toBeUndefined();
+  test("should not run later-branch bwc on the excluded maintenance branch", () => {
+    expect(laterBranchBwcSteps("8.19")).toBeUndefined();
   });
 
-  test("should not run forward compatibility on a branch that is not a development branch", () => {
-    expect(fwcSteps("patch/serverless-fix")).toBeUndefined();
+  test("should not run later-branch bwc on a branch that is not a development branch", () => {
+    expect(laterBranchBwcSteps("patch/serverless-fix")).toBeUndefined();
   });
 });

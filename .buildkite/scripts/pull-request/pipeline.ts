@@ -148,14 +148,14 @@ export const generatePipelines = (
     let yaml = readFileSync(`${directory}/${file}`, "utf-8");
     yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(getSnapshotBwcVersions()));
 
-    if (yaml.includes("$FWC_LATER_BRANCHES")) {
+    if (yaml.includes("$LATER_BRANCHES")) {
       const laterBranches = getLaterBranches(process.env["GITHUB_PR_TARGET_BRANCH"]);
       if (laterBranches.length === 0) {
-        // Nothing is ahead of this branch, so there is nothing to test forward compatibility against.
+        // Nothing is ahead of this branch, so there is no later branch to run bwc tests from.
         // Also guards against an empty matrix dimension, which buildkite rejects.
         continue;
       }
-      yaml = yaml.replaceAll("$FWC_LATER_BRANCHES", JSON.stringify(laterBranches));
+      yaml = yaml.replaceAll("$LATER_BRANCHES", JSON.stringify(laterBranches));
     }
 
     const pipeline: EsPipeline = parse(yaml) || {};

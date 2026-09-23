@@ -950,10 +950,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         canRemainMoveAttributes(
                             "not_preferred",
                             refreshed.canRemainDeciderName(),
-                            null,
+                            null,  // there is never a conflict between not-preferred and not-preferred
                             shardRouting.primary(),
                             nodeName(shardRouting.currentNodeId()),
-                            null
+                            null  // we'll never include the target node for a not-preferred/yes move
                         )
                     );
                     // Return after a single move so that the change can be simulated before further moves are made.

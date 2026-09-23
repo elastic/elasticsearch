@@ -3889,12 +3889,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // }
         assert currentRecoveryState.getRecoverySource().equals(shardRouting.recoverySource());
         switch (currentRecoveryState.getRecoverySource().getType()) {
-            case EMPTY_STORE, EXISTING_STORE, RESHARD_SPLIT -> executeRecovery(
+            case EMPTY_STORE, EXISTING_STORE -> executeRecovery(
                 "from store",
                 currentRecoveryState,
                 recoveryListener,
-                this::recoverFromStore
+                this::recoverFromStore,
+                true
             );
+            case RESHARD_SPLIT -> executeRecovery("from store", currentRecoveryState, recoveryListener, this::recoverFromStore, false);
             case PEER -> {
                 try {
                     markAsRecovering("from " + currentRecoveryState.getSourceNode());
@@ -3912,7 +3914,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     "from snapshot",
                     currentRecoveryState,
                     recoveryListener,
-                    l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l)
+                    l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l),
+                    true
                 );
             }
             case LOCAL_SHARDS -> {
@@ -3948,7 +3951,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             mappingUpdateConsumer,
                             startedShards.stream().filter((s) -> requiredShards.contains(s.shardId())).toList(),
                             l
-                        )
+                        ),
+                        true
                     );
                 } else {
                     final RuntimeException e;
@@ -3977,7 +3981,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         String reason,
         RecoveryState recoveryState,
         RecoveryListener recoveryListener,
-        CheckedConsumer<ActionListener<Void>, Exception> action
+        CheckedConsumer<ActionListener<Void>, Exception> action,
+        boolean allowLocalRetry
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         markAsRecovering(reason); // mark the shard as recovering on the cluster state thread
@@ -3989,8 +3994,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     failureStrategy = ABORT;
                 } else if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
                     failureStrategy = FAIL_SEND;
-                } else {
+                } else if (allowLocalRetry) {
                     failureStrategy = RETRY;
+                } else {
+                    failureStrategy = FAIL_SEND;
                 }
                 recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), failureStrategy);
             }

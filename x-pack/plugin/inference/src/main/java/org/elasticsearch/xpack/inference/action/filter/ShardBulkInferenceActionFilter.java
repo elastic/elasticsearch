@@ -20,7 +20,6 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilterChain;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -45,6 +44,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.EmbeddingInferenceService;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceService;
@@ -224,17 +224,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private record EmbeddingInferenceRequestBatch(List<InferenceStringFieldInferenceRequest> requests, boolean isolated) {
         private EmbeddingInferenceRequestBatch {
             assert isolated == false || requests.size() == 1 : "Isolated inference batches must contain exactly one request";
-        }
-    }
-
-    private record EmbeddingInferenceResponse(
-        EmbeddingInferenceRequestBatch requestBatch,
-        List<? extends EmbeddingResults.Embedding<?>> embeddings
-    ) {}
-
-    private static final class UnexpectedInferenceResultException extends IllegalStateException {
-        private UnexpectedInferenceResultException(String message) {
-            super(message);
         }
     }
 
@@ -490,95 +479,101 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<InferenceStringFieldInferenceRequest> requests,
             final Releasable onFinish
         ) {
-            final List<EmbeddingInferenceRequestBatch> requestBatches = new ArrayList<>();
-            final List<InferenceStringFieldInferenceRequest> batchedRequests = new ArrayList<>();
-            for (var request : requests) {
-                var input = new InferenceStringGroup(request.input());
-                if (inferenceProvider.service().requiresSingleInputEmbeddingRequest(inferenceProvider.model(), input)) {
-                    requestBatches.add(new EmbeddingInferenceRequestBatch(List.of(request), true));
-                } else {
-                    batchedRequests.add(request);
+            try (var batchRefs = new RefCountingRunnable(onFinish::close)) {
+                for (var batch : partitionEmbeddingRequests(inferenceProvider, requests)) {
+                    executeEmbeddingInferenceBatchAsync(inferenceProvider, batch, batchRefs.acquire());
                 }
-            }
-            if (batchedRequests.isEmpty() == false) {
-                requestBatches.add(new EmbeddingInferenceRequestBatch(batchedRequests, false));
-            }
-
-            var completionListener = new GroupedActionListener<EmbeddingInferenceResponse>(
-                requestBatches.size(),
-                ActionListener.wrap(responses -> {
-                    try (onFinish) {
-                        for (var response : responses) {
-                            var requestBatch = response.requestBatch();
-                            if (requestBatch.isolated()) {
-                                addEmbeddingInferenceResponse(inferenceProvider, requestBatch.requests().getFirst(), response.embeddings());
-                            } else {
-                                var requestsIterator = requestBatch.requests().iterator();
-                                for (var embedding : response.embeddings()) {
-                                    addEmbeddingInferenceResponse(inferenceProvider, requestsIterator.next(), List.of(embedding));
-                                }
-                            }
-                        }
-                        recordRequestCountMetrics(inferenceProvider.model, requests.size(), null);
-                    }
-                }, exc -> {
-                    try (onFinish) {
-                        if (exc instanceof UnexpectedInferenceResultException) {
-                            onUnexpectedInferenceResult(inferenceProvider, requests, exc);
-                        } else {
-                            onInferenceServiceFailure(inferenceProvider, requests, exc);
-                        }
-                    }
-                })
-            );
-
-            for (var requestBatch : requestBatches) {
-                executeEmbeddingInferenceRequestAsync(inferenceProvider, requestBatch, completionListener);
             }
         }
 
-        private void executeEmbeddingInferenceRequestAsync(
+        /**
+         * Splits requests into one isolated batch per input that must be sent alone and one batch containing all other inputs.
+         */
+        private List<EmbeddingInferenceRequestBatch> partitionEmbeddingRequests(
             InferenceProvider inferenceProvider,
-            EmbeddingInferenceRequestBatch requestBatch,
-            ActionListener<EmbeddingInferenceResponse> completionListener
+            List<InferenceStringFieldInferenceRequest> requests
         ) {
-            var requests = requestBatch.requests();
-            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
-            ActionListener<InferenceServiceResults> inferenceListener = completionListener.delegateFailureAndWrap((listener, results) -> {
+            final List<EmbeddingInferenceRequestBatch> batches = new ArrayList<>();
+            final List<InferenceStringFieldInferenceRequest> sharedRequests = new ArrayList<>();
+            for (var request : requests) {
+                if (inferenceProvider.service() instanceof EmbeddingInferenceService embeddingService
+                    && embeddingService.requiresSingleInputEmbeddingRequest(inferenceProvider.model(), request.input())) {
+                    batches.add(new EmbeddingInferenceRequestBatch(List.of(request), true));
+                } else {
+                    sharedRequests.add(request);
+                }
+            }
+            if (sharedRequests.isEmpty() == false) {
+                batches.add(new EmbeddingInferenceRequestBatch(sharedRequests, false));
+            }
+            return batches;
+        }
+
+        private void executeEmbeddingInferenceBatchAsync(
+            InferenceProvider inferenceProvider,
+            EmbeddingInferenceRequestBatch batch,
+            Releasable onBatchFinish
+        ) {
+            final var requests = batch.requests();
+            final var inferenceId = inferenceProvider.model().getInferenceEntityId();
+            ActionListener<InferenceServiceResults> batchListener = ActionListener.releaseAfter(ActionListener.wrap(results -> {
                 if (results instanceof EmbeddingResults<?> == false) {
-                    listener.onFailure(
-                        new UnexpectedInferenceResultException(
-                            "Unexpected inference result type ["
-                                + results.getClass().getName()
-                                + "] for inference id ["
-                                + inferenceProvider.model.getInferenceEntityId()
-                                + "]"
+                    onUnexpectedInferenceResult(
+                        inferenceProvider,
+                        requests,
+                        new IllegalStateException(
+                            "Unexpected inference result type [" + results.getClass().getName() + "] for inference id [" + inferenceId + "]"
                         )
                     );
                     return;
                 }
 
-                List<? extends EmbeddingResults.Embedding<?>> embeddings = ((EmbeddingResults<?>) results).embeddings();
-                if ((requestBatch.isolated() && embeddings.isEmpty())
-                    || (requestBatch.isolated() == false && embeddings.size() != requests.size())) {
-                    listener.onFailure(
-                        new UnexpectedInferenceResultException(
-                            "Inference result count ["
-                                + embeddings.size()
-                                + "] does not match request count ["
-                                + requests.size()
-                                + "] for inference id ["
-                                + inferenceProvider.model.getInferenceEntityId()
-                                + "]"
-                        )
-                    );
-                    return;
+                var embeddingResults = (EmbeddingResults<?>) results;
+                List<? extends EmbeddingResults.Embedding<?>> embeddings = embeddingResults.embeddings();
+                if (batch.isolated()) {
+                    if (embeddings.isEmpty()) {
+                        onUnexpectedInferenceResult(
+                            inferenceProvider,
+                            requests,
+                            new IllegalStateException(
+                                "No inference results returned for isolated input on inference id [" + inferenceId + "]"
+                            )
+                        );
+                        return;
+                    }
+                    addEmbeddingInferenceResponse(inferenceProvider, requests.getFirst(), embeddings);
+                } else {
+                    if (embeddings.size() != requests.size()) {
+                        onUnexpectedInferenceResult(
+                            inferenceProvider,
+                            requests,
+                            new IllegalStateException(
+                                "Inference result count ["
+                                    + embeddings.size()
+                                    + "] does not match request count ["
+                                    + requests.size()
+                                    + "] for inference id ["
+                                    + inferenceId
+                                    + "]"
+                            )
+                        );
+                        return;
+                    }
+                    var requestsIterator = requests.iterator();
+                    for (var embedding : embeddings) {
+                        addEmbeddingInferenceResponse(inferenceProvider, requestsIterator.next(), List.of(embedding));
+                    }
                 }
-                listener.onResponse(new EmbeddingInferenceResponse(requestBatch, embeddings));
-            });
+                recordRequestCountMetrics(inferenceProvider.model(), requests.size(), null);
+            }, exc -> onInferenceServiceFailure(inferenceProvider, requests, exc)), onBatchFinish);
 
-            EmbeddingRequest embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
-            inferenceProvider.service().embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, inferenceListener);
+            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
+            var embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
+            ActionListener.run(
+                batchListener,
+                listener -> inferenceProvider.service()
+                    .embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, listener)
+            );
         }
 
         private void addEmbeddingInferenceResponse(

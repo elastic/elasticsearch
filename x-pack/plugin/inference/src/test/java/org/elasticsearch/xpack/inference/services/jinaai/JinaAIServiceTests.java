@@ -1718,8 +1718,8 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             Model model = mock(Model.class);
-            var pdfInput = new InferenceStringGroup(createRandomUsingDataTypes(EnumSet.of(PDF)));
-            var nonPdfInput = new InferenceStringGroup(createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(PDF))));
+            var pdfInput = createRandomUsingDataTypes(EnumSet.of(PDF));
+            var nonPdfInput = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(PDF)));
 
             assertTrue(service.requiresSingleInputEmbeddingRequest(model, pdfInput));
             assertFalse(service.requiresSingleInputEmbeddingRequest(model, nonPdfInput));

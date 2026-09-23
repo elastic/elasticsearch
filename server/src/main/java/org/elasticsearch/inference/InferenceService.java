@@ -180,20 +180,6 @@ public interface InferenceService extends Closeable {
     }
 
     /**
-     * Whether the provided input must be sent in an {@link EmbeddingRequest} that contains no other inputs.
-     * Services should override this when their request or response format makes batching this input with others ambiguous or invalid.
-     * An isolated request may return one or more embeddings (e.g. one per PDF page); each is stored as a separate chunk attributed
-     * to this input, so the usual one-embedding-per-input check does not apply.
-     *
-     * @param model the model used for inference
-     * @param input the input that may require an isolated request
-     * @return {@code true} if the input must be sent by itself
-     */
-    default boolean requiresSingleInputEmbeddingRequest(Model model, InferenceStringGroup input) {
-        return false;
-    }
-
-    /**
      * Perform rerank inference on the model.
      *
      * @param model The model

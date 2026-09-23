@@ -12,7 +12,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -51,6 +50,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -66,11 +71,15 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -78,6 +87,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -123,6 +134,48 @@ import java.util.function.BooleanSupplier;
 public class FileSplitProvider implements SplitProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(FileSplitProvider.class);
+
+    /**
+     * In-flight {@link FileTask} shells for this provider. One discovery runs at a time.
+     * Released when the planning slot completes. Test-only; not a liveness GC signal.
+     */
+    private final AtomicInteger liveFileTasks = new AtomicInteger();
+    private final AtomicInteger peakLiveFileTasks = new AtomicInteger();
+
+    /** Test hook. Resets the in-flight {@link FileTask} window counters. */
+    void resetLiveFileTasks() {
+        liveFileTasks.set(0);
+        peakLiveFileTasks.set(0);
+    }
+
+    /** Test hook. Highest simultaneous {@link FileTask} count since {@link #resetLiveFileTasks()}. */
+    int peakLiveFileTasks() {
+        return peakLiveFileTasks.get();
+    }
+
+    /** Test hook. {@link FileTask} shells whose planning slot has not completed. */
+    int liveFileTasks() {
+        return liveFileTasks.get();
+    }
+
+    /**
+     * Test hook. Concurrency argument of the last miss-planning {@link #gatherAsync} call.
+     * Zero until that call. One discovery runs at a time.
+     */
+    private volatile int planningGatherConcurrency;
+
+    int planningGatherConcurrency() {
+        return planningGatherConcurrency;
+    }
+
+    private void trackFileTaskCreated() {
+        int now = liveFileTasks.incrementAndGet();
+        peakLiveFileTasks.accumulateAndGet(now, Math::max);
+    }
+
+    private void releaseFileTask() {
+        liveFileTasks.decrementAndGet();
+    }
 
     // 64 MB — 2x the maximum compression block target (DEFAULT_MACRO_SPLIT_TARGET) to keep
     // memory pressure low while still enabling meaningful cross-node parallelism.
@@ -227,8 +280,8 @@ public class FileSplitProvider implements SplitProvider {
      * zstd-indexed frame groups). Text readers anchor {@code _rowPosition} as
      * {@code splitStartByte + decompressed-bytes-consumed}; a compressed anchor plus a
      * decompressed delta is a value on no axis — not split-invariant and collision-prone across
-     * splits — so the dispatcher must not compose {@code _id} from these splits (it null-splices
-     * the {@code _rowPosition} slot instead).
+     * splits — so the dispatcher must not surface {@code _file.record_ref} from these splits (it
+     * null-splices the {@code _rowPosition} slot instead).
      */
     static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
 
@@ -362,12 +415,11 @@ public class FileSplitProvider implements SplitProvider {
         try {
             throwIfCancelled(context);
 
-            FileTaskBatch batch = buildFileTasks(context, requestedStrideBytes);
-            List<FileTask> tasks = batch.tasks();
+            SurvivorBatch batch = buildSurvivors(context, requestedStrideBytes);
             int certifiedSkips = batch.certifiedSkips();
             long probedFileBytes = batch.probedFileBytes();
 
-            if (tasks.isEmpty()) {
+            if (batch.size() == 0) {
                 // Exhaustive only when every file was dropped by a certified row-count-preserving skip.
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
@@ -398,20 +450,21 @@ public class FileSplitProvider implements SplitProvider {
             // Only single split discovery is performed on each FileSplitProvider at a time
             splitDiscoveryCpuNanos.set(0L);
             List<PlanResult> planResults;
+            int survivorCount = batch.size();
             try {
-                if (executor != null && tasks.size() > 1) {
-                    planResults = BoundedParallelGather.gather(tasks, task -> {
+                if (executor != null && survivorCount > 1) {
+                    planResults = BoundedParallelGather.gather(slotList(survivorCount), slot -> {
                         long cpuStart = ThreadCpuTimer.currentNanos();
                         try {
-                            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
+                            return planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled);
                         } finally {
                             if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
                         }
                     }, splitDiscoveryConcurrency(), executor);
                 } else {
-                    planResults = new ArrayList<>(tasks.size());
-                    for (FileTask task : tasks) {
-                        planResults.add(processFileForSplits(task, hoistedProvider, strideBytes, isCancelled));
+                    planResults = new ArrayList<>(survivorCount);
+                    for (int slot = 0; slot < survivorCount; slot++) {
+                        planResults.add(planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled));
                     }
                 }
             } catch (Exception e) {
@@ -432,9 +485,9 @@ public class FileSplitProvider implements SplitProvider {
             // or has been probed.
             List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes, probeWindowBytes);
 
-            // Each surviving task produces at least one split, so the task count is the number of
+            // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuNanos.get());
+            return new SplitDiscoveryResult(splits, survivorCount, false, splitDiscoveryCpuNanos.get());
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -476,9 +529,8 @@ public class FileSplitProvider implements SplitProvider {
         try {
             sharedProvider = hoistSharedProvider(fileList, config);
             throwIfCancelled(context);
-            FileTaskBatch batch = buildFileTasks(context, requestedStrideBytes);
-            List<FileTask> tasks = batch.tasks();
-            if (tasks.isEmpty()) {
+            SurvivorBatch batch = buildSurvivors(context, requestedStrideBytes);
+            if (batch.size() == 0) {
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && batch.certifiedSkips() == fileList.fileCount();
                 listener.onResponse(new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L));
                 return;
@@ -495,7 +547,7 @@ public class FileSplitProvider implements SplitProvider {
                 () -> StorageProviderCache.closeLease(hoistedProvider)
             );
             gatherSkippingCachedFooters(
-                tasks,
+                batch,
                 hoistedProvider,
                 strideBytes,
                 isCancelled,
@@ -513,7 +565,7 @@ public class FileSplitProvider implements SplitProvider {
                                     return;
                                 }
                                 List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes, probeWindowBytes);
-                                completion.onResponse(new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuNanos.get()));
+                                completion.onResponse(new SplitDiscoveryResult(splits, batch.size(), false, splitDiscoveryCpuNanos.get()));
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                             }
@@ -539,12 +591,70 @@ public class FileSplitProvider implements SplitProvider {
         return null;
     }
 
-    private record FileTaskBatch(List<FileTask> tasks, int certifiedSkips, long probedFileBytes) {}
+    /**
+     * Phase-1 survivors: file-list indices and one frozen partition map each. Shared query state
+     * stays on the batch. {@link FileTask} shells are built later, only for a slot that is planning.
+     */
+    private record SurvivorBatch(
+        int[] fileIndices,
+        List<Map<String, Object>> partitionValues,
+        int certifiedSkips,
+        long probedFileBytes,
+        SplitDiscoveryContext context,
+        Map<String, DataType> reconciledTypes,
+        Map<ColumnMapping, ColumnMapping> mappingCache,
+        boolean anchorPinnedFirstFileWins,
+        ExternalSchema fileBackedQuerySchema
+    ) {
+        int size() {
+            return fileIndices.length;
+        }
+    }
 
     /**
-     * Phase 1: sequential in-memory filter. No object-store IO.
+     * Per-file stamp used to emit a cache-hit split without allocating a {@link FileTask}.
      */
-    private FileTaskBatch buildFileTasks(SplitDiscoveryContext context, long requestedStrideBytes) {
+    private record ResolvedFile(
+        StoragePath filePath,
+        long fileLength,
+        @Nullable String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, DataType> reconciledTypes,
+        int maxRecordBytes,
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable Map<String, DataType> inferredFileTypes,
+        @Nullable SourceStatistics statistics,
+        @Nullable Map<String, Object> foldedSourceMetadata,
+        boolean unknownNativeTypes
+    ) {
+        private FileTask toTask() {
+            return new FileTask(
+                filePath,
+                fileLength,
+                format,
+                config,
+                partitionValues,
+                columnMapping,
+                readSchema,
+                reconciledTypes,
+                maxRecordBytes,
+                declaredReadSpec,
+                inferredFileTypes,
+                statistics,
+                foldedSourceMetadata,
+                unknownNativeTypes
+            );
+        }
+    }
+
+    /**
+     * Phase 1: sequential in-memory filter. No object-store IO. Each survivor keeps one unmodifiable
+     * partition map (hive values copied by reference, {@code _file.*} written in place). No {@link FileTask}.
+     */
+    private SurvivorBatch buildSurvivors(SplitDiscoveryContext context, long requestedStrideBytes) {
         FileList fileList = context.fileList();
         PartitionMetadata partitionInfo = context.partitionInfo();
         Map<String, Object> config = context.config();
@@ -553,32 +663,60 @@ public class FileSplitProvider implements SplitProvider {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
         Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
         ExternalSchema unifiedSchema = context.unifiedSchema();
+        boolean anchorPinnedFirstFileWins = ExternalSourceResolver.isAnchorPinnedFirstFileWins(
+            fileList.originalPattern(),
+            config,
+            context.declaredReadSpec()
+        );
         Set<String> metadataColumnNames = context.metadataColumnNames();
 
+        int fileCount = fileList.fileCount();
         int certifiedSkips = 0;
         long probedFileBytes = 0;
-        List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
-        // Hive / _file.* listing values already live in partitionValues. Overlay the engine
-        // per-file constants only when a hint names one of them.
+        int[] fileIndices = new int[fileCount];
+        ArrayList<Map<String, Object>> partitionValues = new ArrayList<>(fileCount);
+        // One directory BytesRef per distinct parent for this query. Discarded with the batch builder;
+        // the refs stay reachable from the frozen maps. Full path URIs are not interned.
+        Map<String, BytesRef> directoryIntern = new HashMap<>();
+        int survivors = 0;
+        // Unified schema is query-wide. One unmodifiable map is shared by every file; the
+        // concurrent split path only reads it.
+        Map<String, DataType> reconciledTypes = unifiedSchema == null ? null : Map.copyOf(attributesToTypeMap(unifiedSchema.attributes()));
+        // Hive / _file.* listing values already live in the frozen partition map. Copy and strip
+        // unbound _file.* (or overlay engine per-file constants) only when a hint names one of those keys.
         boolean overlayPerFileConstants = filterHints.isEmpty() == false
             && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
-        for (int i = 0; i < fileList.fileCount(); i++) {
+        Set<String> unboundFileMetadataNames = Set.of();
+        if (filterHints.isEmpty() == false) {
+            unboundFileMetadataNames = new LinkedHashSet<>();
+            for (String name : FileMetadataColumns.NAMES) {
+                if (metadataColumnNames.contains(name) == false) {
+                    unboundFileMetadataNames.add(name);
+                }
+            }
+        }
+        boolean copyFilterValues = overlayPerFileConstants || hintsReferenceUnboundFileMetadata(filterHints, unboundFileMetadataNames);
+        for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
 
-            Map<String, Object> partitionValues = new HashMap<>();
+            Map<String, Object> values = new LinkedHashMap<>();
             if (partitionInfo != null && partitionInfo.isEmpty() == false) {
                 Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
                 if (filePartitions != null) {
-                    partitionValues.putAll(filePartitions);
+                    // Copy references only. Do not mutate the listing map.
+                    values.putAll(filePartitions);
                 }
             }
-            partitionValues.putAll(FileMetadataColumns.extractValues(fileList, i));
+            long modifiedMillis = fileList.lastModifiedMillis(i);
+            Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
+            FileMetadataColumns.putValues(values, filePath, fileList.size(i), modified, directoryIntern);
+            Map<String, Object> frozen = Collections.unmodifiableMap(values);
             SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
             if (filterHints.isEmpty() == false) {
-                Map<String, Object> filterValues = overlayPerFileConstants
-                    ? discoveryFilterValues(partitionValues, context.datasetName(), fileList, i, metadataColumnNames)
-                    : partitionValues;
+                Map<String, Object> filterValues = copyFilterValues
+                    ? discoveryFilterValues(frozen, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
+                    : frozen;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
                     continue;
@@ -587,7 +725,10 @@ public class FileSplitProvider implements SplitProvider {
                     Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
                     fileColumnNames.addAll(filterValues.keySet());
                     fileColumnNames.addAll(metadataColumnNames);
-                    addPerRowComposedColumnNames(fileColumnNames);
+                    // _file.record_ref is composed per row, so it is present on every file whatever the
+                    // file schema lists. The standard names are per-file constants and reach
+                    // fileColumnNames through filterValues above, when bound as metadata.
+                    fileColumnNames.add(FileMetadataColumns.RECORD_REF);
                     if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
                         certifiedSkips++;
                         continue;
@@ -595,55 +736,131 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
 
-            String objectName = filePath.objectName();
-            String format = null;
-            if (objectName != null) {
-                int lastDot = objectName.lastIndexOf('.');
-                if (lastDot >= 0 && lastDot < objectName.length() - 1) {
-                    format = objectName.substring(lastDot);
-                }
-            }
-
             long fileLength = fileList.size(i);
-            if (fileLength > requestedStrideBytes && isNewlineMacroSplitCandidateExtension(format)) {
+            if (fileLength > requestedStrideBytes && isNewlineMacroSplitCandidateExtension(extensionFormat(filePath))) {
                 probedFileBytes += fileLength;
             }
 
-            ColumnMapping columnMapping = null;
-            List<Attribute> readSchema = null;
-            Map<String, DataType> inferredFileTypes = null;
-            SourceStatistics fileStatistics = null;
-            if (fileSchemaInfo != null) {
-                inferredFileTypes = fileSchemaInfo.inferredTypes();
-                fileStatistics = fileSchemaInfo.statistics();
-                ColumnMapping mapping = fileSchemaInfo.mapping();
-                if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
-                    mapping = mapping.pruneToPerFileQuery(unifiedSchema, fileSchemaInfo.fileSchema(), fileBackedQuerySchema);
-                }
-                if (mapping != null && mapping.isIdentity() == false) {
-                    columnMapping = mappingCache.computeIfAbsent(mapping, k -> k);
-                }
-                readSchema = fileSchemaInfo.fileSchema().attributes();
+            fileIndices[survivors++] = i;
+            partitionValues.add(frozen);
+        }
+        if (survivors != fileCount) {
+            fileIndices = Arrays.copyOf(fileIndices, survivors);
+        }
+        partitionValues.trimToSize();
+        return new SurvivorBatch(
+            fileIndices,
+            partitionValues,
+            certifiedSkips,
+            probedFileBytes,
+            context,
+            reconciledTypes,
+            mappingCache,
+            anchorPinnedFirstFileWins,
+            fileBackedQuerySchema
+        );
+    }
+
+    @Nullable
+    private static String extensionFormat(StoragePath filePath) {
+        String objectName = filePath.objectName();
+        if (objectName == null) {
+            return null;
+        }
+        int lastDot = objectName.lastIndexOf('.');
+        if (lastDot >= 0 && lastDot < objectName.length() - 1) {
+            return objectName.substring(lastDot);
+        }
+        return null;
+    }
+
+    /** Survivor slots {@code 0 .. count-1}. Boxing happens when a slot is read, not as a {@link FileTask} list. */
+    private static List<Integer> slotList(int count) {
+        return new AbstractList<>() {
+            @Override
+            public int size() {
+                return count;
             }
 
-            tasks.add(
-                new FileTask(
-                    filePath,
-                    fileLength,
-                    format,
-                    config,
-                    partitionValues,
-                    columnMapping,
-                    readSchema,
-                    unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
-                    context.maxRecordBytes(),
-                    context.declaredReadSpec(),
-                    inferredFileTypes,
-                    fileStatistics
-                )
-            );
+            @Override
+            public Integer get(int index) {
+                return index;
+            }
+        };
+    }
+
+    private FileTask openFileTask(SurvivorBatch batch, int slot) {
+        FileTask task = resolveSurvivor(batch, slot).toTask();
+        trackFileTaskCreated();
+        return task;
+    }
+
+    /**
+     * Builds a {@link FileTask} for one survivor slot, plans it, and drops the shell when planning returns.
+     * Cancellation is checked before the shell exists and again before any read.
+     */
+    private PlanResult planSurvivor(
+        SurvivorBatch batch,
+        int slot,
+        @Nullable StorageProvider hoistedProvider,
+        long strideBytes,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
         }
-        return new FileTaskBatch(tasks, certifiedSkips, probedFileBytes);
+        FileTask task = openFileTask(batch, slot);
+        try {
+            if (isCancelled.getAsBoolean()) {
+                throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
+            }
+            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
+        } finally {
+            releaseFileTask();
+        }
+    }
+
+    private ResolvedFile resolveSurvivor(SurvivorBatch batch, int slot) {
+        SplitDiscoveryContext context = batch.context();
+        FileList fileList = context.fileList();
+        int fileIndex = batch.fileIndices()[slot];
+        StoragePath filePath = fileList.path(fileIndex);
+        long fileLength = fileList.size(fileIndex);
+        SchemaReconciliation.FileSchemaInfo fileSchemaInfo = context.schemaMap().get(filePath);
+        ColumnMapping columnMapping = null;
+        List<Attribute> readSchema = null;
+        Map<String, DataType> inferredFileTypes = null;
+        SourceStatistics fileStatistics = null;
+        ExternalSchema unifiedSchema = context.unifiedSchema();
+        if (fileSchemaInfo != null) {
+            inferredFileTypes = fileSchemaInfo.inferredTypes();
+            fileStatistics = fileSchemaInfo.statistics();
+            ColumnMapping mapping = fileSchemaInfo.mapping();
+            if (mapping != null && unifiedSchema != null && batch.fileBackedQuerySchema().isEmpty() == false) {
+                mapping = mapping.pruneToPerFileQuery(unifiedSchema, fileSchemaInfo.fileSchema(), batch.fileBackedQuerySchema());
+            }
+            if (mapping != null && mapping.isIdentity() == false) {
+                columnMapping = batch.mappingCache().computeIfAbsent(mapping, k -> k);
+            }
+            readSchema = fileSchemaInfo.fileSchema().attributes();
+        }
+        boolean unknownNativeTypes = ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo, batch.anchorPinnedFirstFileWins());
+        return new ResolvedFile(
+            filePath,
+            fileLength,
+            extensionFormat(filePath),
+            context.config(),
+            batch.partitionValues().get(slot),
+            columnMapping,
+            readSchema,
+            batch.reconciledTypes(),
+            context.maxRecordBytes(),
+            context.declaredReadSpec(),
+            inferredFileTypes,
+            fileStatistics,
+            context.metadata() == null ? null : context.metadata().sourceMetadata(),
+            unknownNativeTypes
+        );
     }
 
     private static void warnIfStrideWidened(long requestedStrideBytes, long strideBytes, int maxSplitProbes, long probedFileBytes) {
@@ -772,10 +989,12 @@ public class FileSplitProvider implements SplitProvider {
      * Phase-2 fan-out: parsed-footer cache hits skip {@link ThrottledIterator} so they do not occupy
      * GET permits. Misses (and formats with no cache) keep the existing throttled {@code readBytesAsync}
      * path. The cache partition is CPU-only (hash lookups, no I/O) and runs inline on the caller —
-     * the same thread that previously ran {@link #gatherAsync} directly.
+     * the same thread that previously ran {@link #gatherAsync} directly. Hits emit splits from path,
+     * length, and config. Misses are survivor-slot indices; a {@link FileTask} exists only while its
+     * throttle slot is in flight.
      */
     private void gatherSkippingCachedFooters(
-        List<FileTask> tasks,
+        SurvivorBatch batch,
         @Nullable StorageProvider hoistedProvider,
         long strideBytes,
         BooleanSupplier isCancelled,
@@ -783,54 +1002,76 @@ public class FileSplitProvider implements SplitProvider {
         ActionListener<List<PlanResult>> listener
     ) {
         try {
-            int n = tasks.size();
+            int n = batch.size();
             PlanResult[] slots = new PlanResult[n];
-            List<FileTask> misses = new ArrayList<>();
-            List<Integer> missAt = new ArrayList<>();
+            int[] missSlots = new int[n];
+            int[] missCount = new int[1];
+            FileList fileList = batch.context().fileList();
+            Map<String, Object> config = batch.context().config();
             runRecordingDiscoveryCpu(() -> {
                 for (int i = 0; i < n; i++) {
                     if (isCancelled.getAsBoolean()) {
                         throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
                     }
-                    FileTask task = tasks.get(i);
-                    List<SplitRange> cached = peekCachedSplitRanges(task, hoistedProvider);
+                    int fileIndex = batch.fileIndices()[i];
+                    StoragePath path = fileList.path(fileIndex);
+                    long length = fileList.size(fileIndex);
+                    List<SplitRange> cached = peekCachedSplitRanges(path, length, config, hoistedProvider);
                     if (cached != null) {
-                        if (cached.isEmpty()) {
-                            slots[i] = new PlanResult.Splits(
-                                List.of(
-                                    wholeFileSplit(
-                                        task.filePath(),
-                                        task.fileLength(),
-                                        task.format(),
-                                        task.config(),
-                                        task.partitionValues(),
-                                        task.columnMapping(),
-                                        task.readSchema()
-                                    )
-                                )
-                            );
-                        } else {
-                            slots[i] = planResultFromCachedRanges(task, cached);
-                        }
+                        slots[i] = planResultFromCachedRanges(resolveSurvivor(batch, i), cached);
                     } else {
-                        misses.add(task);
-                        missAt.add(i);
+                        missSlots[missCount[0]++] = i;
                     }
                 }
             });
-            if (misses.isEmpty()) {
+            int misses = missCount[0];
+            if (misses == 0) {
                 listener.onResponse(List.of(slots));
                 return;
             }
-            gatherAsync(misses, (FileTask task, ActionListener<PlanResult> itemListener) -> {
-                try {
-                    fanOut.execute(() -> processFileForSplitsAsync(task, hoistedProvider, strideBytes, isCancelled, fanOut, itemListener));
-                } catch (Exception e) {
-                    itemListener.onFailure(e);
+            int[] missed = Arrays.copyOf(missSlots, misses);
+            int gatherConcurrency = planningDiscoveryConcurrency(batch, missed, hoistedProvider);
+            planningGatherConcurrency = gatherConcurrency;
+            gatherAsync(slotList(misses), (Integer ordinal, ActionListener<PlanResult> itemListener) -> {
+                if (isCancelled.getAsBoolean()) {
+                    itemListener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
+                    return;
                 }
-            }, planningDiscoveryConcurrency(misses, hoistedProvider), fanOut, ActionListener.wrap(missResults -> {
+                FileTask task = openFileTask(batch, missed[ordinal]);
+                // Release the shell before the throttle permit is returned, and only once if execute
+                // both runs the item and then surfaces an exception.
+                AtomicBoolean notified = new AtomicBoolean();
+                ActionListener<PlanResult> released = new ActionListener<>() {
+                    private void finish(Runnable notify) {
+                        if (notified.compareAndSet(false, true) == false) {
+                            return;
+                        }
+                        releaseFileTask();
+                        notify.run();
+                    }
+
+                    @Override
+                    public void onResponse(PlanResult result) {
+                        finish(() -> itemListener.onResponse(result));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        finish(() -> itemListener.onFailure(e));
+                    }
+                };
+                try {
+                    if (isCancelled.getAsBoolean()) {
+                        released.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
+                        return;
+                    }
+                    fanOut.execute(() -> processFileForSplitsAsync(task, hoistedProvider, strideBytes, isCancelled, fanOut, released));
+                } catch (Exception e) {
+                    released.onFailure(e);
+                }
+            }, gatherConcurrency, fanOut, ActionListener.wrap(missResults -> {
                 for (int j = 0; j < missResults.size(); j++) {
-                    slots[missAt.get(j)] = missResults.get(j);
+                    slots[missed[j]] = missResults.get(j);
                 }
                 listener.onResponse(List.of(slots));
             }, listener::onFailure));
@@ -841,47 +1082,72 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Listing-seeded {@link StorageObject#length()} plus {@link RangeAwareFormatReader#cachedSplitRanges}.
-     * Any failure is a miss so the throttled path can surface it.
+     * CPU-only: {@code cachedSplitRanges} must not read. Any failure is a miss so the throttled path can surface it.
      */
     @Nullable
-    private List<SplitRange> peekCachedSplitRanges(FileTask task, @Nullable StorageProvider hoistedProvider) {
+    private List<SplitRange> peekCachedSplitRanges(
+        StoragePath path,
+        long length,
+        Map<String, Object> config,
+        @Nullable StorageProvider hoistedProvider
+    ) {
         try {
-            FormatReader reader = resolveConfiguredReader(task.filePath(), task.config());
+            FormatReader reader = resolveConfiguredReader(path, config);
             if (reader instanceof RangeAwareFormatReader rangeReader) {
-                StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
-                StorageObject object = provider.newObject(task.filePath(), task.fileLength());
+                StorageProvider provider = resolveProvider(path, config, hoistedProvider);
+                StorageObject object = provider.newObject(path, length);
                 return rangeReader.cachedSplitRanges(object);
             }
             return null;
         } catch (Exception e) {
             LOGGER.debug(
-                () -> Strings.format(
-                    "Footer cache peek failed for [%s]; falling back to throttled discovery",
-                    task.filePath().objectName()
-                ),
+                () -> Strings.format("Footer cache peek failed for [%s]; falling back to throttled discovery", path.objectName()),
                 e
             );
             return null;
         }
     }
 
-    private PlanResult planResultFromCachedRanges(FileTask task, List<SplitRange> ranges) {
+    private PlanResult planResultFromCachedRanges(ResolvedFile file, List<SplitRange> ranges) {
+        if (ranges.isEmpty()) {
+            return new PlanResult.Splits(
+                List.of(
+                    wholeFileSplit(
+                        file.filePath(),
+                        file.fileLength(),
+                        file.format(),
+                        file.config(),
+                        file.partitionValues(),
+                        file.columnMapping(),
+                        file.readSchema()
+                    )
+                )
+            );
+        }
         List<ExternalSplit> splits = new ArrayList<>(ranges.size());
         addRangeAwareSplits(
-            task.filePath(),
-            task.fileLength(),
-            task.format(),
-            task.config(),
-            task.partitionValues(),
-            task.columnMapping(),
-            task.readSchema(),
-            task.reconciledTypes(),
-            task.declaredReadSpec(),
-            task.inferredFileTypes(),
+            file.filePath(),
+            file.fileLength(),
+            file.format(),
+            file.config(),
+            file.partitionValues(),
+            file.columnMapping(),
+            file.readSchema(),
+            file.reconciledTypes(),
+            file.declaredReadSpec(),
+            file.inferredFileTypes(),
             ranges,
-            splits
+            splits,
+            file.foldedSourceMetadata(),
+            implicitNullsFor(file),
+            file.unknownNativeTypes()
         );
         return new PlanResult.Splits(splits);
+    }
+
+    private boolean implicitNullsFor(ResolvedFile file) {
+        FormatReader reader = resolveConfiguredReader(file.filePath(), file.config());
+        return reader != null && implicitNullsFor(reader);
     }
 
     /**
@@ -1368,7 +1634,7 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Planning {@link #gatherAsync} concurrency: when every file is Parquet
+     * Planning {@link #gatherAsync} concurrency: when every miss is Parquet
      * ({@link FormatNameResolver#resolveFormatName} equals {@link FormatNameResolver#FORMAT_PARQUET},
      * so {@code .parq} counts) and
      * {@link StorageObject#readBytesAsyncReleasesExecutor()} on one peeked
@@ -1376,26 +1642,31 @@ public class FileSplitProvider implements SplitProvider {
      * {@link ExternalSourceSettings#externalIoThreads} (never 0). Otherwise
      * {@link #splitDiscoveryConcurrency()}. A null {@code formatRegistry} or any
      * {@code newObject} / resolve failure is conservative (16).
+     * Samples survivor indices, not a {@link FileTask} list.
      * Probes and sync {@link BoundedParallelGather} keep {@link #splitDiscoveryConcurrency()}.
      */
-    private int planningDiscoveryConcurrency(List<FileTask> tasks, @Nullable StorageProvider hoistedProvider) {
+    private int planningDiscoveryConcurrency(SurvivorBatch batch, int[] missSlots, @Nullable StorageProvider hoistedProvider) {
         if (formatRegistry == null) {
             return splitDiscoveryConcurrency();
         }
         try {
+            FileList fileList = batch.context().fileList();
+            Map<String, Object> config = batch.context().config();
             Set<String> seenSchemes = new HashSet<>();
-            for (FileTask task : tasks) {
+            for (int slot : missSlots) {
+                int fileIndex = batch.fileIndices()[slot];
+                StoragePath path = fileList.path(fileIndex);
                 if (FormatNameResolver.FORMAT_PARQUET.equals(
-                    FormatNameResolver.resolveFormatName(task.config(), task.filePath().objectName(), formatRegistry)
+                    FormatNameResolver.resolveFormatName(config, path.objectName(), formatRegistry)
                 ) == false) {
                     return splitDiscoveryConcurrency();
                 }
-                String scheme = task.filePath().scheme();
+                String scheme = path.scheme();
                 if (seenSchemes.add(scheme) == false) {
                     continue;
                 }
-                StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
-                StorageObject object = provider.newObject(task.filePath(), task.fileLength());
+                StorageProvider provider = resolveProvider(path, config, hoistedProvider);
+                StorageObject object = provider.newObject(path, fileList.size(fileIndex));
                 if (object.readBytesAsyncReleasesExecutor() == false) {
                     return splitDiscoveryConcurrency();
                 }
@@ -1435,14 +1706,21 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> reconciledTypes,
         int maxRecordBytes,
         DeclaredReadSpec declaredReadSpec,
-        // PRE-overlay inferred file types (physical-keyed), or null when no declared overlay ran. The stats-type
-        // authority for normalizing footer range stats, not the overlaid readSchema types.
+        // Native file types, physical-keyed. Null when this file's types were not obtained or when
+        // fileSchema itself is native. The stats-type authority for normalizing footer range stats,
+        // not the overlaid or pinned readSchema types.
         @Nullable Map<String, DataType> inferredFileTypes,
         // File-level statistics: a live harvest from this query's schema resolution, or the same
         // harvest reconstructed from the schema cache's flat _stats.* map. Null when this file was
         // never harvested (no cache entry). A harvest whose readableUnitCount is 1 lets
         // tryRangeAwareSplits emit a whole-file split without opening the footer again.
-        @Nullable SourceStatistics statistics
+        @Nullable SourceStatistics statistics,
+        // Coordinator fold (sourceMetadata on the relation). Copied onto each harvest or
+        // footer range so split merge cannot serve a column the fold already dropped.
+        @Nullable Map<String, Object> foldedSourceMetadata,
+        // True when this FIRST_FILE_WINS glob file has no native-type snapshot. Column statistics
+        // must be withheld before alignment can interpret them against the pinned read schema.
+        boolean unknownNativeTypes
     ) {}
 
     /**
@@ -1688,8 +1966,10 @@ public class FileSplitProvider implements SplitProvider {
             task.declaredReadSpec(),
             task.inferredFileTypes(),
             task.statistics(),
+            task.foldedSourceMetadata(),
             fileSplits,
-            hoistedProvider
+            hoistedProvider,
+            task.unknownNativeTypes()
         )) {
             return new PlanResult.Splits(fileSplits);
         }
@@ -2015,8 +2295,10 @@ public class FileSplitProvider implements SplitProvider {
         DeclaredReadSpec declaredReadSpec,
         @Nullable Map<String, DataType> inferredFileTypes,
         @Nullable SourceStatistics fileStatistics,
+        @Nullable Map<String, Object> foldedSourceMetadata,
         List<ExternalSplit> splits,
-        @Nullable StorageProvider hoistedProvider
+        @Nullable StorageProvider hoistedProvider,
+        boolean unknownNativeTypes
     ) {
         if (formatRegistry == null || storageRegistry == null || format == null) {
             return false;
@@ -2043,7 +2325,10 @@ public class FileSplitProvider implements SplitProvider {
                 readSchema,
                 reconciledTypes,
                 declaredReadSpec,
-                inferredFileTypes
+                inferredFileTypes,
+                foldedSourceMetadata,
+                implicitNullsFor(reader),
+                unknownNativeTypes
             );
             splits.add(
                 FileSplit.withStatisticsAndReadSchema(
@@ -2082,7 +2367,10 @@ public class FileSplitProvider implements SplitProvider {
                 declaredReadSpec,
                 inferredFileTypes,
                 ranges,
-                splits
+                splits,
+                foldedSourceMetadata,
+                implicitNullsFor(reader),
+                unknownNativeTypes
             );
             return true;
         } catch (IOException e) {
@@ -2137,7 +2425,10 @@ public class FileSplitProvider implements SplitProvider {
                             task.declaredReadSpec(),
                             task.inferredFileTypes(),
                             ranges,
-                            splits
+                            splits,
+                            task.foldedSourceMetadata(),
+                            implicitNullsFor(reader),
+                            task.unknownNativeTypes()
                         );
                         listener.onResponse(splits);
                     } catch (Exception e) {
@@ -2170,7 +2461,10 @@ public class FileSplitProvider implements SplitProvider {
         DeclaredReadSpec declaredReadSpec,
         @Nullable Map<String, DataType> inferredFileTypes,
         List<SplitRange> ranges,
-        List<ExternalSplit> splits
+        List<ExternalSplit> splits,
+        @Nullable Map<String, Object> foldedSourceMetadata,
+        boolean implicitNulls,
+        boolean unknownNativeTypes
     ) {
         Map<String, Object> splitConfig = new HashMap<>(config);
         splitConfig.put(RANGE_SPLIT_KEY, "true");
@@ -2178,53 +2472,16 @@ public class FileSplitProvider implements SplitProvider {
 
         for (SplitRange range : ranges) {
             Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
-            if (rangeStats != null && readSchema != null && reconciledTypes != null) {
-                // Type authority for the raw footer values. Prefer inferredFileTypes when set (pre-pin / pre-overlay):
-                // a text UNION_BY_NAME pin stores the reconciled type on readSchema, which would make
-                // file == reconciled and skip the LONG->DOUBLE convert. Fall back to readSchema when nothing
-                // retyped this file. A declaration overlays readSchema, so the branch below rekeys and poisons
-                // before normalizing with the inferred types.
-                Map<String, DataType> statsFileTypes;
-                if (declaredReadSpec.isEmpty()) {
-                    statsFileTypes = undeclaredStatsFileTypes(readSchema, inferredFileTypes);
-                } else {
-                    // S1 boundary, split edition. Rekey the `path` renames (a pure move changes no value, so rekeyed
-                    // stats stay exact) and poison declared-retyped / date-format columns (the scan's per-value
-                    // coercion makes pre-coercion stats untrustworthy), BEFORE unit-normalizing.
-                    Map<String, String> physicalToLogical = PhysicalNames.inverse(declaredReadSpec.renames());
-                    Set<String> poison = new HashSet<>(declaredReadSpec.dateFormats().keySet());
-                    if (inferredFileTypes != null) {
-                        Map<String, DataType> overlaidTypes = attributesToTypeMap(readSchema); // logical, declared types
-                        for (String logical : declaredReadSpec.declaredTypeColumns()) {
-                            String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
-                            DataType inferredType = inferredFileTypes.get(physical);
-                            // Absent from THIS file (lenient union-by-name overlay skipped it): no footer stat exists
-                            // for it here either, so nothing to poison.
-                            if (inferredType != null && inferredType != overlaidTypes.get(logical)) {
-                                poison.add(logical);
-                            }
-                        }
-                        rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
-                        // Inferred file types, rekeyed to logical so they align with the rekeyed stats + reconciledTypes.
-                        statsFileTypes = new HashMap<>(inferredFileTypes.size());
-                        for (Map.Entry<String, DataType> e : inferredFileTypes.entrySet()) {
-                            statsFileTypes.put(physicalToLogical.getOrDefault(e.getKey(), e.getKey()), e.getValue());
-                        }
-                    } else {
-                        // Declared read but no captured inference (strict paths skip inference): the declared-vs-inferred
-                        // comparison is impossible, so conservatively poison EVERY declared column. row_count survives.
-                        poison.addAll(declaredReadSpec.declaredTypeColumns());
-                        rangeStats = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(rangeStats, physicalToLogical, poison);
-                        statsFileTypes = attributesToTypeMap(readSchema);
-                    }
-                }
-                // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
-                // pinned or unified type); normalize to the reconciled query type so the split-filter classifier
-                // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
-                // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
-                // representation safe-misses via the marker.
-                rangeStats = SourceStatisticsSerializer.normalizeStatsToReconciled(rangeStats, statsFileTypes, reconciledTypes);
-            }
+            rangeStats = normalizeSplitStats(
+                rangeStats,
+                readSchema,
+                reconciledTypes,
+                declaredReadSpec,
+                inferredFileTypes,
+                foldedSourceMetadata,
+                implicitNulls,
+                unknownNativeTypes
+            );
             splits.add(
                 FileSplit.withStatisticsAndReadSchema(
                     "file",
@@ -2244,10 +2501,11 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Normalizes raw footer statistics (the {@code _stats.*} map) for stamping onto a split: applies the
-     * declared-overlay rekey/poison when a declaration ran, then unit-normalizes values to the reconciled query
-     * types. Returns {@code null} for absent/empty stats and the stats untouched when the read schema or
-     * reconciled types are unknown (nothing to normalize against). Shared by the per-range path and the
-     * single-unit discovery skip in {@link #tryRangeAwareSplits} so both stamp identical stats for one unit.
+     * declared-overlay rekey/poison when a declaration ran, unit-normalizes values to the reconciled query
+     * types, reapplies the FIRST_FILE_WINS rewrite or unsigned encode against this file's read schema,
+     * then copies fold-level unservability from {@code foldedSourceMetadata}. Returns {@code null} for
+     * absent/empty stats. Shared by the per-range path and the single-unit discovery skip in
+     * {@link #tryRangeAwareSplits} so both stamp identical stats for one unit.
      */
     @Nullable
     private static Map<String, Object> normalizeSplitStats(
@@ -2255,11 +2513,33 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable List<Attribute> readSchema,
         @Nullable Map<String, DataType> reconciledTypes,
         DeclaredReadSpec declaredReadSpec,
-        @Nullable Map<String, DataType> inferredFileTypes
+        @Nullable Map<String, DataType> inferredFileTypes,
+        @Nullable Map<String, Object> foldedSourceMetadata,
+        boolean implicitNulls,
+        boolean unknownNativeTypes
     ) {
         Map<String, Object> stats = rawStats == null || rawStats.isEmpty() ? null : rawStats;
-        if (stats == null || readSchema == null || reconciledTypes == null) {
+        if (stats == null) {
             return stats;
+        }
+        if (unknownNativeTypes) {
+            stats = SourceStatisticsSerializer.overlayPinnedColumnsOnStats(
+                stats,
+                ExternalSourceResolver.fileBackedPhysicalColumns(readSchema, declaredReadSpec),
+                false
+            );
+        }
+        if (readSchema == null || reconciledTypes == null) {
+            // Align against the read schema the reader is pinned to, not the unified type:
+            // UNION_BY_NAME widens DATETIME+DATE_NANOS in the output and converts after the read.
+            stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+                stats,
+                inferredFileTypes,
+                readSchema != null ? attributesToTypeMap(readSchema) : null,
+                implicitNulls,
+                declaredReadSpec.declaredTypeColumns()
+            );
+            return SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
         }
         // Type authority for the raw footer values. Prefer inferredFileTypes when set (pre-pin / pre-overlay):
         // a text UNION_BY_NAME pin stores the reconciled type on readSchema, which would make
@@ -2305,7 +2585,35 @@ public class FileSplitProvider implements SplitProvider {
         // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
         // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
         // representation safe-misses via the marker.
-        return SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
+        stats = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
+        // FIRST_FILE_WINS pins every file to the anchor, so readSchema is the planner type the
+        // footer reader null-fills against. UNION_BY_NAME keeps the per-file footer type on
+        // readSchema and converts afterwards; comparing against reconciledTypes would treat a
+        // representable DATETIME→DATE_NANOS widen as unrepresentable and rewrite the harvest
+        // to value_count=0.
+        stats = ExternalSourceResolver.alignHarvestWithAnchorTypes(
+            stats,
+            statsFileTypes,
+            attributesToTypeMap(readSchema),
+            implicitNulls,
+            declaredReadSpec.declaredTypeColumns()
+        );
+        return SourceStatisticsSerializer.alignHarvestWithFold(stats, foldedSourceMetadata);
+    }
+
+    /**
+     * Footer implicit-nulls for this file's configured reader, including an extensionless object
+     * with an explicit {@code format}. An unresolvable reader answers {@code false}: this flag
+     * licenses rewriting a present harvest to {@code value_count = 0}, so guessing footer
+     * behavior would manufacture an undercount.
+     */
+    private boolean implicitNullsFor(FileTask task) {
+        FormatReader reader = resolveConfiguredReader(task.filePath(), task.config());
+        return reader != null && implicitNullsFor(reader);
+    }
+
+    private static boolean implicitNullsFor(FormatReader reader) {
+        return reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
     }
 
     /**
@@ -2807,25 +3115,31 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
-     * constants ({@code _index}, {@code _version}, and the all-null standard names). Used only for
-     * discovery filter evaluation; the {@link FileTask} carries hive + {@code _file.*} only.
-     * Only names bound as metadata in the relation's output receive constants, matching the
-     * reader. Data columns retain their physical values or missing-column null-fill.
+     * Discovery-only value map for filter evaluation: a fresh copy of the survivor's frozen
+     * partition map (hive partitions and {@code _file.*} listing values). Unbound {@code _file.*}
+     * keys are dropped, because those names are ordinary data columns and must not prune the
+     * listing by storage stat or block a missing-column skip. Bound per-file constants (the
+     * all-null standard names) are overlaid only when a hint names one of them, and only for
+     * names bound as metadata in the relation's output, matching the reader. Data columns retain
+     * their physical values or missing-column null-fill. The frozen map itself carries hive and
+     * {@code _file.*} only.
      */
     private static Map<String, Object> discoveryFilterValues(
         Map<String, Object> partitionValues,
-        @Nullable String datasetName,
-        FileList fileList,
-        int index,
-        Set<String> metadataColumnNames
+        Set<String> metadataColumnNames,
+        boolean overlayPerFileConstants,
+        Set<String> unboundFileMetadataNames
     ) {
         Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
         filterValues.putAll(partitionValues);
-        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName, fileList, index)
-            .entrySet()) {
-            if (metadataColumnNames.contains(constant.getKey())) {
-                filterValues.put(constant.getKey(), constant.getValue());
+        for (String name : unboundFileMetadataNames) {
+            filterValues.remove(name);
+        }
+        if (overlayPerFileConstants) {
+            for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants().entrySet()) {
+                if (metadataColumnNames.contains(constant.getKey())) {
+                    filterValues.put(constant.getKey(), constant.getValue());
+                }
             }
         }
         return filterValues;
@@ -2844,15 +3158,16 @@ public class FileSplitProvider implements SplitProvider {
         return false;
     }
 
-    /**
-     * Per-row names have no constant for {@link #matchesPartitionFilters}. Conservatively leave
-     * their predicates to the reader: {@code _file.record_ref} can be materialized by name even
-     * when its output attribute is data-bound, so physical absence alone cannot certify a skip.
-     */
-    private static void addPerRowComposedColumnNames(Set<String> fileColumnNames) {
-        fileColumnNames.add(FileMetadataColumns.RECORD_REF);
-        fileColumnNames.add(ExternalMetadataColumns.ID);
-        fileColumnNames.add(ExternalMetadataColumns.SOURCE);
+    private static boolean hintsReferenceUnboundFileMetadata(List<Expression> filterHints, Set<String> unboundFileMetadataNames) {
+        if (unboundFileMetadataNames.isEmpty()) {
+            return false;
+        }
+        for (Expression hint : filterHints) {
+            if (hint.references().stream().anyMatch(a -> unboundFileMetadataNames.contains(a.name()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -2890,6 +3205,11 @@ public class FileSplitProvider implements SplitProvider {
         return false;
     }
 
+    /** Whether the operand is a literal that is not null, which is what makes a missing column answer false. */
+    private static boolean isNonNullLiteral(Expression e) {
+        return e instanceof Literal literal && literal.value() != null;
+    }
+
     /**
      * Extracts the single column name from a simple leaf predicate, or {@code null} for
      * compound/multi-column expressions that cannot be evaluated for file skipping.
@@ -2916,6 +3236,23 @@ public class FileSplitProvider implements SplitProvider {
         if (expr instanceof IsNotNull isNotNull) {
             return extractColumnName(isNotNull.field());
         }
+        // The multivalue comparison functions name their column the same way, when their other operands are literals. A
+        // missing column is the empty set, so each of these is then false for every row of a file that lacks it — the
+        // same answer Equals gives, and the reason such a file can be skipped unread. The literal requirement is
+        // load-bearing for mv_contains: the empty set contains the empty set, so mv_contains(missing, b) is true on
+        // every row where b is null, and a column b can be.
+        if (expr instanceof MvContains mvContains) {
+            return isNonNullLiteral(mvContains.right()) ? extractColumnName(mvContains.left()) : null;
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            return isNonNullLiteral(mvIntersects.right()) ? extractColumnName(mvIntersects.left()) : null;
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            return isNonNullLiteral(mvInRange.lower()) && isNonNullLiteral(mvInRange.upper()) ? extractColumnName(mvInRange.field()) : null;
+        }
+        if (expr instanceof MvCompare mvCompare) {
+            return isNonNullLiteral(mvCompare.bound()) ? extractColumnName(mvCompare.field()) : null;
+        }
         return null;
     }
 
@@ -2931,15 +3268,35 @@ public class FileSplitProvider implements SplitProvider {
 
     static Boolean evaluateFilter(Expression filter, Map<String, Object> partitionValues) {
         return switch (filter) {
-            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, FileSplitProvider::compareEquals);
+            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::compareEquals);
             case NotEquals neq -> {
-                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, FileSplitProvider::compareEquals);
+                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::compareEquals);
                 yield result != null ? result == false : null;
             }
-            case GreaterThanOrEqual gte -> evaluateComparison(gte.left(), gte.right(), partitionValues, (a, b) -> compareValues(a, b) >= 0);
-            case GreaterThan gt -> evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> compareValues(a, b) > 0);
-            case LessThanOrEqual lte -> evaluateComparison(lte.left(), lte.right(), partitionValues, (a, b) -> compareValues(a, b) <= 0);
-            case LessThan lt -> evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> compareValues(a, b) < 0);
+            case GreaterThanOrEqual gte -> evaluateComparison(
+                gte.left(),
+                gte.right(),
+                partitionValues,
+                (a, b) -> PartitionValueMatcher.compareValues(a, b) >= 0
+            );
+            case GreaterThan gt -> evaluateComparison(
+                gt.left(),
+                gt.right(),
+                partitionValues,
+                (a, b) -> PartitionValueMatcher.compareValues(a, b) > 0
+            );
+            case LessThanOrEqual lte -> evaluateComparison(
+                lte.left(),
+                lte.right(),
+                partitionValues,
+                (a, b) -> PartitionValueMatcher.compareValues(a, b) <= 0
+            );
+            case LessThan lt -> evaluateComparison(
+                lt.left(),
+                lt.right(),
+                partitionValues,
+                (a, b) -> PartitionValueMatcher.compareValues(a, b) < 0
+            );
             case In in -> {
                 String columnName = extractColumnName(in.value());
                 if (columnName == null || partitionValues.containsKey(columnName) == false) {
@@ -2952,7 +3309,7 @@ public class FileSplitProvider implements SplitProvider {
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
                     if (listItem instanceof Literal lit) {
-                        if (compareEquals(partitionValue, lit.value())) {
+                        if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
                             found = true;
                             break;
                         }
@@ -2976,6 +3333,35 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 yield partitionValues.get(columnName) != null;
             }
+            // A partition value is single, so each of these reads as its scalar sibling does. Two differences live in
+            // the helpers below: they read `field OP literal` only, and the ordered forms take a value exactly on the
+            // bound from their default inclusivity.
+            case MvContains mvContains -> evaluateMvLeaf(
+                mvContains.left(),
+                mvContains.right(),
+                partitionValues,
+                PartitionValueMatcher::compareEquals
+            );
+            case MvIntersects mvIntersects -> evaluateMvIntersects(mvIntersects, partitionValues);
+            case MvInRange mvInRange -> {
+                Boolean onBound = onTheBound(mvInRange.options(), true);
+                yield nullableAnd(
+                    evaluateMvLeaf(mvInRange.field(), mvInRange.lower(), partitionValues, (v, b) -> above(v, b, onBound)),
+                    evaluateMvLeaf(mvInRange.field(), mvInRange.upper(), partitionValues, (v, b) -> below(v, b, onBound))
+                );
+            }
+            case MvGreater mvGreater -> evaluateMvLeaf(
+                mvGreater.field(),
+                mvGreater.bound(),
+                partitionValues,
+                (v, b) -> above(v, b, onTheBound(mvGreater.options(), false))
+            );
+            case MvLess mvLess -> evaluateMvLeaf(
+                mvLess.field(),
+                mvLess.bound(),
+                partitionValues,
+                (v, b) -> below(v, b, onTheBound(mvLess.options(), false))
+            );
             case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
             case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
             case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
@@ -3034,6 +3420,93 @@ public class FileSplitProvider implements SplitProvider {
         return null;
     }
 
+    /**
+     * {@code field OP literal} for a multivalue comparison function, and only that way round. A binary comparison is
+     * symmetric under operand swap, which is why {@link #evaluateComparison} also tries {@code literal OP column}; these
+     * are not — {@code mv_contains(literal, column)} asks whether the column's values are a subset of the literal's,
+     * a different predicate — so a literal on the left is unknown rather than evaluated. So is a field that is not a
+     * plain column: a case-insensitive DSL term arrives as {@code mv_contains(TO_LOWER(p), lowered)}, and partition
+     * values hold the original case, so {@link #extractColumnName} returning null for it is what keeps that file.
+     * <p>
+     * A null partition value is unknown here, where the function itself would answer false (it reads a null as the
+     * empty set). Unknown is strictly less informative than the true answer, and the connectives below are monotone in
+     * that ordering, so the difference can only keep a file the exact answer would prune — never prune one it would
+     * keep, under {@code Not} included.
+     */
+    private static Boolean evaluateMvLeaf(
+        Expression field,
+        Expression literal,
+        Map<String, Object> partitionValues,
+        BiFunction<Object, Object, Boolean> comparator
+    ) {
+        String columnName = extractColumnName(field);
+        Object literalValue = extractLiteralValue(literal);
+        // A list-valued literal is "contains all of these", not the scalar bound.
+        if (columnName == null
+            || literalValue == null
+            || literalValue instanceof List
+            || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        Object partitionValue = partitionValues.get(columnName);
+        return partitionValue != null ? comparator.apply(partitionValue, literalValue) : null;
+    }
+
+    /**
+     * {@code mv_intersects(p, [v...])}: the partition value is in the set. The set arrives as a single list-valued
+     * literal, not the list of literals {@code In} carries. A set with no non-null member is unknown rather than false.
+     */
+    private static Boolean evaluateMvIntersects(MvIntersects mvIntersects, Map<String, Object> partitionValues) {
+        String columnName = extractColumnName(mvIntersects.left());
+        Object literalValue = extractLiteralValue(mvIntersects.right());
+        if (columnName == null || literalValue == null || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        Object partitionValue = partitionValues.get(columnName);
+        if (partitionValue == null) {
+            return null;
+        }
+        List<?> values = literalValue instanceof List<?> list ? list : List.of(literalValue);
+        boolean sawValue = false;
+        for (Object value : values) {
+            if (value != null) {
+                sawValue = true;
+                if (PartitionValueMatcher.compareEquals(partitionValue, value)) {
+                    return true;
+                }
+            }
+        }
+        return sawValue ? false : null;
+    }
+
+    /**
+     * What an ordered multivalue function answers for a value lying exactly on its bound. The inclusivity is an option
+     * — {@code mv_in_range} defaults to inclusive, {@code mv_greater} / {@code mv_less} to strict — and when no options
+     * were given, the default is the answer. That is not an edge case: a DSL {@code range} on an integer column always
+     * arrives as an optionless {@code mv_in_range} with its bounds already made inclusive, and integer range bounds land
+     * on partition values constantly ({@code year >= 2025} over {@code year=2025}). With options present the answer is
+     * left unknown rather than parse them here.
+     * <p>
+     * Guessing instead would be wrong rather than loose: {@code NOT mv_greater(year, 2022)} is true for every row of a
+     * {@code year=2022} file because the bound is strict, and reading it as inclusive negates {@code 2022 >= 2022} to
+     * false and prunes that file.
+     */
+    private static Boolean onTheBound(Expression options, boolean defaultInclusive) {
+        return options == null ? defaultInclusive : null;
+    }
+
+    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. */
+    private static Boolean above(Object value, Object bound, Boolean onBound) {
+        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        return cmp > 0 ? Boolean.TRUE : cmp < 0 ? Boolean.FALSE : onBound;
+    }
+
+    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. */
+    private static Boolean below(Object value, Object bound, Boolean onBound) {
+        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        return cmp < 0 ? Boolean.TRUE : cmp > 0 ? Boolean.FALSE : onBound;
+    }
+
     private static String extractColumnName(Expression expr) {
         return switch (expr) {
             case FieldAttribute fa -> fa.name();
@@ -3049,85 +3522,4 @@ public class FileSplitProvider implements SplitProvider {
         };
     }
 
-    /**
-     * String form of a partition value or filter literal. Keyword partition values arrive as Java {@code String}
-     * (from {@code HivePartitionDetector.castValue}) while an ES|QL keyword literal is a Lucene {@code BytesRef}
-     * whose {@code toString()} is a hex dump — so a raw {@code toString()} comparison of the two never matches.
-     * {@link BytesRefs#toString(Object)} UTF8-decodes a {@code BytesRef} and falls back to {@code toString()}
-     * otherwise, so both sides normalize to the same text before any string compare or numeric parse.
-     */
-    private static String stringOf(Object value) {
-        return BytesRefs.toString(value);
-    }
-
-    private static boolean compareEquals(Object a, Object b) {
-        if (a == null || b == null) {
-            return false;
-        }
-        if (a instanceof Number na && b instanceof Number nb) {
-            return compareNumbers(na, nb) == 0;
-        }
-        return stringOf(a).equals(stringOf(b));
-    }
-
-    private static int compareValues(Object a, Object b) {
-        if (a == null || b == null) {
-            throw new IllegalArgumentException("Cannot compare null partition values");
-        }
-        if (a instanceof Number na && b instanceof Number nb) {
-            return compareNumbers(na, nb);
-        }
-        // Coerce mixed Number/text cases: a partition value may be stored as "2024" (String) while the literal from
-        // the filter is Integer 2024, or vice versa. Only when exactly one side is already a Number — two text values
-        // are compared as text, so a KEYWORD partition never has "0123" and "123" collapse into the same value.
-        if (a instanceof Number na) {
-            Number nb = parseNumber(stringOf(b));
-            return nb != null ? compareNumbers(na, nb) : keywordCompare(a, b);
-        }
-        if (b instanceof Number nb) {
-            Number na = parseNumber(stringOf(a));
-            return na != null ? compareNumbers(na, nb) : keywordCompare(a, b);
-        }
-        return keywordCompare(a, b);
-    }
-
-    /**
-     * Orders two numeric values. Integral types are compared as {@code long}, never as {@code double}: above
-     * 2^53 a {@code double} cannot separate adjacent longs, so an epoch-micros or snowflake-id partition value
-     * would compare <em>equal</em> to its neighbour. That is not a rounding nit — it makes the matcher return a
-     * confident {@code false} for {@code ts != <adjacent>} and prune a file whose every row matches the filter.
-     */
-    private static int compareNumbers(Number a, Number b) {
-        if (isIntegral(a) && isIntegral(b)) {
-            return Long.compare(a.longValue(), b.longValue());
-        }
-        return Double.compare(a.doubleValue(), b.doubleValue());
-    }
-
-    private static boolean isIntegral(Number n) {
-        return n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte;
-    }
-
-    /** The text parsed as a number, or {@code null} if it is not numeric. */
-    private static Number parseNumber(String text) {
-        try {
-            return Long.valueOf(text);
-        } catch (NumberFormatException notALong) {
-            try {
-                return Double.valueOf(text);
-            } catch (NumberFormatException notANumber) {
-                return null;
-            }
-        }
-    }
-
-    /**
-     * Orders two non-numeric values the way ES|QL orders keywords: by UTF-8 bytes, which is code-point order.
-     * {@link String#compareTo} would order by UTF-16 code units instead, and the two disagree whenever one side is a
-     * supplementary-plane character (a folder named {@code region=<emoji>}) and the other sits in {@code U+E000..U+FFFF}
-     * — the surrogate compares low, the engine compares it high, and a range predicate would prune a matching file.
-     */
-    private static int keywordCompare(Object a, Object b) {
-        return new BytesRef(stringOf(a)).compareTo(new BytesRef(stringOf(b)));
-    }
 }

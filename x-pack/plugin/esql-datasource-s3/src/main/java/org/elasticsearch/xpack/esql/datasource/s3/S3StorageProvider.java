@@ -28,6 +28,7 @@ import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -53,7 +54,9 @@ import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAll
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -409,9 +412,10 @@ public class S3StorageProvider implements StorageProvider {
         //
         // SDK-level retries are DISABLED on the async client: it exists solely for
         // S3StorageObject#readBytesAsync, which drives Standard-strategy retries itself so that each
-        // attempt gets a fresh KnownLengthAsyncResponseTransformer. The SDK reuses one transformer
-        // across its internal retries, and a stale exceptionOccurred from a finished attempt cannot
-        // be attributed to an attempt — it could spuriously fail a healthy retry and free its buffer.
+        // attempt gets a fresh CrossRegionAwareResponseTransformer (wrapping a fresh
+        // KnownLengthAsyncResponseTransformer). The SDK reuses one transformer across its internal
+        // retries, and a stale exceptionOccurred from a finished attempt cannot be attributed to an
+        // attempt — it could spuriously fail a healthy retry and free its buffer.
         // See KnownLengthAsyncResponseTransformer's javadoc; do not re-enable retries here without
         // removing the single-use contract there.
         return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), null).httpClientBuilder(
@@ -719,6 +723,73 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        validateS3Scheme(prefix);
+        String bucket = prefix.host();
+        String keyPrefix = extractKey(prefix);
+        if (keyPrefix.isEmpty() == false && keyPrefix.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+            keyPrefix += StoragePath.PATH_SEPARATOR;
+        }
+
+        List<StorageEntry> files = new ArrayList<>();
+        List<StoragePath> directories = new ArrayList<>();
+        String pathPrefix = bucketPathPrefix(prefix.scheme(), bucket);
+        String continuationToken = null;
+        try {
+            do {
+                ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+                    .bucket(bucket)
+                    .prefix(keyPrefix)
+                    .delimiter(StoragePath.PATH_SEPARATOR);
+                if (continuationToken != null) {
+                    requestBuilder.continuationToken(continuationToken);
+                }
+                ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                for (S3Object s3Object : response.contents()) {
+                    if (s3Object.key().endsWith(StoragePath.PATH_SEPARATOR)) {
+                        continue; // directory placeholder key (console "folder" object)
+                    }
+                    files.add(toStorageEntry(s3Object, pathPrefix));
+                }
+                for (CommonPrefix commonPrefix : response.commonPrefixes()) {
+                    String dirKey = commonPrefix.prefix();
+                    if (dirKey.endsWith(StoragePath.PATH_SEPARATOR)) {
+                        dirKey = dirKey.substring(0, dirKey.length() - 1);
+                    }
+                    directories.add(StoragePath.of(pathPrefix + dirKey));
+                }
+                if (files.size() + directories.size() > limit) {
+                    return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
+                }
+                continuationToken = response.nextContinuationToken();
+            } while (continuationToken != null);
+        } catch (Exception e) {
+            // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
+            // retry layer re-attempts it and the adaptive backoff hears about it.
+            ExternalUnavailableException unavailable = mapResolveFailure(prefix, e);
+            if (unavailable != null) {
+                throw unavailable;
+            }
+            throw new IOException(
+                "Failed to list children in bucket [" + bucket + "] with prefix [" + keyPrefix + "]: " + S3FailureDetail.of(e),
+                e
+            );
+        }
+        return new StorageChildren(files, directories);
+    }
+
+    /** The {@code scheme://bucket/} prefix full object paths are built from, shared with {@link S3StorageIterator}. */
+    private static String bucketPathPrefix(String scheme, String bucket) {
+        return scheme + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR;
+    }
+
+    /** One conversion from an SDK listing entry to a {@link StorageEntry}, shared by both listing shapes. */
+    private static StorageEntry toStorageEntry(S3Object s3Object, String pathPrefix) {
+        Instant lastModified = s3Object.lastModified() != null ? s3Object.lastModified() : Instant.EPOCH;
+        return new StorageEntry(StoragePath.of(pathPrefix + s3Object.key()), s3Object.size(), lastModified);
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         validateS3Scheme(path);
         String bucket = path.host();
@@ -737,6 +808,10 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            if (expired != null) {
+                throw expired;
+            }
             if (allowRegionRetry && shouldAttemptRegionRetry() && isAuthorizationHeaderMalformed(e)) {
                 String discoveredRegion = discoverRegionViaHeadBucket(client, bucket);
                 if (discoveredRegion != null) {
@@ -766,6 +841,10 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            if (expired != null) {
+                throw expired;
+            }
             ExternalUnavailableException unavailable = mapResolveFailure(path, e);
             if (unavailable != null) {
                 throw unavailable;
@@ -951,14 +1030,7 @@ public class S3StorageProvider implements StorageProvider {
             }
 
             S3Object s3Object = currentBatch.next();
-            String fullPath = baseDirectory.scheme() + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR + s3Object.key();
-            StoragePath objectPath = StoragePath.of(fullPath);
-
-            Instant lastModified = s3Object.lastModified();
-            if (lastModified == null) {
-                lastModified = Instant.EPOCH;
-            }
-            return new StorageEntry(objectPath, s3Object.size(), lastModified);
+            return toStorageEntry(s3Object, bucketPathPrefix(baseDirectory.scheme(), bucket));
         }
 
         @Override
@@ -980,6 +1052,13 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
+                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(
+                    e,
+                    "listing objects in bucket [" + bucket + "] with prefix [" + prefix + "]"
+                );
+                if (expired != null) {
+                    throw expired;
+                }
                 if (retryClientFactory != null && isAuthorizationHeaderMalformed(e)) {
                     // Discover the correct region via HeadBucket and retry once.
                     Function<String, S3Client> factory = retryClientFactory;

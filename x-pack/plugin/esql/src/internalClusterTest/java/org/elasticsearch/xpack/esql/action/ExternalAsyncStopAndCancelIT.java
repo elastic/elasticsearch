@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -135,6 +136,10 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     /** Storage provider that delegates to the local filesystem but inserts a trickle on every read past
      *  {@link #leadingBytes}; see {@link SlowInputStream} for the read semantics. */
     public static final class SlowFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
 
         @Override
         public StorageObject newObject(StoragePath path) {

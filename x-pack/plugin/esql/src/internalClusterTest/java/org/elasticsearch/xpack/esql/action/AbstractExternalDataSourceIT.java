@@ -104,6 +104,13 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     /** Default data-source name used by the {@link #registerDataset(String, String, Map)} convenience. */
     private static final String SHARED_TEST_DATA_SOURCE = "test_ds";
 
+    /**
+     * Data-source name used by {@link #registerLocalFileDataset}. Type {@code local} goes through
+     * {@code FileDataSourceValidator}, so an omitted {@code schema_resolution} stores
+     * {@code first_file_wins}.
+     */
+    private static final String SHARED_LOCAL_FILE_DATA_SOURCE = "file_ds";
+
     private final Set<String> registeredDatasets = new LinkedHashSet<>();
     private final Set<String> registeredDataSources = new LinkedHashSet<>();
 
@@ -224,6 +231,26 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
             registerDataSource(SHARED_TEST_DATA_SOURCE, Map.of());
         }
         registerDataset(name, SHARED_TEST_DATA_SOURCE, resourceUri, settings);
+        return name;
+    }
+
+    /**
+     * Registers {@code name} against a {@code local} data source so PUT goes through
+     * {@code FileDataSourceValidator} and an omitted {@code schema_resolution} stores
+     * {@code first_file_wins}. {@link #registerDataset(String, String, Map)} uses the pass-through
+     * {@code test} validator and stores a missing key (legacy hydrate).
+     */
+    protected String registerLocalFileDataset(String name, String resourceUri, Map<String, Object> settings) {
+        if (registeredDataSources.contains(SHARED_LOCAL_FILE_DATA_SOURCE) == false) {
+            assertAcked(
+                client().execute(
+                    PutDataSourceAction.INSTANCE,
+                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, SHARED_LOCAL_FILE_DATA_SOURCE, "local", null, new HashMap<>())
+                )
+            );
+            registeredDataSources.add(SHARED_LOCAL_FILE_DATA_SOURCE);
+        }
+        registerDataset(name, SHARED_LOCAL_FILE_DATA_SOURCE, resourceUri, settings);
         return name;
     }
 

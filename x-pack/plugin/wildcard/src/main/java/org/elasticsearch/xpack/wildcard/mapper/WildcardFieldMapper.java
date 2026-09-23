@@ -353,6 +353,20 @@ public class WildcardFieldMapper extends FieldMapper {
             return arrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
         }
 
+        /**
+         * The field is there if the document wrote at least one slot for it, null slots included. A document whose slots are all
+         * null has no binary doc value, only the companion count, so the count is what says so. See
+         * {@link org.elasticsearch.index.mapper.TextFamilyFieldType#existsQuery}, which reaches the same answer for the string
+         * types that share a base with each other; wildcard does not, so it states it here.
+         */
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (binaryFormat() == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
+                return new FieldExistsQuery(name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+            }
+            return super.existsQuery(context);
+        }
+
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
             return context.fieldExistsInIndex(name());

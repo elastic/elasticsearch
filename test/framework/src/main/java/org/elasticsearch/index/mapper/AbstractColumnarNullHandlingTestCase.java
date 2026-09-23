@@ -21,6 +21,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
@@ -170,6 +172,48 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     public void testNullBetweenValuesKeepsItsPlace() throws IOException {
         assertSourceUnderBothCodecs("""
             {"field":["a",null,"b"]}""", b -> b.startArray(FIELD).value("a").nullValue().value("b").endArray());
+    }
+
+    /**
+     * {@code exists} asks whether the document wrote at least one slot, which is the same question the source round-trips above
+     * answer: a value or a null inside an array means the field is there, a bare null and an empty array mean it is not. The two
+     * layouts reach it differently — the ColumNAR payload is written for such a document, the in-order column writes only its
+     * companion count — so the query differs while the answer must not.
+     */
+    public void testExistsAsksForAtLeastOneSlot() throws IOException {
+        final List<String> shapes = List.of(
+            "{\"" + FIELD + "\":\"a\"}",
+            "{\"" + FIELD + "\":[null]}",
+            "{\"" + FIELD + "\":[]}",
+            "{\"" + FIELD + "\":null}",
+            "{}"
+        );
+        for (boolean withCodec : new boolean[] { true, false }) {
+            MapperService mapperService = createMapperService(
+                columnarSettings(withCodec),
+                mapping(b -> b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject())
+            );
+            final List<String> matched = new ArrayList<>();
+            withLuceneIndex(mapperService, iw -> {
+                for (int i = 0; i < shapes.size(); i++) {
+                    iw.addDocument(
+                        mapperService.documentMapper()
+                            .parse(new SourceToParse(Integer.toString(i), new BytesArray(shapes.get(i)), XContentType.JSON))
+                            .rootDoc()
+                    );
+                }
+            }, reader -> {
+                final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
+                final int[] docs = Arrays.stream(new IndexSearcher(reader).search(exists, shapes.size()).scoreDocs)
+                    .mapToInt(scoreDoc -> scoreDoc.doc)
+                    .sorted()
+                    .toArray();
+                for (int doc : docs) {
+                    matched.add(shapes.get(doc));
+                }
+            });
+            assertEquals("codec=" + withCodec, List.of(shapes.get(0), shapes.get(1)), matched);
+        }
     }
 
     private List<IndexableField> fieldsFor(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> doc)

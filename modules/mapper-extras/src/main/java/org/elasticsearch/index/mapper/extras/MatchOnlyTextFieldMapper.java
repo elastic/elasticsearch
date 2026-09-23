@@ -436,6 +436,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
         }
 
+        @Override
+        protected boolean keepsArrayOrderWithSeparateCounts() {
+            return binaryFormat() == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
+        }
+
         /**
          * Returns whether this field can use its delegate keyword field for synthetic source.
          *

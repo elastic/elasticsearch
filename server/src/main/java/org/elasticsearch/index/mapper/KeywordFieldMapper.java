@@ -879,6 +879,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return diskFormat.binaryFormat();
         }
 
+        @Override
+        protected boolean keepsArrayOrderWithSeparateCounts() {
+            return diskFormat == DocValuesDiskFormat.BINARY_ARRAY_ORDER_INLINE_NULL;
+        }
+
         /**
          * Whether reads of this field see array elements in the order they arrived, keeping duplicates and the
          * positions of nulls, rather than sorted and deduplicated. Where that order lives is

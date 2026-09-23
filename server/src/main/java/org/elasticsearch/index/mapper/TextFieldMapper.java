@@ -954,6 +954,11 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected boolean keepsArrayOrderWithSeparateCounts() {
+            return binaryFormat() == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
+        }
+
+        @Override
         public boolean eagerGlobalOrdinals() {
             return eagerGlobalOrdinals;
         }

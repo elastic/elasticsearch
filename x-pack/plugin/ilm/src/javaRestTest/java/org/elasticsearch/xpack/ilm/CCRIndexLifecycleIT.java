@@ -745,7 +745,7 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
             index(client(), indexName, documentId);
             assertDocumentExists(client(), indexName, documentId);
         } else if (targetCluster == TargetCluster.FOLLOWER) {
-            createNewSingletonPolicy(policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE, TimeValue.timeValueSeconds(5));
+            createNewSingletonPolicy(policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE, TimeValue.timeValueDays(1));
 
             followIndex(indexName, followerIndexName);
             ensureGreen(followerIndexName);
@@ -754,6 +754,7 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
                 // Confirm the document was replicated before ILM fires.
                 assertBusy(() -> assertDocumentExists(client(), followerIndexName, documentId));
 
+                createNewSingletonPolicy(policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE, TimeValue.timeValueSeconds(1));
                 // Follower ILM delete phase must fire without needing to unfollow.
                 assertBusy(() -> {
                     final Response response = client().performRequest(new Request("HEAD", "/" + followerIndexName));

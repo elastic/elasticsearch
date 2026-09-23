@@ -1185,8 +1185,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
+         * A batch record is returned one exploded {@link Operation} at a time.
          */
         Translog.Operation next() throws IOException;
+
+        /**
+         * Returns the next record in the snapshot or <code>null</code> if we reached the end: either a single
+         * {@link Operation} or a whole {@link IndexOperationBatch.TranslogRecord}. A batch record is returned
+         * intact so recovery can index it as one batch; rows the snapshot must not replay are marked as
+         * {@link IndexOperationBatch.TranslogRecord#ROW_SKIPPED} rather than exploded away. Defaults to
+         * {@link #next()} for snapshots that never carry batch records. Do not mix {@link #next()} and
+         * {@code nextRecord()} calls on the same snapshot.
+         */
+        default Translog.Record nextRecord() throws IOException {
+            return next();
+        }
     }
 
     /**
@@ -1222,13 +1235,38 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public Operation next() throws IOException {
             Translog.Operation op;
             while ((op = delegate.next()) != null) {
-                if (fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo) {
+                if (inRange(op.seqNo())) {
                     return op;
                 } else {
                     filteredOpsCount++;
                 }
             }
             return null;
+        }
+
+        @Override
+        public Record nextRecord() throws IOException {
+            Translog.Record record;
+            while ((record = delegate.nextRecord()) != null) {
+                if (record instanceof Operation op) {
+                    if (inRange(op.seqNo())) {
+                        return op;
+                    }
+                    filteredOpsCount++;
+                    continue;
+                }
+                final IndexOperationBatch.TranslogRecord batch = (IndexOperationBatch.TranslogRecord) record;
+                final IndexOperationBatch.TranslogRecord kept = batch.filterRows(this::inRange);
+                filteredOpsCount += batch.replayCount() - (kept == null ? 0 : kept.replayCount());
+                if (kept != null) {
+                    return kept;
+                }
+            }
+            return null;
+        }
+
+        private boolean inRange(long seqNo) {
+            return fromSeqNo <= seqNo && seqNo <= toSeqNo;
         }
 
         @Override

@@ -277,7 +277,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId, serializedSingles[1], 1, new Translog.Location(0, currentLocation, serializedSingles[1].length()));
         currentLocation += serializedSingles[1].length();
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, serializedBatch.length());
-        translogReplicator.addRecord(shardId, serializedBatch, new long[] { 2, 3, 4 }, finalLocation);
+        translogReplicator.addRecord(shardId, serializedBatch, 2, 4, finalLocation);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -323,15 +323,13 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         int docCount = randomIntBetween(2, 5);
         List<Map<String, Object>> docs = new ArrayList<>(docCount);
-        long[] seqNos = new long[docCount];
         for (int i = 0; i < docCount; i++) {
             docs.add(Map.of("k", "v" + i));
-            seqNos[i] = i;
         }
         IndexOperationBatch.TranslogRecord batch = buildBatch(docs, 0L, primaryTerm);
         Translog.Serialized serializedBatch = serializeBatch(batch);
         Translog.Location location = new Translog.Location(0, 0, serializedBatch.length());
-        translogReplicator.addRecord(shardId, serializedBatch, seqNos, location);
+        translogReplicator.addRecord(shardId, serializedBatch, batch.startSeqNo(), batch.maxSeqNo(), location);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, location, future);
@@ -356,27 +354,28 @@ public class TranslogReplicatorTests extends ESTestCase {
             batchData = new BytesArray(escf.data().toBytesRef(), true);
         }
         final int docCount = docs.size();
-        final byte[] statuses = new byte[docCount]; // all ROW_INDEXED
-        final long[] seqNos = new long[docCount];
         final long[] versions = new long[docCount];
         final long[] timestamps = new long[docCount];
         final XContentType[] types = new XContentType[docCount];
         final BytesRef[] uids = new BytesRef[docCount];
         for (int i = 0; i < docCount; i++) {
-            seqNos[i] = firstSeqNo + i;
             versions[i] = 1L;
             timestamps[i] = -1L;
             types[i] = XContentType.JSON;
             uids[i] = Uid.encodeId("doc-" + i);
         }
+        // all rows indexed: no sparse no-op/preflight row arrays, and no replay-time skipped rows
         return new IndexOperationBatch.TranslogRecord(
             primaryTerm,
-            statuses,
-            seqNos,
+            docCount,
+            firstSeqNo,
             versions,
             timestamps,
             types,
             uids,
+            null,
+            null,
+            null,
             null,
             null,
             batchData

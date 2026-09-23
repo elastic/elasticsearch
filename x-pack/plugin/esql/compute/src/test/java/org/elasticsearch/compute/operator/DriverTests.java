@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -577,6 +578,9 @@ public class DriverTests extends ESTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
         assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC)));
+        // The status turns ASYNC before the driver registers its wake-up task, so also wait for the driver thread to go idle.
+        // Otherwise a cancellation could land in between and the driver would observe it on its own thread.
+        assertBusy(() -> assertThat(((ThreadPoolExecutor) threadPool.executor("esql")).getActiveCount(), equalTo(0)));
         return new BlockedDriver(driver, sinkHandler, future, closeThread);
     }
 

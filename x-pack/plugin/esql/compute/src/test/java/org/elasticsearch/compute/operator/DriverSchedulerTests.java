@@ -58,4 +58,50 @@ public class DriverSchedulerTests extends ESTestCase {
             terminate(threadPool);
         }
     }
+
+    /**
+     * Once the driver is completing, rescheduling it must be force-queued so a full queue does not fail it with a rejection
+     * instead of letting it finish.
+     */
+    public void testForceQueueWhenCompleting() throws Exception {
+        DriverScheduler scheduler = new DriverScheduler();
+        AtomicInteger runs = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        var threadPool = new TestThreadPool(
+            "test",
+            new FixedExecutorBuilder(Settings.EMPTY, "test", 1, 2, "test", EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
+        CountDownLatch latch = new CountDownLatch(1);
+        Executor executor = threadPool.executor("test");
+        try {
+            boolean rejected = false;
+            for (int i = 0; i < 10 && rejected == false; i++) {
+                try {
+                    executor.execute(() -> safeAwait(latch));
+                } catch (EsRejectedExecutionException e) {
+                    rejected = true;
+                }
+            }
+            assertTrue("executor queue was not filled", rejected);
+            scheduler.runPendingTasks();
+            scheduler.scheduleOrRunTask(executor, new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    failures.incrementAndGet();
+                }
+
+                @Override
+                protected void doRun() {
+                    runs.incrementAndGet();
+                }
+            });
+            assertThat(runs.get(), equalTo(0));
+            latch.countDown();
+            assertBusy(() -> assertThat(runs.get(), equalTo(1)));
+            assertThat(failures.get(), equalTo(0));
+        } finally {
+            latch.countDown();
+            terminate(threadPool);
+        }
+    }
 }

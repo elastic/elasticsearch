@@ -56,6 +56,8 @@ final class DriverScheduler {
                 if (scheduledTask.getAndUpdate(t -> t == task ? null : t) == task) {
                     if (forceExecution) {
                         // Only a shut-down executor rejects a forced task. Let the driver finish here rather than fail it.
+                        // This runs on the calling thread, but a node stops its transport before its thread pools, so this
+                        // is never a transport worker. Failing the driver instead would close its operators on this thread too.
                         task.run();
                     } else {
                         task.onFailure(e);

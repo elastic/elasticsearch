@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -787,6 +788,9 @@ public class ExchangeServiceTests extends ESTestCase {
                     driverFuture
                 );
                 assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC)));
+                // The status turns ASYNC before the driver registers its wake-up task, so also wait for the driver thread to go
+                // idle. Otherwise a cancellation could land in between and the driver would observe it on its own thread.
+                assertBusy(() -> assertThat(((ThreadPoolExecutor) threadPool.executor(ESQL_TEST_EXECUTOR)).getActiveCount(), equalTo(0)));
 
                 var sourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
                 Transport.Connection connection = node0.getConnection(node1.getLocalNode());

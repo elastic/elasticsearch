@@ -214,7 +214,7 @@ public class RetryReshardSplitRecoveryIT extends AbstractStatelessPluginIntegTes
     }
 
     /// Counts recovery attempts, injects IndexEventListener failures, and gates recovery for races.
-    /// Enables [IndicesClusterStateService#LOCAL_RECOVERY_RETRY].
+    /// Enables [IndicesClusterStateService#INDICES_RECOVERY_LOCAL_RETRY_SETTING].
     public static class RetryReshardSplitRecoveryTestPlugin extends Plugin {
         private static final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>(null);
         private static final AtomicInteger recoveryCounter = new AtomicInteger();
@@ -267,14 +267,14 @@ public class RetryReshardSplitRecoveryIT extends AbstractStatelessPluginIntegTes
         @Override
         public List<Setting<?>> getSettings() {
             // LOCAL_RECOVERY_RETRY is test-registered only (see IndicesClusterStateService)
-            return List.of(IndicesClusterStateService.LOCAL_RECOVERY_RETRY);
+            return List.of(IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING);
         }
 
         @Override
         public Settings additionalSettings() {
             return Settings.builder()
                 .put(super.additionalSettings())
-                .put(IndicesClusterStateService.LOCAL_RECOVERY_RETRY.getKey(), true)
+                .put(IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), true)
                 .build();
         }
 

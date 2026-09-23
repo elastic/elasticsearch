@@ -142,7 +142,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * Enable / disable local retry functionality on recovery failure. When {@code false}, {@link FailureStrategy#RETRY}
      * will be treated as {@link FailureStrategy#FAIL_SEND} by {@link ShardRecoveryListener}.
      */
-    public static final Setting<Boolean> LOCAL_RECOVERY_RETRY = Setting.boolSetting(
+    public static final Setting<Boolean> INDICES_RECOVERY_LOCAL_RETRY_SETTING = Setting.boolSetting(
         "indices.recovery.local_retry",
         false,
         Setting.Property.NodeScope,
@@ -255,7 +255,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.shardLockRetryTimeout = SHARD_LOCK_RETRY_TIMEOUT_SETTING.get(settings);
         this.shardCloseExecutor = new ShardCloseExecutor(settings, threadPool.generic());
         // setting only registered in tests today
-        clusterService.getClusterSettings().initializeAndWatchIfRegistered(LOCAL_RECOVERY_RETRY, b -> localRecoveryRetryEnabled = b);
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(INDICES_RECOVERY_LOCAL_RETRY_SETTING, b -> localRecoveryRetryEnabled = b);
     }
 
     @Override

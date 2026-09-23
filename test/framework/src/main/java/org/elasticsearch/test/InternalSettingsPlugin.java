@@ -84,7 +84,7 @@ public final class InternalSettingsPlugin extends Plugin {
             RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING,
             RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING,
             RecoveryGateMonitor.RECHECK_INTERVAL_SETTING,
-            IndicesClusterStateService.LOCAL_RECOVERY_RETRY
+            IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING
         );
     }
 }

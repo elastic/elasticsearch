@@ -37,7 +37,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.LOCAL_RECOVERY_RETRY;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -60,7 +60,7 @@ public class IndicesClusterStateServiceRecoveryRetrySettingTests extends ESTestC
         boolean expectedDefault = false;
 
         Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingsSet.add(LOCAL_RECOVERY_RETRY);
+        settingsSet.add(INDICES_RECOVERY_LOCAL_RETRY_SETTING);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool, null);
@@ -69,22 +69,22 @@ public class IndicesClusterStateServiceRecoveryRetrySettingTests extends ESTestC
             assertEquals(expectedDefault, indicesClusterStateService.getLocalRecoveryRetryEnabled());
 
             // Flip
-            clusterSettings.applySettings(Settings.builder().put(LOCAL_RECOVERY_RETRY.getKey(), !expectedDefault).build());
+            clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), !expectedDefault).build());
             assertEquals(!expectedDefault, indicesClusterStateService.getLocalRecoveryRetryEnabled());
 
             // Flip
-            clusterSettings.applySettings(Settings.builder().put(LOCAL_RECOVERY_RETRY.getKey(), expectedDefault).build());
+            clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), expectedDefault).build());
             assertEquals(expectedDefault, indicesClusterStateService.getLocalRecoveryRetryEnabled());
         }
     }
 
     public void testLocalRecoveryRetryEnabledSettingPresetValueAndDynamicUpdate() {
         // Preset value is negated default value to not pass accidentally
-        boolean presetValue = !LOCAL_RECOVERY_RETRY.getDefault(Settings.EMPTY);
+        boolean presetValue = !INDICES_RECOVERY_LOCAL_RETRY_SETTING.getDefault(Settings.EMPTY);
         Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingsSet.add(LOCAL_RECOVERY_RETRY);
+        settingsSet.add(INDICES_RECOVERY_LOCAL_RETRY_SETTING);
 
-        Settings settings = Settings.builder().put(LOCAL_RECOVERY_RETRY.getKey(), presetValue).build();
+        Settings settings = Settings.builder().put(INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), presetValue).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, settingsSet);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool, null);
         IndicesClusterStateService indicesClusterStateService = createIndicesClusterStateService(clusterService, threadPool);
@@ -93,11 +93,11 @@ public class IndicesClusterStateServiceRecoveryRetrySettingTests extends ESTestC
             assertEquals(presetValue, indicesClusterStateService.getLocalRecoveryRetryEnabled());
 
             // Flip
-            clusterSettings.applySettings(Settings.builder().put(LOCAL_RECOVERY_RETRY.getKey(), !presetValue).build());
+            clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), !presetValue).build());
             assertEquals(!presetValue, indicesClusterStateService.getLocalRecoveryRetryEnabled());
 
             // Flip again
-            clusterSettings.applySettings(Settings.builder().put(LOCAL_RECOVERY_RETRY.getKey(), presetValue).build());
+            clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), presetValue).build());
             assertEquals(presetValue, indicesClusterStateService.getLocalRecoveryRetryEnabled());
         }
     }

@@ -901,7 +901,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         public Settings additionalSettings() {
             return Settings.builder()
                 .put(super.additionalSettings())
-                .put(IndicesClusterStateService.LOCAL_RECOVERY_RETRY.getKey(), true)
+                .put(IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), true)
                 .build();
         }
 

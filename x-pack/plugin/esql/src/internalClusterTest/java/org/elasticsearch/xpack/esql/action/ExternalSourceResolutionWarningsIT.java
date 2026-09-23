@@ -29,6 +29,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Notices raised while <em>resolving</em> an external source (as opposed to while reading it) must reach the client.
@@ -175,6 +176,17 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         String notice = "widened columns to keyword";
         assertThat("cold resolve", warningsOf(query), hasItem(containsString(notice)));
         assertThat("cached resolve", warningsOf(query), hasItem(containsString(notice)));
+    }
+
+    public void testMetadataShadowWarningReachesClient() throws Exception {
+        Path dir = createTempDir().resolve("metadata_shadow");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("a.csv"), "_id,emp_no\nrow-a,1\n", StandardCharsets.UTF_8);
+        String dataset = registerDataset("metadata_shadow", StoragePath.fileUri(dir.resolve("a.csv")), Map.of("format", "csv"));
+
+        String notice = "shadowed by METADATA";
+        assertThat(warningsOf("FROM " + dataset + " METADATA _id | KEEP emp_no"), hasItem(containsString(notice)));
+        assertThat(warningsOf("FROM " + dataset + " | KEEP emp_no"), not(hasItem(containsString(notice))));
     }
 
     /** Runs {@code query} over HTTP and returns the {@code Warning} header messages of the response. */

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import java.util.function.Function;
 
 public class OpenAiCompletionResponseHandler extends OpenAiResponseHandler {
+
     public OpenAiCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, true);
     }
@@ -30,7 +31,10 @@ public class OpenAiCompletionResponseHandler extends OpenAiResponseHandler {
 
     @Override
     protected RetryException buildExceptionHandling429(OutboundRequest outboundRequest, HttpResult result) {
-        // We don't retry, if the chat completion input is too large
-        return new RetryException(false, buildError(RATE_LIMIT, outboundRequest, result));
+        if (isTokenLimitExceeded(result)) {
+            // Token-overflow 429s must not be retried; the request itself must be reduced in size
+            return new RetryException(false, buildError(RATE_LIMIT, outboundRequest, result));
+        }
+        return super.buildExceptionHandling429(outboundRequest, result);
     }
 }

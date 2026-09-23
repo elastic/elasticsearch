@@ -249,7 +249,7 @@ public final class AsymmetricHashingQuantizer {
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
         float[] xLd = new float[nTraining * nDims];
-        ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims, xLd);
+        ESVectorUtil.matrixMultiplyFloat(xTraining, p, nTraining, originalDim, nDims, xLd);
 
         // Pre-transpose X_ld so that X_ld^T @ X_enc can use sequential memory access
         float[] xLdT = ESVectorUtil.transposeMatrix(xLd, nTraining, nDims);
@@ -268,7 +268,7 @@ public final class AsymmetricHashingQuantizer {
 
             if (epoch < nTrainingIterations) {
                 // X_transformed = X_ld @ R (nTraining x nDims)
-                ESVectorUtil.matrixMultiply(xLd, r, nTraining, nDims, nDims, xTransformed);
+                ESVectorUtil.matrixMultiplyFloat(xLd, r, nTraining, nDims, nDims, xTransformed);
                 // Quantize
                 quantizer.encode(xTransformed, nTraining, nDims, qr);
                 float[] xEnc = qr.centeredCodes();
@@ -284,13 +284,13 @@ public final class AsymmetricHashingQuantizer {
                     }
                 }
                 // M = X_ld^T @ X_enc (nDims x nDims) — uses pre-transposed X_ld for sequential access
-                ESVectorUtil.matrixMultiply(xLdT, xEnc, nDims, nTraining, nDims, m);
+                ESVectorUtil.matrixMultiplyFloat(xLdT, xEnc, nDims, nTraining, nDims, m);
             }
         }
 
         // W = P @ R (originalDim x nDims)
         float[] w = new float[originalDim * nDims];
-        ESVectorUtil.matrixMultiply(p, r, originalDim, nDims, nDims, w);
+        ESVectorUtil.matrixMultiplyFloat(p, r, originalDim, nDims, nDims, w);
         return w;
     }
 

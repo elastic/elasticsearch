@@ -1129,9 +1129,9 @@ public class ESVectorUtil {
             for (int jj = 0; jj < cols; jj += transposeBlock) {
                 int jMax = Math.min(jj + transposeBlock, cols);
                 for (int i = ii; i < iMax; i++) {
-                    long mBase = (long) i * cols;
+                    int mBase = i * cols;
                     for (int j = jj; j < jMax; j++) {
-                        result[j * rows + i] = m.get(ValueLayout.JAVA_FLOAT, (mBase + j) * 4);
+                        result[j * rows + i] = m.getAtIndex(ValueLayout.JAVA_FLOAT, mBase + j);
                     }
                 }
             }
@@ -1149,7 +1149,7 @@ public class ESVectorUtil {
      * @param result output matrix in row-major order, length cols*rows*4
      */
     public static void transposeFloatMatrix(MemorySegment m, int rows, int cols, MemorySegment result) {
-        if (result.byteSize() != (long) cols * rows * 4) {
+        if (result.byteSize() != (long) cols * rows * Float.SIZE) {
             throw new IllegalArgumentException("Invalid segment size [" + result.byteSize() + "] for matrix transposition");
         }
 
@@ -1161,11 +1161,11 @@ public class ESVectorUtil {
         for (int ii = 0; ii < rows; ii += transposeBlock) {
             int iMax = Math.min(ii + transposeBlock, rows);
             for (int jj = 0; jj < cols; jj += transposeBlock) {
-                int jMax = Math.min(jj + transposeBlock, cols);
+                long jMax = Math.min(jj + transposeBlock, cols);
                 for (int i = ii; i < iMax; i++) {
-                    long mBase = (long) i * cols;
-                    for (int j = jj; j < jMax; j++) {
-                        result.set(ValueLayout.JAVA_FLOAT, ((long) j * rows + i) * 4, m.get(ValueLayout.JAVA_FLOAT, (mBase + j) * 4));
+                    long mBase = (long)i * cols;
+                    for (long j = jj; j < jMax; j++) {
+                        result.setAtIndex(ValueLayout.JAVA_FLOAT, j * rows + i, m.getAtIndex(ValueLayout.JAVA_FLOAT, mBase + j));
                     }
                 }
             }
@@ -1176,17 +1176,17 @@ public class ESVectorUtil {
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
      * Result C is (m x n).
      */
-    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
-        if (a.length != m * k) {
-            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+    public static void matrixMultiplyFloat(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result) {
+        if (a.byteSize() != (long)m * k * Float.BYTES) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.byteSize() + "] for matrix multiplication");
         }
-        if (b.length != k * n) {
-            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        if (b.byteSize() != (long)k * n * Float.BYTES) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.byteSize() + "] for matrix multiplication");
         }
-        if (result.length != m * n) {
-            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        if (result.byteSize() != (long)m * n * Float.BYTES) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.byteSize() + "] for matrix multiplication");
         }
-        IMPL.matrixMultiply(a, b, m, k, n, result);
+        IMPL.matrixMultiplyFloat(a, b, m, k, n, result);
     }
 
     /**

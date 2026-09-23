@@ -200,7 +200,7 @@ final class AshUtils {
         // V = A^T U, computed transposed as V^T = U^T A (k x n) so that each vector occupies a
         // row and the normalization runs over contiguous data.
         float[] vT = new float[k * n];
-        ESVectorUtil.matrixMultiply(uT, a, k, m, n, vT);
+        ESVectorUtil.matrixMultiplyFloat(uT, a, k, m, n, vT);
         for (int j = 0; j < k; j++) {
             ESVectorUtil.l2Normalize(vT, j * n, n);
         }
@@ -236,8 +236,8 @@ final class AshUtils {
         float[] w = new float[p * k];
         for (int iter = 0; iter < iters; iter++) {
             ESVectorUtil.transposeMatrix(bT, k, q, b);       // B (q x k)
-            ESVectorUtil.matrixMultiply(x, b, p, q, k, w);   // W = X @ B (p x k)
-            ESVectorUtil.matrixMultiply(xT, w, q, p, k, b);  // B <- X^T @ W (q x k)
+            ESVectorUtil.matrixMultiplyFloat(x, b, p, q, k, w);   // W = X @ B (p x k)
+            ESVectorUtil.matrixMultiplyFloat(xT, w, q, p, k, b);  // B <- X^T @ W (q x k)
 
             ESVectorUtil.transposeMatrix(b, q, k, bT);
             qrOrthogonalize(bT, q, k);

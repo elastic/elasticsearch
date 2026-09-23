@@ -20,6 +20,7 @@ import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
@@ -792,45 +793,52 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
-        Arrays.fill(result, 0);
-        multiplyAccumulate(a, k, b, result, m, k, n);
+    public void matrixMultiplyFloat(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result) {
+        multiply(a, k, b, result, m, k, n);
     }
 
     /**
-     * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
+     * Computes {@code C = A @ B}, where element (i, l) of the left operand is
      * {@code a[i * aRowStride + l]}.
      *
      * @param aRowStride distance in {@code a} between consecutive rows of the left operand
      * @param cRows      rows of C, and of the left operand
-     * @param inner      inner dimension of the multiplication
+     * @param inner      inner dimension of the multiplication, at least one
      * @param n          columns of C, and of B
      */
-    private void multiplyAccumulate(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
-        // unroll 4x, so 4 values are accumulated into each c cell at once
-        final int innerLimit = inner - inner % 4;
-        for (int i = 0; i < cRows; i++) {
-            int aBase = i * aRowStride;
-            int cBase = i * n;
-            int l = 0;
-            for (; l < innerLimit; l += 4) {
-                int aOffset = aBase + l;
+    private void multiply(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int cRows, int inner, int n) {
+        for (long i = 0; i < cRows; i++) {
+            long aBase = i * aRowStride;
+            long cBase = i * n;
+            // the first inner value writes each c cell, so c does not need to be zeroed first
+            float a0 = a.getAtIndex(JAVA_FLOAT, aBase);
+            for (long j = 0; j < n; j++) {
+                c.setAtIndex(JAVA_FLOAT, cBase + j, a0 * b.getAtIndex(JAVA_FLOAT, j));
+            }
+            // unroll 4x, so 4 values are accumulated into each c cell at once
+            int l = 1;
+            for (; l + 4 <= inner; l += 4) {
+                long aOffset = aBase + l;
                 int b0 = l * n;
                 int b1 = b0 + n;
                 int b2 = b0 + n * 2;
                 int b3 = b0 + n * 3;
                 for (int j = 0; j < n; j++) {
-                    float acc = c[cBase + j];
-                    acc = fma(a[aOffset], b[b0 + j], acc);
-                    acc = fma(a[aOffset + 1], b[b1 + j], acc);
-                    acc = fma(a[aOffset + 2], b[b2 + j], acc);
-                    acc = fma(a[aOffset + 3], b[b3 + j], acc);
-                    c[cBase + j] = acc;
+                    float acc = c.getAtIndex(JAVA_FLOAT, cBase + j);
+                    acc = fma(a.getAtIndex(JAVA_FLOAT, aOffset), b.getAtIndex(JAVA_FLOAT, b0 + j), acc);
+                    acc = fma(a.getAtIndex(JAVA_FLOAT, aOffset + 1), b.getAtIndex(JAVA_FLOAT, b1 + j), acc);
+                    acc = fma(a.getAtIndex(JAVA_FLOAT, aOffset + 2), b.getAtIndex(JAVA_FLOAT, b2 + j), acc);
+                    acc = fma(a.getAtIndex(JAVA_FLOAT, aOffset + 3), b.getAtIndex(JAVA_FLOAT, b3 + j), acc);
+                    c.setAtIndex(JAVA_FLOAT, cBase + j, acc);
                 }
             }
             // tail
             for (; l < inner; l++) {
-                linearCombination(a[aBase + l], b, l * n, c, cBase, n);
+                float al = a.getAtIndex(JAVA_FLOAT, aBase + l);
+                int bBase = l * n;
+                for (int j = 0; j < n; j++) {
+                    c.setAtIndex(JAVA_FLOAT, cBase + j, fma(al, b.getAtIndex(JAVA_FLOAT, bBase + j), c.getAtIndex(JAVA_FLOAT, cBase + j)));
+                }
             }
         }
     }

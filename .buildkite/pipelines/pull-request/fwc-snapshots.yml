@@ -7,8 +7,8 @@
 config:
   trigger-phrase: '.*run\W+elasticsearch-ci/fwc.*'
   # main: nothing is ahead of it, so there is nothing to test.
-  # 8.19: maintenance branch. It has three branches ahead of it and produces the most backports, so
-  # it was excluded on cost grounds. Revisit when the oldest active branch changes.
+  # 8.19: maintenance branch. It has three branches ahead of it and backports to this branch are
+  # limited in scope making the problem of forward breakages exceedingly rare
   skip-target-branches:
     - "main"
     - "8.19"

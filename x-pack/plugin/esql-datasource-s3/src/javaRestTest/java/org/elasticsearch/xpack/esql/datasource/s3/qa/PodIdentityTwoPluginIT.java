@@ -115,6 +115,8 @@ public class PodIdentityTwoPluginIT extends ESRestTestCase {
         .setting("s3.client.default.endpoint", snapshotS3Fixture::getAddress)
         // Only the repository-s3 symlink — the state published instructions produce.
         .configFile(REPOSITORY_S3_TOKEN_LOCATION, Resource.fromString(AUTH_TOKEN_FILE_CONTENTS))
+        // test-clusters expands ${ES_PATH_CONF} in env values (AbstractLocalClusterFactory); same
+        // pattern as RepositoryS3PodIdentityCredentialsRestIT — repository-s3 reads this path.
         .environment("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", "${ES_PATH_CONF}/" + REPOSITORY_S3_TOKEN_LOCATION)
         .environment("AWS_CONTAINER_CREDENTIALS_FULL_URI", credentialsFixture::getCredentialsUri)
         .environment("AWS_REGION", regionSupplier)

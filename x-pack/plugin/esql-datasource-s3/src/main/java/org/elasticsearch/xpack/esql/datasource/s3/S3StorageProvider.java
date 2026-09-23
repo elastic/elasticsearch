@@ -579,11 +579,14 @@ public class S3StorageProvider implements StorageProvider {
      *       When the Pod Identity env vars are set but the entitled symlink is missing or
      *       unreadable: if no earlier provider is already in the chain, fails loudly naming the
      *       file rather than falling through to the stock provider; if IRSA is already present,
-     *       skips the container link and continues to instance profile. Unlike IRSA (missing
-     *       symlink → inactive / soft skip), Pod Identity treats a present env + missing symlink
-     *       as a hard misconfiguration for the container link — matching the Azure AKS pattern —
-     *       so we never open the entitlement-blocked Kubernetes token path.</li>
-     *   <li>{@link InstanceProfileCredentialsProvider} — EC2 metadata fallback.</li>
+     *       skips the container link. Unlike IRSA (missing symlink → inactive / soft skip), Pod
+     *       Identity treats a present env + missing symlink as a hard misconfiguration for the
+     *       container link — matching the Azure AKS pattern — so we never open the
+     *       entitlement-blocked Kubernetes token path.</li>
+     *   <li>{@link InstanceProfileCredentialsProvider} — EC2 metadata fallback, only when neither
+     *       IRSA nor Pod Identity is active. On EKS those providers are the intended auth path and
+     *       IMDS is typically blocked; appending instance-profile there would turn a failing
+     *       workload-identity call into a ~15s timeout rather than a fast failure.</li>
      * </ol>
      * Env-var and system-property providers are excluded — they are a dev/CI convention and open
      * a JVM-global-state override on servers. Profile-file loading is excluded (file read, blocked
@@ -612,11 +615,13 @@ public class S3StorageProvider implements StorageProvider {
      */
     List<AwsCredentialsProvider> managedIdentityProviders() {
         List<AwsCredentialsProvider> providers = new ArrayList<>(3);
-        if (webIdentityTokenCredentialsProvider != null && webIdentityTokenCredentialsProvider.isActive()) {
+        boolean irsaActive = webIdentityTokenCredentialsProvider != null && webIdentityTokenCredentialsProvider.isActive();
+        boolean podIdentityActive = containerCredentialsProvider != null && containerCredentialsProvider.isActive();
+        if (irsaActive) {
             // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
             providers.add(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER));
         }
-        if (containerCredentialsProvider != null && containerCredentialsProvider.isActive()) {
+        if (podIdentityActive) {
             // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
             providers.add(new ErrorLoggingCredentialsProvider(containerCredentialsProvider, LOGGER));
         } else if (containerCredentialsProvider != null && containerCredentialsProvider.isMisconfigured()) {
@@ -638,9 +643,14 @@ public class S3StorageProvider implements StorageProvider {
             ownedManagedIdentityProviders.add(stockContainerCredentialsProvider);
             providers.add(stockContainerCredentialsProvider);
         }
-        InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
-        ownedManagedIdentityProviders.add(instanceProfileCredentialsProvider);
-        providers.add(instanceProfileCredentialsProvider);
+        // Skip IMDS when an EKS workload-identity provider is active: IMDS is usually blocked in
+        // Kubernetes, and with reuseLastProviderEnabled(false) a failing IRSA/Pod Identity call
+        // would otherwise burn ~15s on IMDS retries before surfacing the real error.
+        if (irsaActive == false && podIdentityActive == false) {
+            InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
+            ownedManagedIdentityProviders.add(instanceProfileCredentialsProvider);
+            providers.add(instanceProfileCredentialsProvider);
+        }
         return providers;
     }
 

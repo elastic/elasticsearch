@@ -64,6 +64,8 @@ public class EsqlContainerCredentialsProviderTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         environment = TestEnvironment.newEnvironment(settings);
         Files.createDirectories(environment.configDir().resolve("esql-datasource-s3"));
+        // Active providers register a FileWatcher; a mock avoids starting a real watcher thread.
+        // null is fine for inactive/misconfigured cases, but shared setup covers both.
         resourceWatcherService = mock(ResourceWatcherService.class);
     }
 
@@ -215,6 +217,24 @@ public class EsqlContainerCredentialsProviderTests extends ESTestCase {
     public void testPrefetchTimeWithoutExpirationUsesOneHour() {
         Instant now = Instant.parse("2026-01-01T00:00:00Z");
         assertThat(EsqlContainerCredentialsProvider.prefetchTime(now, null), equalTo(now.plus(1, ChronoUnit.HOURS)));
+    }
+
+    public void testStaleTimeUsesSdkFormulaForLongLivedCredentials() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        Instant expiration = now.plus(1, ChronoUnit.HOURS);
+        assertThat(EsqlContainerCredentialsProvider.staleTime(now, expiration), equalTo(expiration.minus(1, ChronoUnit.MINUTES)));
+    }
+
+    public void testStaleTimeFloorsToHalfLifeForShortLivedCredentials() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        Instant expiration = now.plus(5, ChronoUnit.SECONDS);
+        // Stock formula (expiry - 1 min) is in the past; floor so CachedSupplier does not refresh on every get
+        assertThat(EsqlContainerCredentialsProvider.staleTime(now, expiration), equalTo(now.plus(2500, ChronoUnit.MILLIS)));
+    }
+
+    public void testStaleTimeWithoutExpirationIsNull() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        assertNull(EsqlContainerCredentialsProvider.staleTime(now, null));
     }
 
     private void startCredentialsServer() throws IOException {

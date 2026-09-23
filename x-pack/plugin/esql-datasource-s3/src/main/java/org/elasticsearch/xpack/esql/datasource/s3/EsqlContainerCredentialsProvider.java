@@ -248,9 +248,6 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
         }
         try {
             InetAddress[] addresses = InetAddress.getAllByName(host);
-            if (addresses.length == 0) {
-                return false;
-            }
             for (InetAddress address : addresses) {
                 if (address.isLoopbackAddress() == false) {
                     return false;
@@ -309,11 +306,35 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
             ParsedCredentials parsed = parseCredentialsResponse(body);
             Instant now = Instant.now();
             Instant expiration = parsed.expiration();
-            Instant staleTime = expiration == null ? null : expiration.minus(1, ChronoUnit.MINUTES);
-            return RefreshResult.builder(parsed.credentials()).staleTime(staleTime).prefetchTime(prefetchTime(now, expiration)).build();
+            return RefreshResult.builder(parsed.credentials())
+                .staleTime(staleTime(now, expiration))
+                .prefetchTime(prefetchTime(now, expiration))
+                .build();
         } catch (IOException e) {
             throw SdkClientException.builder().message("Failed to load EKS Pod Identity credentials.").cause(e).build();
         }
+    }
+
+    /**
+     * Stale schedule matching the AWS SDK {@code ContainerCredentialsProvider}
+     * ({@code expiration - 1 minute}), with a floor for short-lived tokens. When TTL is under one
+     * minute the stock formula puts {@code staleTime} in the past, so {@link CachedSupplier} treats
+     * the value as immediately stale and blocks on an HTTP refresh on every
+     * {@link #resolveCredentials()} call. Floor to half the remaining lifetime in that case.
+     */
+    static Instant staleTime(Instant now, Instant expiration) {
+        if (expiration == null) {
+            return null;
+        }
+        Instant candidate = expiration.minus(1, ChronoUnit.MINUTES);
+        if (candidate.isAfter(now)) {
+            return candidate;
+        }
+        long remainingMillis = ChronoUnit.MILLIS.between(now, expiration);
+        if (remainingMillis <= 0) {
+            return now;
+        }
+        return now.plusMillis(remainingMillis / 2);
     }
 
     /**
@@ -431,8 +452,9 @@ public class EsqlContainerCredentialsProvider implements AwsCredentialsProvider,
 
     @Override
     public AwsCredentials resolveCredentials() {
-        Objects.requireNonNull(credentialsCache, "credentialsCache is not set");
-        return credentialsCache.get();
+        CachedSupplier<AwsCredentials> cache = credentialsCache;
+        Objects.requireNonNull(cache, "credentialsCache is not set");
+        return cache.get();
     }
 
     @Override

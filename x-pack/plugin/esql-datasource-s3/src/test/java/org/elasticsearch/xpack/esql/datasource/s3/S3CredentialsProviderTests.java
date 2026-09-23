@@ -153,11 +153,11 @@ public class S3CredentialsProviderTests extends ESTestCase {
         })) {
             assertTrue(active.isActive());
             List<AwsCredentialsProvider> providers = new S3StorageProvider(null, null, null, active).managedIdentityProviders();
-            assertThat(providers, hasSize(2));
+            assertThat(providers, hasSize(1));
             assertThat(providers.get(0), instanceOf(ErrorLoggingCredentialsProvider.class));
-            assertThat(providers.get(1), instanceOf(InstanceProfileCredentialsProvider.class));
             for (AwsCredentialsProvider provider : providers) {
                 assertFalse(provider instanceof ContainerCredentialsProvider);
+                assertFalse(provider instanceof InstanceProfileCredentialsProvider);
             }
         }
     }
@@ -170,7 +170,7 @@ public class S3CredentialsProviderTests extends ESTestCase {
     public void testManagedIdentityChainFailsWhenPodIdentityMisconfigured() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment environment = TestEnvironment.newEnvironment(settings);
-        EsqlContainerCredentialsProvider misconfigured = new EsqlContainerCredentialsProvider(environment, null, name -> {
+        try (EsqlContainerCredentialsProvider misconfigured = new EsqlContainerCredentialsProvider(environment, null, name -> {
             if (name.equals(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.environmentVariable())) {
                 return "/var/run/secrets/token";
             }
@@ -178,13 +178,14 @@ public class S3CredentialsProviderTests extends ESTestCase {
                 return "http://127.0.0.1/creds";
             }
             return null;
-        });
-        assertTrue(misconfigured.isMisconfigured());
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> new S3StorageProvider(null, null, null, misconfigured).managedIdentityProviders()
-        );
-        assertTrue(e.getMessage().contains(EsqlContainerCredentialsProvider.POD_IDENTITY_TOKEN_FILE_LOCATION));
+        })) {
+            assertTrue(misconfigured.isMisconfigured());
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> new S3StorageProvider(null, null, null, misconfigured).managedIdentityProviders()
+            );
+            assertTrue(e.getMessage().contains(EsqlContainerCredentialsProvider.POD_IDENTITY_TOKEN_FILE_LOCATION));
+        }
     }
 
     /**
@@ -205,6 +206,8 @@ public class S3CredentialsProviderTests extends ESTestCase {
                 CustomWebIdentityTokenCredentialsProvider irsa = new CustomWebIdentityTokenCredentialsProvider(
                     environment,
                     Clock.systemUTC(),
+                    // Active IRSA registers a FileWatcher; a mock avoids starting a real watcher
+                    // thread for this chain-composition assertion (null would NPE in setup).
                     mock(ResourceWatcherService.class),
                     name -> switch (name) {
                         case "AWS_WEB_IDENTITY_TOKEN_FILE" -> "/var/run/secrets/eks.amazonaws.com/serviceaccount/token";
@@ -214,7 +217,7 @@ public class S3CredentialsProviderTests extends ESTestCase {
                 )
             ) {
                 assertTrue(irsa.isActive());
-                EsqlContainerCredentialsProvider misconfigured = new EsqlContainerCredentialsProvider(environment, null, name -> {
+                try (EsqlContainerCredentialsProvider misconfigured = new EsqlContainerCredentialsProvider(environment, null, name -> {
                     if (name.equals(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.environmentVariable())) {
                         return "/var/run/secrets/token";
                     }
@@ -222,15 +225,18 @@ public class S3CredentialsProviderTests extends ESTestCase {
                         return "http://127.0.0.1/creds";
                     }
                     return null;
-                });
-                assertTrue(misconfigured.isMisconfigured());
+                })) {
+                    assertTrue(misconfigured.isMisconfigured());
 
-                List<AwsCredentialsProvider> providers = new S3StorageProvider(null, null, irsa, misconfigured).managedIdentityProviders();
-                assertThat(providers, hasSize(2));
-                assertThat(providers.get(0), instanceOf(ErrorLoggingCredentialsProvider.class));
-                assertThat(providers.get(1), instanceOf(InstanceProfileCredentialsProvider.class));
-                for (AwsCredentialsProvider provider : providers) {
-                    assertFalse(provider instanceof ContainerCredentialsProvider);
+                    List<AwsCredentialsProvider> providers = new S3StorageProvider(null, null, irsa, misconfigured)
+                        .managedIdentityProviders();
+                    // IRSA only: skip stock CCP and skip IMDS (EKS workload-identity is active).
+                    assertThat(providers, hasSize(1));
+                    assertThat(providers.get(0), instanceOf(ErrorLoggingCredentialsProvider.class));
+                    for (AwsCredentialsProvider provider : providers) {
+                        assertFalse(provider instanceof ContainerCredentialsProvider);
+                        assertFalse(provider instanceof InstanceProfileCredentialsProvider);
+                    }
                 }
             }
         } finally {

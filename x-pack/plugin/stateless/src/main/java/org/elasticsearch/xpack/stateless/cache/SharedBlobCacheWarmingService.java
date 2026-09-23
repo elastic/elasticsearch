@@ -123,9 +123,21 @@ public class SharedBlobCacheWarmingService {
         /// priority respectively. Region-0 warming (i.e., INDEXING_BCC_HEADER_PREWARM) has the highest priority across all the types
         /// because it is in the hot path for relocations.
         enum Priority {
-            LOW,
-            NORMAL,
-            HIGH
+            LOW(0),
+            NORMAL(1),
+            HIGH(2);
+
+            private final int value;
+
+            Priority(int value) {
+                this.value = value;
+            }
+
+            /// returns true if task with priority `this` is to be warmed before a task of priority `that`
+            /// e.g., `HIGH.isHigherThan(LOW)` returns true and `NORMAL.isHigherThan(NORMAL)` returns false
+            boolean isHigherThan(Priority that) {
+                return value > that.value;
+            }
         }
 
         final Priority priority;
@@ -2244,17 +2256,18 @@ public class SharedBlobCacheWarmingService {
         /// For two tasks x and y, x.compareTo(y) < 0 means that we need to warm x before y.
         @Override
         public int compareTo(AbstractWarmingTask that) {
-            // Higher priority comes first, so we compare `that` against `this`.
-            int cmp = that.type.priority.compareTo(type.priority);
-            if (cmp == 0) {
-                // Tasks with the same priority will be executed in FIFO order using provided task position.
-                // `position` can technically overflow but that would only result in a small amount of tasks having
-                // wrong priorities for a short time period.
-                // So we don't have any special logic for that.
-                return Long.compare(position, that.position);
+            if (type.priority.isHigherThan(that.type.priority)) {
+                return -1;
+            }
+            if (that.type.priority.isHigherThan(type.priority)) {
+                return 1;
             }
 
-            return cmp;
+            // Tasks with the same priority will be executed in FIFO order using provided task position.
+            // `position` can technically overflow but that would only result in a small amount of tasks having
+            // wrong priorities for a short time period.
+            // So we don't have any special logic for that.
+            return Long.compare(position, that.position);
         }
 
         @Override

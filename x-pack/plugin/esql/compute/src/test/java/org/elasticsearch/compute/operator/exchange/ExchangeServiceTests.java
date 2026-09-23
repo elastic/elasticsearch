@@ -33,14 +33,21 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
+import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.PassThroughOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -52,6 +59,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.Transports;
 import org.junit.After;
 import org.junit.Before;
 
@@ -59,12 +67,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -731,6 +741,99 @@ public class ExchangeServiceTests extends ESTestCase {
         var expectedSeqNos = IntStream.range(0, Math.min(maxInputSeqNo, maxOutputSeqNo)).boxed().collect(Collectors.toSet());
         assertThat(actualSeqNos, hasSize(expectedSeqNos.size()));
         assertThat(actualSeqNos, equalTo(expectedSeqNos));
+    }
+
+    /**
+     * Reproduces the stack from a production stall: a task ban arrives on a transport worker, the exchange request's
+     * cancellation listener fails the sink, and the sink's driver finishes early. Closing that driver's operators can
+     * release Lucene readers and block, so it has to happen on the driver's executor and not on the transport worker.
+     */
+    public void testBanClosesSinkDriverOnDriverExecutor() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            CancellableTask parentTask = (CancellableTask) node0.getTaskManager()
+                .register("transport", "test", new CancellableParentRequest());
+            try {
+                String exchangeId = "exchange";
+                ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
+                // The sink-side driver waits on a local source that never receives pages.
+                var driverSource = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
+                AtomicReference<Thread> closeThread = new AtomicReference<>();
+                Operator closeRecorder = new PassThroughOperator() {
+                    @Override
+                    public void close() {
+                        closeThread.set(Thread.currentThread());
+                        super.close();
+                    }
+                };
+                Driver driver = TestDriverFactory.create(
+                    driverContext(),
+                    new ExchangeSourceOperator(driverSource.createExchangeSource()),
+                    List.of(closeRecorder),
+                    new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}))
+                );
+                PlainActionFuture<Void> driverFuture = new PlainActionFuture<>();
+                Driver.start(
+                    threadPool.getThreadContext(),
+                    threadPool.executor(ESQL_TEST_EXECUTOR),
+                    driver,
+                    between(1, 1000),
+                    driverFuture
+                );
+                assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC)));
+
+                var sourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
+                Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+                sourceHandler.addRemoteSink(
+                    exchange0.newRemoteSink(parentTask, exchangeId, node0, connection),
+                    false,
+                    () -> {},
+                    1,
+                    ActionListener.noop()
+                );
+                assertBusy(() -> {
+                    boolean exchangeTaskRegistered = node1.getTaskManager()
+                        .getCancellableTasks()
+                        .values()
+                        .stream()
+                        .anyMatch(task -> ExchangeService.EXCHANGE_ACTION_NAME.equals(task.getAction()));
+                    assertTrue("exchange request was not registered", exchangeTaskRegistered);
+                });
+                PlainActionFuture<Void> cancellation = new PlainActionFuture<>();
+                node0.getTaskManager().cancelTaskAndDescendants(parentTask, "test cancel", false, cancellation);
+                cancellation.actionGet(10, TimeUnit.SECONDS);
+                driverFuture.actionGet(10, TimeUnit.SECONDS);
+                Thread thread = closeThread.get();
+                assertFalse("driver closed on transport thread " + thread.getName(), Transports.isTransportThread(thread));
+                assertThat(EsExecutors.executorName(thread), equalTo(ESQL_TEST_EXECUTOR));
+            } finally {
+                node0.getTaskManager().unregister(parentTask);
+            }
+        }
+    }
+
+    private static final class CancellableParentRequest implements TaskAwareRequest {
+        @Override
+        public void setParentTask(TaskId taskId) {}
+
+        @Override
+        public void setRequestId(long requestId) {}
+
+        @Override
+        public TaskId getParentTask() {
+            return TaskId.EMPTY_TASK_ID;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
     }
 
     private MockTransportService newTransportService() {

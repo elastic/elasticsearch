@@ -154,22 +154,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core'
     exclude group: 'com.google.guava', module: 'guava'
   }
-  javaRestTestImplementation('org.apache.arrow:arrow-vector:18.3.0') {
-    exclude group: 'org.slf4j', module: 'slf4j-api'
-    exclude group: 'org.checkerframework', module: 'checker-qual'
-    exclude group: 'com.fasterxml.jackson.core'
-  }
-  javaRestTestImplementation('org.apache.arrow:arrow-memory-core:18.3.0')
-  javaRestTestImplementation('org.apache.arrow:arrow-memory-unsafe:18.3.0')
 
-  javaRestTestCompileOnly 'com.fasterxml.jackson.core:jackson-annotations:2.19.2'
-  javaRestTestCompileOnly 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
-  javaRestTestCompileOnly 'org.checkerframework:checker-qual:3.42.0'
-
-  javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  javaRestTestImplementation "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
-  javaRestTestImplementation 'com.google.guava:guava:33.4.0-jre'
-  javaRestTestImplementation 'com.google.guava:failureaccess:1.0.2'
+  javaRestTestImplementation(project(':libs:arrow'))
 
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')

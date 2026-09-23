@@ -598,4 +598,158 @@ public class StructLayoutTests extends ProcessorTestCase {
         assertEquals("a must be at offset 48", 48L, layout.byteOffset(MemoryLayout.PathElement.groupElement("a")));
         assertEquals("b must be at offset 56", 56L, layout.byteOffset(MemoryLayout.PathElement.groupElement("b")));
     }
+
+    /**
+     * A {@code @Sizeof} method on a dense struct returns a compile-time constant equal to the
+     * struct's natural-aligned byte size.
+     */
+    public void testSizeofDenseStructReturnsConstant() throws Exception {
+        String libSource = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Sizeof;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface SizeofLib {
+                @StructSpecification
+                interface Dense {
+                    @Sizeof
+                    int sizeof();
+                    long a();
+                    void a(long v);
+                    int b();
+                    void b(int v);
+                }
+            }
+            """;
+        String driverSource = """
+            package test;
+            public final class SizeofDriver {
+                public static int size() {
+                    return new SizeofLib$Dense$Impl().sizeof();
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.SizeofLib", libSource);
+        sources.put("test.SizeofDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> driver = result.loadClass("test.SizeofDriver");
+        int size = (int) driver.getMethod("size").invoke(null);
+        // long a (8) + int b (4, naturally aligned at offset 8) = 12 bytes
+        assertEquals("sizeof() must equal dense LAYOUT.byteSize()", 12, size);
+    }
+
+    /**
+     * A {@code @Sizeof} method on a sparse struct whose {@code @StructSize} differs per platform
+     * returns the size resolved for {@code Platform.current()} at runtime.
+     */
+    public void testSizeofSparsePerPlatformStructReturnsCurrentPlatformSize() throws Exception {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).startsWith("windows")) {
+            return; // struct sizes are declared only for Linux/macOS; Windows is excluded via unavailableOn
+        }
+        String libSource = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Offset;
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.Sizeof;
+            import org.elasticsearch.foreign.StructSize;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification(unavailableOn = {Platform.WINDOWS_X64})
+            public interface SizeofLib {
+                @StructSpecification(sparse = true)
+                @StructSize(value = 144, platforms = {Platform.LINUX_X64, Platform.LINUX_AARCH64})
+                @StructSize(value = 152, platforms = {Platform.DARWIN_X64, Platform.DARWIN_AARCH64})
+                interface Stat {
+                    @Sizeof
+                    int sizeof();
+                    @Offset(48)
+                    long stSize();
+                    void stSize(long v);
+                }
+            }
+            """;
+        String driverSource = """
+            package test;
+            public final class SizeofDriver {
+                public static int size() {
+                    return new SizeofLib$Stat$Impl().sizeof();
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.SizeofLib", libSource);
+        sources.put("test.SizeofDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> driver = result.loadClass("test.SizeofDriver");
+        int size = (int) driver.getMethod("size").invoke(null);
+
+        Platform current = Platform.current();
+        boolean isLinux = current == Platform.LINUX_X64 || current == Platform.LINUX_AARCH64;
+        int expectedSize = isLinux ? 144 : 152;
+        assertEquals("sizeof() must equal @StructSize resolved for Platform.current()", expectedSize, size);
+    }
+
+    /**
+     * A {@code @Sizeof} method that takes parameters is a compile error.
+     */
+    public void testSizeofMethodWithParametersEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Sizeof;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface TestLib {
+                @StructSpecification
+                interface MyStruct {
+                    @Sizeof
+                    int sizeof(int extra);
+                    long field();
+                    void field(long v);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.TestLib", source);
+
+        assertFalse("Expected compilation to fail due to @Sizeof method with parameters", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@Sizeof") && msg.contains("no parameters"));
+        assertTrue("Expected error about @Sizeof method parameters but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A {@code @Sizeof} method that does not return {@code int} is a compile error.
+     */
+    public void testSizeofMethodNonIntReturnEmitsError() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Sizeof;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface TestLib {
+                @StructSpecification
+                interface MyStruct {
+                    @Sizeof
+                    long sizeof();
+                    long field();
+                    void field(long v);
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.TestLib", source);
+
+        assertFalse("Expected compilation to fail due to @Sizeof method not returning int", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@Sizeof") && msg.contains("must return int"));
+        assertTrue("Expected error about @Sizeof return type but got: " + result.errors(), hasError);
+    }
 }

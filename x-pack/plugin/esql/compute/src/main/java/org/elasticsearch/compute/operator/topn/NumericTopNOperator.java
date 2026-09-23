@@ -42,9 +42,13 @@ import java.util.Locale;
  * <ul>
  *     <li>Exactly one sort key.</li>
  *     <li>Sort key {@link ElementType} is {@link ElementType#LONG}, {@link ElementType#INT},
- *         {@link ElementType#DOUBLE}, or {@link ElementType#BOOLEAN}. ESQL DATETIME and
- *         DATE_NANOS map to LONG at planning time, so they go through the LONG path. ESQL FLOAT,
- *         HALF_FLOAT and SCALED_FLOAT widen to DOUBLE on load so they reach this operator as
+ *         {@link ElementType#DOUBLE}, or {@link ElementType#BOOLEAN}. ESQL DATETIME, DATE_NANOS,
+ *         and UNSIGNED_LONG map to LONG at planning time, so they go through the LONG path.
+ *         UNSIGNED_LONG blocks are already sign-flip-encoded (see
+ *         {@code ParquetColumnDecoding#encodeUnsignedLong} for the Parquet producer of that
+ *         encoding), which is order-preserving, so the plain LONG heap ordering and threshold
+ *         publication apply unchanged. ESQL FLOAT, HALF_FLOAT and
+ *         SCALED_FLOAT widen to DOUBLE on load so they reach this operator as
  *         {@link org.elasticsearch.compute.data.DoubleBlock}.</li>
  *     <li>Input page has exactly 2 channels in this fixed order:
  *         {@code [sortKey, _rowPosition]}. Enforced by
@@ -56,7 +60,7 @@ import java.util.Locale;
  *         {@link NumericSortKeyExtractor} for the per-type breakdown.</li>
  * </ul>
  *
- * <p>Out of scope (deferred PRs): multi-key sorts, byte-keyed sorts, UNSIGNED_LONG sort keys.
+ * <p>Out of scope (deferred PRs): multi-key sorts, byte-keyed sorts.
  */
 public final class NumericTopNOperator implements Operator {
 

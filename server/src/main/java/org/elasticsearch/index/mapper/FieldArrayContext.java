@@ -26,7 +26,7 @@ import java.util.TreeMap;
 
 public class FieldArrayContext {
 
-    protected static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
+    public static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
 
     // Sentinel ord, representing a slot whose source value was {@code null}.
     public static final int NULL_ORD = -1;

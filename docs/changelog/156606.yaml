@@ -1,0 +1,6 @@
+area: Snapshot/Restore
+issues:
+ - 102395
+pr: 156606
+summary: Record `forceMergeUUID` for expunge-deletes merges
+type: bug

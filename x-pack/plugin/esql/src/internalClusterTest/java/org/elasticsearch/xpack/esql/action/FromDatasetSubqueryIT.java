@@ -23,6 +23,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end integration for subqueries in the FROM clause whose source is a registered dataset
@@ -349,16 +351,45 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testIndexInMainMultipleDatasetInSubqueryRejected() {
+    /**
+     * A subquery whose own FROM references multiple datasets produces a {@code UnionAll} nested inside the outer
+     * {@code UnionAll}'s branch (outer: real_employees + subquery; inner: employees + employees_alt). Nested
+     * subqueries are supported: the result is the same flat union as spelling each dataset as its own subquery,
+     * see {@link #testIndexInMainDatasetInSubquery}.
+     */
+    public void testIndexInMainMultipleDatasetInSubquery() {
         createRealEmployees();
         registerEmployees();
         registerEmployeesAlt();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt)"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "Nested subqueries are not supported");
+        if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled() == false) {
+            Exception ex = expectThrows(
+                Exception.class,
+                () -> run(syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt)"), TIMEOUT)
+            );
+            assertCauseMessageContains(ex, "Nested subqueries are not supported");
+        } else {
+            try (
+                var response = run(
+                    syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt) | SORT emp_no, first_name"),
+                    TIMEOUT
+                )
+            ) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(rows, hasSize(10)); // 5 from real_employees + 3 from employees + 2 from employees_alt
+
+                // same union as testIndexInMainDatasetInSubquery, spot-check the overlap rows and branch provenance
+                assertThat(rows.get(0).get(0), equalTo(1));
+                assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+                assertThat(rows.get(1).get(0), equalTo(1));
+                assertThat(rows.get(1).get(1).toString(), equalTo("Alice-real"));
+                assertNull(rows.get(1).get(2)); // real_employees has no last_name
+                assertThat(rows.get(5).get(0), equalTo(10));
+                assertThat(rows.get(5).get(1).toString(), equalTo("Diana"));
+                assertThat(rows.get(9).get(0), equalTo(101));
+                assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
+            }
+        }
     }
 
     // With basic(WHERE/STATS/KEEP/EVAL) processing command in subqueries or main query
@@ -546,10 +577,10 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         registerEmployees();
 
         // Standard metadata binds on a dataset inside a subquery, consistent with how it binds on a
-        // regular index in the same position (see IndexResolutionIT / subquery.csv-spec). _index
-        // resolves to the dataset name. This used to be rejected only because dataset metadata was
-        // unsupported anywhere; it is supported now. KEEP is irrelevant to metadata presence on the
-        // FROM path: METADATA _index surfaces _index with no explicit KEEP.
+        // regular index in the same position (see IndexResolutionIT / subquery.csv-spec). On a dataset
+        // _index answers NULL -- a dataset is not an index -- and what this test pins is that it binds
+        // and surfaces, not what it holds. KEEP is irrelevant to metadata presence on the FROM path:
+        // METADATA _index surfaces _index with no explicit KEEP.
         try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index) | LIMIT 1"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_index must surface without an explicit KEEP, got " + names, names, hasItem("_index"));
@@ -557,7 +588,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             int idx = names.indexOf("_index");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
+            assertThat("_index is null on a dataset", rows.get(0).get(idx), nullValue());
         }
     }
 
@@ -591,7 +622,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(names.indexOf("_index")).toString(), equalTo("employees"));
+            assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
             assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
         }
     }
@@ -610,7 +641,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
                 assertThat(query + " must surface _file.path without KEEP, got " + names, names, hasItem("_file.path"));
 
                 List<List<Object>> rows = getValuesList(response);
-                assertThat(rows.get(0).get(names.indexOf("_index")).toString(), equalTo("employees"));
+                assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
                 assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
             }
         }
@@ -900,7 +931,8 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             """), TIMEOUT)) {
             assertColumnNames(response.columns(), List.of("first_name", "last_name", "_index"));
             assertColumnTypes(response.columns(), List.of("keyword", "keyword", "keyword"));
-            assertValues(response.values(), List.of(List.of("Alice", "Anderson", "employees")));
+            // Both branches are datasets, so _index is null on either side of the union.
+            assertValues(response.values(), List.of(Arrays.asList("Alice", "Anderson", null)));
         }
     }
 
@@ -914,6 +946,28 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertColumnNames(response.columns(), List.of("first_name", "last_name"));
             assertColumnTypes(response.columns(), List.of("keyword", "keyword"));
             assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+        }
+    }
+
+    /**
+     * The values analyzer of a dataset-backed text column is declared through TO_TEXT, exactly as for any other
+     * runtime column: with the whitespace analyzer declared, the (defaulted) query analyzer keeps case too, so
+     * matching turns case-sensitive.
+     */
+    public void testMatchOnDatasetFieldWithDeclaredAnalyzer() {
+        registerEmployees();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | EVAL name = TO_TEXT(first_name, {"analyzer": "whitespace"}) | WHERE MATCH(name, "Alice"))
+            | KEEP first_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name"));
+            assertValues(response.values(), List.of(List.of("Alice")));
+        }
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | EVAL name = TO_TEXT(first_name, {"analyzer": "whitespace"}) | WHERE MATCH(name, "alice"))
+            | KEEP first_name
+            """), TIMEOUT)) {
+            assertValues(response.values(), List.of());
         }
     }
 
@@ -1155,6 +1209,156 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1).toString(), equalTo("Engineering"));
             assertThat(rows.get(1).get(0), equalTo(2));
             assertThat(rows.get(1).get(1).toString(), equalTo("Engineering"));
+        }
+    }
+
+    /**
+     * An IN subquery with an empty result collapses the SEMI join to an empty {@code LocalRelation}. Previously it substituted a
+     * constant-false filter into the main plan without re-running the logical optimizer, and split discovery then pruned every file of
+     * the dataset scan. The gather exchange must survive that empty scan when the plan ends. Before the fix the exchange was collapsed
+     * and planning failed with {@code IndexOutOfBoundsException: toIndex = 2} from
+     * {@code AbstractPhysicalOperationProviders$IntermediateInputs}.
+     */
+    public void testEmptyInSubqueryThenStatsOnDataset() {
+        requireInSubquery();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c > 100 | KEEP first_name)
+            | STATS count = COUNT(*)
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+    }
+
+    public void testEmptyInSubqueryThenGroupedStatsOnDataset() {
+        requireInSubquery();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c > 100 | KEEP first_name)
+            | STATS count = COUNT(*) BY department
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(0));
+        }
+    }
+
+    /**
+     * TopN rides the same preserved-exchange path as STATS for an exhaustively-pruned scan ({@code needsGatherBoundary} covers both):
+     * zero rows, no crash.
+     */
+    public void testEmptyInSubqueryThenSortOnDataset() {
+        requireInSubquery();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c > 100 | KEEP first_name)
+            | SORT emp_no
+            | LIMIT 5
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(0));
+        }
+    }
+
+    /**
+     * Companion to {@link #testEmptyInSubqueryThenStatsOnDataset} with a non-empty subquery result: the substituted IN-list keeps the
+     * dataset scan alive, so this pins the unchanged collapse/scan path next to the empty one.
+     */
+    public void testNonEmptyInSubqueryThenStatsOnDataset() {
+        requireInSubquery();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c >= 1 | KEEP first_name)
+            | STATS count = COUNT(*)
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    /**
+     * ANTI join, empty right side: {@code x NOT IN ()} is TRUE for every row, so {@code AntiJoin#buildEmptyRightSidePlan} substitutes
+     * a constant-true filter and the whole dataset survives. The trailing STATS pins that the surviving scan still composes with the
+     * external aggregation split (the counterpart of {@link #testEmptyInSubqueryThenStatsOnDataset}).
+     */
+    public void testNotInEmptySubqueryThenStatsOnDataset() {
+        requireInSubquery();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE first_name NOT IN (FROM employees | STATS c = COUNT(*) BY first_name | WHERE c > 100 | KEEP first_name)
+            | STATS count = COUNT(*)
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    /** Row-returning variant of {@link #testNotInEmptySubqueryThenStatsOnDataset}: every dataset row comes back. */
+    public void testNotInEmptySubqueryOnDatasetKeepsAllRows() {
+        requireInSubquery();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | STATS c = COUNT(*) BY emp_no | WHERE c > 100 | KEEP emp_no)
+            | SORT emp_no
+            | KEEP emp_no
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(2).get(0), equalTo(3));
+        }
+    }
+
+    /**
+     * ANTI join with a NULL on the right: {@code x NOT IN (..., NULL, ...)} is never TRUE (FALSE for matches, NULL otherwise), so
+     * {@code AbstractSubqueryJoin#buildShortCircuitPlan} collapses the join to an empty LocalRelation and no dataset row survives. The
+     * trailing STATS makes this the ANTI mirror of {@link #testEmptyInSubqueryThenStatsOnDataset}: with the former {@code Filter(FALSE)}
+     * substitution this shape crashed external physical planning the same way.
+     */
+    public void testNotInSubqueryWithNullThenStatsOnDataset() {
+        requireInSubquery();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | EVAL e = CASE(emp_no == 1, null, emp_no) | KEEP e)
+            | STATS count = COUNT(*)
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+    }
+
+    /** Every right value NULL: same ANTI short-circuit, pinned on the row-returning path — zero rows, no crash. */
+    public void testNotInSubqueryAllNullOnDataset() {
+        requireInSubquery();
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM employees | EVAL e = TO_INTEGER(null) | KEEP e)
+            | SORT emp_no
+            | KEEP emp_no
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(0));
         }
     }
 

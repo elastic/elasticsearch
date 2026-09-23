@@ -24,59 +24,32 @@ public class AshProjectionMatrixTests extends ESTestCase {
     public void testDimAccessors() {
         int originalDim = 768;
         int nDims = 384;
-        float[][] w = new float[originalDim][nDims];
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
+        float[] wT = new float[originalDim * nDims];
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims);
         assertEquals(originalDim, pm.originalDim());
         assertEquals(nDims, pm.nDims());
-    }
-
-    public void testTransposeCorrectness() {
-        int originalDim = 4;
-        int nDims = 3;
-        float[][] w = { { 1, 2, 3 }, { 4, 5, 6 }, { 7, 8, 9 }, { 10, 11, 12 } };
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
-        float[][] wT = pm.wT();
-
-        // wT should be (nDims x originalDim)
-        assertEquals(nDims, wT.length);
-        assertEquals(originalDim, wT[0].length);
-
-        // Verify transpose: wT[j][i] == w[i][j]
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                assertEquals(w[i][j], wT[j][i], 0f);
-            }
-        }
-    }
-
-    public void testTransposeLazyAndCached() {
-        float[][] w = { { 1, 2 }, { 3, 4 } };
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
-        float[][] wT1 = pm.wT();
-        float[][] wT2 = pm.wT();
-        assertSame(wT1, wT2);
     }
 
     public void testSerializationRoundtrip() throws IOException {
         int originalDim = randomIntBetween(4, 100);
         int nDims = randomIntBetween(2, originalDim);
-        float[][] w = randomMatrix(originalDim, nDims);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix original = new AshProjectionMatrix(w);
+        AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims);
 
         AshProjectionMatrix restored = writeAndRead(original);
 
         assertEquals(originalDim, restored.originalDim());
         assertEquals(nDims, restored.nDims());
-        assertMatrixEquals(w, restored.w());
+        assertArrayEquals(wT, restored.wT(), 0f);
     }
 
     public void testByteSizeMatchesActualSerialized() throws IOException {
         int originalDim = randomIntBetween(4, 50);
         int nDims = randomIntBetween(2, originalDim);
-        float[][] w = randomMatrix(originalDim, nDims);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims);
 
         ByteBuffersDataOutput dataOut = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput out = new ByteBuffersIndexOutput(dataOut, "test", "test")) {
@@ -88,8 +61,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
     }
 
     public void testEmptyMatrix() throws IOException {
-        float[][] w = new float[0][0];
-        AshProjectionMatrix pm = new AshProjectionMatrix(w);
+        AshProjectionMatrix pm = new AshProjectionMatrix(new float[0], 0, 0);
         assertEquals(0, pm.originalDim());
         assertEquals(0, pm.nDims());
 
@@ -105,25 +77,5 @@ public class AshProjectionMatrixTests extends ESTestCase {
         }
         ByteBuffersIndexInput in = new ByteBuffersIndexInput(dataOut.toDataInput(), "test");
         return AshProjectionMatrix.read(in);
-    }
-
-    private float[][] randomMatrix(int rows, int cols) {
-        float[][] m = new float[rows][cols];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                m[i][j] = (float) random().nextGaussian();
-            }
-        }
-        return m;
-    }
-
-    private void assertMatrixEquals(float[][] expected, float[][] actual) {
-        assertEquals(expected.length, actual.length);
-        for (int i = 0; i < expected.length; i++) {
-            assertEquals(expected[i].length, actual[i].length);
-            for (int j = 0; j < expected[i].length; j++) {
-                assertEquals(expected[i][j], actual[i][j], 0f);
-            }
-        }
     }
 }

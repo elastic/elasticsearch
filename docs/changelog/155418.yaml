@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 155418
-summary: Allow GC of closed search contexts in ES|QL
-type: bug

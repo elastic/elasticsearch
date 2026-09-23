@@ -370,8 +370,12 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
-                .getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics(),
+                null
+            ).getSource(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromDocValues = docValueFetcher.fetchValues(s, 0, new ArrayList<>());
@@ -526,6 +530,27 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
                 fetcher.setNextReader(reader.leaves().get(1));
                 List<Object> emptyValues = fetcher.fetchValues(null, 0, new ArrayList<>());
                 assertEquals(0, emptyValues.size());
+            }
+        }
+    }
+
+    public void testValueFetcherWithFieldMissingFromAllDocuments() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field_with_value").field("type", "pattern_text").endObject();
+            b.startObject("field_without_value").field("type", "pattern_text").endObject();
+        }));
+
+        try (Directory dir = newDirectory()) {
+            indexDocPerSegment(
+                dir,
+                mapperService.documentMapper().parse(source(b -> b.field("field_with_value", "this is a value 123"))).rootDoc()
+            );
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ValueFetcher fetcher = mapperService.fieldType("field_without_value")
+                    .valueFetcher(createSearchExecutionContext(mapperService, newSearcher(reader)), null);
+                fetcher.setNextReader(reader.leaves().get(0));
+
+                assertEquals(List.of(), fetcher.fetchValues(null, 0, new ArrayList<>()));
             }
         }
     }

@@ -1152,8 +1152,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNonMultipleWindowWithTimeBucket() {
-        // 7-second window with 5-second bucket: window is not an exact multiple of the bucket.
-        // GCD(7s, 5s) = 1s, so internal sub-buckets are 1s, output at 5s boundaries.
+        // 7-second window with 5-second bucket: window is not an exact multiple of the bucket, so the aggregate
+        // merges one full bucket plus the boundary bucket's partial channel; output stays at 5s boundaries.
         try (var resp = run("TS host* | STATS avg(avg_over_time(cpu, 7 second)) BY cluster, TBUCKET(5 second)")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             assertThat("expected non-empty results", rows, not(empty()));
@@ -1173,6 +1173,19 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         try (var resp = run("TS host* | STATS avg(avg_over_time(cpu, 10 second)) BY cluster, TBUCKET(5 second)")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             assertThat("expected non-empty results for exact multiple", rows, not(empty()));
+        }
+    }
+
+    /**
+     * The {@code hosts} index has two dimensions, {@code host} and {@code cluster}. A query that groups only by
+     * {@code host} must not need {@code cluster}: it succeeds and {@code cluster} never appears in the output. This guards
+     * that a {@code TS} query no longer forces every dimension the index has into the plan.
+     */
+    public void testTsDoesNotResolveDimensionsTheQueryNeverNames() {
+        try (var resp = run("TS hosts | STATS peak_memory = max(last_over_time(memory)) BY host | SORT host")) {
+            assertColumnNames(resp.columns(), List.of("peak_memory", "host"));
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, not(empty()));
         }
     }
 

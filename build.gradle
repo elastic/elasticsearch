@@ -12,13 +12,13 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import nmcp.NmcpAggregationExtension
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
+import org.elasticsearch.gradle.internal.checks.ValidateBuildGradleScriptsTask
 import org.elasticsearch.gradle.util.GradleUtils
 
 import groovy.xml.XmlParser;
@@ -54,6 +54,7 @@ plugins {
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
   id 'com.gradleup.nmcp.aggregation'
+  id 'elasticsearch.dra-maven-aggregation'
 }
 
 version = VersionProperties.elasticsearch
@@ -65,24 +66,31 @@ version = VersionProperties.elasticsearch
  * indicating the artifact is meant for beeing published to maven central.
  * */
 nmcpAggregation {
+  // nmcp 1.6.x strips the non-required `.sha256` checksums by default. Keep publishing them
+  // for now so the aggregation layout matches what we produced with nmcp 0.1.x.
+  publishAllChecksums = true
+  // Elasticsearch has multiple subprojects that share the same (leaf) name. nmcp 1.4.3+ rejects
+  // this by default because it can confuse aggregation dependency resolution; none of the duplicates
+  // contribute publications, so opt out of the check.
+  allowDuplicateProjectNames = true
 }
 
-def nmcpConsumerConfiguration = extensions.getByType(NmcpAggregationExtension).'getConsumerConfiguration$nmcp'()
+def nmcpConsumerConfiguration = configurations.named('nmcpAggregation')
 allprojects { publishedProject ->
   publishedProject.pluginManager.withPlugin('maven-publish') {
     rootProject.dependencies.add(nmcpConsumerConfiguration.name, rootProject.dependencies.project(path: publishedProject.path))
   }
 }
 
-tasks.named('zipAggregation').configure {
+tasks.named('nmcpZipAggregation').configure {
   // put this in a place that works well with our DRA infrastructure
   archiveFileName.unset();
   archiveBaseName.set("elasticsearch-maven-aggregation")
   archiveVersion.set(VersionProperties.elasticsearch)
   destinationDirectory.set(layout.buildDirectory.dir("distributions"));
 
-  dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
-  from(zipTree("build-tools/build/nmcp/zip/publicationElastic.zip"))
+  dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
+  from(zipTree("build-tools/build/nmcp/zip/allPublications.zip"))
 }
 
 /**
@@ -303,9 +311,6 @@ if (project.gradle.startParameter.taskNames.any(isCiSplitTask)) {
   bwc_tests_enabled = false
 }
 
-subprojects { proj ->
-  apply plugin: 'elasticsearch.base'
-}
 
 allprojects {
   // We disable this plugin for now till we shaked out the issues we see
@@ -442,8 +447,6 @@ allprojects {
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
   }
-
-  apply plugin: 'elasticsearch.formatting'
 }
 
 tasks.named("updateDaemonJvm") {
@@ -543,9 +546,38 @@ tasks.named("precommit") {
 tasks.named("checkPart1").configure {
 }
 
+tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).configure {
+  scriptFiles.from(fileTree(project.layout.settingsDirectory) {
+    include "**/build.gradle"
+    exclude "**/build/**"
+    // Fixture build scripts under test resources model external repositories rather than this repository's build logic.
+    exclude "**/src/**/resources/**"
+    exclude ".gradle/**"
+  })
+  ignore.set([
+    'cross-project-dereference': [
+      'distribution/archives/integ-test-zip/build.gradle',
+      'distribution/build.gradle',
+      'distribution/docker/build.gradle',
+      'distribution/tools/plugin-cli/bc/build.gradle',
+      'docs/build.gradle',
+      'qa/remote-clusters/build.gradle',
+      'qa/smoke-test-plugins/build.gradle',
+      'server/build.gradle',
+      'x-pack/plugin/ml/qa/native-multi-node-tests/build.gradle',
+      'x-pack/plugin/security/build.gradle',
+      'x-pack/plugin/sql/qa/server/build.gradle',
+      'x-pack/plugin/sql/sql-cli/build.gradle',
+      'x-pack/qa/smoke-test-plugins/build.gradle',
+      'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
+    ],
+  ])
+}
+
 tasks.register("checkBuildLogic").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
+  dependsOn tasks.named("validateBuildGradleScripts")
 }
 
 [
@@ -602,8 +634,6 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql-datasource-ndjson:qa',
     ':x-pack:plugin:esql-datasource-orc:qa',
     ':x-pack:plugin:esql-datasource-parquet',
-    ':x-pack:plugin:esql-datasource-parquet-rs',
-    ':x-pack:plugin:esql-datasource-parquet-rs:qa',
     ':x-pack:plugin:esql-datasource-parquet:qa',
     ':x-pack:plugin:esql-datasource-snappy',
     ':x-pack:plugin:esql-datasource-zstd',

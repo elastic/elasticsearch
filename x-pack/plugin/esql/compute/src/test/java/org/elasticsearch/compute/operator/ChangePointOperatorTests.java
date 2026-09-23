@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.nCopies;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -147,7 +148,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
         try {
             assertThat(outputPages, hasSize(1));
-            assertWarnings(
+            assertCollectedWarnings(
+                ctx,
                 "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; "
                     + "found [0]",
@@ -170,7 +172,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         List<Page> outputPages = invokeChangePoint(ctx, List.of());
 
         assertThat(outputPages, hasSize(0));
-        assertWarnings(
+        assertCollectedWarnings(
+            ctx,
             "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]"
         );
@@ -394,7 +397,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             assertThat(outputPages, hasSize(2));
             assertNoChangePoints(outputPages.get(0));
             assertChangePointAt(outputPages.get(1), 15);
-            assertWarnings(
+            assertCollectedWarnings(
+                ctx,
                 "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; "
                     + "found [1]"
@@ -420,7 +424,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             assertThat(outputPages, hasSize(2));
             assertChangePointAt(outputPages.get(0), 15);
             assertNoChangePoints(outputPages.get(1));
-            assertWarnings(
+            assertCollectedWarnings(
+                ctx,
                 "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; "
                     + "found [0]",
@@ -450,7 +455,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             assertThat(outputPages, hasSize(2));
             assertChangePointAt(outputPages.get(0), 500);
             assertChangePointAt(outputPages.get(1), 500);
-            assertWarnings(
+            assertCollectedWarnings(
+                ctx,
                 "Line 1:1: warnings during evaluation of [null]. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.IllegalArgumentException: too many values in a group; keeping only first 1000 values per group"
             );
@@ -513,7 +519,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         List<Page> outputPages = invokeChangePoint(ctx, List.of(), 1);
         assertThat(outputPages, hasSize(0));
-        assertWarnings(
+        assertCollectedWarnings(
+            ctx,
             "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]"
         );
@@ -571,6 +578,13 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             }
         }
         return new Page(blocks);
+    }
+
+    /**
+     * Finishes the {@link DriverContext} and asserts its {@link DriverContext#warnings()}.
+     */
+    private void assertCollectedWarnings(DriverContext ctx, String... expected) {
+        assertThat(collectWarnings(ctx), containsInAnyOrder(expected));
     }
 
     private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int... groupingChannels) {

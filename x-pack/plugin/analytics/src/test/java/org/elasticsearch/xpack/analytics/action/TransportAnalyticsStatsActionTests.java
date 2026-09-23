@@ -31,7 +31,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -70,13 +69,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
         when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
 
-        return new TransportAnalyticsStatsAction(
-            transportService,
-            clusterService,
-            threadPool,
-            new ActionFilters(Collections.emptySet()),
-            usage
-        );
+        return new TransportAnalyticsStatsAction(transportService, clusterService, threadPool, ActionFilters.EMPTY, usage);
     }
 
     public void test() throws IOException {

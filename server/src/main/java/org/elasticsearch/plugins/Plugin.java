@@ -48,6 +48,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -230,6 +231,9 @@ public abstract class Plugin implements Closeable {
 
         /** The IP location service for IP-geolocation database lookups and lifecycle management */
         IpLocationService ipLocationService();
+
+        /** The usage service for tracking cluster and endpoint usage statistics */
+        UsageService usageService();
     }
 
     /**

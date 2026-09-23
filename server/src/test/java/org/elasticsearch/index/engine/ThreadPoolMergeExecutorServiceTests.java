@@ -74,6 +74,43 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         }
     }
 
+    public void testMaxSizeFactorReducesMaxConcurrentMerges() throws IOException {
+        int processors = randomIntBetween(2, 8);
+        // the thread pool merge scheduler is enabled by default, so no need to set the (deprecated) enabling setting explicitly
+        Settings settings = Settings.builder()
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), processors)
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_THREAD_POOL_MAX_SIZE_FACTOR_SETTING.getKey(), 0.5)
+            .build();
+        int expectedMaxConcurrentMerges = Math.max(1, (int) Math.round(processors * 0.5));
+        try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
+            nodeEnvironment = newNodeEnvironment(settings);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+                testThreadPool,
+                settings,
+                nodeEnvironment
+            );
+            assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(expectedMaxConcurrentMerges));
+        }
+    }
+
+    public void testMaxSizeFactorFloorsMaxConcurrentMergesToOne() throws IOException {
+        // the thread pool merge scheduler is enabled by default, so no need to set the (deprecated) enabling setting explicitly
+        Settings settings = Settings.builder()
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), randomIntBetween(1, 4))
+            // a tiny factor would round down to zero threads, but the pool is floored to a single merge thread
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_THREAD_POOL_MAX_SIZE_FACTOR_SETTING.getKey(), Math.ulp(0.0))
+            .build();
+        try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
+            nodeEnvironment = newNodeEnvironment(settings);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+                testThreadPool,
+                settings,
+                nodeEnvironment
+            );
+            assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(1));
+        }
+    }
+
     public void testNewMergeTaskIsAbortedWhenThreadPoolIsShutdown() throws IOException {
         TestThreadPool testThreadPool = new TestThreadPool("test", Settings.EMPTY);
         nodeEnvironment = newNodeEnvironment(Settings.EMPTY);

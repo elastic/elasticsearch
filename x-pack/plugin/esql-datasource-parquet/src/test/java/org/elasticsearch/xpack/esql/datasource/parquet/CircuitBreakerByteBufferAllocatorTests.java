@@ -12,7 +12,11 @@ import org.apache.parquet.bytes.HeapByteBufferAllocator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
@@ -38,6 +42,30 @@ public class CircuitBreakerByteBufferAllocatorTests extends ESTestCase {
         assertEquals(512, breaker.getUsed());
         allocator.release(buf);
         assertEquals(0, breaker.getUsed());
+    }
+
+    public void testAllocateFromOtherThreadChargesParentBreaker() throws Exception {
+        assumeTrue("requires assertions enabled (-ea) to detect the I/O-thread race", assertionsEnabled());
+
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1)).withCircuitBreaking();
+        CircuitBreaker parent = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent, 0, 0);
+
+        Thread setup = new Thread(() -> assertTrue(local.assertBeginRunLoop()), "setup-pin-driver-breaker");
+        setup.start();
+        setup.join();
+
+        try {
+            var parquetAllocator = allocator(LocalCircuitBreaker.forAsyncIo(local));
+            ByteBuffer buf = parquetAllocator.allocate(64);
+            assertEquals(64, parent.getUsed());
+            parquetAllocator.release(buf);
+            assertEquals(0, parent.getUsed());
+        } finally {
+            assertTrue(local.assertEndRunLoop());
+            local.close();
+            assertEquals(0, parent.getUsed());
+        }
     }
 
     public void testLargeAllocationTripsBreaker() {
@@ -125,6 +153,73 @@ public class CircuitBreakerByteBufferAllocatorTests extends ESTestCase {
         // Breaker accepts reservation, allocation fails
         expectThrows(IllegalArgumentException.class, () -> allocator.allocate(200));
         assertEquals(0, breaker.getUsed());
+    }
+
+    public void testReleaseUnchargesBeforePoolingDelegateReuses() {
+        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(1 << 20);
+        var breaker = breaker(1 << 20);
+        var allocator = new CircuitBreakerByteBufferAllocator(pool, breaker);
+
+        ByteBuffer first = allocator.allocate(64);
+        byte[] backing = first.array();
+        assertEquals(first.capacity(), breaker.getUsed());
+        allocator.release(first);
+        assertEquals(0, breaker.getUsed());
+
+        ByteBuffer second = allocator.allocate(64);
+        try {
+            assertNotSame(first, second);
+            assertSame(backing, second.array());
+            assertEquals(second.capacity(), breaker.getUsed());
+        } finally {
+            allocator.release(second);
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
+    public void testStaleReleaseAfterReuseDoesNotStealCharge() {
+        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(1 << 20);
+        var breaker = breaker(1 << 20);
+        var allocator = new CircuitBreakerByteBufferAllocator(pool, breaker);
+        ByteBuffer first = allocator.allocate(64);
+        allocator.release(first);
+        ByteBuffer live = allocator.allocate(64);
+        long used = breaker.getUsed();
+        allocator.release(first);
+        assertEquals("stale release must not uncharge the live checkout", used, breaker.getUsed());
+        allocator.release(live);
+        assertEquals(0, breaker.getUsed());
+    }
+
+    public void testPoolingExtraCapacityTripDoesNotLeakCharge() {
+        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(1 << 20);
+        // MIN_POOLED is 256; charging 50 then the rounded extra must trip a 100-byte breaker.
+        var breaker = breaker(100);
+        var allocator = new CircuitBreakerByteBufferAllocator(pool, breaker);
+        expectThrows(CircuitBreakingException.class, () -> allocator.allocate(50));
+        assertEquals(0, breaker.getUsed());
+        assertEquals(0, pool.checkedOutCount());
+    }
+
+    public void testPooledReuseChargesActualCapacity() {
+        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(1 << 20);
+        var breaker = breaker(1 << 20);
+        var allocator = new CircuitBreakerByteBufferAllocator(pool, breaker);
+        ByteBuffer buf = allocator.allocate(100);
+        try {
+            assertTrue(buf.capacity() >= 100);
+            assertEquals(buf.capacity(), breaker.getUsed());
+        } finally {
+            allocator.release(buf);
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
+    @SuppressWarnings("AssertWithSideEffects")
+    private static boolean assertionsEnabled() {
+        boolean enabled = false;
+        assert enabled = true;
+        return enabled;
     }
 
     static class TestAllocator implements ByteBufferAllocator {

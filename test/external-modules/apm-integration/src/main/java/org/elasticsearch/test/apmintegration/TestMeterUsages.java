@@ -58,12 +58,12 @@ public class TestMeterUsages {
             "unit",
             CUSTOM_BOUNDARIES.stream().map(Long::doubleValue).toList()
         );
-        meterRegistry.registerDoubleGauge("es.test.double_gauge.current", "test", "unit", () -> {
+        meterRegistry.registerDoubleAsyncGauge("es.test.double_gauge.current", "test", "unit", () -> {
             var value = doubleWithAttributes.get();
             logger.trace("[es.test.double_gauge.current] callback with value [{}]", value);
             return value;
         });
-        meterRegistry.registerLongGauge("es.test.long_gauge.current", "test", "unit", () -> {
+        meterRegistry.registerLongAsyncGauge("es.test.long_gauge.current", "test", "unit", () -> {
             var value = longWithAttributes.get();
             logger.trace("[es.test.long_gauge.current] callback with value [{}]", value);
             return value;

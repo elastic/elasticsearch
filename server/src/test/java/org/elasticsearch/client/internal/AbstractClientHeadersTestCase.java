@@ -86,17 +86,9 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client = buildClient(settings, ACTIONS);
     }
 
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     @After
     public void tearDownClientHeaders() throws Exception {
         terminate(threadPool);
-    }
-
-    public final void tearDown() throws Exception {
-        super.tearDown();
     }
 
     protected abstract Client buildClient(Settings headersSettings, ActionType<?>[] testedActions);

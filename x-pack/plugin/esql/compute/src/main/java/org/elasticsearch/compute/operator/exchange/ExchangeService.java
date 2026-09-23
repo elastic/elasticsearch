@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
@@ -82,6 +83,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, LocalExchange> localExchanges = ConcurrentCollections.newConcurrentMap();
     // Registry for bidirectional batch exchange servers, keyed by serverToClientId
     private final Map<String, BidirectionalBatchExchangeServer> batchExchangeServers = ConcurrentCollections.newConcurrentMap();
 
@@ -243,6 +245,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         return exchangeSources.remove(sessionId);
     }
 
+    public void addLocalExchange(String sessionId, LocalExchange exchange) {
+        if (localExchanges.putIfAbsent(sessionId, exchange) != null) {
+            throw new IllegalStateException("local exchange for session [" + sessionId + "] already exists");
+        }
+    }
+
+    public LocalExchange removeLocalExchange(String sessionId) {
+        return localExchanges.remove(sessionId);
+    }
+
     /**
      * Finishes the session early, i.e., before all sources are finished.
      * It is called by async/stop API and should be called on the node that coordinates the async request.
@@ -257,9 +269,15 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         ExchangeSourceHandler exchangeSource = removeExchangeSourceHandler(sessionId);
         if (exchangeSource != null) {
             exchangeSource.finishEarly(false, listener.map(v -> Boolean.TRUE));
-        } else {
-            listener.onResponse(Boolean.FALSE);
+            return;
         }
+        LocalExchange localExchange = removeLocalExchange(sessionId);
+        if (localExchange != null) {
+            localExchange.finish(false);
+            listener.onResponse(Boolean.TRUE);
+            return;
+        }
+        listener.onResponse(Boolean.FALSE);
     }
 
     private static class OpenExchangeRequest extends AbstractTransportRequest {
@@ -446,6 +464,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                         final ExchangeResponse resp = new ExchangeResponse(bsi);
                         final long responseBytes = resp.ramBytesUsedByPage();
                         estimatedPageSizeInBytes.getAndUpdate(curr -> Math.max(responseBytes, curr / 2));
+                        // Old remotes send ESQL warnings as transport response headers on every exchange
+                        // page fetch. Strip them here — warnings are delivered through the structured
+                        // DriverCompletionInfo.warnings path, and leaving them in the thread context would
+                        // cause duplicates when ResponseHeadersCollector merges them back later.
+                        transportService.getThreadPool().getThreadContext().takeResponseHeaders("Warning");
                         return resp;
                     }
                 }, responseExecutor)
@@ -487,7 +510,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             BATCH_EXCHANGE_STATUS_ACTION_NAME,
             new BatchExchangeStatusRequest(exchangeId),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, BatchExchangeStatusResponse::new, responseExecutor)
+            new ActionListenerResponseHandler<>(
+                listener,
+                in -> new BatchExchangeStatusResponse(in, transportService.getThreadPool().getThreadContext()),
+                responseExecutor
+            )
         );
     }
 
@@ -498,6 +525,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     public Set<String> sinkKeys() {
         return sinks.keySet();
+    }
+
+    /**
+     * The registered exchange source ids, for tests that need to check the consumer side too. {@link #isEmpty()} and {@link #sinkKeys()}
+     * only cover sinks, so a test asserting on those alone would not notice a leaked source handler.
+     */
+    public Set<String> sourceKeys() {
+        return Sets.union(exchangeSources.keySet(), localExchanges.keySet());
     }
 
     @Override

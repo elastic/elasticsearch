@@ -231,6 +231,33 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future.get(1, TimeUnit.HOURS).close();
     }
 
+    public void testNoDeadlockOnConcurrentBlock() {
+        final CountDownLatch blockOperationsRunning = new CountDownLatch(2);
+        final CyclicBarrier barrier = new CyclicBarrier(3);
+
+        final Runnable pendingOperation = () -> {
+            permits.acquire(ActionTestUtils.assertNoFailureListener((release) -> {
+                safeAwait(barrier);
+                safeAwait(barrier);
+                release.close();
+            }), null, true);
+        };
+
+        final Runnable blockOperation = () -> {
+            safeAwait(barrier);
+            permits.blockOperations(
+                ActionListener.releaseAfter(ActionTestUtils.assertNoFailureListener(Releasable::close), blockOperationsRunning::countDown),
+                SAFE_AWAIT_TIMEOUT.duration(),
+                SAFE_AWAIT_TIMEOUT.timeUnit(),
+                threadPool.generic()
+            );
+            safeAwait(barrier);
+        };
+
+        runInParallel(pendingOperation, blockOperation, blockOperation);
+        safeAwait(blockOperationsRunning);
+    }
+
     /**
      * Tests that the ThreadContext is restored when a operation is executed after it has been delayed due to a block
      */

@@ -103,7 +103,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
                         packedAttr = oldIntermediates.get(intermediateOffset);
-                        for (Expression dim : packDimsAgg.dims()) {
+                        for (Expression dim : packDimsAgg.fields()) {
                             Attribute attr = readDimAttribute((Attribute) dim);
                             readDims.add(attr);
                             packDims.add(attr);
@@ -152,8 +152,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             oldAgg.getMode(),
             newIntermediates,
             oldAgg.estimatedRowSize(),
-            oldAgg.timeBucket(),
-            oldAgg.outputTimeBucket()
+            oldAgg.timeBucket()
         );
         if (readDims.isEmpty() == false) {
             plan = new ReadDimsExec(

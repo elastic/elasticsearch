@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -23,6 +25,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -33,9 +37,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
-public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
+public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Accountable, Writeable, ToXContentObject {
     public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_audio_video_pdf_support"
+    );
+    public static final TransportVersion URL_INPUT_FORMAT_SUPPORT_ADDED = TransportVersion.fromName(
+        "inference_api_url_input_format_support"
     );
 
     // Caps regex cost regardless of total input size; real MIME types are well under this.
@@ -44,8 +51,16 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     // Character classes stop at literal delimiters so matching is linear. RFC 2397 ";param=value" pairs get absorbed into the {subtype}
     // class.
     private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:[^/]+/[^,]+;base64,");
-    private static final String DATA_URI_PREFIX = "data:";
+    private static final String DATA_SCHEME = "data";
+    private static final String DATA_URI_PREFIX = DATA_SCHEME + ":";
     private static final String BASE64_MARKER = ";base64";
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceString.class);
+    private static final long STRING_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(String.class);
+    // Conservative overhead for the DataType and DataFormat enum instances
+    private static final long ENUM_OVERHEAD = RamUsageEstimator.shallowSizeOf(DataType.TEXT) + RamUsageEstimator.shallowSizeOf(
+        DataFormat.TEXT
+    );
 
     public static final String TYPE_FIELD = "type";
     public static final String FORMAT_FIELD = "format";
@@ -91,26 +106,48 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
         validateTypeAndFormat();
         this.value = Objects.requireNonNull(value);
-        validateDataURIFormat();
+        validateValueAgainstFormat();
     }
 
     private void validateTypeAndFormat() {
         if (dataType.getSupportedFormats().contains(dataFormat) == false) {
+            var displayedFormats = dataType.getSupportedFormats()
+                .stream()
+                .filter(f -> f != DataFormat.URL || DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled())
+                .toList();
             throw new IllegalArgumentException(
                 Strings.format(
                     "Data type [%s] does not support data format [%s], supported formats are %s",
                     dataType,
                     dataFormat,
-                    dataType.getSupportedFormats()
+                    displayedFormats
                 )
             );
         }
     }
 
-    private void validateDataURIFormat() {
+    private void validateValueAgainstFormat() {
         if (dataFormat == DataFormat.BASE64 && tryParseDataUri(value) == null) {
             throw new IllegalArgumentException(
                 "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
+            );
+        } else if (dataFormat == DataFormat.URL) {
+            validateURLFormat();
+        }
+    }
+
+    private void validateURLFormat() {
+        if (DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("url format is not supported");
+        }
+        try {
+            var uri = new URI(value);
+            if (DATA_SCHEME.equalsIgnoreCase(uri.getScheme())) {
+                throw new IllegalArgumentException("URL format inputs must not use the data URI scheme; use base64 format instead");
+            }
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(
+                Strings.format("URL format inputs must be valid URIs, but [%s] is not: %s", value, e.getReason())
             );
         }
     }
@@ -215,6 +252,17 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         return inferenceString.value();
     }
 
+    public static long estimateRamBytesUsed(int valueLength) {
+        return SHALLOW_SIZE + ENUM_OVERHEAD + RamUsageEstimator.alignObjectSize(
+            STRING_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Character.BYTES * valueLength
+        );
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return estimateRamBytesUsed(value().length());
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED) == false
@@ -222,6 +270,13 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
             throw new ElasticsearchStatusException(
                 "Cannot send an inference request with audio, video or pdf inputs to an older node. "
                     + "Please wait until all nodes are upgraded before using audio, video or pdf inputs",
+                RestStatus.BAD_REQUEST
+            );
+        }
+        if (out.getTransportVersion().supports(URL_INPUT_FORMAT_SUPPORT_ADDED) == false && dataFormat.equals(DataFormat.URL)) {
+            throw new ElasticsearchStatusException(
+                "Cannot send an inference request with URL format inputs to an older node. "
+                    + "Please wait until all nodes are upgraded before using URL format inputs",
                 RestStatus.BAD_REQUEST
             );
         }

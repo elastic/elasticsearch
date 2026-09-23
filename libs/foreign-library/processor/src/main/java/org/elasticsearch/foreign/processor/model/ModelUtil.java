@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.processor.model;
 
+import org.elasticsearch.foreign.Upcall;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -75,6 +77,20 @@ final class ModelUtil {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the {@code boolean} value of the given annotation attribute, or {@code defaultValue} if the
+     * attribute is absent (not explicitly set, so the annotation's declared default applies) or not a
+     * {@code Boolean}.
+     */
+    static boolean annotationBooleanValue(AnnotationMirror mirror, String attribute, boolean defaultValue) {
+        for (var entry : mirror.getElementValues().entrySet()) {
+            if (entry.getKey().getSimpleName().contentEquals(attribute)) {
+                return entry.getValue().getValue() instanceof Boolean b ? b : defaultValue;
+            }
+        }
+        return defaultValue;
     }
 
     /**
@@ -156,13 +172,21 @@ final class ModelUtil {
             return NativeType.VOID;
         }
         if (mirror.getKind() == TypeKind.DECLARED) {
-            String fqn = ((TypeElement) ((DeclaredType) mirror).asElement()).getQualifiedName().toString();
-            return switch (fqn) {
+            TypeElement typeElement = (TypeElement) ((DeclaredType) mirror).asElement();
+            String fqn = typeElement.getQualifiedName().toString();
+            NativeType byFqn = switch (fqn) {
                 case "java.lang.foreign.MemorySegment" -> NativeType.ADDRESS;
                 case "java.lang.String" -> NativeType.STRING;
                 case "org.elasticsearch.foreign.Addressable" -> NativeType.ADDRESSABLE;
                 default -> null;
             };
+            if (byFqn != null) {
+                return byFqn;
+            }
+            if (typeElement.getKind() == ElementKind.INTERFACE && typeElement.getAnnotation(Upcall.class) != null) {
+                return NativeType.UPCALL;
+            }
+            return null;
         }
         return switch (mirror.getKind()) {
             case INT -> NativeType.INT;

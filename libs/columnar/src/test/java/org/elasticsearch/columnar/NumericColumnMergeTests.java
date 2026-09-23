@@ -9,17 +9,12 @@
 
 package org.elasticsearch.columnar;
 
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -28,7 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
@@ -37,6 +31,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
 
 /**
  * Exercises the merge fast path: values are written across several segments (with deletions), then
@@ -58,15 +55,13 @@ public class NumericColumnMergeTests extends ESTestCase {
             }
             final boolean[] deleted = new boolean[numDocs];
 
-            final FieldType type = new FieldType();
-            type.setDocValuesType(DocValuesType.BINARY);
-            type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name());
-            type.freeze();
+            final FieldType type = columnarBinaryFieldType();
 
             try (Directory dir = newDirectory()) {
                 // LogDocMergePolicy merges adjacent segments, so the merged order stays insertion order
                 // and the ordered check below also verifies per-document association.
-                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
+                    .setMergePolicy(new LogDocMergePolicy());
                 final BytesRefBuilder builder = new BytesRefBuilder();
                 final int batch = Math.max(1, numDocs / between(2, 6));
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {
@@ -127,21 +122,4 @@ public class NumericColumnMergeTests extends ESTestCase {
         }
     }
 
-    private static Codec columnarCodec() {
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat();
-        final Codec base = TestUtil.getDefaultCodec();
-        return new FilterCodec(base.getName(), base) {
-            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
-                @Override
-                public DocValuesFormat getDocValuesFormatForField(String field) {
-                    return columnar;
-                }
-            };
-
-            @Override
-            public DocValuesFormat docValuesFormat() {
-                return perField;
-            }
-        };
-    }
 }

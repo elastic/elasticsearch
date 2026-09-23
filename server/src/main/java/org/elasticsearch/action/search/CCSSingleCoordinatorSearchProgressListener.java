@@ -10,18 +10,23 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
 
 /**
  * Use this progress listener for cross-cluster searches where a single
@@ -181,11 +186,20 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 took = null;
                 status = SearchResponse.Cluster.Status.RUNNING;
             }
-            return new SearchResponse.Cluster.Builder(v).setStatus(status)
+            SearchResponse.Cluster.Builder builder = new SearchResponse.Cluster.Builder(v).setStatus(status)
                 .setFailedShards(numFailedShards)
-                .setFailures(CollectionUtils.appendToCopy(v.getFailures(), new ShardSearchFailure(e, shardTarget)))
-                .setTook(took)
-                .build();
+                .setTook(took);
+            Optional<Throwable> maybeInternalCancel = ExceptionsHelper.unwrapCausesAndSuppressed(
+                e,
+                ex -> ex instanceof TaskCancelledException
+            );
+            // Do not include shard failures due to internal cancel
+            if (maybeInternalCancel.isEmpty()
+                || maybeInternalCancel.get().getMessage() == null
+                || maybeInternalCancel.get().getMessage().contains(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON) == false) {
+                builder.setFailures(CollectionUtils.appendToCopy(v.getFailures(), new ShardSearchFailure(e, shardTarget)));
+            }
+            return builder.build();
         });
     }
 

@@ -11,29 +11,23 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
-import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * A variant of {@link RefCountingListener} with the following differences:
  * 1. Automatically cancels sub tasks on failure (via runOnTaskFailure)
  * 2. Collects driver profiles from sub tasks.
- * 3. Collects response headers from sub tasks, specifically warnings emitted during compute
- * 4. Collects failures and returns the most appropriate exception to the caller.
+ * 3. Collects failures and returns the most appropriate exception to the caller.
  */
 final class ComputeListener implements Releasable {
     private final DriverCompletionInfo.AtomicAccumulator completionInfoAccumulator = new DriverCompletionInfo.AtomicAccumulator();
     private final EsqlRefCountingListener refs;
-    private final ResponseHeadersCollector responseHeaders;
     private final Runnable runOnFailure;
 
-    ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
+    ComputeListener(Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
         this.runOnFailure = runOnFailure;
-        this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
         this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
-            responseHeaders.finish();
             delegate.onResponse(completionInfoAccumulator.finish());
         }));
     }
@@ -53,27 +47,14 @@ final class ComputeListener implements Releasable {
     }
 
     /**
-     * Collects response headers (warnings) from the current thread. Call this eagerly on the driver thread when the driver
-     * completes but before any async hand-off to a different thread, so that warnings are captured before the thread context
-     * is lost (e.g. when a completion listener fires later on a transport thread with a blank context).
-     */
-    void collectHeaders() {
-        responseHeaders.collect();
-    }
-
-    /**
-     * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
+     * Acquires a new listener that collects compute result.
      */
     ActionListener<DriverCompletionInfo> acquireCompute() {
         final ActionListener<Void> delegate = acquireAvoid();
         return ActionListener.wrap(info -> {
-            responseHeaders.collect();
             completionInfoAccumulator.accumulate(info);
             delegate.onResponse(null);
-        }, e -> {
-            responseHeaders.collect();
-            delegate.onFailure(e);
-        });
+        }, delegate::onFailure);
     }
 
     @Override

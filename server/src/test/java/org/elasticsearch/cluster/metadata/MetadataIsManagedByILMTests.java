@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -95,6 +96,16 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
 
             assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
         }
+    }
+
+    public void testLookupIndexIsNeverManagedByILM() {
+        IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex(
+            "lookup-index",
+            Settings.builder().put("index.lifecycle.name", "metrics").put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build()
+        ).build();
+        Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
+
+        assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
     }
 
     public static IndexMetadata.Builder createIndexMetadataBuilderForIndex(String index) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstBooleanByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstBooleanByLongAggregatorFunctionSupplier;
@@ -62,10 +63,9 @@ public class First extends AggregateFunction implements ToAggregator {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(First.class)
         .binary(First::new)
         // Fix a crash when the sort argument is a foldable/null value and @timestamp has been dropped from a TS query's output.
-        .capabilities("fix_null_sort_dropped_timestamp")
+        // Also fix a crash when InsertDefaultInnerTimeSeriesAggregate sees an unresolved sort during the CCS/bwc analyzer retry path.
+        .capabilities("fix_null_sort_dropped_timestamp", "fix_unresolved_sort_in_ts_default_inner_agg")
         .name("first");
-
-    private final Expression sort;
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
@@ -145,22 +145,34 @@ public class First extends AggregateFunction implements ToAggregator {
         ) Expression field,
         @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, sort);
+        this(source, field, sort, Literal.TRUE, NO_WINDOW);
     }
 
-    private First(Source source, Expression field, Expression filter, Expression window, Expression sort) {
-        super(source, field, filter, window, List.of(sort));
-        this.sort = sort;
+    public First(Source source, Expression field, Expression sort, Expression filter, Expression window) {
+        super(source, List.of(field, sort), filter, window, List.of());
     }
 
     private static First readFrom(StreamInput in) throws IOException {
+        // Legacy serialization format for backwards compatibility
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression filter = in.readNamedWriteable(Expression.class);
         Expression window = readWindow(in);
         List<Expression> params = in.readNamedWriteableCollectionAsList(Expression.class);
         Expression sort = params.getFirst();
-        return new First(source, field, filter, window, sort);
+        return new First(source, field, sort, filter, window);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(List.of(sort()));
     }
 
     @Override
@@ -170,7 +182,7 @@ public class First extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<First> info() {
-        return NodeInfo.create(this, First::new, field(), sort);
+        return NodeInfo.create(this, First::new, field(), sort(), filter(), window());
     }
 
     @Override
@@ -178,13 +190,12 @@ public class First extends AggregateFunction implements ToAggregator {
         return new First(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
-    @Override
-    public First withFilter(Expression filter) {
-        return new First(source(), field(), filter, window(), sort);
+    public Expression field() {
+        return fields().get(0);
     }
 
     public Expression sort() {
-        return sort;
+        return fields().get(1);
     }
 
     @Override
@@ -231,7 +242,7 @@ public class First extends AggregateFunction implements ToAggregator {
             "numeric except counter types"
         ).and(
             isType(
-                sort,
+                sort(),
                 dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 SECOND,
@@ -298,6 +309,6 @@ public class First extends AggregateFunction implements ToAggregator {
 
     @Override
     public String toString() {
-        return "first(" + field() + ", " + sort + ")";
+        return "first(" + field() + ", " + sort() + ")";
     }
 }

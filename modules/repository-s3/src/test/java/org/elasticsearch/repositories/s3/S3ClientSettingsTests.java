@@ -179,6 +179,9 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
         assertThat(settings.get("default").disableChunkedEncoding, is(false));
         assertThat(settings.get("other").disableChunkedEncoding, is(true));
+        assertWarnings("""
+            [s3.client.other.disable_chunked_encoding] setting was deprecated in Elasticsearch and will be removed in a future release. \
+            See the breaking changes documentation for the next major version.""");
     }
 
     public void testRegionCanBeSet() {
@@ -202,11 +205,11 @@ public class S3ClientSettingsTests extends ESTestCase {
             s3Service.start();
 
             var otherSettings = settings.get("other");
-            Region otherRegion = s3Service.getClientRegion(otherSettings);
+            Region otherRegion = s3Service.getClientRegion(otherSettings, S3Service.LOG_ON_DEPRECATED_LENIENCY);
             assertEquals(randomRegion, otherRegion.toString());
 
             // by default, we simply do not know the region (which S3Service maps to us-east-1 with cross-region access enabled)
-            assertNull(s3Service.getClientRegion(settings.get("default")));
+            assertNull(s3Service.getClientRegion(settings.get("default"), S3Service.LOG_ON_DEPRECATED_LENIENCY));
         }
     }
 

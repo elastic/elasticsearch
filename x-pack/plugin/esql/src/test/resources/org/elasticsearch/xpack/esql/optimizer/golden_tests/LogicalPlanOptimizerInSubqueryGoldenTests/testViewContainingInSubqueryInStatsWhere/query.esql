@@ -1,0 +1,5 @@
+FROM stats_view
+| WHERE cnt IN (FROM where_counts | KEEP cnt)
+| EVAL doubled_cnt = cnt * 2
+| STATS view_rows = COUNT(*) WHERE cnt IN (FROM stats_counts | KEEP cnt),
+        max_doubled = MAX(doubled_cnt)

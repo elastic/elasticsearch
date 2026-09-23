@@ -69,8 +69,18 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             ES940DiskBBQVectorsFormat.VERSION_START,
             ES940DiskBBQVectorsFormat.VERSION_CURRENT,
             ES940DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            ES940DiskBBQVectorsFormat.VERSION_ON_DISK_MERGE,
             ES940DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
+    }
+
+    private ES940DiskBBQVectorsReader(ES940DiskBBQVectorsReader other, GenericFlatVectorReaders genericReaders) {
+        super(other, genericReaders);
+    }
+
+    @Override
+    protected ES940DiskBBQVectorsReader mergeInstance(GenericFlatVectorReaders genericReaders) {
+        return new ES940DiskBBQVectorsReader(this, genericReaders);
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {

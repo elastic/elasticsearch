@@ -32,14 +32,17 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.FilterUnsupportedTemporality;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -88,12 +91,15 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Coalesce.class, // COALESCE(NULL, 1) = 1
         IsNotNull.class, // NULL IS NOT NULL = false
         IsNull.class, // NULL IS NULL = true
+        JsonString.class, // JSON_STRING("key", NULL) = {"key":null};
 
         // Multivalue functions that treat NULL is an empty set.
         MvContains.class, // MV_CONTAINS([1, 2], NULL) = false
         MvDifference.class, // MV_DIFFERENCE([1, 2], NULL) = [1, 2]
+        MvGreater.class, // MV_GREATER(NULL, 1) = false
         MvInRange.class, // MV_IN_RANGE(NULL, 1, 2) = false
         MvIntersects.class, // MV_INTERSECTS([1, 2], NULL) = false
+        MvLess.class, // MV_LESS(NULL, 1) = false
         MvLike.class, // MV_LIKE(NULL, "a*") = false
         MvRLike.class, // MV_RLIKE(NULL, "a.*") = false
         MvUnion.class, // MV_UNION(NULL, [1]) = [1]
@@ -427,6 +433,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 f.get();
             }
         }
+        // This test exercises thread-safety, not warning content: each thread accumulates (possibly duplicated)
+        // warnings into its own per-driver sink. Consume them so the leak-check passes, asserting only that nothing
+        // unexpected surfaced.
+        consumeAndAssertExpectedDriverWarnings();
     }
 
     public final void testEvaluatorToString() {
@@ -444,7 +454,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     public final void testFactoryToString() {
         Expression expression = buildFieldExpression(testCase);
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        var factory = evaluator(buildFieldExpression(testCase));
+        var factory = evaluator(expression);
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
@@ -478,6 +488,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
             }
             if (testCase.getExpectedWarnings() != null) {
+                // Fold-time warnings go to HTTP response headers (plan-time channel). Functions that
+                // emit warnings during constant folding must use HeaderWarning.addWarning(...) so that
+                // assertWarnings() can find them here.
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {

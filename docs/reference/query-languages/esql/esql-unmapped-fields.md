@@ -12,6 +12,8 @@ description: How ES|QL queries fields that aren't in the index mapping, using th
 
 An unmapped field is a field in indexed documents that the index' mapping does not define. By default, {{esql}} treats such fields as `null` and returns an error if a referenced field is not mapped in any index.
 
+For more about how `NULL` behaves in expressions, filters, sorting, and aggregation, refer to [Working with NULL values in {{esql}}](/reference/query-languages/esql/esql-null-values.md).
+
 Without this capability, the usual fix is to add the field to your mapping and reindex your data before you can query it. On a large dataset, that reindex can take hours.
 
 ## Use cases [esql-unmapped-fields-use-cases]

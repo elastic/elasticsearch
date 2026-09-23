@@ -530,29 +530,29 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB));
     }
 
-    public void testUnsafeRolloverToLookupThrows() {
+    public void testUnsafeRolloverToLookup() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setIndexMode(randomBoolean() ? IndexMode.STANDARD : null).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.unsafeNextWriteIndexAndGeneration(project, ds.getDataComponent());
+        var newWriteIndex = new Index(newCoordinates.v1(), UUIDs.randomBase64UUID());
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ds.unsafeRollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.LOOKUP, null)
-        );
-        assertThat(e.getMessage(), containsString("is not allowed"));
+        var rolledDs = ds.unsafeRollover(newWriteIndex, newCoordinates.v2(), IndexMode.LOOKUP, null);
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOOKUP));
     }
 
-    public void testUnsafeRolloverFromLookupThrows() {
+    public void testUnsafeRolloverFromLookup() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setIndexMode(IndexMode.LOOKUP).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.unsafeNextWriteIndexAndGeneration(project, ds.getDataComponent());
         IndexMode templateMode = randomFrom(IndexMode.values());
+        var newWriteIndex = new Index(newCoordinates.v1(), UUIDs.randomBase64UUID());
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ds.unsafeRollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), templateMode, null)
-        );
-        assertThat(e.getMessage(), containsString("is not allowed"));
+        var rolledDs = ds.unsafeRollover(newWriteIndex, newCoordinates.v2(), templateMode, null);
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(templateMode));
     }
 
     public void testRolloverFailureStore() {
@@ -1280,6 +1280,66 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
+    }
+
+    public void testSelectTimeSeriesWriteIndices() {
+        Instant currentTime = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+        String dataStreamName = "logs_my-app_prod";
+        ClusterState clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+        );
+        ProjectMetadata project = clusterState.getMetadata().getProject();
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
+        Index index1 = dataStream.getIndices().get(0);
+        Index index2 = dataStream.getIndices().get(1);
+
+        // empty array → empty set
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[0], project), equalTo(Set.of()));
+
+        // all timestamps in the same index → singleton set (min==max index fast path)
+        long tsInIndex2 = currentTime.toEpochMilli() * 1_000_000L;
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex2, tsInIndex2 }, project), equalTo(Set.of(index2)));
+
+        // single distinct timestamp
+        long tsInIndex1 = currentTime.minus(4, ChronoUnit.HOURS).toEpochMilli() * 1_000_000L;
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex1 }, project), equalTo(Set.of(index1)));
+
+        // min==max (all timestamps identical) → one lookup, singleton
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex1, tsInIndex1, tsInIndex1 }, project),
+            equalTo(Set.of(index1))
+        );
+
+        // timestamps spanning both indices → both returned in encounter order
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex1, tsInIndex2 }, project),
+            equalTo(Set.of(index1, index2))
+        );
+
+        // reversed order still returns both
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { tsInIndex2, tsInIndex1 }, project),
+            equalTo(Set.of(index2, index1))
+        );
+
+        // out-of-range timestamp falls back to write index (index2)
+        long outOfRange = currentTime.plus(10, ChronoUnit.HOURS).toEpochMilli() * 1_000_000L;
+        assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { outOfRange }, project), equalTo(Set.of(index2)));
+
+        // Both min and max out of range (fall back to write index) but the middle timestamp lands in index1.
+        // The minIndex==maxIndex shortcut must NOT fire here (both raw lookups returned null), so index1
+        // must still be included in the result.
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { outOfRange, tsInIndex1, outOfRange }, project),
+            equalTo(Set.of(index2, index1))
+        );
     }
 
     public void testValidate() {
@@ -2050,6 +2110,14 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();
 
+        String lookupIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, now - 3400);
+        IndexMetadata lookupIndexMetadata = IndexMetadata.builder(lookupIndexName)
+            .settings(settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        Index lookupIndex = lookupIndexMetadata.getIndex();
+
         List<DataStreamMetadata> creationAndRolloverTimes = List.of(
             DataStreamMetadata.dataStreamMetadata(now - 5000, now - 4000),
             DataStreamMetadata.dataStreamMetadata(now - 4000, now - 3000),
@@ -2057,7 +2125,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             DataStreamMetadata.dataStreamMetadata(now - 2000, now - 1000),
             DataStreamMetadata.dataStreamMetadata(now, null)
         );
-        Metadata.Builder builder = Metadata.builder();
+
+        Metadata.Builder builder = Metadata.builder().put(lookupIndexMetadata, true);
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
@@ -2065,6 +2134,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             settings(IndexVersion.current()),
             DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build()
         );
+        dataStream.unsafeAddBackingIndex(lookupIndex);
         Metadata metadata = builder.build();
 
         {
@@ -2073,6 +2143,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata.getProject()::index),
                 is(false)
             );
+        }
+
+        {
+            // false for lookup indices even when part of the data stream
+            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(lookupIndex, metadata.getProject()::index), is(false));
         }
 
         {

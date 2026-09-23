@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -136,7 +137,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
         if (searchHitsSizeBytes > 0L) {
-            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes);
+            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
             searchHitsSizeBytes = 0L;
         }
     }

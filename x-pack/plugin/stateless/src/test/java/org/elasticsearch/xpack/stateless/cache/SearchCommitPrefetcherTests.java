@@ -349,7 +349,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             final SearchCommitPrefetcher prefetcher = new SearchCommitPrefetcher(
                 shardId,
                 cacheService,
-                blobFile -> cacheBlobReader,
+                (blobFile, isUploaded) -> cacheBlobReader,
                 // Internal files take the notification commit's timestamp, so the resolver values are irrelevant here.
                 fileName -> UNKNOWN_TIMESTAMP,
                 x -> x,

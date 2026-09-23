@@ -17,7 +17,7 @@ import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -86,11 +86,14 @@ public class CustomModelCreator implements ModelCreator<CustomModel> {
             case RERANK -> RerankParameters.of(
                 new QueryAndDocsInputs(InferenceString.ofText("test query"), List.of(InferenceString.ofText("test input")))
             );
-            case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> EmbeddingParameters.of(
-                new EmbeddingsInput(() -> List.of(new InferenceStringGroup("test input")), null),
-                model.getServiceSettings().getInputTypeTranslator()
-            );
+            case COMPLETION -> CompletionParameters.of(new CompletionInput(List.of("test input")));
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
+                var testInput = new InferenceStringGroup("test input");
+                yield EmbeddingParameters.of(
+                    new EmbeddingsInput(() -> List.of(testInput), testInput.ramBytesUsed(), null),
+                    model.getServiceSettings().getInputTypeTranslator()
+                );
+            }
             default -> throw new IllegalStateException(
                 Strings.format("Unsupported task type [%s] for custom service", model.getTaskType())
             );

@@ -82,11 +82,10 @@ public class ServerlessTransportHandshakeTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeTransportServices() throws Exception {
         for (TransportService transportService : transportServices) {
             transportService.close();
         }
-        super.tearDown();
     }
 
     @AfterClass

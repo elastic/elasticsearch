@@ -368,9 +368,6 @@ public final class MultiRowTestCaseSupplier {
 
     public static List<TypedDataSupplier> doubleRangeCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally() == false) {
-            return cases;
-        }
 
         addSuppliers(cases, minRows, maxRows, "random double range", DataType.DOUBLE_RANGE, () -> {
             DoubleRangeBlockBuilder.DoubleRange range = TestCaseSupplier.randomDoubleRange();

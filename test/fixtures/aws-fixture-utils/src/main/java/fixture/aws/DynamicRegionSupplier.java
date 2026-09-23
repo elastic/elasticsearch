@@ -11,25 +11,13 @@ package fixture.aws;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
-
 /**
  * Lazy supplier for a region name. We cannot use randomness like {@link ESTestCase#randomIdentifier()} when creating the test fixtures in
  * the first place because this happens in static context, so instead we create one of these and defer the creation of the region name
  * itself until the test actually starts running.
  */
-public class DynamicRegionSupplier implements Supplier<String> {
-    private final AtomicReference<String> generatedRegion = new AtomicReference<>();
-
-    @Override
-    public String get() {
-        return Objects.requireNonNullElseGet(generatedRegion.get(), this::generateAndGet);
-    }
-
-    private String generateAndGet() {
-        final var newRegion = ESTestCase.randomIdentifier("DynamicRegionSupplier-");
-        return Objects.requireNonNullElse(generatedRegion.compareAndExchange(null, newRegion), newRegion);
+public class DynamicRegionSupplier extends DynamicIdentifierSupplier {
+    public DynamicRegionSupplier() {
+        super(() -> "DynamicRegionSupplier-");
     }
 }

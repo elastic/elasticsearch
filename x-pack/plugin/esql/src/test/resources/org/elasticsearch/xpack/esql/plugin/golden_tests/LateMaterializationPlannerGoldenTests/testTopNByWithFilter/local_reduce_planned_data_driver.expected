@@ -1,0 +1,6 @@
+ExchangeSinkExec[[_doc{f}#0, salary{f}#1, hire_date{f}#2, languages{f}#3],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#0, salary{f}#1, hire_date{f}#2, languages{f}#3]]
+\_TopNBy[[Order[hire_date{f}#2,ASC,LAST]],5[INTEGER],[languages{f}#3]]
+  \_Filter[salary{f}#1 > 10000[INTEGER]]
+    \_EsRelation[employees][_doc{f}#0, avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#6, first_name{f}#7, gender{f}#8, height{f}#9, height.float{f}#10, height.half_float{f}#11, height.scaled_float{f}#12, hire_date{f}#2, is_rehired{f}#13, job_positions{f}#14, languages{f}#3, languages.byte{f}#15, languages.long{f}#16, languages.short{f}#17, last_name{f}#18, salary{f}#1, salary_change{f}#19, salary_change.int{f}#20, salary_change.keyword{f}#21, salary_change.long{f}#22, still_hired{f}#23]<>]]

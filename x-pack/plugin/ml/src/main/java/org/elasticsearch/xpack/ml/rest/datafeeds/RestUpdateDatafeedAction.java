@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -29,6 +30,12 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateDatafeedAction extends BaseRestHandler {
+
+    private final Set<String> supportedCapabilities;
+
+    public RestUpdateDatafeedAction(boolean mlCrossProjectSearchEnabled) {
+        this.supportedCapabilities = MlDatafeedRestCapabilities.supportedCapabilities(mlCrossProjectSearchEnabled);
+    }
 
     @Override
     public List<Route> routes() {
@@ -58,6 +65,11 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
         updateDatafeedRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
 
         return channel -> client.execute(UpdateDatafeedAction.INSTANCE, updateDatafeedRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return supportedCapabilities;
     }
 
 }

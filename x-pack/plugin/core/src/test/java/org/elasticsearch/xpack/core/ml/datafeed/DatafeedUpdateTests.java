@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
@@ -129,6 +130,9 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
             builder.setIndicesOptions(
@@ -408,7 +412,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(1, 13)) {
+        switch (between(1, 14)) {
             case 1:
                 builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
                 break;
@@ -535,10 +539,34 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setProjectRouting(randomAlphaOfLength(20));
                 }
                 break;
+            case 14:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, 10));
+                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
+                    builder.setMaxConsecutiveExtractionFailures(10);
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 100);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    public void testApplyMaxConsecutiveExtractionFailures() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
+            .setMaxConsecutiveExtractionFailures(null)
+            .build();
+        assertThat(datafeed.getMaxConsecutiveExtractionFailures(), is(nullValue()));
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(25).build();
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+        assertThat(updated.getMaxConsecutiveExtractionFailures(), equalTo(25));
+
+        DatafeedUpdate disable = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(-1).build();
+        DatafeedConfig disabled = disable.apply(updated, Collections.emptyMap(), clusterState);
+        assertThat(disabled.getMaxConsecutiveExtractionFailures(), equalTo(-1));
     }
 
     public void testApplyWithProjectRouting() {
@@ -626,6 +654,60 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 in.setTransportVersion(TransportVersion.current());
                 DatafeedUpdate deserialized = new DatafeedUpdate(in);
                 assertThat(deserialized.getProjectRouting(), equalTo(projectRouting));
+            }
+        }
+    }
+
+    public void testForceRekeyingParsing() throws IOException {
+        String json = """
+            {
+              "datafeed_id": "test-datafeed",
+              "_force_rekeying": true
+            }
+            """;
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json)
+        ) {
+            DatafeedUpdate update = DatafeedUpdate.PARSER.apply(parser, null).build();
+            assertThat(update.getForceRekeying(), equalTo(true));
+        }
+    }
+
+    public void testForceRekeyingToXContent() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setForceRekeying(true).build();
+
+        BytesReference bytes = org.elasticsearch.common.xcontent.XContentHelper.toXContent(update, XContentType.JSON, false);
+        String json = bytes.utf8ToString();
+
+        assertThat(json, containsString("\"_force_rekeying\":true"));
+    }
+
+    public void testForceRekeyingSerialization() throws IOException {
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setForceRekeying(true).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersion.current());
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                assertThat(deserialized.getForceRekeying(), equalTo(true));
+            }
+        }
+    }
+
+    public void testForceRekeyingOmittedOnOlderTransportVersion() throws IOException {
+        TransportVersion oldVersion = TransportVersion.fromName("datafeed_cloud_internal_credential");
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setForceRekeying(true).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(oldVersion);
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(oldVersion);
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                assertThat(deserialized.getForceRekeying(), nullValue());
             }
         }
     }

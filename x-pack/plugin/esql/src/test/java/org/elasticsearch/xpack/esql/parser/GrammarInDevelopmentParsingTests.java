@@ -30,7 +30,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentLambda() throws Exception {
-        // outside of dev mode, ARROW never lexes, so `->` falls back to today's MINUS/GT tokens
+        // outside of dev mode, `->` lexes as ARROW but the lambda parser rule is predicate-guarded
         expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = invoke(a, x -> x)"));
     }
 

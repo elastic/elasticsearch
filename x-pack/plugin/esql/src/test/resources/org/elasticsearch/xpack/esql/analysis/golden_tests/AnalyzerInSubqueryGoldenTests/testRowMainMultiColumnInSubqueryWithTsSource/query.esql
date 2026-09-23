@@ -1,0 +1,6 @@
+ROW cluster = "my-cluster", pod = "my-pod"
+| WHERE (cluster, pod) IN (
+    TS k8s
+    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+    | KEEP cluster, pod
+  )

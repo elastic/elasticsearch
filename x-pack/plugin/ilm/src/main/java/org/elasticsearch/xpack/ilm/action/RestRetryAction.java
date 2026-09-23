@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.RetryActionRequest;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -33,6 +34,11 @@ public class RestRetryAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "ilm_retry_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("lookup_index_not_managed");
     }
 
     @Override

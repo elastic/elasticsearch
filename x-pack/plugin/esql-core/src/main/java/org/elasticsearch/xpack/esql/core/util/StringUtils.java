@@ -214,7 +214,7 @@ public final class StringUtils {
                 // reserved RegExp characters
                 case '"', '$', '(', ')', '+', '.', '[', ']', '^', '{', '|', '}' -> regex.append("\\").append(c);
                 // reserved optional RegExp characters
-                case '#', '&', '<', '>' -> regex.append("\\").append(c);
+                case '#', '&', '<', '>', '~', '@' -> regex.append("\\").append(c);
                 default -> regex.append(c);
             }
         }

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,14 +25,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -331,7 +331,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         var serviceSettingsMap = getModelSettingsForIndicesReferencingInferenceEndpoints(metadata, inferenceEntityIdSet);
         var incompatibleIndices = new HashSet<String>();
         if (serviceSettingsMap.isEmpty() == false) {
-            MinimalServiceSettings newSettings = new MinimalServiceSettings(model);
+            EndpointClusterState newSettings = new EndpointClusterState(model);
             serviceSettingsMap.forEach((indexName, existingSettings) -> {
                 if (canMergeModelSettings(existingSettings, newSettings, new FieldMapper.Conflicts("")) == false) {
                     incompatibleIndices.add(indexName);

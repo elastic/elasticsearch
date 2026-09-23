@@ -19,6 +19,7 @@ You can query data stored in compatible external data sources, using the same sy
 
 - This is an experimental feature and is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+- Currently, this feature is not supported on Windows.
 
 ## Enable the feature
 
@@ -68,7 +69,7 @@ A [data source](esql-data-federation-sources.md) tells {{es}} where the storage 
 ::::::
 
 ::::::{step} You create datasets (what to read)
-Each [dataset](esql-data-federation-datasets.md) points at specific files in that storage and makes them queryable. One data source can serve many datasets.
+Each [dataset](esql-data-federation-datasets.md) points at specific files in that storage and makes them queryable. Datasets should be scoped to a single [file format](esql-data-federation-datasets.md#supported-file-formats) and ideally share one schema. One data source can serve many datasets.
 
 Datasets are designed to work like indices for queries. They share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so a dataset cannot have the same name as any of them.
 ::::::
@@ -106,7 +107,7 @@ Federated data sources can read the following file formats:
 :::{include} _snippets/data-federation/supported-file-formats.md
 :::
 
-The format is detected automatically from the file extension. You can override this in the dataset settings if needed.
+The format is inferred from the resource pattern when that pattern implies exactly one registered format. Extensionless or mixed patterns require an explicit `format` in the dataset settings.
 
 For details on type-specific settings and format options, refer to [](esql-data-federation-datasets.md).
 
@@ -115,6 +116,8 @@ For details on type-specific settings and format options, refer to [](esql-data-
 Datasets behave like indices. In most places where {{esql}} accepts an index name, it accepts a dataset name too: `FROM`, `WHERE`, `STATS`, `SORT`, `EVAL`, `KEEP`, and the rest of the processing commands work the same way, on the same execution engine used for native indices. You can query a dataset on its own, or alongside indices, aliases, and views, in the same `FROM`.
 
 The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata. Relevance scoring returns `_score` as null, and `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
+
+{{esql}} Data Federation is not currently supported on Windows.
 
 ## Get started
 

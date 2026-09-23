@@ -84,7 +84,7 @@ public class HistogramQuantileTests extends AbstractNodeTestCase<HistogramQuanti
             relation.indexMode(),
             relation.originalIndices(),
             relation.concreteIndices(),
-            relation.indexNameWithModes(),
+            relation.indexProperties(),
             output
         );
     }
@@ -170,7 +170,7 @@ public class HistogramQuantileTests extends AbstractNodeTestCase<HistogramQuanti
             relation.indexMode(),
             relation.originalIndices(),
             relation.concreteIndices(),
-            relation.indexNameWithModes(),
+            relation.indexProperties(),
             output
         );
     }

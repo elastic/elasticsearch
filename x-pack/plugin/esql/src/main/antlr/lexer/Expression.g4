@@ -133,7 +133,7 @@ PERCENT : '%';
 LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
 
-ARROW : {this.isDevVersion()}? '->';
+ARROW : '->';
 
 DOUBLE_PARAMS: '??';
 

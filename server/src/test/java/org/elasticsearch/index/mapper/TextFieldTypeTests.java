@@ -49,10 +49,9 @@ import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
@@ -561,6 +560,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             null,
+            false,
             false
         );
 
@@ -604,6 +604,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
             false
         );
 
@@ -646,6 +647,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             null,
+            false,
             false
         );
 
@@ -678,6 +680,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
             false
         );
 
@@ -708,6 +711,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             null,
+            false,
             false
         );
 
@@ -744,6 +748,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
             false
         );
     }
@@ -765,6 +770,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             null,
+            false,
             false
         );
     }
@@ -778,7 +784,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = sortedSetDocValuesOnly();
         Query q = ft.prefixQuery("foo", null, false, MOCK_CONTEXT);
         assertThat(q, instanceOf(PrefixQuery.class));
-        assertEquals(XDocValuesRewriteMethod.DOC_VALUES_REWRITE, ((PrefixQuery) q).getRewriteMethod());
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((PrefixQuery) q).getRewriteMethod());
 
         // SortedSet DV, case-insensitive → StringScriptFieldPrefixQuery
         q = ft.prefixQuery("foo", null, true, MOCK_CONTEXT);
@@ -817,18 +823,18 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = sortedSetDocValuesOnly();
         Query q = ft.wildcardQuery("foo*", null, false, MOCK_CONTEXT);
         assertThat(q, instanceOf(WildcardQuery.class));
-        assertEquals(XDocValuesRewriteMethod.DOC_VALUES_REWRITE, ((WildcardQuery) q).getRewriteMethod());
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((WildcardQuery) q).getRewriteMethod());
 
         // SortedSet DV, case-insensitive → StringScriptFieldWildcardQuery
         q = ft.wildcardQuery("foo*", null, true, MOCK_CONTEXT);
         assertThat(q, instanceOf(StringScriptFieldWildcardQuery.class));
 
-        // Binary DV → ScanningBinaryDocValuesWildcardQuery (both cases)
+        // Binary DV → ScanningBinaryDocValuesAutomatonQuery (both cases)
         TextFieldType binaryFt = binaryDocValuesOnly();
         q = binaryFt.wildcardQuery("foo*", null, false, MOCK_CONTEXT);
-        assertThat(q, instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
+        assertThat(q, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
         q = binaryFt.wildcardQuery("foo*", null, true, MOCK_CONTEXT);
-        assertThat(q, instanceOf(ScanningBinaryDocValuesWildcardQuery.class));
+        assertThat(q, instanceOf(ScanningBinaryDocValuesAutomatonQuery.class));
 
         // Neither indexed nor doc values → error
         TextFieldType neither = new TextFieldType("field", false, false, Collections.emptyMap());
@@ -854,7 +860,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = sortedSetDocValuesOnly();
         Query q = ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT);
         assertThat(q, instanceOf(RegexpQuery.class));
-        assertEquals(XDocValuesRewriteMethod.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
         // Binary DV → ScanningBinaryDocValuesRegexpQuery
         TextFieldType binaryFt = binaryDocValuesOnly();
@@ -885,7 +891,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = sortedSetDocValuesOnly();
         Query q = ft.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
         assertThat(q, instanceOf(RegexpQuery.class));
-        assertEquals(XDocValuesRewriteMethod.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
         // Binary DV → ScanningBinaryDocValuesRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
         TextFieldType binaryFt = binaryDocValuesOnly();

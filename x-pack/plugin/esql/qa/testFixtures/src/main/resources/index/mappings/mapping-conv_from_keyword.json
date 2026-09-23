@@ -24,6 +24,9 @@
         "dense_vector_hex": {
             "type": "keyword"
         },
+        "double_range_str": {
+            "type": "keyword"
+        },
         "double_str": {
             "type": "keyword"
         },

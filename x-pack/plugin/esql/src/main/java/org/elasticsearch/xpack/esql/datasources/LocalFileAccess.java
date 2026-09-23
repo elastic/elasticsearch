@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Enforces the {@code esql.datasource.local_allowed_paths} allowlist gate for {@code file://} external sources.
+ * Enforces the {@code esql.external.local_allowed_paths} allowlist gate for {@code file://} external sources.
  *
  * <p>An empty allowlist (the default) disables local-disk access entirely — the list <em>is</em> the enable,
  * mirroring {@code path.repo} / {@code FsRepository}. When non-empty, a {@code file://} path is accepted only if
@@ -34,14 +35,14 @@ public class LocalFileAccess {
      * ({@link StorageProviderRegistry}) so both paths report the same message.
      */
     public static final String LOCAL_DISK_DISABLED_MESSAGE = "local filesystem access via file:// is disabled; "
-        + "set the [esql.datasource.local_allowed_paths] node setting to one or more allowed root paths to enable it";
+        + "set the [esql.external.local_allowed_paths] node setting to one or more allowed root paths to enable it";
 
     /**
      * Error shown when a {@code file://} path does not fall under any allowed root (including {@code ..}-escape
      * attempts). Follows the pattern of the analogous {@code FsRepository} message.
      */
     static final String PATH_OUTSIDE_ALLOWLIST_PREFIX =
-        "location doesn't match any of the local paths specified by [esql.datasource.local_allowed_paths]: ";
+        "location doesn't match any of the local paths specified by [esql.external.local_allowed_paths]: ";
 
     /**
      * Allow-all sentinel for test-only constructors in {@link StorageProviderRegistry}, {@link FileSourceFactory},
@@ -102,6 +103,14 @@ public class LocalFileAccess {
      * @throws IllegalArgumentException if the path is rejected
      */
     public void check(StoragePath path) {
+        // A comma-separated multi-file listing (e.g. file:///a.csv,file:///b.csv) is not one filesystem path: parsing
+        // the whole string as a single Path fails on filesystems that reject when a separator carries an embedded segment,
+        // e.g. ':' on Windows.
+        var segments = GlobExpander.commaSegments(path.toString());
+        if (segments.size() > 1) {
+            segments.stream().map(StoragePath::of).forEach(this::check);
+            return;
+        }
         if ("file".equalsIgnoreCase(path.scheme()) == false) {
             return;
         }

@@ -28,10 +28,9 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 tasks.named('forbiddenApisTest').configure {
-  modifyBundledSignatures { bundledSignatures ->
-    bundledSignatures -= 'jdk-non-portable'
-    bundledSignatures += 'jdk-internal'
-    bundledSignatures
+  configureBundledSignaturesFromDefaults {
+    remove 'jdk-non-portable'
+    add 'jdk-internal'
   }
 }
 

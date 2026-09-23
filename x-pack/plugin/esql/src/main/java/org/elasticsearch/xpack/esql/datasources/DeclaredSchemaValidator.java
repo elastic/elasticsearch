@@ -24,17 +24,14 @@ import java.util.TreeSet;
  *
  * <p>What is checked here:
  * <ul>
- *   <li>every declared {@code type} resolves to a type the external readers can actually produce
- *       (the {@link #DECLARABLE_TYPES} whitelist — declaring {@code geo_point}/{@code version}/etc. is rejected
- *       until the readers grow them);</li>
- *   <li>under strict mode ({@code dynamic: false}) the {@code _id.path} column must be declared —
- *       nothing is inferred to satisfy it.</li>
+ *   <li>every declared {@code type} is one of the {@link #DECLARABLE_TYPES} — {@code geo_point}/{@code version}/etc.
+ *       are rejected until the readers grow them, and {@code text} for the separate reason that field documents.</li>
  * </ul>
  *
  * <p>What is deliberately <b>not</b> checked here (deferred to first-query mapping resolution, because PUT does no
- * I/O and the files may not exist yet): that the {@code _id.path} column exists when it is inferred rather than declared; that
- * a declared {@code path}/type matches the physical file; per-format narrowing, should a format ever be unable to
- * read a declarable type — the producing format is authoritative at read time.
+ * I/O and the files may not exist yet): that a declared {@code path}/type matches the physical file; per-format
+ * narrowing, should a format ever be unable to read a declarable type — the producing format is authoritative at
+ * read time.
  */
 public final class DeclaredSchemaValidator {
 
@@ -48,10 +45,14 @@ public final class DeclaredSchemaValidator {
      * unit ({@code datetime} = millis, {@code date_nanos} = nanos; see {@code DeclaredTypeCoercions}) — and a
      * string source parses with the column's declared {@code format} (else ISO nanos);
      * per-format narrowing stays deferred to read time like the rest of the set (see the class Javadoc).
+     *
+     * <p>{@code text} is absent for a different reason: a reader can produce it, but it is indistinguishable from
+     * {@code keyword} once read — every string arm is {@code case KEYWORD, TEXT} and no coercion separates them —
+     * and what it selects is a runtime-search behaviour whose analyzer a dataset mapping has no field to name. An
+     * analyzed column is built in the query with {@code TO_TEXT}, which takes the analyzer as an argument.
      */
     static final Set<DataType> DECLARABLE_TYPES = Set.of(
         DataType.KEYWORD,
-        DataType.TEXT,
         DataType.LONG,
         DataType.INTEGER,
         DataType.DOUBLE,
@@ -61,6 +62,10 @@ public final class DeclaredSchemaValidator {
         DataType.UNSIGNED_LONG,
         DataType.IP
     );
+
+    /** Appended when a column is declared {@code text}: the analyzer is an argument to {@code TO_TEXT}, not a mapping field. */
+    private static final String TEXT_ROUTE = "declare [keyword] and apply TO_TEXT in the query, with its [analyzer] option "
+        + "if the values need a non-standard analyzer";
 
     /**
      * The types a user may declare on a dataset mapping. Exposed so a format reader's tests can pin that the reader
@@ -80,8 +85,7 @@ public final class DeclaredSchemaValidator {
         if (mappings != null) {
             // Strict mode means "the declaration IS the schema" — with no declared columns there is no schema, and the
             // zero-column relation the resolver would build is not a queryable thing. Reject rather than let it fail
-            // downstream. (An _id.path-only strict block is not a legitimate shape either: strict already requires the
-            // id column to be declared.)
+            // downstream.
             if (mappings.dynamic() == DatasetMapping.Dynamic.FALSE && mappings.properties().isEmpty()) {
                 throw new IllegalArgumentException("[dynamic: false] requires at least one declared column under [properties]");
             }
@@ -102,9 +106,6 @@ public final class DeclaredSchemaValidator {
                     );
                 }
             }
-            requireNonBlank(mappings.idPath(), "[_id] path");
-            boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
-            validateIdPath(mappings, strict);
         }
     }
 
@@ -119,7 +120,13 @@ public final class DeclaredSchemaValidator {
         DataType resolved = DataType.fromNameOrAlias(type);
         if (resolved == DataType.UNSUPPORTED || DECLARABLE_TYPES.contains(resolved) == false) {
             throw new IllegalArgumentException(
-                "unsupported declared type [" + type + "] for column [" + column + "]; supported types are " + supportedTypeNames()
+                "unsupported declared type ["
+                    + type
+                    + "] for column ["
+                    + column
+                    + "]; supported types are "
+                    + supportedTypeNames()
+                    + (resolved == DataType.TEXT ? "; " + TEXT_ROUTE : "")
             );
         }
     }
@@ -145,19 +152,6 @@ public final class DeclaredSchemaValidator {
             DateFormatter.forPattern(format);
         } catch (Exception e) {
             throw new IllegalArgumentException("invalid [format] [" + format + "] on column [" + column + "]", e);
-        }
-    }
-
-    private static void validateIdPath(DatasetMapping.Mappings mappings, boolean strict) {
-        String column = mappings.idPath();
-        if (column == null) {
-            return;
-        }
-        DatasetFieldMapping declared = mappings.properties().get(column);
-        if (declared == null && strict) {
-            // Not declared: under strict mode there is nothing to infer it from, so it must be declared.
-            // Under non-strict mode it may come from inference — defer the existence check to first query.
-            throw new IllegalArgumentException("[_id] references column [" + column + "] which is not declared, and dynamic is [false]");
         }
     }
 

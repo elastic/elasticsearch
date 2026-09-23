@@ -68,6 +68,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             indexName,
             dataStreamName,
             null,
+            false,
             null,
             null,
             settings,
@@ -89,6 +90,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             indexName,
             dataStreamName,
             null,
+            false,
             null,
             null,
             settings,
@@ -109,6 +111,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
                 indexName,
                 dataStreamName,
                 null,
+                false,
                 null,
                 null,
                 settings,
@@ -122,7 +125,18 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
 
         for (String indexName : new String[] { ".profiling-sq-executables", ".profiling-sq-leafframes", ".profiling-stacktraces" }) {
             Settings.Builder builder = Settings.builder();
-            provider.provideAdditionalSettings(indexName, null, null, null, null, settings, List.of(), IndexVersion.current(), builder);
+            provider.provideAdditionalSettings(
+                indexName,
+                null,
+                null,
+                false,
+                null,
+                null,
+                settings,
+                List.of(),
+                IndexVersion.current(),
+                builder
+            );
             var result = builder.build();
             assertEquals(Settings.EMPTY, result);
         }
@@ -137,6 +151,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             indexName,
             dataStreamName,
             IndexMode.TIME_SERIES,
+            false,
             null,
             null,
             settings,
@@ -180,6 +195,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             indexName,
             dataStreamName,
             IndexMode.TIME_SERIES,
+            false,
             null,
             null,
             settings,

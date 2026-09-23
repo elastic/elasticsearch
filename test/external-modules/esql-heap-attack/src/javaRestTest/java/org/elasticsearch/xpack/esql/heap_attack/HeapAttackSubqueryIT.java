@@ -37,7 +37,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     private static final int MIN_SUBQUERIES = 2;
 
-    // the upper limit is defined in {@code Fork.MAX_BRANCHES}
+    // the upper limit is defined in {@code MergePlan.MAX_BRANCHES}
     private static final int MAX_SUBQUERIES = 8;
 
     private static final int MAX_SUBQUERIES_SERVERLESS = 5;

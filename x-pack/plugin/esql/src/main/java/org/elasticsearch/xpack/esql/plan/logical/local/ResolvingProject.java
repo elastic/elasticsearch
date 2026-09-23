@@ -11,12 +11,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -73,23 +73,38 @@ public class ResolvingProject extends Project {
     }
 
     /**
-     * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute}
-     * instances out of the resolver's scope (so KEEP/DROP/RENAME patterns cannot match the
-     * synthetic column), then re-appending them unconditionally at the end of the projections.
+     * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute} instances out of the resolver's scope
+     * (so KEEP/DROP/RENAME patterns cannot match the synthetic column), then re-appending them at the end. Where the synthetic column
+     * sits is irrelevant: the response order comes from the replay in {@code UnmappedFieldsOrdering}, which strips it before resolving.
+     * <p>
+     * At most one ever arrives. Every non-LOOKUP relation is stamped with one, so a multi-input plan starts out holding several, but
+     * they all share {@link UnmappedFieldsAttribute#ATTRIBUTE_NAME}: nodes that merge their inputs collapse them by name, while
+     * {@code MarkJoin}, {@code SemiJoin} and {@code AntiJoin} keep only the left side's. The {@code Verifier} rejects multi-input
+     * commands under LOAD_ALL anyway, but it runs after this, so it is not what holds here.
      */
     private static List<? extends NamedExpression> computeProjections(
         List<Attribute> childOutput,
         Function<List<Attribute>, List<? extends NamedExpression>> resolver
     ) {
-        List<Attribute> unmappedAttrs = childOutput.stream().filter(a -> a instanceof UnmappedFieldsAttribute).toList();
-        List<Attribute> resolverInput = unmappedAttrs.isEmpty()
-            ? childOutput
-            : childOutput.stream().filter(a -> (a instanceof UnmappedFieldsAttribute) == false).toList();
-        List<? extends NamedExpression> resolved = resolver.apply(resolverInput);
-        if (unmappedAttrs.isEmpty()) {
-            return resolved;
+        List<Attribute> unmappedAttrs = new ArrayList<>();
+        List<Attribute> resolverInput = new ArrayList<>();
+        for (Attribute a : childOutput) {
+            if (a instanceof UnmappedFieldsAttribute) {
+                unmappedAttrs.add(a);
+            } else {
+                resolverInput.add(a);
+            }
         }
-        return CollectionUtils.combine(resolved, unmappedAttrs);
+        if (unmappedAttrs.isEmpty()) {
+            return resolver.apply(childOutput);
+        }
+        // See the javadoc for why one is all that can arrive; if that ever breaks, the post-processor's findIndex would use the first.
+        assert unmappedAttrs.size() <= 1 : "expected at most one " + UnmappedFieldsAttribute.ATTRIBUTE_NAME + ", got " + unmappedAttrs;
+        List<? extends NamedExpression> resolved = resolver.apply(resolverInput);
+        List<NamedExpression> result = new ArrayList<>(resolved.size() + unmappedAttrs.size());
+        result.addAll(resolved);
+        result.addAll(unmappedAttrs);
+        return result;
     }
 
     private ResolvingProject(Source source, LogicalPlan child, List<? extends NamedExpression> projections, Command command) {

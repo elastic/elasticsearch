@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -94,6 +95,12 @@ public class TRange extends EsqlConfigurationFunction
 
     @FunctionInfo(
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "date_period|time_duration" }, returnType = "boolean"),
+            @Signature(params = { "date", "date" }, returnType = "boolean"),
+            @Signature(params = { "date_nanos", "date_nanos" }, returnType = "boolean"),
+            @Signature(params = { "keyword", "keyword" }, returnType = "boolean"),
+            @Signature(params = { "long", "long" }, returnType = "boolean") },
         briefSummary = "Filters data for a given time range using the @timestamp attribute.",
         description = "Filters data for the given time range using the @timestamp attribute.",
         examples = {
@@ -317,9 +324,13 @@ public class TRange extends EsqlConfigurationFunction
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (logicalPlan, failures) -> {
+            Object rangeStartValue = first.fold(FoldContext.small());
+            if (rangeStartValue == null) {
+                failures.add(fail(first, "{} cannot be null", START_TIME_OR_OFFSET_PARAMETER));
+            }
+
             // single parameter mode
             if (second == null) {
-                Object rangeStartValue = first.fold(FoldContext.small());
                 if (rangeStartValue instanceof Duration duration && duration.isNegative()
                     || rangeStartValue instanceof Period period && period.isNegative()) {
                     failures.add(fail(first, "{} cannot be negative", START_TIME_OR_OFFSET_PARAMETER));

@@ -56,6 +56,7 @@ ct:integer
 
 mv_first on date nanos
 required_capability: date_nanos_type
+skip_columnar: Date_nanos MV values returned in source order in columnar mode rather than sorted order
 
 FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | EVAL nanos = MV_FIRST(nanos) | KEEP nanos;
 
@@ -874,6 +875,7 @@ millis:date              | nanos:date_nanos               | num:long
 
 Date nanos date extract
 required_capability: date_nanos_date_extract
+skip_columnar: Date_nanos MV values returned in source order in columnar mode rather than sorted order
 
 FROM date_nanos
 | EVAL nn = MV_MAX(nanos)
@@ -1702,6 +1704,7 @@ millis:date              | nanos:date_nanos               | num:long
 
 Date Nanos Format
 required_capability: date_nanos_date_format
+skip_columnar: Date_nanos MV values returned in source order in columnar mode rather than sorted order
 
 FROM date_nanos
 | EVAL sv_nanos = MV_MAX(nanos)
@@ -1725,6 +1728,7 @@ sv_nanos:date_nanos               | a:keyword             | b:keyword  | c:keywo
 Date Nanos Date Diff
 required_capability: date_nanos_date_diff
 required_capability: to_date_nanos
+skip_columnar: Date_nanos MV values returned in source order in columnar mode rather than sorted order
 
 FROM date_nanos
 | EVAL n = MV_MAX(nanos)

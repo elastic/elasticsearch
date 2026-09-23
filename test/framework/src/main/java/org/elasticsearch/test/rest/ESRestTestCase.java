@@ -131,6 +131,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -376,7 +377,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Whether the old cluster version is not of the released versions, but a detached build.
      * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
      */
-    protected static boolean isOldClusterDetachedVersion() {
+    public static boolean isOldClusterDetachedVersion() {
         return System.getProperty("tests.bwc.refspec.main") != null;
     }
 
@@ -386,18 +387,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
         multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
-    }
-
-    @Override
-    public final void setUp() throws Exception {
-        // do not override setUp, use an @Before
-        super.setUp();
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        // do not override tearDown, use an @After
-        super.tearDown();
     }
 
     @Before
@@ -893,6 +882,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "agentless",
             "synthetics@lifecycle",
             "traces@lifecycle",
+            "exemplars@lifecycle",
             "7-days-default",
             "7-days@lifecycle",
             "30-days-default",
@@ -2026,6 +2016,33 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Performs {@code request} once, translating a {@link ResponseException} whose HTTP status is one of
+     * {@code retryableStatuses} into an {@link AssertionError}. Wrap the call in {@link #assertBusy} at the
+     * call site so the enclosing loop retries transient failures (e.g. a 404 while an index relocates during
+     * a rolling upgrade); capture the result via an {@link AtomicReference} if the response is needed outside
+     * the loop. Non-retryable ResponseExceptions propagate unchanged.
+     */
+    protected Response performRequestRaisingAssertionOnTransientStatus(Request request, RestStatus... retryableStatuses)
+        throws IOException {
+        try {
+            return client().performRequest(request);
+        } catch (ResponseException e) {
+            int status = e.getResponse().getStatusLine().getStatusCode();
+            if (isRetryableStatus(status, retryableStatuses)) {
+                throw new AssertionError(
+                    "retryable status [" + status + "] from [" + request.getMethod() + " " + request.getEndpoint() + "]",
+                    e
+                );
+            }
+            throw e;
+        }
+    }
+
+    static boolean isRetryableStatus(int status, RestStatus... retryableStatuses) {
+        return Arrays.stream(retryableStatuses).anyMatch(s -> s.getStatus() == status);
+    }
+
+    /**
      * waits until all shard initialization is completed. This is a handy alternative to ensureGreen as it relates to all shards
      * in the cluster and doesn't require to know how many nodes/replica there are.
      */
@@ -2546,6 +2563,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             case ".kibana-reporting":
             case "ai-index-idx":
             case "ai-index-ds":
+            case "ai-index-idx-managed":
+            case "ai-index-ds-managed":
                 return true;
             default:
                 return false;
@@ -2963,7 +2982,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includePartial,
         boolean includeDocumentsFound,
         boolean includeTimestamps,
-        boolean includeRollupMetrics
+        boolean includeRollupMetrics,
+        boolean includeReadCpuNanos
     ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
@@ -2978,6 +2998,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             mapMatcher = mapMatcher.entry("rows_emitted", IntOrLongMatcher.isIntOrLong());
             mapMatcher = mapMatcher.entry("bytes_read", IntOrLongMatcher.isIntOrLong());
             mapMatcher = mapMatcher.entry("read_nanos", IntOrLongMatcher.isIntOrLong());
+            if (includeReadCpuNanos) {
+                mapMatcher = mapMatcher.entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong());
+            }
             mapMatcher = mapMatcher.entry("cpu_nanos", IntOrLongMatcher.isIntOrLong());
         }
         if (includeTimestamps) {
@@ -2995,6 +3018,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return mapMatcher;
     }
 
+    protected static MapMatcher getResultMatcher(
+        boolean includePartial,
+        boolean includeDocumentsFound,
+        boolean includeTimestamps,
+        boolean includeRollupMetrics
+    ) {
+        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, includeRollupMetrics, false);
+    }
+
     /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
     @Deprecated
     protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
@@ -3009,7 +3041,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             result.containsKey("is_partial"),
             result.containsKey("documents_found"),
             result.containsKey("start_time_in_millis"),
-            result.containsKey("rows_emitted")
+            result.containsKey("rows_emitted"),
+            result.containsKey("read_cpu_nanos")
         );
     }
 

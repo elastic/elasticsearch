@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
@@ -22,6 +26,10 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
@@ -131,43 +139,53 @@ public class TransformCloudCredentialManager {
     }
 
     /**
-     * If a caller-supplied cloud credential is given, mints a new internal API key from it and
-     * persists the result under a tokenId-keyed storage doc, returning the new tokenId via the
-     * listener. The credential is supplied by the caller — typically the value carried on a
+     * Mints a new internal API key from {@code callerCredential} (when non-null), persists the
+     * result, and returns a rewritten copy of {@code config} with the minted credential id stamped
+     * and the stored security headers replaced by the minted key's own identity — so the transform
+     * runs as its own cloud API key from here on.
+     *
+     * <p>If {@code callerCredential} is {@code null} (feature flag off or no UIAM context), the
+     * method responds with the original {@code config} unchanged. No cleanup of any prior credential
+     * is performed — that responsibility belongs to the caller (typically by threading the prior
+     * {@link TransformConfig#getCredentialId} through to a {@link #loadRevokeAndDeleteByTokenId}
+     * call after the config write succeeds).
+     *
+     * <p>The credential is supplied by the caller — typically the value carried on a
      * {@code PutTransformAction.Request}/{@code UpdateTransformAction.Request}, extracted on the
      * coordinating node — rather than read from the current thread context here, since this method
      * commonly runs on the master node after the request has been forwarded, by which point the
      * {@code AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT} transient is no longer present.
-     * If no cloud credential is present (feature off or no UIAM context), responds with {@code null}
-     * and does <b>no</b> cleanup of any prior credential — that responsibility now belongs to the
-     * caller (typically by threading the prior {@code TransformConfig#getCredentialId} through to a
-     * {@link #loadRevokeAndDeleteByTokenId} call after the config write succeeds).
      *
-     * <p><b>Ownership:</b> {@code callerCredential} is a borrowed reference — this method reads it but
-     * does not close it. {@link InternalCloudApiKeyService#grantCloudAuthentication} consumes the
-     * {@code SecureString} synchronously before it returns (the serverless implementation deserializes
-     * the bytes into a {@code CloudToken} on the calling thread, then dispatches the UIAM request
-     * asynchronously using the token), so nothing here needs the credential to remain valid past this
-     * call. Closing it remains the responsibility of whichever scope opened it (typically the
-     * coordinating-node {@code doExecute} that extracted it from the thread context), or a copy of it
-     * (e.g. via {@link CloudCredential#copyOf}) if the caller also hands the same underlying credential
-     * to another consumer.
+     * <p><b>Ownership:</b> {@code callerCredential} is a borrowed reference — this method reads it
+     * but does not close it. {@link InternalCloudApiKeyService#grantCloudAuthentication} consumes
+     * the {@code SecureString} synchronously before it returns, so nothing here needs the credential
+     * to remain valid past this call. Closing it remains the responsibility of whichever scope
+     * opened it (typically the coordinating-node {@code doExecute} that extracted it from the
+     * thread context), or a copy of it (e.g. via {@link CloudCredential#copyOf}) if the caller also
+     * hands the same underlying credential to another consumer.
      *
-     * @param transformId      the transform id (recorded in the credential doc body for sweep-by-transform)
+     * @param config           the transform config whose {@code credentialId} and security headers
+     *                         will be replaced on a successful mint; returned unchanged when no
+     *                         credential is supplied
      * @param callerCredential the caller's cloud credential, or {@code null} when none is available
-     * @param listener         called with the new UIAM tokenId on success, or {@code null} when no
-     *                         caller credential was supplied
+     * @param minTransportVersion the cluster's minimum transport version, used to rewrite the
+     *                         minted {@link Authentication} before encoding it into the stored headers
+     * @param listener         called with the config to write — either the original (no mint) or a
+     *                         copy with the new credential id and minted authentication in headers
      */
-    public void mintAndPersist(String transformId, @Nullable CloudCredential callerCredential, ActionListener<String> listener) {
+    public void mintAndPersist(
+        TransformConfig config,
+        @Nullable CloudCredential callerCredential,
+        TransportVersion minTransportVersion,
+        ActionListener<TransformConfig> listener
+    ) {
         if (callerCredential == null) {
-            // Feature off or no UIAM context: nothing to mint and nothing to clean up here. The
-            // caller already holds the prior credentialId (if any) on the existing TransformConfig
-            // and can revoke it explicitly via loadRevokeAndDeleteByTokenId once the config write
-            // succeeds.
-            listener.onResponse(null);
+            // Feature off or no UIAM context: nothing to mint and nothing to clean up here.
+            listener.onResponse(config);
             return;
         }
 
+        var transformId = config.getId();
         logger.debug("[{}] minting internal cloud API key from caller credential", transformId);
         apiKeyService.grantCloudAuthentication(
             callerCredential,
@@ -176,11 +194,26 @@ public class TransformCloudCredentialManager {
                 var persisted = grantResult.persistedCredential();
                 logger.debug("[{}] granted cloud API key [{}], persisting", transformId, persisted.id());
 
+                // Rewrite the config before the persist: if encode() throws, only the UIAM grant
+                // needs undoing (no storage doc has been written yet). ActionListener.wrap routes
+                // success-handler exceptions to the failure consumer, so building configToWrite
+                // inside the success callback would trigger revokeAndClose on an already-closed
+                // SecureString.
+                final TransformConfig configToWrite;
+                try {
+                    configToWrite = config.withCredentialId(persisted.id())
+                        .setHeaders(replaceSecurityHeaders(grantResult.authentication(), config.getHeaders(), minTransportVersion));
+                } catch (Exception encodeFailure) {
+                    revokeAndClose(transformId, persisted);
+                    l.onFailure(encodeFailure);
+                    return;
+                }
+
                 configManager.putTransformCloudCredential(transformId, persisted, ActionListener.wrap(success -> {
                     // Close the SecureString now that the id has been persisted.
                     try (persisted) {
                         auditor.info(transformId, "minted cloud credential [" + persisted.id() + "]");
-                        l.onResponse(persisted.id());
+                        l.onResponse(configToWrite);
                     }
                 }, persistFailure -> {
                     // The UIAM grant succeeded but the storage write failed. Revoke at UIAM so
@@ -197,6 +230,40 @@ public class TransformCloudCredentialManager {
                 }));
             })
         );
+    }
+
+    /**
+     * Returns {@code headers} with all {@link ClientHelper#SECURITY_HEADER_FILTERS security
+     * headers} removed and {@link AuthenticationField#AUTHENTICATION_KEY} set to the encoded
+     * identity of the minted cloud API key. Non-security headers (e.g. future trace headers)
+     * are carried through untouched.
+     *
+     * <p>The authentication is rewritten down to the cluster's minimum transport version before
+     * encoding. {@link Authentication#encode()} stamps the effective subject's version into the
+     * blob, and the minted key is built locally so it carries this node's current version. During
+     * a rolling upgrade some nodes are older, and this config is persisted and later read by
+     * whichever node runs the transform task — an older node cannot decode a newer-stamped blob.
+     * Mirrors {@code ClientHelper#maybeRewriteSingleAuthenticationHeaderForVersion}, which does
+     * the same for the caller's headers. Note that
+     * {@link Authentication#maybeRewriteForOlderVersion} does not itself check that the target
+     * version is older, so the {@code supports} guard is required.
+     */
+    private static Map<String, String> replaceSecurityHeaders(
+        Authentication authentication,
+        Map<String, String> headers,
+        TransportVersion minTransportVersion
+    ) {
+        var updated = headers == null ? new HashMap<String, String>() : new HashMap<>(headers);
+        updated.keySet().removeAll(ClientHelper.SECURITY_HEADER_FILTERS);
+        var safe = minTransportVersion.supports(authentication.getEffectiveSubject().getTransportVersion())
+            ? authentication
+            : authentication.maybeRewriteForOlderVersion(minTransportVersion);
+        try {
+            updated.put(AuthenticationField.AUTHENTICATION_KEY, safe.encode());
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to encode minted authentication for transform", e);
+        }
+        return Map.copyOf(updated);
     }
 
     /**

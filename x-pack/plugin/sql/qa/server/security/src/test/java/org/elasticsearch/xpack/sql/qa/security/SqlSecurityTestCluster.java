@@ -13,15 +13,19 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Unified cluster configuration for SQL security tests.
  * Reads the {@code tests.ssl.enabled} system property to determine whether
- * to configure SSL. When SSL is enabled, the keystore must be available on
- * the classpath (provided by the elasticsearch.test-with-ssl plugin).
+ * to configure SSL. When SSL is enabled, {@code test-node.jks} must be on
+ * the test classpath.
  */
 public final class SqlSecurityTestCluster {
 
@@ -49,9 +53,18 @@ public final class SqlSecurityTestCluster {
             throw new IllegalStateException("SSL is enabled but test-node.jks not found on classpath.");
         }
         try {
-            Path keyStore = PathUtils.get(keystoreUrl.toURI());
+            if ("file".equals(keystoreUrl.getProtocol())) {
+                return PathUtils.get(keystoreUrl.toURI()).toAbsolutePath().toString();
+            }
+            // The shared test classes are loaded from a JAR, so the resource may not
+            // be a filesystem path. REST/JDBC/CLI clients need a real file.
+            Path keyStore = Files.createTempFile("test-node", ".jks");
+            keyStore.toFile().deleteOnExit();
+            try (InputStream in = keystoreUrl.openStream()) {
+                Files.copy(in, keyStore, StandardCopyOption.REPLACE_EXISTING);
+            }
             return keyStore.toAbsolutePath().toString();
-        } catch (URISyntaxException e) {
+        } catch (URISyntaxException | IOException e) {
             throw new RuntimeException("Failed to get keystore path", e);
         }
     }
@@ -95,7 +108,7 @@ public final class SqlSecurityTestCluster {
 
     private static void configureSsl(LocalClusterSpecBuilder<ElasticsearchCluster> builder) {
         builder
-            // SSL settings - keystore is provided by test-with-ssl plugin on classpath
+            // SSL settings - keystore is loaded from the test classpath
             .setting("xpack.security.http.ssl.enabled", "true")
             .setting("xpack.security.transport.ssl.enabled", "true")
             .setting("xpack.security.transport.ssl.keystore.path", "test-node.jks")

@@ -55,8 +55,7 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
     private TransportSetTransformUpgradeModeAction action;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initUpgradeModeActionTestDeps() throws Exception {
         clusterService = clusterService();
         doAnswer(ans -> {
             ClusterStateUpdateTask task = ans.getArgument(1);

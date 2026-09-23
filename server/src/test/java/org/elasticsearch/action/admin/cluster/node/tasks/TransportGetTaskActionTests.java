@@ -61,7 +61,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -123,7 +122,7 @@ public class TransportGetTaskActionTests extends ESTestCase {
         TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
             threadPool,
             transportService,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             clusterService,
             client,
             NamedXContentRegistry.EMPTY,
@@ -608,7 +607,7 @@ public class TransportGetTaskActionTests extends ESTestCase {
         return new TransportGetTaskAction(
             threadPool,
             transportService,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             clusterService,
             client,
             NamedXContentRegistry.EMPTY,

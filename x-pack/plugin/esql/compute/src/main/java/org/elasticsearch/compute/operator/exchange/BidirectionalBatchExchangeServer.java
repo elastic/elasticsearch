@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -22,7 +23,6 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -71,11 +71,16 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     private final DiscoveryNode clientNode; // Client node for transport connection
     private PlainActionFuture<Void> driverFuture; // Future for driver completion
     private ThreadContext threadContext; // Thread context for starting driver
-    private ResponseHeadersCollector responseHeadersCollector;
+
     private volatile boolean driverPrepared = false; // Whether driver has been prepared but not started
     private volatile boolean driverStarted = false; // Whether driver has been started (client sent BatchExchangeStatusRequest)
     private ScheduledFuture<?> clientReadyTimeoutFuture; // Timeout for client to send BatchExchangeStatusRequest
     private ActionListener<BatchExchangeStatusResponse> batchExchangeStatusListener; // Listener to call when batch processing completes
+    // Written on the setup thread before response-coordinator refs are acquired. The last
+    // ref release happens-before sendBatchExchangeStatusResponse() reads this.
+    private boolean profile;
+    private volatile long driverStartNanos;
+    private volatile long driverTookNanos;
     private final AtomicReference<Releasable> releasableRef = new AtomicReference<>(); // Releasable resources (shardContext, etc.) that
                                                                                        // should be closed when driver finishes or server
                                                                                        // closes
@@ -142,6 +147,22 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         Releasable releasable,
         ActionListener<Void> readyListener
     ) {
+        startWithOperators(driverContext, threadContext, intermediateOperators, clusterName, releasable, false, readyListener);
+    }
+
+    /**
+     * Start batch processing and optionally return a compact server-driver profile to the client.
+     */
+    public void startWithOperators(
+        DriverContext driverContext,
+        ThreadContext threadContext,
+        List<Operator> intermediateOperators,
+        String clusterName,
+        Releasable releasable,
+        boolean profile,
+        ActionListener<Void> readyListener
+    ) {
+        this.profile = profile;
         startBatchProcessing(driverContext, threadContext, intermediateOperators, clusterName, TimeValue.timeValueSeconds(1), releasable);
         remoteSinkReady.addListener(readyListener);
     }
@@ -196,6 +217,14 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Store the listener to send response when batch processing completes
         // This MUST be done before starting processing to ensure we can always reply on error
         batchExchangeStatusListener = new ChannelActionListener<>(channel);
+        // Old clients receive warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS wire field.
+        // Emit them here — before the channel serialises its ThreadContext — so they are included.
+        if (channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS) == false) {
+            batchExchangeStatusListener = batchExchangeStatusListener.map(resp -> {
+                resp.warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
+        }
         logger.debug(
             "BatchExchangeStatusRequest received for exchangeId={}, stored listener (processing will start now)",
             serverToClientId
@@ -254,6 +283,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         logger.debug("Client is ready, starting driver for exchangeId={}", serverToClientId);
         // driverFuture was already created in startBatchProcessing(), reuse it
         // The driver completion listener will handle both success and failure cases and reply
+        driverStartNanos = System.nanoTime();
         Driver.start(threadContext, executor, batchDriver, Driver.DEFAULT_MAX_ITERATIONS, createDriverCompletionListener());
         logger.debug("Server driver started");
     }
@@ -272,8 +302,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      */
     private ActionListener<Void> createDriverCompletionListener() {
         return ActionListener.wrap(ignored -> {
+            driverTookNanos = System.nanoTime() - driverStartNanos;
             logger.debug("Driver completion listener onResponse called (success) for exchangeId={}", serverToClientId);
-            responseHeadersCollector.collect();
             driverFuture.onResponse(null);
             logger.debug("Batch processing completed successfully for exchangeId={}", serverToClientId);
             // Close server resources BEFORE releasing the driver ref
@@ -292,12 +322,12 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 driverResponseRef.onResponse(null);
             }
         }, failure -> {
+            driverTookNanos = System.nanoTime() - driverStartNanos;
             logger.debug(
                 "Driver completion listener onFailure called for exchangeId={}, failure={}",
                 serverToClientId,
                 failure != null ? failure.getMessage() : "unknown"
             );
-            responseHeadersCollector.collect();
             // Complete the future first so close() won't throw
             driverFuture.onFailure(failure);
             // Close server resources BEFORE releasing the driver ref
@@ -319,7 +349,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      * The listener is stored when BatchExchangeStatusRequest is received, before processing starts.
      */
     private void sendBatchExchangeStatusResponse(@Nullable Exception failure) {
-        responseHeadersCollector.finish();
         ActionListener<BatchExchangeStatusResponse> listener = batchExchangeStatusListener;
         if (listener != null) {
             logger.debug(
@@ -330,10 +359,13 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             try {
                 BatchExchangeStatusResponse response;
                 if (failure == null) {
-                    long bytesRead = batchDriver != null
-                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L).bytesRead()
-                        : 0L;
-                    response = new BatchExchangeStatusResponse(bytesRead);
+                    DriverCompletionInfo completionInfo = batchDriver != null
+                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L, false)
+                        : DriverCompletionInfo.EMPTY;
+                    BatchExchangeStatusResponse.Profile driverProfile = profile && batchDriver != null
+                        ? BatchExchangeStatusResponse.Profile.from(batchDriver.profile(), driverTookNanos)
+                        : null;
+                    response = new BatchExchangeStatusResponse(completionInfo.bytesRead(), completionInfo.warnings(), driverProfile);
                 } else {
                     response = new BatchExchangeStatusResponse(failure);
                 }
@@ -401,7 +433,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             }
             sendBatchExchangeStatusResponse(e);
         }))) {
-            // Sink ref: collects the original error (e.g. TransportSerializationException wrapping
+            // Sink ref: collects the original error (e.g. RemoteTransportException wrapping
             // CircuitBreakingException) when the remote sink fetch fails during page deserialization.
             // The FailureCollector unwraps TransportException to get the real cause.
             ActionListener<Void> sinkRef = responseCoordinator.acquire();
@@ -463,7 +495,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
 
         // Store thread context for later driver startup
         this.threadContext = threadContext;
-        this.responseHeadersCollector = new ResponseHeadersCollector(threadContext);
 
         // Handler was already registered in initialize(), no need to register again
         logger.debug("Driver prepared, will start when BatchExchangeStatusRequest is received for exchangeId={}", serverToClientId);

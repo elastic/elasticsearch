@@ -197,7 +197,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             int total = 0;
             for (final NodeInfo nodeInfo : nodeInfos) {
                 total++;
-                if (nodeInfo.getNode().getRoles().isEmpty()) {
+                if (nodeInfo.getNode().isCoordinatingOnlyNode()) {
                     roles.merge(COORDINATING_ONLY, 1, Integer::sum);
                 } else {
                     for (DiscoveryNodeRole role : nodeInfo.getNode().getRoles()) {

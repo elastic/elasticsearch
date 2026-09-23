@@ -46,9 +46,9 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Unit tests for the source-agnostic {@link FilterRewriter} mechanism — the generic "install a bound {@code Filter} at any
  * node the target predicate selects" primitive, exercised independently of the request-filter policy (no
- * {@code HeaderWarning}). Translation is fail-closed: an unsupported construct throws {@link
- * TranslationUnsupportedException} out of {@code rewrite}. {@link RequestFilterRewriterTests} covers the policy on top of
- * this (targeting {@code ExternalRelation}, version-gating, turning the throw into a 400).
+ * {@code HeaderWarning}). Unsupported constructs are collected into {@link FilterRewriter.RewriteResult#failures()} rather
+ * than thrown; callers decide what to do with them. {@link RequestFilterRewriterTests} covers the policy on top of this
+ * (targeting {@code ExternalRelation}, version-gating, fail-closed vs partial mode).
  */
 public class FilterRewriterTests extends ESTestCase {
 
@@ -74,7 +74,7 @@ public class FilterRewriterTests extends ESTestCase {
     public void testInstallsAboveAnArbitraryNonSourceNode() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
         Limit limit = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), rel);
-        LogicalPlan result = FilterRewriter.rewrite(limit, node -> node == limit, QueryBuilders.termQuery("a", 1), CONFIG);
+        LogicalPlan result = FilterRewriter.rewrite(limit, node -> node == limit, QueryBuilders.termQuery("a", 1), CONFIG).plan();
         assertThat(result, instanceOf(Filter.class));
         Filter filter = (Filter) result;
         assertThat("installs above the chosen node, not the leaf", filter.child(), sameInstance(limit));
@@ -87,7 +87,8 @@ public class FilterRewriterTests extends ESTestCase {
         ExternalRelation rel = relation("ds", a, x);
         // Project drops x from its output; installing above the Project must bind x to NULL (absent from THAT node).
         Project project = new Project(Source.EMPTY, rel, List.of(a));
-        LogicalPlan aboveProject = FilterRewriter.rewrite(project, node -> node == project, QueryBuilders.termQuery("x", "v"), CONFIG);
+        LogicalPlan aboveProject = FilterRewriter.rewrite(project, node -> node == project, QueryBuilders.termQuery("x", "v"), CONFIG)
+            .plan();
         assertThat(
             "x is absent from the Project's output -> NULL-bound -> no references",
             ((Filter) aboveProject).condition().references().names(),
@@ -95,13 +96,13 @@ public class FilterRewriterTests extends ESTestCase {
         );
 
         // Installing above the relation, where x is present, binds the real attribute.
-        LogicalPlan aboveRelation = FilterRewriter.rewrite(rel, node -> node == rel, QueryBuilders.termQuery("x", "v"), CONFIG);
+        LogicalPlan aboveRelation = FilterRewriter.rewrite(rel, node -> node == rel, QueryBuilders.termQuery("x", "v"), CONFIG).plan();
         assertThat(((Filter) aboveRelation).condition().references().names(), contains("x"));
     }
 
     public void testPredicateMatchingNothingReturnsThePlanUntouched() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        LogicalPlan result = FilterRewriter.rewrite(rel, node -> false, QueryBuilders.termQuery("a", 1), CONFIG);
+        LogicalPlan result = FilterRewriter.rewrite(rel, node -> false, QueryBuilders.termQuery("a", 1), CONFIG).plan();
         assertThat(result, sameInstance(rel));
     }
 
@@ -109,7 +110,8 @@ public class FilterRewriterTests extends ESTestCase {
         ExternalRelation relA = relation("dsA", attr("id", DataType.INTEGER));
         ExternalRelation relB = relation("dsB", attr("id", DataType.INTEGER));
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relA, relB), List.of());
-        LogicalPlan result = FilterRewriter.rewrite(union, ExternalRelation.class::isInstance, QueryBuilders.termQuery("id", 1), CONFIG);
+        LogicalPlan result = FilterRewriter.rewrite(union, ExternalRelation.class::isInstance, QueryBuilders.termQuery("id", 1), CONFIG)
+            .plan();
         List<Filter> filters = new ArrayList<>();
         result.forEachDown(Filter.class, filters::add);
         assertThat("one Filter per matching leaf", filters, hasSize(2));
@@ -123,14 +125,14 @@ public class FilterRewriterTests extends ESTestCase {
         ExternalRelation relA = relation("dsA", attr("id", DataType.INTEGER), attr("region", DataType.KEYWORD));
         ExternalRelation relB = relation("dsB", attr("id", DataType.INTEGER)); // no region
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relA, relB), List.of());
-        LogicalPlan result = FilterRewriter.rewrite(
+        FilterRewriter.RewriteResult result = FilterRewriter.rewrite(
             union,
             ExternalRelation.class::isInstance,
             QueryBuilders.termQuery("region", "eu"),
             CONFIG
         );
         Map<String, Filter> byDataset = new HashMap<>();
-        result.forEachDown(Filter.class, f -> byDataset.put(((ExternalRelation) f.child()).datasetName(), f));
+        result.plan().forEachDown(Filter.class, f -> byDataset.put(((ExternalRelation) f.child()).datasetName(), f));
 
         assertThat(
             "dsA has region -> bound to the real attribute",
@@ -144,55 +146,80 @@ public class FilterRewriterTests extends ESTestCase {
         );
     }
 
-    public void testUnsupportedClauseThrowsAtTheOffendingNode() {
+    public void testUnsupportedClauseCollectedAtTheOffendingNode() {
         ExternalRelation relKeyword = relation("dsKw", attr("status", DataType.KEYWORD));
         ExternalRelation relInteger = relation("dsInt", attr("status", DataType.INTEGER));
         UnionAll union = new UnionAll(Source.EMPTY, List.of(relKeyword, relInteger), List.of());
-        // A non-integral value is a valid keyword but has no integral translation; fail-closed, the whole rewrite throws.
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> FilterRewriter.rewrite(union, ExternalRelation.class::isInstance, QueryBuilders.termQuery("status", "active"), CONFIG)
+        // A non-integral value is valid for keyword but has no integral translation; the failure is collected, not thrown.
+        FilterRewriter.RewriteResult result = FilterRewriter.rewrite(
+            union,
+            ExternalRelation.class::isInstance,
+            QueryBuilders.termQuery("status", "active"),
+            CONFIG
+        );
+        assertFalse("incomplete: one dataset cannot translate the term", result.isComplete());
+        assertThat(result.failures(), not(empty()));
+        // The failure must be attributed to the integer dataset (string "active" is not a valid int), not to the keyword one.
+        assertThat(
+            "failure is on the integer-typed dataset, not the keyword one",
+            result.failures().stream().map(nf -> ((ExternalRelation) nf.node()).datasetName()).toList(),
+            contains("dsInt")
         );
     }
 
     // --- fail-closed vs supported-no-op vs installed-false ---
 
-    public void testWhollyUnsupportedFilterThrows() {
+    public void testWhollyUnsupportedFilterCollected() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, QueryBuilders.wildcardQuery("a", "x*"), CONFIG)
+        FilterRewriter.RewriteResult result = FilterRewriter.rewrite(
+            rel,
+            ExternalRelation.class::isInstance,
+            QueryBuilders.wildcardQuery("a", "x*"),
+            CONFIG
         );
+        assertFalse("wholly unsupported: incomplete", result.isComplete());
+        assertThat(result.failures(), not(empty()));
     }
 
     public void testMatchAllLeavesNodeUnwrapped() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        LogicalPlan result = FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, QueryBuilders.matchAllQuery(), CONFIG);
-        assertThat("match_all is a supported no-op -> node left unwrapped", result, sameInstance(rel));
+        FilterRewriter.RewriteResult result = FilterRewriter.rewrite(
+            rel,
+            ExternalRelation.class::isInstance,
+            QueryBuilders.matchAllQuery(),
+            CONFIG
+        );
+        assertTrue("match_all is fully translatable", result.isComplete());
+        assertThat("match_all is a supported no-op -> node left unwrapped", result.plan(), sameInstance(rel));
     }
 
     public void testMatchNoneInstallsAFalseFilter() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        LogicalPlan result = FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, new MatchNoneQueryBuilder(), CONFIG);
-        assertThat(result, instanceOf(Filter.class));
+        FilterRewriter.RewriteResult result = FilterRewriter.rewrite(
+            rel,
+            ExternalRelation.class::isInstance,
+            new MatchNoneQueryBuilder(),
+            CONFIG
+        );
+        assertTrue("match_none is fully translatable", result.isComplete());
+        assertThat(result.plan(), instanceOf(Filter.class));
         assertThat(
             "match_none is an exact FALSE, installed (not folded to a no-op)",
-            ((Filter) result).condition(),
+            ((Filter) result.plan()).condition(),
             sameInstance(Literal.FALSE)
         );
     }
 
-    public void testUnsupportedClauseUnderMustNotThrows() {
+    public void testUnsupportedClauseUnderMustNotCollected() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> FilterRewriter.rewrite(
-                rel,
-                ExternalRelation.class::isInstance,
-                QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")),
-                CONFIG
-            )
+        FilterRewriter.RewriteResult result = FilterRewriter.rewrite(
+            rel,
+            ExternalRelation.class::isInstance,
+            QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")),
+            CONFIG
         );
+        assertFalse("must_not with unsupported arm: incomplete", result.isComplete());
+        assertThat(result.failures(), not(empty()));
     }
 
     // --- nowInMillis threading and analyzed-marking ---
@@ -200,14 +227,15 @@ public class FilterRewriterTests extends ESTestCase {
     public void testNowInMillisIsThreadedIntoTheTranslation() {
         ExternalRelation rel = relation("ds", attr("ts", DataType.DATETIME));
         QueryBuilder filter = QueryBuilders.rangeQuery("ts").gte("now-15m");
-        Filter early = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, CONFIG);
-        Filter later = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, config(NOW + 3_600_000L));
+        Filter early = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, CONFIG).plan();
+        Filter later = (Filter) FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, filter, config(NOW + 3_600_000L)).plan();
         assertThat("different query start times resolve now-math to different bounds", early.condition(), not(equalTo(later.condition())));
     }
 
     public void testInstalledTreeIsMarkedAnalyzed() {
         ExternalRelation rel = relation("ds", attr("a", DataType.INTEGER));
-        LogicalPlan result = FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, QueryBuilders.termQuery("a", 1), CONFIG);
+        LogicalPlan result = FilterRewriter.rewrite(rel, ExternalRelation.class::isInstance, QueryBuilders.termQuery("a", 1), CONFIG)
+            .plan();
         result.forEachDown(LogicalPlan.class, node -> assertTrue("every node incl. the fresh Filter is marked analyzed", node.analyzed()));
     }
 }

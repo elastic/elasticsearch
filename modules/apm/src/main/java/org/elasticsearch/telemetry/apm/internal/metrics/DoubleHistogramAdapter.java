@@ -12,8 +12,6 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.Meter;
 
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,15 +19,13 @@ import java.util.Objects;
 /**
  * DoubleHistogramAdapter wraps an otel DoubleHistogram
  */
-public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
-    implements
-        org.elasticsearch.telemetry.metric.DoubleHistogram {
+class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram> implements org.elasticsearch.telemetry.metric.DoubleHistogram {
 
-    public DoubleHistogramAdapter(Meter meter, String name, String description, String unit) {
+    DoubleHistogramAdapter(Meter meter, String name, String description, String unit) {
         super(meter, new Builder(name, description, unit, HistogramBuckets.APM_DEFAULT));
     }
 
-    public DoubleHistogramAdapter(Meter meter, String name, String description, String unit, List<Double> bucketBoundaries) {
+    DoubleHistogramAdapter(Meter meter, String name, String description, String unit, List<Double> bucketBoundaries) {
         super(meter, new Builder(name, description, unit, bucketBoundaries));
     }
 

@@ -107,10 +107,6 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase<V> e
         );
     }
 
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     abstract Query getDiversifyingChildrenKnnQuery(String fieldName, V queryVector, Query childFilter, int k, BitSetProducer parentBitSet);
 
     abstract Field getKnnVectorField(String name, V vector);

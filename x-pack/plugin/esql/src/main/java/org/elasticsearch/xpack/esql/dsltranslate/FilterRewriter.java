@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -35,36 +37,53 @@ import java.util.function.Predicate;
  * ordinary optimizer pipeline — the existing filter-pushdown rules push it toward the source and prune with it wherever
  * the source and the translated predicate allow, indistinguishable from a hand-written filter.
  *
- * <p>Translation is fail-closed: a construct outside the supported subset raises {@link TranslationUnsupportedException},
- * which propagates out of {@code rewrite} for the caller to turn into an error. A filter that translates to a supported
- * no-op ({@code match_all}) leaves the node unwrapped.
+ * <p>Translation is a collecting walk: every unsupported leaf is recorded in {@link RewriteResult#failures()} rather
+ * than thrown. The applied expression in the rewritten plan is the translatable subset; the caller decides what to do
+ * with any failures. A filter that translates to a supported no-op ({@code match_all}) leaves the node unwrapped.
  */
 public final class FilterRewriter {
+
+    /**
+     * A (node, clause) pair produced when a target node's filter could not be fully translated. {@link #node()} is
+     * the plan node the filter was being applied to; {@link #clause()} is the specific offending DSL leaf.
+     */
+    public record NodeFailure(LogicalPlan node, QueryDslTranslator.UnsupportedClause clause) {}
+
+    /**
+     * The result of a {@link #rewrite} call: the rewritten plan (with the translatable filter subset installed
+     * above each target node) and the list of translation failures ({@link #failures()}). A fully-translated
+     * filter has an empty {@link #failures()} list.
+     */
+    public record RewriteResult(LogicalPlan plan, List<NodeFailure> failures) {
+        public boolean isComplete() {
+            return failures.isEmpty();
+        }
+    }
 
     private FilterRewriter() {}
 
     /**
-     * Installs {@code filter} as a {@link Filter} above every node of {@code plan} that {@code target} accepts, binding
-     * it against that node's output schema. Returns the rewritten plan, marked analyzed so the pre-optimizer accepts the
-     * fresh {@link Filter} nodes and the spine rebuilt above them.
+     * Installs {@code filter} as a {@link Filter} above every node of {@code plan} that {@code target} accepts,
+     * binding it against that node's output schema. Returns a {@link RewriteResult} holding the rewritten plan and
+     * any translation failures. The applied expression in the plan is always the fully-translatable subset of the
+     * filter (the AND of top-level conjuncts that translated without errors); the caller decides what to do with
+     * any failures in {@link RewriteResult#failures()}.
      *
-     * @param target      selects the nodes to install the filter above (e.g. {@code node -> node instanceof ExternalRelation} for a
-     *                    source boundary). Prefer the lowest matching nodes: {@code transformUp} rebuilds a parent whose
-     *                    child changed, so a predicate matching both a node and its ancestor may not see the rebuilt
-     *                    ancestor.
-     * @param filter        the Query DSL to translate; must not be null (callers gate an absent filter themselves).
-     * @param configuration the query configuration, carrying the {@code now} anchor for date math and the locale for
-     *                      case-folding in the translated filter.
-     * @throws TranslationUnsupportedException if {@code filter} contains a construct outside the supported subset — the
-     *                    translation is fail-closed, so this propagates for the caller to turn into an error.
+     * @param target        selects the nodes to install the filter above. Prefer the lowest matching nodes:
+     *                      {@code transformUp} rebuilds a parent whose child changed, so a predicate matching both a
+     *                      node and its ancestor may not see the rebuilt ancestor.
+     * @param filter        the Query DSL to translate; must not be null.
+     * @param configuration the query configuration, carrying the {@code now} anchor for date math and the locale
+     *                      for case-folding.
      */
-    public static LogicalPlan rewrite(
+    public static RewriteResult rewrite(
         LogicalPlan plan,
         Predicate<? super LogicalPlan> target,
         QueryBuilder filter,
         Configuration configuration
     ) {
         Objects.requireNonNull(filter, "filter must not be null");
+        List<NodeFailure> allFailures = new ArrayList<>();
         LogicalPlan rewritten = plan.transformUp(LogicalPlan.class, node -> {
             if (target.test(node) == false) {
                 return node;
@@ -77,14 +96,17 @@ public final class FilterRewriter {
                 Attribute a = byName.get(name);
                 return a != null ? a : Literal.NULL;
             }, byName.keySet(), configuration);
-            // Fail-closed: an unsupported construct throws TranslationUnsupportedException out of transformUp.
-            Expression condition = translator.translate(filter);
+            QueryDslTranslator.TranslationResult result = translator.translate(filter);
+            for (QueryDslTranslator.UnsupportedClause u : result.unsupported()) {
+                allFailures.add(new NodeFailure(node, u));
+            }
+            Expression condition = result.applied();
             // A filter that translates to a supported no-op (match_all -> TRUE) leaves the node unwrapped.
             return condition == Literal.TRUE ? node : new Filter(node.source(), node, condition);
         });
         // The inserted Filter and the rebuilt spine above it are fresh nodes at stage NEW; the plan was already
         // analyzed, so mark the (idempotent for unchanged nodes) tree analyzed to satisfy the pre-optimizer.
         rewritten.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
-        return rewritten;
+        return new RewriteResult(rewritten, allFailures);
     }
 }

@@ -23,8 +23,9 @@ import java.util.TreeMap;
  * contains different objects.
  *
  * <p>The {@code listingDiscriminatorH1/H2} are a 128-bit hash of everything about the query that changes which
- * files the listing contains — the filter hints that narrow it, and the hive-partitioning flag that decides
- * whether they can. Without it the key would not determine its value: a filtered query would cache a narrowed
+ * files the listing contains — the filter hints that narrow it, and the resolved partition config (strategy and
+ * path template) that decides whether they can and how partition columns are derived. Without it the key would
+ * not determine its value: a filtered query would cache a narrowed
  * listing under the key an unfiltered query then hits, silently serving it fewer files than the dataset holds.
  * The discriminator string is produced by {@code GlobExpander.listingCacheDiscriminator} (from the same code the
  * listing itself goes through) and hashed here for the same size reason as the credentials: a filter's
@@ -68,6 +69,9 @@ public record ListingCacheKey(
         Map<String, Object> config,
         String listingDiscriminator
     ) {
+        // Both EndpointRegion.of() and computeCredentialHash() walk the _datasource sub-map themselves
+        // (belt-and-suspenders). Callers should still pass storageConfig(config) so any future dimension
+        // added to the key is equally resilient without requiring a separate sub-map walk.
         EndpointRegion location = EndpointRegion.of(config);
         long[] hash = computeCredentialHash(config);
         long[] discriminatorHash = sha256Truncated(listingDiscriminator);
@@ -87,7 +91,7 @@ public record ListingCacheKey(
     /**
      * SHA-256 of the discriminator, truncated to its first 128 bits. Collision-resistant because the pre-image is
      * built from user-supplied filter literals (see the class javadoc). An empty/absent discriminator maps to zero,
-     * which no real discriminator reaches (it always begins with the hive-partitioning flag).
+     * which no real discriminator reaches (it always begins with the length-prefixed partition strategy name).
      */
     static long[] sha256Truncated(String value) {
         if (value == null || value.isEmpty()) {
@@ -102,6 +106,18 @@ public record ListingCacheKey(
             return new long[] { 0L, 0L };
         }
         TreeMap<String, String> credentialValues = new TreeMap<>();
+        // For dataset queries, credentials live in the _datasource sub-map. Scan it first so
+        // top-level entries override (same precedence as ExternalSourceResolver.storageConfig()).
+        // The literal "_datasource" matches ExternalSourceResolver.DATASOURCE_CONFIG_KEY.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ds = (Map<String, Object>) config.get("_datasource");
+        if (ds != null) {
+            for (Map.Entry<String, Object> entry : ds.entrySet()) {
+                if (CREDENTIAL_PARAMS.contains(entry.getKey()) && entry.getValue() != null) {
+                    credentialValues.put(entry.getKey(), entry.getValue().toString());
+                }
+            }
+        }
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             if (CREDENTIAL_PARAMS.contains(entry.getKey()) && entry.getValue() != null) {
                 credentialValues.put(entry.getKey(), entry.getValue().toString());

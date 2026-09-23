@@ -104,6 +104,7 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         @Param(
             name = "query",
             type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Query string in KQL query string format."
         ) Expression queryString,
         @MapParam(
@@ -189,6 +190,12 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
             return result;
         }
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    /** KQL resolves the fields to search from the query string against the index, so it has no expression to search. */
+    @Override
+    public boolean supportsRuntimeSearch() {
+        return false;
     }
 
     @Override

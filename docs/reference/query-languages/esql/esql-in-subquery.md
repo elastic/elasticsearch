@@ -1,5 +1,5 @@
 ---
-navigation_title: "Use IN subqueries in a WHERE command"
+navigation_title: "Subqueries with IN / NOT IN"
 applies_to:
   serverless: preview
   stack: preview 9.5.0
@@ -7,7 +7,7 @@ products:
   - id: elasticsearch
 ---
 
-# Filter rows with {{esql}} `IN` subquery in a `WHERE` command [esql-in-subquery]
+# Use {{esql}} subqueries with `IN` and `NOT IN` [esql-in-subquery]
 
 An {{esql}} query wrapped in parentheses can be used as a subquery on the
 right-hand side of the [`IN` and `NOT IN`](/reference/query-languages/esql/functions-operators/operators.md#esql-in-operator)
@@ -46,7 +46,7 @@ A subquery in a `WHERE` command is non-correlated: it runs independently and
 cannot reference columns from the outer query. Because it runs at query time,
 its results reflect the current state of the data.
 
-Unlike a [subquery in a `FROM` command](/reference/query-languages/esql/esql-subquery.md),
+Unlike a [subquery in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md),
 which contributes rows to the combined result set, a subquery in a `WHERE`
 command returns exactly one column. The outer `IN` or `NOT IN` predicate uses
 the values from that column as its comparison set.
@@ -54,34 +54,7 @@ the values from that column as its comparison set.
 An `IN` subquery can itself contain another `IN` subquery, and multiple `IN`
 subqueries can be combined with other predicates using `AND`, `OR`, and `NOT`.
 
-The subquery pipeline can include commands such as the following:
-
-Source commands:
-
-- [`FROM`](/reference/query-languages/esql/commands/from.md)
-- [`ROW`](/reference/query-languages/esql/commands/row.md)
-- [`TS`](/reference/query-languages/esql/commands/ts.md)
-
-Processing commands:
-
-- [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md)
-- [`COMPLETION`](/reference/query-languages/esql/commands/completion.md)
-- [`DISSECT`](/reference/query-languages/esql/commands/dissect.md)
-- [`DROP`](/reference/query-languages/esql/commands/drop.md)
-- [`ENRICH`](/reference/query-languages/esql/commands/enrich.md)
-- [`EVAL`](/reference/query-languages/esql/commands/eval.md)
-- [`GROK`](/reference/query-languages/esql/commands/grok.md)
-- [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md)
-- [`KEEP`](/reference/query-languages/esql/commands/keep.md)
-- [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
-- [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md)
-- [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md)
-- [`RENAME`](/reference/query-languages/esql/commands/rename.md)
-- [`RERANK`](/reference/query-languages/esql/commands/rerank.md)
-- [`SAMPLE`](/reference/query-languages/esql/commands/sample.md)
-- [`SORT`](/reference/query-languages/esql/commands/sort.md)
-- [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
-- [`WHERE`](/reference/query-languages/esql/commands/where.md)
+For the full list of supported source and processing commands inside a subquery, refer to [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md).
 
 ## Examples
 
@@ -221,7 +194,7 @@ than `70000` or their `emp_no` is *not* returned by the `NOT IN` subquery.
 
 ### Use an `IN` subquery inside a FROM subquery
 
-An `IN` subquery can also appear inside a [subquery in the `FROM` command](/reference/query-languages/esql/esql-subquery.md).
+An `IN` subquery can also appear inside a [subquery in the `FROM` command](/reference/query-languages/esql/esql-from-subquery.md).
 Here the `FROM` command unions two employee sources, and the second branch is
 filtered with an `IN` subquery that itself nests a `NOT IN` subquery:
 
@@ -271,7 +244,7 @@ outer query.
 
 ## Related pages
 
-* [Combine result sets with subqueries](/reference/query-languages/esql/esql-subquery.md): use a subquery as a source in the `FROM` command.
+* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): canonical definition and supported commands.
+* [Use subqueries in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md): combine result sets from independently processed sources.
 * [`WHERE` command](/reference/query-languages/esql/commands/where.md): full reference for the `WHERE` command.
 * [`IN` operator](/reference/query-languages/esql/functions-operators/operators.md): the operator used to match against a list of literal values or a subquery.
-* [Query multiple sources](/reference/query-languages/esql/esql-multi.md): high-level overview of combining data from multiple indices, clusters, subqueries, and views.

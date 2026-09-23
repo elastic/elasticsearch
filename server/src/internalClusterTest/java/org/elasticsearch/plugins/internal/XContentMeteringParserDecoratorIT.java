@@ -111,11 +111,8 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
 
                 @Override
                 public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
-                    List<IndexResult> results = super.indexBatch(batch);
-                    for (Index op : batch.operations()) {
-                        reportDocumentSize(op.parsedDoc());
-                    }
-                    return results;
+                    // TODO: report document sizes for batch-indexed docs (no ParsedDocument in columnar path)
+                    return super.indexBatch(batch);
                 }
 
                 private void reportDocumentSize(ParsedDocument parsedDocument) {

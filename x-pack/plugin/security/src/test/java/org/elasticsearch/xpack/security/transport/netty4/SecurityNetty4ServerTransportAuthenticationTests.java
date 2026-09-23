@@ -84,10 +84,8 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
     private MockTransportService remoteTransportService;
 
     @SuppressWarnings("unchecked")
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTransportServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         authenticationException = new AtomicReference<>();
         remoteClusterName = "test-remote_cluster_service_" + randomAlphaOfLength(8);
@@ -166,11 +164,9 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         remoteTransportService.acceptIncomingRequests();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeTransportServicesAndThreadPool() throws Exception {
         logger.info("tearDown");
-        super.tearDown();
         IOUtils.close(
             remoteTransportService,
             remoteSecurityNetty4ServerTransport,

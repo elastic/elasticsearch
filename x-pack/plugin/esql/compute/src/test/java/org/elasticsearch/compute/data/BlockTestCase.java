@@ -112,6 +112,15 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         return false;
     }
 
+    /**
+     * Whether {@link Block#asVector()} returns a stable instance comparable with {@code sameInstance}
+     * and safe to round-trip via {@link Vector#asBlock()} / close. Override when {@code asVector()}
+     * allocates a fresh wrapper on each call.
+     */
+    protected boolean supportsReusableVectorView() {
+        return true;
+    }
+
     protected B createConstantBlock(BlockFactory blockFactory, V value, int positions) {
         throw new UnsupportedOperationException();
     }
@@ -164,11 +173,102 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         try (B block = buildBlock(blockFactory(), expected)) {
             Vector vector = block.asVector();
             assertThat(vector, notNullValue());
-            BasicBlockTests.assertKeepMask(vector);
+            if (supportsReusableVectorView()) {
+                BasicBlockTests.assertKeepMask(vector);
+            }
             BasicBlockTests.assertFilter(vector);
             BasicBlockTests.assertSlice(vector);
             BasicBlockTests.assertDeepCopy(block);
         }
+    }
+
+    /**
+     * Smoke-test {@code toString} for a tiny block. When the block exposes a {@link Vector},
+     * also checks filter/slice shapes that collapse to constants.
+     */
+    public final void testToStringSmall() {
+        V first = randomValue();
+        V second = randomValue();
+        for (int i = 0; i < 10 && Objects.equals(first, second); i++) {
+            second = randomValue();
+        }
+        List<List<V>> expected = List.of(List.of(first), List.of(second));
+        try (B block = buildBlock(blockFactory(), expected)) {
+            assertThat(block.toString(), notNullValue());
+            assertThat(block.toString().isEmpty(), equalTo(false));
+
+            Vector vector = block.asVector();
+            if (vector == null) {
+                // Composite / range blocks have no vector view and often a different toString shape.
+                return;
+            }
+            assertToStringMentionsPositions(block, 2);
+            assertToStringMentionsPositions(vector, 2);
+
+            try (Block filtered = block.filter(false, 0)) {
+                assertToStringMentionsPositions(filtered, 1);
+                assertTrue(filtered.asVector().isConstant());
+            }
+            try (Block filtered = block.filter(false, 1)) {
+                assertToStringMentionsPositions(filtered, 1);
+                assertTrue(filtered.asVector().isConstant());
+            }
+            try (Block filtered = block.filter(false, 0, 1)) {
+                assertToStringMentionsPositions(filtered, 2);
+            }
+            try (Block filtered = block.filter(false)) {
+                assertToStringMentionsPositions(filtered, 0);
+            }
+
+            try (Vector filtered = vector.filter(false, 0)) {
+                assertToStringMentionsPositions(filtered, 1);
+                assertTrue(filtered.isConstant());
+            }
+            try (Vector filtered = vector.filter(false, 1)) {
+                assertToStringMentionsPositions(filtered, 1);
+                assertTrue(filtered.isConstant());
+            }
+            try (Vector filtered = vector.filter(false, 0, 1)) {
+                assertToStringMentionsPositions(filtered, 2);
+            }
+            try (Vector filtered = vector.filter(false)) {
+                assertToStringMentionsPositions(filtered, 0);
+            }
+
+            try (Block sliced = block.slice(0, 1)) {
+                assertToStringMentionsPositions(sliced, 1);
+                assertTrue(sliced.asVector().isConstant());
+            }
+            try (Block sliced = block.slice(1, 2)) {
+                assertToStringMentionsPositions(sliced, 1);
+                assertTrue(sliced.asVector().isConstant());
+            }
+            try (Block sliced = block.slice(0, 2)) {
+                assertToStringMentionsPositions(sliced, 2);
+            }
+            try (Block sliced = block.slice(0, 0)) {
+                assertToStringMentionsPositions(sliced, 0);
+            }
+
+            try (Vector sliced = vector.slice(0, 1)) {
+                assertToStringMentionsPositions(sliced, 1);
+                assertTrue(sliced.isConstant());
+            }
+            try (Vector sliced = vector.slice(1, 2)) {
+                assertToStringMentionsPositions(sliced, 1);
+                assertTrue(sliced.isConstant());
+            }
+            try (Vector sliced = vector.slice(0, 2)) {
+                assertToStringMentionsPositions(sliced, 2);
+            }
+            try (Vector sliced = vector.slice(0, 0)) {
+                assertToStringMentionsPositions(sliced, 0);
+            }
+        }
+    }
+
+    private static void assertToStringMentionsPositions(Object obj, int positions) {
+        assertThat(obj.toString(), containsString("positions=" + positions));
     }
 
     public final void testBuilderGrowth() {
@@ -196,6 +296,46 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         }
         try (B block = buildBlock(blockFactory(), randomIntBetween(0, positionCount), expected)) {
             assertBlock(block, expected);
+        }
+    }
+
+    /**
+     * Even if single-valued positions are written using
+     * {@code beginPositionEntry}/{@code endPositionEntry}, a dense block with no nulls
+     * should still build a vector.
+     */
+    public final void testSingleNonNullValues() throws IOException {
+        assumeTrue("type does not support dense vectors", supportsDenseVector());
+        List<List<V>> expected = denseExpectedValues(randomIntBetween(1, 512));
+        try (B block = buildBlockUsingPositionEntries(blockFactory(), expected)) {
+            assertThat(block.asVector(), notNullValue());
+            assertBlock(block, expected);
+            assertSerializationAtSupportedVersions(block, expected);
+        }
+    }
+
+    /**
+     * {@code beginPositionEntry} around a single value, with nulls, must not build a vector.
+     */
+    public final void testSingleWithNullValues() throws IOException {
+        int positionCount = randomIntBetween(1, 512);
+        List<List<V>> expected = new ArrayList<>(positionCount);
+        boolean hasNull = false;
+        for (int p = 0; p < positionCount; p++) {
+            if (randomBoolean()) {
+                expected.add(null);
+                hasNull = true;
+            } else {
+                expected.add(List.of(randomValue()));
+            }
+        }
+        if (hasNull == false) {
+            expected.set(randomIntBetween(0, positionCount - 1), null);
+        }
+        try (B block = buildBlockUsingPositionEntries(blockFactory(), expected)) {
+            assertThat(block.asVector(), nullValue());
+            assertBlock(block, expected);
+            assertSerializationAtSupportedVersions(block, expected);
         }
     }
 
@@ -628,6 +768,25 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         }
     }
 
+    /**
+     * Like {@link #buildBlock(BlockFactory, List)} but every non-null position is written with
+     * {@link #appendMultivalued}, including single-value positions.
+     */
+    private B buildBlockUsingPositionEntries(BlockFactory blockFactory, List<List<V>> expected) {
+        try (BB builder = createBuilder(blockFactory, expected.size())) {
+            for (List<V> values : expected) {
+                if (values == null) {
+                    appendNull(builder);
+                } else {
+                    appendMultivalued(builder, values);
+                }
+            }
+            B block = build(builder);
+            assertThat(block.blockFactory(), sameInstance(blockFactory));
+            return block;
+        }
+    }
+
     private B buildBlock(BlockFactory blockFactory, Block.MvOrdering ordering, List<List<V>> expected) {
         try (BB builder = createBuilder(blockFactory, expected.size())) {
             builder.mvOrdering(ordering);
@@ -705,7 +864,19 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             for (V value : values) {
                 assertTrue(positionHasValue(block, p, value));
             }
-            assertFalse(positionHasValue(block, p, randomValueOtherThanMany(v -> values.contains(v), this::randomValue)));
+            // Skip the absent-value check when the position already contains every value the
+            // generator can produce (e.g. a boolean position with both true and false).
+            V absent = null;
+            for (int attempt = 0; attempt < 100; attempt++) {
+                V candidate = randomValue();
+                if (values.contains(candidate) == false) {
+                    absent = candidate;
+                    break;
+                }
+            }
+            if (absent != null) {
+                assertFalse(positionHasValue(block, p, absent));
+            }
         }
     }
 
@@ -732,9 +903,11 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             for (int p = 0; p < expected.size(); p++) {
                 assertThat(block.getFirstValueIndex(p), equalTo(p));
             }
-            vector.incRef();
-            try (Block vectorBlock = vector.asBlock()) {
-                assertThat(vectorBlock, equalTo(block));
+            if (supportsReusableVectorView()) {
+                vector.incRef();
+                try (Block vectorBlock = vector.asBlock()) {
+                    assertThat(vectorBlock, equalTo(block));
+                }
             }
         } else {
             assertThat(block.asVector(), nullValue());
@@ -745,7 +918,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         try (Block sliced = block.slice(0, block.getPositionCount())) {
             // Full-range slice reuses the block; *VectorBlock wraps via asBlock() so only the vector is reused.
             Vector vector = block.asVector();
-            if (vector != null) {
+            if (vector != null && supportsReusableVectorView()) {
                 assertThat(sliced.asVector(), sameInstance(vector));
             } else {
                 assertThat(sliced, sameInstance(block));

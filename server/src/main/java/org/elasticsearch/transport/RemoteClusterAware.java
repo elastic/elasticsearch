@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -32,10 +34,13 @@ import java.util.Set;
 public abstract class RemoteClusterAware implements LinkedProjectConfigService.LinkedProjectConfigListener {
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
+    public static final String CCS_CHAINING_DEPRECATION_WARNING = "Index name [{}] contains multiple cluster prefixes, which is deprecated";
 
     protected final Settings settings;
     private final String nodeName;
     private final boolean isRemoteClusterClientEnabled;
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RemoteClusterAware.class);
 
     /**
      * Creates a new {@link RemoteClusterAware} instance
@@ -171,6 +176,15 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                 String remoteClusterName = split.clusterAlias;
                 String indexName = split.indexExpression;
                 boolean isNegative = remoteClusterName.startsWith("-");
+                if (isRemoteIndexName(indexName)) {
+                    // Double cluster prefixes are deprecated
+                    deprecationLogger.critical(
+                        DeprecationCategory.QUERIES,
+                        "double_cluster_prefixes",
+                        CCS_CHAINING_DEPRECATION_WARNING,
+                        index
+                    );
+                }
                 List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(
                     remoteClusterNames,
                     isNegative ? remoteClusterName.substring(1) : remoteClusterName

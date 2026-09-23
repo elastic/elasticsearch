@@ -51,6 +51,17 @@ import java.util.Map;
  *       <td>{@link #testDefBoundInstanceMethodReferenceChargedPerInvocation}</td>
  *       <td>{@link #testDefBoundInstanceMethodReferenceCounted}</td>
  *       <td>—</td></tr>
+ *   <tr><td>bound instance-method ref (def receiver, def-call target, PR 8.6)</td>
+ *       <td>{@link #testDefReceiverBoundInstanceMethodReferenceTrips},
+ *           nested {@link #testNestedDefReceiverBoundReferenceInLambdaBodyTrips}</td>
+ *       <td>fixed {@link #testDefReceiverBoundInstanceMethodReferenceCounted},
+ *           dynamic {@link #testDefReceiverBoundReferenceDynamicEstimatorCounted}</td>
+ *       <td>unannotated {@link #testDefReceiverBoundReferenceToUnannotatedTargetCompletes},
+ *           off {@link #testDefReceiverBoundReferenceNotChargedWhenTrackingOff}</td></tr>
+ *   <tr><td>bound instance-method ref (def receiver, known target type, PR 8.6)</td>
+ *       <td>{@link #testTypedTargetDefReceiverBoundReferenceTrips}</td>
+ *       <td>{@link #testTypedTargetDefReceiverBoundReferenceCounted}</td>
+ *       <td>off {@link #testTypedTargetDefReceiverBoundReferenceNotChargedWhenTrackingOff}</td></tr>
  * </table>
  * <p>
  * Nesting is a separate axis: an inner construct built <em>inside</em> an outer def lambda body must still reach the script,
@@ -93,12 +104,103 @@ import java.util.Map;
  *       <td>—</td></tr>
  * </table>
  * <p>
- * One instance-method-reference form is deliberately <em>not</em> covered here: a bound reference whose receiver is itself
- * {@code def} ({@code def s = obj; s::method}). It routes through the dynamic {@code REFERENCE} bootstrap, which dispatches on
- * the receiver capture and conflicts with the charge machinery's script capture; it is deferred to PR 8.6 (this PR ships the
- * enabling {@code scriptCaptureIndex} machinery). Until then it is partially backstopped by the loop-statement counter.
+ * The bound reference whose receiver is itself {@code def} ({@code def s = obj; s::method}) is charged as of PR 8.6, in both
+ * forms: when the enclosing call is also {@code def} (target type unknown, routes through the def-call path) and when the
+ * target functional-interface type is known (e.g. {@code Optional.empty().orElseGet(s::method)}, which emits a real
+ * {@code REFERENCE} invokedynamic). Both dispatch on the receiver capture, so the script is over-captured as a trailing
+ * capture (the receiver type is unknown at compile time, so there is no pre-filter) and the runtime-resolved target is charged
+ * only when annotated. See the two def-receiver rows in the table above.
  */
 public class AllocationDefLambdaTests extends AllocationTestCase {
+
+    public void testDefReceiverBoundInstanceMethodReferenceCounted() {
+        // PR 8.6: a bound instance-method reference whose receiver is itself def (`def o = ...; o::constantAllocating`).
+        // constantAllocating charges a fixed 48 per call; two invocations are both counted. This routes through the dynamic
+        // REFERENCE bootstrap (dispatch on the receiver capture) with the script over-captured as a trailing capture, proving
+        // the runtime-resolved target is charged even when the receiver type is unknown until runtime.
+        long bytes = allocatedBytes(
+            "def o = new AllocationEstimatorTestObject(); def a = Optional.empty(); def b = Optional.empty(); "
+                + "a.orElseGet(o::constantAllocating); b.orElseGet(o::constantAllocating); return null;"
+        );
+        assertTrue("expected per-invocation def-receiver bound instance-method-reference charges, got [" + bytes + "]", bytes >= 96);
+    }
+
+    public void testDefReceiverBoundInstanceMethodReferenceTrips() {
+        // PR 8.6: s is def, so s::concat is a def-receiver bound reference; the per-invocation concat charge accumulates
+        // across the loop and trips (this is the form that previously escaped the budget entirely).
+        assertTripsLimit(
+            "def s = 'abcdefghij'; def opt = Optional.of(s); for (int i = 0; i < 1000000; ++i) { opt.map(s::concat); } return 1;",
+            "1mb"
+        );
+    }
+
+    public void testDefReceiverBoundReferenceToUnannotatedTargetCompletes() {
+        // A def-receiver bound reference to an UNANNOTATED target (String.length has no @allocates) is still over-captured at
+        // compile time (the receiver type is unknown, so there is no pre-filter), but the runtime resolves no estimator, so
+        // the trailing script capture is dropped, nothing is charged, and the call resolves normally. Exercises the
+        // estimator-null branch of the dynamic charging path — the one genuinely new drop-without-charge case.
+        Object result = compile("def s = 'hello'; def a = Optional.empty(); return a.orElseGet(s::length);", "1mb").execute();
+        assertEquals(5, result);
+    }
+
+    public void testDefReceiverBoundReferenceDynamicEstimatorCounted() {
+        // A def-receiver bound reference to a dynamic-estimator target (dynamicBoxed's estimator returns n * 100, reading the
+        // SAM argument). opt carries 5, so the mapped call charges 500 — proving the estimator receives both the receiver and
+        // the SAM argument correctly through the receiver-at-0 / script-trailing capture layout, not just a fixed cost.
+        long bytes = allocatedBytes(
+            "def o = new AllocationEstimatorTestObject(); def opt = Optional.of(5); opt.map(o::dynamicBoxed); return null;"
+        );
+        assertTrue(
+            "expected the dynamic estimator to charge n*100=500 through the def-receiver bound ref, got [" + bytes + "]",
+            bytes >= 500
+        );
+    }
+
+    public void testDefReceiverBoundReferenceNotChargedWhenTrackingOff() {
+        // With tracking off, a def-receiver bound reference is not over-captured or charge-routed and resolves normally.
+        Object result = compile("def s = 'hello'; def opt = Optional.of(s); return opt.map(s::concat).get();", "-1b").execute();
+        assertEquals("hellohello", result);
+    }
+
+    public void testTypedTargetDefReceiverBoundReferenceCounted() {
+        // Gap A: a def-receiver bound ref used where the target type IS known — Optional.empty() is typed, so orElseGet gives
+        // the ref a known Supplier target while the receiver o stays def. This emits a real REFERENCE invokedynamic (not the
+        // def-call path). constantAllocating charges 48; two calls are both counted, proving the real-indy path charges too.
+        long bytes = allocatedBytes(
+            "def o = new AllocationEstimatorTestObject(); Optional.empty().orElseGet(o::constantAllocating); "
+                + "Optional.empty().orElseGet(o::constantAllocating); return null;"
+        );
+        assertTrue("expected the typed-target def-receiver bound ref to charge, got [" + bytes + "]", bytes >= 96);
+    }
+
+    public void testTypedTargetDefReceiverBoundReferenceTrips() {
+        // Gap A trip form: hugeAllocatingInstance's estimator returns Long.MAX_VALUE, so one call through the typed-target
+        // def-receiver bound ref trips.
+        assertTripsLimit(
+            "def o = new AllocationEstimatorTestObject(); Optional.empty().orElseGet(o::hugeAllocatingInstance); return 1;",
+            "1mb"
+        );
+    }
+
+    public void testTypedTargetDefReceiverBoundReferenceNotChargedWhenTrackingOff() {
+        // Gap A, tracking off: the typed-target def-receiver bound ref is not over-captured or charge-routed and resolves.
+        Object result = compile(
+            "def o = new AllocationEstimatorTestObject(); return Optional.empty().orElseGet(o::constantAllocating);",
+            "-1b"
+        ).execute();
+        assertEquals(0, result);
+    }
+
+    public void testNestedDefReceiverBoundReferenceInLambdaBodyTrips() {
+        // A def-receiver bound reference (s is def, s::concat) built and invoked inside an outer def static lambda body: its
+        // trailing #scriptThis capture must resolve against the enclosing lambda's synthetic method (not the top-level
+        // script), composing the PR 8.6 receiver-at-0/script-trailing layout with nested script propagation.
+        assertTripsLimit(
+            "def opt = Optional.empty(); return opt.orElseGet(() -> { def s = 'abcdefghij'; def inner = Optional.of(s); "
+                + "for (int i = 0; i < 1000000; ++i) { inner.map(s::concat); } return 1; });",
+            "1mb"
+        );
+    }
 
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {

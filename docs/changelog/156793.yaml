@@ -1,0 +1,6 @@
+area: Recovery
+issues:
+ - 152005
+pr: 156793
+summary: Fix stale columnar id slot in `LuceneChangesSnapshot`
+type: bug

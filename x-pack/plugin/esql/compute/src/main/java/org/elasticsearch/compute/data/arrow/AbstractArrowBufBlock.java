@@ -236,33 +236,34 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
         // ----- Single-valued block
         if (offsetBuffer == null) {
 
-            // Allocate buffers
             ArrowBuf newValues = null;
             ArrowBuf newValidity = null;
             boolean success = false;
             try {
+                // Allocate buffers
                 newValues = allocator.buffer((long) length * size);
                 if (validityBuffer != null) {
                     newValidity = allocator.buffer(validityBufferLength(length));
                     newValidity.setZero(0, newValidity.capacity());
                 }
+
+                // Copy values
+                for (int i = 0; i < length; i++) {
+                    int pos = positions[offset + i];
+                    newValues.setBytes((long) i * size, valueBuffer, (long) pos * size, size);
+                    if (newValidity != null && isNull(pos) == false) {
+                        setValidityBit(newValidity, i);
+                    }
+                }
+
+                B result = blockConstructor().create(newValues, newValidity, null, length, 0, blockFactory);
                 success = true;
+                return result;
             } finally {
                 if (success == false) {
                     ArrowUtils.releaseBuffers(newValues, newValidity);
                 }
             }
-
-            // Copy values
-            for (int i = 0; i < length; i++) {
-                int pos = positions[offset + i];
-                newValues.setBytes((long) i * size, valueBuffer, (long) pos * size, size);
-                if (newValidity != null && isNull(pos) == false) {
-                    setValidityBit(newValidity, i);
-                }
-            }
-
-            return blockConstructor().create(newValues, newValidity, null, length, 0, blockFactory);
         }
 
         // ----- Multivalued block
@@ -271,13 +272,13 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
             totalValues += getValueCount(positions[i]);
         }
 
-        // Allocate buffers
         ArrowBuf newValues = null;
         ArrowBuf newValidity = null;
         ArrowBuf newOffsets = null;
         boolean success = false;
 
         try {
+            // Allocate buffers
             newValues = allocator.buffer((long) totalValues * size);
             if (validityBuffer != null) {
                 newValidity = allocator.buffer(validityBufferLength(totalValues));
@@ -285,32 +286,33 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
             }
             // 32-bit offsets
             newOffsets = allocator.buffer((long) (length + 1) * Integer.BYTES);
+
+            int valueIdx = 0;
+            for (int i = 0; i < length; i++) {
+                int pos = positions[offset + i];
+                newOffsets.setInt((long) i * Integer.BYTES, valueIdx);
+                if (isNull(pos) == false) {
+                    if (newValidity != null) {
+                        setValidityBit(newValidity, i);
+                    }
+                    int first = getFirstValueIndex(pos);
+                    int count = getValueCount(pos);
+                    if (count > 0) {
+                        newValues.setBytes((long) valueIdx * size, valueBuffer, (long) first * size, (long) count * size);
+                        valueIdx += count;
+                    }
+                }
+            }
+            newOffsets.setInt((long) length * Integer.BYTES, valueIdx);
+
+            B result = blockConstructor().create(newValues, newValidity, newOffsets, length, length + 1, blockFactory);
             success = true;
+            return result;
         } finally {
             if (success == false) {
                 ArrowUtils.releaseBuffers(newValues, newValidity, newOffsets);
             }
         }
-
-        int valueIdx = 0;
-        for (int i = 0; i < length; i++) {
-            int pos = positions[offset + i];
-            newOffsets.setInt((long) i * Integer.BYTES, valueIdx);
-            if (isNull(pos) == false) {
-                if (newValidity != null) {
-                    setValidityBit(newValidity, i);
-                }
-                int first = getFirstValueIndex(pos);
-                int count = getValueCount(pos);
-                if (count > 0) {
-                    newValues.setBytes((long) valueIdx * size, valueBuffer, (long) first * size, (long) count * size);
-                    valueIdx += count;
-                }
-            }
-        }
-        newOffsets.setInt((long) length * Integer.BYTES, valueIdx);
-
-        return blockConstructor().create(newValues, newValidity, newOffsets, length, length + 1, blockFactory);
     }
 
     @SuppressWarnings("unchecked")
@@ -329,21 +331,33 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
         }
 
         var allocator = blockFactory.arrowAllocator();
-        ArrowBuf newValidity = allocator.buffer(validityBufferLength(valueCount));
-        newValidity.setZero(0, newValidity.capacity());
-        for (int i = 0; i < valueCount; i++) {
-            if (mask.getBoolean(i) && isNull(i) == false) {
-                setValidityBit(newValidity, i);
+        ArrowBuf newValidity = null;
+        boolean success = false;
+        boolean sharedRetained = false;
+        try {
+            newValidity = allocator.buffer(validityBufferLength(valueCount));
+            newValidity.setZero(0, newValidity.capacity());
+            for (int i = 0; i < valueCount; i++) {
+                if (mask.getBoolean(i) && isNull(i) == false) {
+                    setValidityBit(newValidity, i);
+                }
+            }
+
+            // Validity buffer is new, but values and offsets are shared
+            ArrowUtils.retainBuffers(valueBuffer, offsetBuffer);
+            sharedRetained = true;
+
+            B result = blockConstructor().create(valueBuffer, newValidity, offsetBuffer, valueCount, offsetCount, blockFactory);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                if (sharedRetained) {
+                    ArrowUtils.releaseBuffers(valueBuffer, offsetBuffer);
+                }
+                ArrowUtils.releaseBuffers(newValidity);
             }
         }
-
-        // Validity buffer is new, but values and offsets are shared
-        valueBuffer.getReferenceManager().retain();
-        if (offsetBuffer != null) {
-            offsetBuffer.getReferenceManager().retain();
-        }
-
-        return blockConstructor().create(valueBuffer, newValidity, offsetBuffer, valueCount, offsetCount, blockFactory);
     }
 
     @Override
@@ -410,41 +424,42 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
                 newOffsets = allocator.buffer((long) (batchSize + 1) * Integer.BYTES);
                 newValidity = allocator.buffer(validityBufferLength(batchSize));
                 newValidity.setZero(0, newValidity.capacity());
+
+                int valueIdx = 0;
+                for (int p = batchStart; p < batchEnd; p++) {
+                    int outPos = p - batchStart;
+                    newOffsets.setInt((long) outPos * Integer.BYTES, valueIdx);
+                    int pStart = positions.getFirstValueIndex(p);
+                    int pEnd = pStart + positions.getValueCount(p);
+                    int valuesForPos = 0;
+                    for (int i = pStart; i < pEnd; i++) {
+                        int vp = positions.getInt(i);
+                        if (vp >= getPositionCount()) {
+                            continue;
+                        }
+                        int vStart = getFirstValueIndex(vp);
+                        int vCount = getValueCount(vp);
+                        if (vCount > 0) {
+                            newValues.setBytes((long) valueIdx * size, valueBuffer, (long) vStart * size, (long) vCount * size);
+                            valueIdx += vCount;
+                            valuesForPos += vCount;
+                        }
+                    }
+                    if (valuesForPos > 0) {
+                        setValidityBit(newValidity, outPos);
+                    }
+                }
+                newOffsets.setInt((long) batchSize * Integer.BYTES, valueIdx);
+                position = batchEnd;
+
+                B result = blockConstructor().create(newValues, newValidity, newOffsets, batchSize, batchSize + 1, factory);
                 success = true;
+                return result;
             } finally {
                 if (success == false) {
                     ArrowUtils.releaseBuffers(newValues, newOffsets, newValidity);
                 }
             }
-
-            int valueIdx = 0;
-            for (int p = batchStart; p < batchEnd; p++) {
-                int outPos = p - batchStart;
-                newOffsets.setInt((long) outPos * Integer.BYTES, valueIdx);
-                int pStart = positions.getFirstValueIndex(p);
-                int pEnd = pStart + positions.getValueCount(p);
-                int valuesForPos = 0;
-                for (int i = pStart; i < pEnd; i++) {
-                    int vp = positions.getInt(i);
-                    if (vp >= getPositionCount()) {
-                        continue;
-                    }
-                    int vStart = getFirstValueIndex(vp);
-                    int vCount = getValueCount(vp);
-                    if (vCount > 0) {
-                        newValues.setBytes((long) valueIdx * size, valueBuffer, (long) vStart * size, (long) vCount * size);
-                        valueIdx += vCount;
-                        valuesForPos += vCount;
-                    }
-                }
-                if (valuesForPos > 0) {
-                    setValidityBit(newValidity, outPos);
-                }
-            }
-            newOffsets.setInt((long) batchSize * Integer.BYTES, valueIdx);
-            position = batchEnd;
-
-            return blockConstructor().create(newValues, newValidity, newOffsets, batchSize, batchSize + 1, factory);
         }
 
         @Override
@@ -473,22 +488,38 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
 
         int expandedPositionCount = getFirstValueIndex(valueCount);
         var allocator = blockFactory.arrowAllocator();
-        ArrowBuf newValidity = allocator.buffer(validityBufferLength(expandedPositionCount));
-        // All expanded positions are valid by default
-        for (int i = 0; i < newValidity.capacity(); i++) {
-            newValidity.setByte(i, (byte) 0xFF);
-        }
-        // Clear validity bits at expanded positions corresponding to original null positions
-        for (int p = 0; p < valueCount; p++) {
-            if (isNull(p)) {
-                int expandedPos = getFirstValueIndex(p);
-                int byteIndex = expandedPos / 8;
-                newValidity.setByte(byteIndex, newValidity.getByte(byteIndex) & ~(1 << (expandedPos % 8)));
+        ArrowBuf newValidity = null;
+        boolean success = false;
+        boolean sharedRetained = false;
+        try {
+            newValidity = allocator.buffer(validityBufferLength(expandedPositionCount));
+            // All expanded positions are valid by default
+            for (int i = 0; i < newValidity.capacity(); i++) {
+                newValidity.setByte(i, (byte) 0xFF);
+            }
+            // Clear validity bits at expanded positions corresponding to original null positions
+            for (int p = 0; p < valueCount; p++) {
+                if (isNull(p)) {
+                    int expandedPos = getFirstValueIndex(p);
+                    int byteIndex = expandedPos / 8;
+                    newValidity.setByte(byteIndex, newValidity.getByte(byteIndex) & ~(1 << (expandedPos % 8)));
+                }
+            }
+
+            ArrowUtils.retainBuffers(valueBuffer);
+            sharedRetained = true;
+
+            B result = blockConstructor().create(valueBuffer, newValidity, null, expandedPositionCount, 0, blockFactory);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                if (sharedRetained) {
+                    ArrowUtils.releaseBuffers(valueBuffer);
+                }
+                ArrowUtils.releaseBuffers(newValidity);
             }
         }
-
-        valueBuffer.getReferenceManager().retain();
-        return blockConstructor().create(valueBuffer, newValidity, null, expandedPositionCount, 0, blockFactory);
     }
 
     @Override

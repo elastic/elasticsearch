@@ -137,6 +137,16 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Whether this service supports non-streaming chat completion via the unified API.
+     * Services that return {@code true} here must handle {@link UnifiedCompletionRequest#stream()} being {@code false} in
+     * {@link #unifiedCompletionInfer}.
+     * @return {@code false} by default
+     */
+    default boolean supportsNonStreamingChatCompletion() {
+        return false;
+    }
+
+    /**
      * Perform completion inference on the model using the unified schema.
      *
      * @param model        The model
@@ -291,7 +301,7 @@ public interface InferenceService extends Closeable {
         return supportedStreamingTasks().contains(taskType);
     }
 
-    record DefaultConfigId(String inferenceId, MinimalServiceSettings settings, InferenceService service) {};
+    record DefaultConfigId(String inferenceId, EndpointClusterState settings, InferenceService service) {};
 
     /**
      * Get the Ids and task type of any default configurations provided by this service

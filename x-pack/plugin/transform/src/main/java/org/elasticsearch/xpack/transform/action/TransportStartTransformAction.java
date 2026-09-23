@@ -38,11 +38,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -263,6 +265,41 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     validationException
                 );
             }
+            if (request.getInitialDelay() != null) {
+                if (request.getInitialDelay().compareTo(TimeValue.ZERO) < 0) {
+                    validationException = addValidationError(
+                        "["
+                            + TransformField.INITIAL_DELAY.getPreferredName()
+                            + "] ["
+                            + request.getInitialDelay().getStringRep()
+                            + "] must not be negative",
+                        validationException
+                    );
+                }
+                if (config.getSyncConfig() instanceof TimeSyncConfig timeSyncConfig) {
+                    if (request.getInitialDelay().compareTo(timeSyncConfig.getDelay()) > 0) {
+                        validationException = addValidationError(
+                            "["
+                                + TransformField.INITIAL_DELAY.getPreferredName()
+                                + "] ["
+                                + request.getInitialDelay().getStringRep()
+                                + "] must not be greater than ["
+                                + TransformField.DELAY.getPreferredName()
+                                + "] ["
+                                + timeSyncConfig.getDelay().getStringRep()
+                                + "]",
+                            validationException
+                        );
+                    }
+                } else {
+                    validationException = addValidationError(
+                        "["
+                            + TransformField.INITIAL_DELAY.getPreferredName()
+                            + "] parameter is only supported for continuous transforms with a time sync configuration",
+                        validationException
+                    );
+                }
+            }
             if (validationException != null) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -282,7 +319,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     config.getVersion(),
                     request.from(),
                     config.getFrequency(),
-                    config.getSource().requiresRemoteCluster()
+                    config.getSource().requiresRemoteCluster(),
+                    request.getInitialDelay()
                 )
             );
             // Hoist into a local so we can hand the same instance to executeAsyncWithOrigin and to

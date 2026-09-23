@@ -178,7 +178,7 @@ Derived in priority order by `analyzer/outcome.ts` (`deriveOutcome`):
 | `hang`          | `rc == 0` but zero recorded test cases                                          |
 | `clean_pass`    | `rc == 0` with recorded cases and no real failures                              |
 | `not_applicable`| assigned upstream (not by `deriveOutcome`) for a test that could not be re-run at all, e.g. a BWC qa project whose bare task is disabled - "nothing to re-run", excluded from the false-failure metric |
-| `build_failed`  | assigned upstream when the pre-flight compile gate fails: the PR did not compile, so the re-run batches were skipped. One record stands in for the skipped batches; excluded from the false-failure metric (the PR is already red from its main build) |
+| `build_failed`  | assigned upstream when the pre-flight compile gate fails: the PR did not compile, so the re-run batches were skipped. `analyze` emits one `build_failed`, excluded from the false-failure metric (the PR is already red from its main build). The skipped batch jobs write no status file, so - like any pre-wrapper failure (see the note below) - the external pipeline currently still records each as `infra_fail` from job state; suppressing that is an external-pipeline concern, not something this repo can control. |
 
 `timedOut` is reported alongside `outcome` so the two timeout shapes stay
 distinguishable: a job that times out **with** a real failure is
@@ -193,7 +193,13 @@ the job log). Finer infra subtypes (disk-full, etc.) would require the job log,
 which we currently choose not to read, so they are left unset. Jobs that fail
 *before* the wrapper runs (e.g. a pre-command hook failure) write no status file
 and so produce no payload; the external pipeline records those as `infra_fail`
-from job state.
+from job state. The same is true of batch jobs **skipped** by a failed
+`depends_on` (e.g. when the pre-flight compile gate fails): they never run the
+wrapper, so the external pipeline currently records each skipped job as
+`infra_fail` from its `waiting_failed` state - even though `analyze` already
+reports the gate failure as a single `build_failed`. Filtering those skipped
+jobs out (and skipping the fallback for the `flakiness-detection:precompile`
+step) is an external-pipeline concern.
 
 ## File layout
 

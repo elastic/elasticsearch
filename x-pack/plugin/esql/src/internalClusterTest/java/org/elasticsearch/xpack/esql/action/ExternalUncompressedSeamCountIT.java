@@ -57,8 +57,10 @@ public class ExternalUncompressedSeamCountIT extends AbstractExternalDataSourceI
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 selects the SEGMENTABLE_UNCOMPRESSED parallel-parse path.
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 8).put("max_concurrent_open_segments", 2).build());
+        // external_parsing_parallelism > 1 selects the SEGMENTABLE_UNCOMPRESSED parallel-parse path.
+        return new QueryPragmas(
+            Settings.builder().put("external_parsing_parallelism", 8).put("external_max_concurrent_open_segments", 2).build()
+        );
     }
 
     /**

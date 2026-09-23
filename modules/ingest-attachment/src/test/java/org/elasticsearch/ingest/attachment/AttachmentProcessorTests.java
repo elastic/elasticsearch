@@ -620,7 +620,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
         assertThat(attachmentData.get("content").toString(), containsString("碩鼠よ碩鼠よ、" + System.lineSeparator() + "我が黍を食らう無かれ！"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
-        assertThat(attachmentData.get("content_type").toString(), containsString("charset=x-eucJP-Open"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("charset=EUC-JP"));
         assertThat(attachmentData.get("content_length"), is(100L));
     }
 

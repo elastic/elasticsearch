@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.tika.metadata.HttpHeaders;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.test.ESTestCase;
@@ -44,6 +45,25 @@ public class TikaImplTests extends ESTestCase {
         assertThat(metadata.get(TikaCoreProperties.PRINT_DATE), equalTo("2010-05-09T12:34:38Z"));
         assertThat(metadata.get(TikaCoreProperties.METADATA_DATE), equalTo("2010-05-09T19:34:38Z"));
         assertThat(metadata.get(TikaCoreProperties.CREATOR_TOOL), equalTo("-not a date"));
+    }
+
+    public void testNormalizeCharsetName() {
+        Metadata metadata = new Metadata();
+        metadata.set(HttpHeaders.CONTENT_TYPE, "text/plain; charset=x-eucJP-Open");
+        TikaImpl.normalizeCharsetName(metadata);
+        assertThat(metadata.get(HttpHeaders.CONTENT_TYPE), equalTo("text/plain; charset=EUC-JP"));
+
+        metadata.set(HttpHeaders.CONTENT_TYPE, "text/html; charset=x-windows-949");
+        TikaImpl.normalizeCharsetName(metadata);
+        assertThat(metadata.get(HttpHeaders.CONTENT_TYPE), equalTo("text/html; charset=EUC-KR"));
+
+        metadata.set(HttpHeaders.CONTENT_TYPE, "text/plain; charset=Big5-HKSCS");
+        TikaImpl.normalizeCharsetName(metadata);
+        assertThat(metadata.get(HttpHeaders.CONTENT_TYPE), equalTo("text/plain; charset=Big5-HKSCS"));
+
+        metadata.set(HttpHeaders.CONTENT_TYPE, "application/pdf");
+        TikaImpl.normalizeCharsetName(metadata);
+        assertThat(metadata.get(HttpHeaders.CONTENT_TYPE), equalTo("application/pdf"));
     }
 
     public void testNormalizeDatesWithColonOffsetAndFraction() throws Exception {

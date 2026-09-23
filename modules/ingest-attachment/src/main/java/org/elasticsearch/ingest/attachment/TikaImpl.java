@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
+import org.apache.tika.metadata.HttpHeaders;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Property;
 import org.apache.tika.metadata.filter.DateNormalizingMetadataFilter;
@@ -28,9 +29,11 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -74,6 +77,9 @@ final class TikaImpl {
     /** singleton tika instance */
     private static final Tika TIKA_INSTANCE = new Tika(PARSER_INSTANCE.getDetector(), PARSER_INSTANCE);
 
+    /** tika decodes under vendor supersets; these two are JVM-internal names with no IANA registration */
+    private static final Map<String, String> IANA_CHARSET_NAMES = Map.of("x-eucJP-Open", "EUC-JP", "x-windows-949", "EUC-KR");
+
     /** rewrites timezone-less dates as UTC so they always index as dates */
     private static final DateNormalizingMetadataFilter DATE_FILTER = new DateNormalizingMetadataFilter();
 
@@ -94,6 +100,7 @@ final class TikaImpl {
         try {
             String text = TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit);
             normalizeDates(metadata);
+            normalizeCharsetName(metadata);
             return text;
         } catch (LinkageError e) {
             if (e.getMessage().contains("bouncycastle")) {
@@ -104,6 +111,21 @@ final class TikaImpl {
                 throw new RuntimeException("document is encrypted", e);
             }
             throw new RuntimeException(e);
+        }
+    }
+
+    static void normalizeCharsetName(Metadata metadata) {
+        String contentType = metadata.get(HttpHeaders.CONTENT_TYPE);
+        MediaType mediaType = contentType == null ? null : MediaType.parse(contentType);
+        if (mediaType == null) {
+            return;
+        }
+        String charset = mediaType.getParameters().get("charset");
+        String iana = charset == null ? null : IANA_CHARSET_NAMES.get(charset);
+        if (iana != null) {
+            Map<String, String> parameters = new HashMap<>(mediaType.getParameters());
+            parameters.put("charset", iana);
+            metadata.set(HttpHeaders.CONTENT_TYPE, new MediaType(mediaType.getBaseType(), parameters).toString());
         }
     }
 

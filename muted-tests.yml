@@ -204,9 +204,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/160023
-- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
-  method: testJvmMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/160050
 
 # Examples:
 #

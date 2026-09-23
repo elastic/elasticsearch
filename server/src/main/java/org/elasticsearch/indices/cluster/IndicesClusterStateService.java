@@ -1353,7 +1353,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 )
             );
             if (finalStrategy == FailureStrategy.RETRY) {
-                logger.debug("{} retry recovery for shard", shardRouting.shardId());
+                logger.warn(() -> "retry recovery for shard after failure [" + shardRouting + "]", failure);
                 // Fork onto cluster state applier thread to retry attempt to create shard
                 clusterService.getClusterApplierService()
                     .runOnApplierThread("retry recovery " + shardRouting.shardId(), Priority.NORMAL, currentState -> {

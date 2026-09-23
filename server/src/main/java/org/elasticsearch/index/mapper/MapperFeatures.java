@@ -172,6 +172,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.dynamic_template.warn_on_duplicate_names"
     );
     public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
+    public static final NodeFeature DENSE_VECTOR_ON_DISK_MERGE = new NodeFeature("mapper.vectors.on_disk_merge");
     public static final NodeFeature DENSE_VECTOR_UNIFIED_VALUE_FORMATS = new NodeFeature("mapper.dense_vector.unified_value_formats");
 
     @Override
@@ -218,6 +219,7 @@ public class MapperFeatures implements FeatureSpecification {
             MATCH_ONLY_TEXT_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
             PATTERN_TEXT_RENAME,
             DISKBBQ_ON_DISK_RESCORING,
+            DENSE_VECTOR_ON_DISK_MERGE,
             PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX,

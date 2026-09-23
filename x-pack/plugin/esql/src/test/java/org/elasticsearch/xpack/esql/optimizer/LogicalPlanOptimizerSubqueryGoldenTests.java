@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * Captures the analyzed and logically-optimized plans for subquery-in-{@code FROM} scenarios.
  * Negative tests live in {@code LogicalPlanOptimizerSubqueryTests}.
  */
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -511,7 +512,446 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    // nested fork, views, datasets
+
+    public void testForksInsideAndAfterSubquery() {
+        runGoldenTest("""
+            FROM (FROM employees
+                  | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)),
+                 (FROM languages | EVAL emp_no = language_code | KEEP emp_no)
+            | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
+            """, STAGES);
+    }
+
+    public void testForkAfterSubquery() {
+        runGoldenTest("""
+            FROM employees, (FROM employees_incompatible
+                                 | WHERE languages > 0
+                                 | EVAL emp_no = emp_no::int
+                                 | KEEP emp_no)
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | KEEP emp_no
+            """, STAGES);
+    }
+
+    public void testForkAfterUnionTypeConversionAfterSubquery() {
+        runGoldenTest("""
+            FROM employees_incompatible, (FROM employees
+                                           | MV_EXPAND job_positions
+                                           | KEEP emp_no, first_name, last_name, job_positions)
+            | EVAL emp_no = emp_no::long,
+                   first_name = first_name::keyword,
+                   last_name = last_name::keyword,
+                   job_positions = job_positions::keyword
+            | KEEP emp_no, first_name, last_name, job_positions
+            | FORK (WHERE true | LIMIT 300) (WHERE true)
+            | LIMIT 300
+            | WHERE _fork == "fork1"
+            | DROP _fork
+            """, STAGES);
+    }
+
+    public void testForkAfterRenameAndDateDateNanosImplicitCastingAndSubquery() {
+        runGoldenTest("""
+            FROM (ROW ts = TO_DATETIME("2023-01-01T00:00:00Z")),
+                 (ROW ts = TO_DATE_NANOS("2023-01-01T00:00:00.123456789Z"))
+            | RENAME ts AS x
+            | FORK (WHERE true) (WHERE true)
+            | KEEP x
+            """, STAGES);
+    }
+
+    public void testForkAfterRenameAndCounterTypeAfterSubquery() {
+        runGoldenTest("""
+            FROM k8s-downsampled, (ROW other = 1)
+            | KEEP network.total_bytes_in
+            | RENAME network.total_bytes_in AS x, x AS y
+            | RENAME y AS z
+            | FORK (WHERE true) (WHERE true)
+            | KEEP z
+            """, STAGES);
+    }
+
+    public void testForkOutputUpdatedAfterConflictingTypesInSubquery() {
+        runGoldenTest("""
+            FROM (ROW x = 1), (ROW x = "abc")
+            | FORK (WHERE true) (WHERE true)
+            | KEEP x
+            """, STAGES);
+    }
+
+    public void testForkOutputUpdatedAfterConflictingTypesFromExternalDatasetSubqueries() {
+        salariesExternalDatasetBuilder("""
+            FROM (FROM salaries_int), (FROM salaries_long)
+            | KEEP salary
+            | FORK (WHERE true) (WHERE true)
+            | KEEP salary
+            """).run();
+    }
+
+    public void testSubQueryInsideView() {
+        runGoldenTest(
+            "FROM subquery_view",
+            STAGES,
+            Map.of("subquery_view", "FROM (FROM employees | LIMIT 10), (FROM employees | LIMIT 20)")
+        );
+    }
+
+    public void testSubqueryInsideViewReferencedBySubquery() {
+        runGoldenTest(
+            "FROM (FROM subquery_view | LIMIT 10), (FROM employees | LIMIT 10)",
+            STAGES,
+            Map.of("subquery_view", "FROM (FROM employees | LIMIT 10), (FROM employees | LIMIT 20)")
+        );
+    }
+
+    public void testNestedViewsWithSubquery() {
+        runGoldenTest(
+            "FROM outer_view",
+            STAGES,
+            Map.of(
+                "subquery_view",
+                "FROM (FROM employees | LIMIT 10), (FROM employees | LIMIT 20)",
+                "outer_view",
+                "FROM subquery_view | LIMIT 5"
+            )
+        );
+    }
+
+    public void testForkAfterViewInSubquery() {
+        runGoldenTest(
+            "FROM (FROM view_0 | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)), (FROM employees)",
+            STAGES,
+            Map.of("view_0", "FROM employees")
+        );
+    }
+
+    public void testForkAfterMultipleViews() {
+        runGoldenTest(
+            "FROM view_0, view_1 | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)",
+            STAGES,
+            Map.of("view_0", "FROM employees", "view_1", "FROM employees")
+        );
+    }
+
+    public void testSubqueryReferencingMultipleDatasets() {
+        runNestedHeavyGoldenTest("FROM (FROM heavy_a, heavy_b), (FROM heavy_b) | WHERE emp_no > 10");
+    }
+
+    public void testInSubqueryReferencingMultipleDatasets() {
+        runNestedHeavyGoldenTest("FROM heavy_a | WHERE emp_no IN (FROM heavy_a, heavy_b | KEEP emp_no)");
+    }
+
+    public void testViewsReferencingMultipleDatasets() {
+        runNestedHeavyGoldenTest("FROM view_datasets | WHERE salary > 1000", Map.of("view_datasets", "FROM heavy_a, heavy_b"));
+    }
+
+    public void testForkAfterMultipleDatasets() {
+        runNestedHeavyGoldenTest("FROM heavy_a, heavy_b | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)");
+    }
+
+    public void testForkInsideSubqueryReferencingMultipleDatasets() {
+        runNestedHeavyGoldenTest("""
+            FROM (FROM heavy_a, heavy_b | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)),
+                 (FROM heavy_a, heavy_b)
+            """);
+    }
+
+    public void testUnionAllOfViewAndSubqueryWithFork() {
+        runNestedHeavyGoldenTest("""
+            FROM view_datasets,
+                 (FROM heavy_a, heavy_b | WHERE salary > 1000)
+            | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            """, Map.of("view_datasets", "FROM heavy_a, heavy_b"));
+    }
+
+    // synthetic conversion attributes across nested merge boundaries, validate the fix to ResolveUnionTypesInUnionAll
+
+    public void testInlineStatsConversionInsideOuterUnion() {
+        runGoldenTest("""
+            FROM (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | INLINE STATS cnt = COUNT(*) BY client_ip
+                  | EVAL _subquery = 1),
+                 (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | INLINE STATS cnt = COUNT(*) BY client_ip
+                  | EVAL _subquery = 2)
+            | WHERE _subquery == 1
+            | DROP _subquery
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testConversionInsideOuterUnionWithoutAggregation() {
+        runGoldenTest("""
+            FROM (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | EVAL _subquery = 1),
+                 (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | EVAL _subquery = 2)
+            | WHERE _subquery == 1
+            | DROP _subquery
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testStatsConversionInsideOuterUnion() {
+        runGoldenTest("""
+            FROM (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | STATS cnt = COUNT(*) BY client_ip
+                  | EVAL _subquery = 1),
+                 (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | STATS cnt = COUNT(*) BY client_ip
+                  | EVAL _subquery = 2)
+            | WHERE _subquery == 1
+            | DROP _subquery
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testConversionInOnlyOneOuterUnionBranch() {
+        runGoldenTest("""
+            FROM (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | INLINE STATS cnt = COUNT(*) BY client_ip),
+                 (ROW client_ip = TO_IP("172.21.2.162"), cnt = 1::long)
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testConversionsInsideAndAboveOuterUnion() {
+        runGoldenTest("""
+            FROM (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | INLINE STATS cnt = COUNT(*) BY client_ip),
+                 (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL client_ip = client_ip::ip
+                  | INLINE STATS cnt = COUNT(*) BY client_ip)
+            | EVAL client_ip = client_ip::string
+            | KEEP client_ip, cnt
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testInlineStatsConversionBelowFork() {
+        runGoldenTest("""
+            FROM (ROW client_ip = "172.21.0.5"), (ROW client_ip = "172.21.3.15")
+            | EVAL client_ip = client_ip::ip
+            | INLINE STATS cnt = COUNT(*) BY client_ip
+            | FORK (WHERE cnt > 0) (WHERE cnt > 1)
+            | KEEP client_ip, cnt
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testConversionAboveTwoNestedUnions() {
+        runGoldenTest("""
+            FROM (FROM
+                    (ROW client_ip = "172.21.0.5"),
+                    (ROW client_ip = "172.21.3.15")
+                  | EVAL label = 1),
+                 (ROW client_ip = "172.21.2.162", label = 1)
+            | EVAL client_ip = client_ip::ip
+            | KEEP client_ip
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testConversionAboveThreeNestedUnions() {
+        runGoldenTest("""
+            FROM (FROM
+                    (FROM
+                       (ROW client_ip = "172.21.0.5"),
+                       (ROW client_ip = "172.21.3.15")
+                     | EVAL label = 1),
+                    (ROW client_ip = "172.21.2.162", label = 1)),
+                 (ROW client_ip = "172.21.2.162", label = 1)
+            | EVAL client_ip = client_ip::ip
+            | KEEP client_ip
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testNestedConversionThroughKeepAndRename() {
+        runGoldenTest("""
+            FROM (FROM (FROM (ROW client_ip = "172.21.0.5"), (ROW client_ip = "172.21.3.15")
+                        | EVAL label = 1
+                        | KEEP client_ip, label
+                        | RENAME label AS renamed
+                        | RENAME renamed AS label),
+                       (ROW client_ip = "172.21.2.162", label = 1)
+                  | KEEP client_ip, label
+                  | RENAME label AS renamed
+                  | RENAME renamed AS label),
+                 (ROW client_ip = "172.21.2.162", label = 1)
+            | KEEP client_ip, label
+            | RENAME label AS renamed
+            | RENAME renamed AS label
+            | EVAL client_ip = client_ip::ip
+            | KEEP client_ip
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testMultipleConversionsAboveNestedUnions() {
+        runGoldenTest("""
+            FROM (FROM (ROW value = "1"), (ROW value = "2")), (ROW value = "3")
+            | KEEP value
+            | EVAL l = value::long, d = value::double
+            | KEEP l, d
+            | LIMIT 10
+            """, STAGES);
+    }
+
+    public void testSameConversionTwiceOverTwoLevelNestedSubquery() {
+        runGoldenTest("""
+            FROM (FROM (FROM sample_data), (FROM sample_data)),
+                 (FROM sample_data)
+            | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"
+            """, STAGES);
+    }
+
+    public void testSameConversionTwiceOverOneAndTwoLevelNestedSubquery() {
+        runGoldenTest("""
+            FROM (FROM (FROM sample_data), (FROM sample_data)
+                  | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"),
+                 (FROM sample_data)
+            | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"
+            """, STAGES);
+    }
+
+    public void testSameConversionTwiceOverViewAndSubquery() {
+        builder("""
+            FROM (FROM sample_view), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"
+            """).stages(STAGES).views(Map.of("sample_view", "FROM sample_data")).run();
+    }
+
+    public void testSameConversionTwiceBeforeFork() {
+        runGoldenTest("""
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"
+            | FORK (WHERE client_ip == "172.21.0.5") (WHERE client_ip != "172.21.0.5")
+            """, STAGES);
+    }
+
+    public void testSameConversionTwiceAfterFork() {
+        runGoldenTest("""
+            FROM (FROM sample_data), (FROM sample_data)
+            | FORK (WHERE client_ip == "172.21.0.5") (WHERE client_ip != "172.21.0.5")
+            | WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"
+            """, STAGES);
+    }
+
+    public void testSameConversionResolvedOnLaterPassOverOneLevelNestedSubquery() {
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM (FROM employees), (FROM employees, employees_incompatible)
+                  | WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+                  | EVAL e = TO_STRING(emp_no)
+                  | KEEP e),
+                 (FROM employees
+                  | EVAL e = TO_STRING(emp_no)
+                  | KEEP e)
+            """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
+    }
+
+    public void testSameConversionResolvedOnLaterPassOverTwoLevelNestedSubquery() {
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM (FROM employees), (FROM employees, employees_incompatible)
+                  | EVAL emp_no = TO_STRING(emp_no)),
+                 (FROM employees)
+            | WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+            | KEEP emp_no, does_not_exist
+            | EVAL e = TO_STRING(emp_no)
+            """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
+    }
+
+    public void testSameConversionResolvedOnLaterPassOverViewAndMultiTypedBranch() {
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM emp_view), (FROM employees, employees_incompatible)
+            | WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+            | EVAL e = TO_STRING(emp_no)
+            | KEEP e
+            """).stages(STAGES).views(Map.of("emp_view", "FROM employees")).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
+    }
+
+    public void testSameConversionResolvedOnLaterPassBeforeFork() {
+        assumeTrue("Requires FORK", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM employees), (FROM employees, employees_incompatible)
+            | WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+            | EVAL e = TO_STRING(emp_no)
+            | FORK (WHERE e == "10001") (WHERE e != "10001" OR e IS NULL)
+            | KEEP _fork, e
+            """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
+    }
+
+    public void testDifferentConversionWithSameNameResolvedOnLaterPassOverNestedSubquery() {
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM (FROM sample_data), (FROM sample_data)),
+                 (FROM sample_data)
+            | WHERE TO_DOUBLE(event_duration) > 0 OR does_not_exist IS NOT NULL
+            | EVAL d = TO_DEGREES(event_duration)
+            """).stages(STAGES).run();
+    }
+
+    public void testOuterUnionRefreshesTimestampTypeAfterInnerDateNanosCast() {
+        runGoldenTest("""
+            FROM (
+              FROM sample_data,
+                   (FROM sample_data_ts_nanos, (FROM sample_data))
+              | STATS c = COUNT(*) BY @timestamp
+              | SORT @timestamp
+              | LIMIT 2
+              | EVAL _subquery = 1
+            ), (
+              FROM sample_data,
+                   (FROM sample_data_ts_nanos, (FROM sample_data))
+              | STATS c = COUNT(*) BY @timestamp
+              | SORT @timestamp
+              | LIMIT 2
+              | EVAL _subquery = 2
+            )
+            | WHERE _subquery == 1
+            | DROP _subquery
+            """, STAGES);
+    }
+
     // helpers
+
+    private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
+
+    private static final String RESOURCE_A = "s3://bucket/heavy_a.parquet";
+    private static final String RESOURCE_B = "s3://bucket/heavy_b.parquet";
+    private static final String SALARIES_INT_RESOURCE = "s3://bucket/salaries_int.parquet";
+    private static final String SALARIES_LONG_RESOURCE = "s3://bucket/salaries_long.parquet";
 
     private void runNestedHeavyGoldenTest(String query) {
         assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -521,8 +961,72 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             .run();
     }
 
-    private static final String RESOURCE_A = "s3://bucket/heavy_a.parquet";
-    private static final String RESOURCE_B = "s3://bucket/heavy_b.parquet";
+    private void runNestedHeavyGoldenTest(String query, Map<String, String> views) {
+        assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        builder(query).stages(STAGES)
+            .datasetMetadata(heavyDatasetMetadata())
+            .externalSourceResolution(heavyExternalSourceResolution())
+            .views(views)
+            .run();
+    }
+
+    /**
+     * Golden builder for {@code salaries_int}/{@code salaries_long} dataset subqueries. Those datasets share
+     * {@code emp_no}/{@code name} but type {@code salary} as integer vs long, so a union of the two produces an
+     * {@code UNSUPPORTED} salary column.
+     */
+    private TestBuilder salariesExternalDatasetBuilder(String query) {
+        assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        return builder(query).stages(STAGES)
+            .datasetMetadata(salariesDatasetMetadata())
+            .externalSourceResolution(salariesExternalSourceResolution());
+    }
+
+    private static ProjectMetadata salariesDatasetMetadata() {
+        DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
+        Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());
+        Dataset longDataset = new Dataset("salaries_long", new DataSourceReference("external_ds"), SALARIES_LONG_RESOURCE, null, Map.of());
+        return ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("external_ds", dataSource)))
+            .datasets(Map.of("salaries_int", intDataset, "salaries_long", longDataset))
+            .build();
+    }
+
+    private static ExternalSourceResolution salariesExternalSourceResolution() {
+        return new ExternalSourceResolution(
+            Map.of(
+                SALARIES_INT_RESOURCE,
+                salariesSource(SALARIES_INT_RESOURCE, DataType.INTEGER),
+                SALARIES_LONG_RESOURCE,
+                salariesSource(SALARIES_LONG_RESOURCE, DataType.LONG)
+            )
+        );
+    }
+
+    private static ExternalSourceResolution.ResolvedSource salariesSource(String path, DataType salaryType) {
+        List<Attribute> schema = List.of(
+            referenceAttribute("emp_no", DataType.INTEGER),
+            referenceAttribute("name", DataType.KEYWORD),
+            referenceAttribute("salary", salaryType)
+        );
+        ExternalSourceMetadata metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return path;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+        return new ExternalSourceResolution.ResolvedSource(metadata, FileList.UNRESOLVED, Map.of());
+    }
 
     private static ProjectMetadata heavyDatasetMetadata() {
         DataSource dataSource = new DataSource("heavy_ds", "test", null, Map.of());

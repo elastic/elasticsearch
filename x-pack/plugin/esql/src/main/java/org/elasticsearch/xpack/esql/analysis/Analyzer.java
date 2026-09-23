@@ -4562,7 +4562,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // Carry over the synthetic convert-function attributes added to UnionAll output through Project above it.
             if (convertFunctionsToAttributes.isEmpty() == false) {
-                planWithConvertFunctionsPushedDown = carryOverSyntheticAttributesThroughProjects(planWithConvertFunctionsPushedDown);
+                planWithConvertFunctionsPushedDown = carryOverSyntheticAttributesThroughProjects(planWithConvertFunctionsPushedDown, null);
             }
 
             // Then replace the conversion functions with the corresponding attributes in the UnionAll output
@@ -4584,7 +4584,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     : unionAll
             );
 
-            // Finally update the attributes referencing the updated UnionAll output
+            // Update attributes that reference an output changed by a cast pushed into the branches.
             return updatedUnionAllOutput.isEmpty()
                 ? planWithImplicitCasting
                 : updateAttributesReferencingUpdatedUnionAllOutput(planWithImplicitCasting, updatedUnionAllOutput);
@@ -4734,6 +4734,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Collect all conversion functions in the plan that convert the unionAll outputs to a different type,
          * the keys are the name of the old/existing attributes in the unionAll output, the values are all the conversion functions.
+         * Preserve encounter order for each field's conversions because it determines the synthetic column order in the branches and union.
          * <p>
          * Walks <em>upward</em> from the {@code UnionAll} using a pre-built child→parent map (identity-keyed),
          * visiting only nodes on the direct path from the {@code UnionAll} to the root. Stops after visiting
@@ -4762,7 +4763,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             .stream()
                             .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
                             .findFirst()
-                            .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new HashSet<>()).add(f));
+                            .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new LinkedHashSet<>()).add(f));
                     }
                 });
                 if (current instanceof Aggregate) {
@@ -4864,6 +4865,65 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return unionAll.replaceSubPlansAndOutput(newChildren, newOutput);
+        }
+
+        /**
+         * Carry synthetic {@code $$<field>$converted_to$<type>} attributes through {@link Project} nodes that were resolved before those
+         * attributes existed (typically {@code KEEP}, {@code RENAME}, or {@code DROP}), without widening a {@link MergePlan} branch that
+         * does not already own them. Callers start at the root with {@code null}. Conversions that belong on a merge are added to both its
+         * output and its branch projections by {@link #rebuildUnionAll} before this method runs.
+         * <p>
+         * Conversion inside a nested union stays on that union:
+         * <pre>{@code
+         * FROM
+         *   (FROM
+         *      (ROW client_ip = "172.21.0.5"),
+         *      (ROW client_ip = "172.21.3.15")
+         *    | EVAL client_ip = client_ip::ip),
+         *   (ROW client_ip = TO_IP("172.21.2.162"))
+         * }</pre>
+         * The inner {@code ::ip} produces {@code $$client_ip$converted_to$ip} on the inner {@link UnionAll}. The outer merge's alignment
+         * {@link Project} must not append that column: the outer output is only {@code client_ip}.
+         * <p>
+         * Conversion above nested unions must still pass through {@code KEEP}:
+         * <pre>{@code
+         * FROM
+         *   (FROM (ROW client_ip = "a"), (ROW client_ip = "b") | KEEP client_ip ),
+         *   (ROW client_ip = "c")
+         * | EVAL client_ip = client_ip::ip
+         * }</pre>
+         * {@link #rebuildUnionAll} adds {@code $$client_ip$converted_to$ip} to the outer {@link UnionAll}. The {@code KEEP}
+         * {@link Project} is not a direct merge child, so the synthetic is appended there. The outer alignment {@link Project} is a
+         * direct merge child, but the name is already in the merge output, so it is allowed through.
+         */
+        private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan, @Nullable Set<String> mergeOutputNames) {
+            Set<String> childMergeOutputNames = plan instanceof MergePlan ? plan.outputSet().names() : null;
+            List<LogicalPlan> children = null;
+            for (int i = 0; i < plan.children().size(); i++) {
+                LogicalPlan child = plan.children().get(i);
+                LogicalPlan updated = carryOverSyntheticAttributesThroughProjects(child, childMergeOutputNames);
+                if (child.equals(updated) == false) {
+                    if (children == null) {
+                        children = new ArrayList<>(plan.children());
+                    }
+                    children.set(i, updated);
+                }
+            }
+            LogicalPlan result = children == null ? plan : plan.replaceChildren(children);
+            if (result instanceof Project project && project.expressionsResolved()) {
+                List<NamedExpression> projections = new ArrayList<>(project.projections());
+                for (Attribute attr : project.inputSet()) {
+                    if (attr.synthetic()
+                        && project.outputSet().contains(attr) == false
+                        && (mergeOutputNames == null || mergeOutputNames.contains(attr.name()))) {
+                        projections.add(attr);
+                    }
+                }
+                if (projections.size() != project.projections().size()) {
+                    return new Project(project.source(), project.child(), projections);
+                }
+            }
+            return result;
         }
 
         /**
@@ -5177,6 +5237,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * (e.g. inside a {@code ResolvingProject}) while other places in the plan (e.g. an outer {@code OrderBy}) still hold a cached
          * attribute reference, produced by {@link Alias#toAttribute()}, with the stale (pre-update) type. The subsequent
          * {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
+         * <p>
+         * A {@link MergePlan} caches its output outside its branch expressions and assigns that output its own {@link NameId NameIds}.
+         * Consequently, neither the inner union output map nor the first expression walk can update it directly. After updating the branch
+         * expressions, find each changed immediate branch output by id, copy its reconciled attribute to the same-named merge output while
+         * preserving the merge output id, and register that id in the update map.
+         * <p>
+         * Finally, cascade the newly registered output ids through aliases above the merge and run a second expression walk. This updates
+         * downstream consumers, including the final projection and response metadata, to the same reconciled types seen by the branches.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
@@ -5184,8 +5252,76 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             Map<NameId, Attribute> idToUpdatedAttr = new HashMap<>();
             updatedUnionAllOutput.forEach(attr -> idToUpdatedAttr.put(attr.id(), attr));
-
             // Cascade: collect Alias nodes above the UnionAll whose child directly references a changed attribute.
+            cascadeAliasTypes(plan, idToUpdatedAttr);
+            LogicalPlan updatedPlan = updateAttributesInExpressions(plan, idToUpdatedAttr);
+            // MergePlan cache output under their own ids, so the expression walk above cannot update them.
+            // Copy a widened branch attribute onto the same-named output, keeping the output id.
+            LogicalPlan planWithUpdatedMergeOutputs = copyWidenedTypesOntoMergeOutputs(updatedPlan, idToUpdatedAttr);
+            // Those output ids were not in the map during the first walk. Cascade them through aliases, then update consumers.
+            cascadeAliasTypes(planWithUpdatedMergeOutputs, idToUpdatedAttr);
+            return updateAttributesInExpressions(planWithUpdatedMergeOutputs, idToUpdatedAttr);
+        }
+
+        /**
+         * Copies a branch attribute whose id was widened onto the same-named {@link MergePlan} output, preserving the output id.
+         */
+        private static LogicalPlan copyWidenedTypesOntoMergeOutputs(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
+            List<LogicalPlan> children = plan.children();
+            List<LogicalPlan> newChildren = null;
+            for (int i = 0; i < children.size(); i++) {
+                LogicalPlan updated = copyWidenedTypesOntoMergeOutputs(children.get(i), idToUpdatedAttr);
+                if (updated != children.get(i)) {
+                    if (newChildren == null) {
+                        newChildren = new ArrayList<>(children);
+                    }
+                    newChildren.set(i, updated);
+                }
+            }
+            LogicalPlan current = newChildren == null ? plan : plan.replaceChildren(newChildren);
+            if (current instanceof MergePlan merge && merge.resolved()) {
+                return copyWidenedBranchTypesOntoOutput(merge, idToUpdatedAttr);
+            }
+            return current;
+        }
+
+        /**
+         * For each output attribute whose name matches a branch attribute that was widened, installs that type under the output's own id.
+         * An {@link UnsupportedAttribute} output is kept: its branch value is a null filler with a different id, not the widened attribute.
+         */
+        private static MergePlan copyWidenedBranchTypesOntoOutput(MergePlan merge, Map<NameId, Attribute> idToUpdatedAttr) {
+            Map<String, Attribute> updatedBranchOutputByName = new HashMap<>();
+            for (LogicalPlan child : merge.children()) {
+                for (Attribute attr : child.output()) {
+                    Attribute updated = idToUpdatedAttr.get(attr.id());
+                    if (updated != null) {
+                        updatedBranchOutputByName.putIfAbsent(attr.name(), updated);
+                    }
+                }
+            }
+            if (updatedBranchOutputByName.isEmpty()) {
+                return merge;
+            }
+            boolean changed = false;
+            List<Attribute> updatedOutput = new ArrayList<>(merge.output().size());
+            for (Attribute attr : merge.output()) {
+                Attribute updated = updatedBranchOutputByName.get(attr.name());
+                if (updated == null
+                    || attr instanceof UnsupportedAttribute
+                    || attr.resolved() == false
+                    || attr.dataType() == updated.dataType()) {
+                    updatedOutput.add(attr);
+                    continue;
+                }
+                Attribute updatedMergeOutput = updated.withId(attr.id());
+                idToUpdatedAttr.put(updatedMergeOutput.id(), updatedMergeOutput);
+                updatedOutput.add(updatedMergeOutput);
+                changed = true;
+            }
+            return changed ? merge.replaceSubPlansAndOutput(merge.children(), updatedOutput) : merge;
+        }
+
+        private static void cascadeAliasTypes(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             plan.forEachExpressionUp(Alias.class, alias -> {
                 if (alias.child() instanceof Attribute childAttr) {
                     Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
@@ -5199,7 +5335,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
             });
+        }
 
+        private static LogicalPlan updateAttributesInExpressions(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             return plan.transformExpressionsUp(Attribute.class, expr -> {
                 Attribute updated = idToUpdatedAttr.get(expr.id());
                 return (updated != null && expr.resolved() && expr.dataType() != updated.dataType()) ? updated : expr;

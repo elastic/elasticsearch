@@ -174,10 +174,11 @@ public class FieldNameUtils {
                 // back is safe only because currentBranchKeepRefs is replaced, never cleared; keepRefs is cleared, so it is saved
                 // by copy into parentKeepRefs above.
                 var enclosingBranchKeepRefs = currentBranchKeepRefs.get();
+
                 for (var branch : mergePlan.children()) {
-                    // Reset branch-specific state for each fork branch. keepRefs accumulates across the whole plan, so without
+                    // Reset branch-specific state for each merge branch. keepRefs accumulates across the whole plan, so without
                     // resetting it a KEEP in one branch would reach the next branch and make it look column-constrained: a nested
-                    // fork there would inherit those refs as its parentKeepRefs and never request all fields, and a LookupJoin
+                    // merge there would inherit those refs as its parentKeepRefs and never request all fields, and a LookupJoin
                     // there would skip wildcard lookup-index resolution. Either way the query under-collects fields.
                     keepRefs.clear();
                     keepRefs.addAll(parentKeepRefs);
@@ -185,21 +186,9 @@ public class FieldNameUtils {
                     currentBranchKeepRefs.get().addAll(parentKeepRefs);
                     referencesBuilder.set(AttributeSet.builder());
 
-                    var isNestedFork = branch.forEachDownMayReturnEarly(forEachDownProcessor.get());
-
-                    // This assert is just for good measure. FORKs within FORKs is yet not supported.
-                    LogicalPlan lastMerge = lastSeenMerge.get();
-                    if (lastMerge != null && lastMerge != mergePlan && mergePlan instanceof Fork && lastMerge instanceof Fork) {
-                        // Nested FORKs are not supported. Fork after subquery (UnionAll) or nested subqueries can
-                        // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
-                        // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
-                        // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
-                        //
-                        // Note: lastMerge == mergePlan is excluded here because an AbstractSubqueryJoin handler inside a merge branch saves
-                        // and restores lastSeenMerge (to preserve context across the subquery traversal), which transiently sets it
-                        // back to the current merge — that is not a nested-fork signal.
-                        assert isNestedFork == false : "Nested FORKs are not yet supported";
-                    }
+                    // Validation of whether two user FORKs have an intervening union boundary belongs to Fork's analyzer verifier.
+                    // Field collection must traverse every shape that the parser, view compaction, or dataset rewriting can produce.
+                    branch.forEachDownMayReturnEarly(forEachDownProcessor.get());
 
                     // Determine if this merge branch requires all fields from the index (projectAll = true).
                     // This happens when a branch has no explicit field selection and no KEEP constraints.

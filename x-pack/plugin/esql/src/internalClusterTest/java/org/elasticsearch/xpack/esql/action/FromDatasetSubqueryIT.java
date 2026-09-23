@@ -69,15 +69,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         assumeTrue("requires external dataset in from command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
     }
 
-    private static void requireInSubquery() {
-        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-
-    }
-
-    private static void requireWhereInSubqueryWithTS() {
-        assumeTrue("Requires IN subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
-    }
-
     @Before
     public void writeFixture() throws IOException {
         // Five-column schema gives downstream tests something to group by (department), aggregate (salary), and join on
@@ -120,7 +111,14 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     /** Names every view {@code testXxx} bodies PUT, dropped after each method so the SUITE cluster stays clean. */
-    private static final Set<String> CREATED_VIEWS = Set.of("emp_meta_view");
+    private static final Set<String> CREATED_VIEWS = Set.of(
+        "emp_meta_view",
+        "emp_ds_view",
+        "emp_union_view",
+        "emp_alt_view",
+        "emp_subq_view",
+        "emp_fork_view"
+    );
 
     /**
      * Datasets and the {@code local_ds} data source are registered through the base
@@ -129,15 +127,15 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      */
     @After
     public void cleanupViews() {
-        try {
-            client().execute(
-                DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TIMEOUT, TIMEOUT, CREATED_VIEWS.toArray(String[]::new))
-            ).actionGet(TIMEOUT);
-        } catch (ResourceNotFoundException ignored) {
-            // none created by this test
-        } catch (Exception e) {
-            logger.warn("view cleanup failed", e);
+        for (String view : CREATED_VIEWS) {
+            try {
+                client().execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { view }))
+                    .actionGet(TIMEOUT);
+            } catch (ResourceNotFoundException ignored) {
+                // not created by this test
+            } catch (Exception e) {
+                logger.warn("view cleanup [{}] failed", view, e);
+            }
         }
     }
 
@@ -375,15 +373,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(9).get(0), equalTo(101));
             assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
         }
-    }
-
-    public void testForkAfterMultipleDatasetInSubquery() {
-        registerEmployees();
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
-            FROM employees, (FROM employees, employees, employees, employees, employees, employees, employees, employees, employees)
-            | FORK (WHERE true) (WHERE true)
-            """), TIMEOUT));
-        assertCauseMessageContains(ex, "FORK after subquery is not supported");
     }
 
     // With basic(WHERE/STATS/KEEP/EVAL) processing command in subqueries or main query
@@ -1097,7 +1086,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     // WHERE ... IN / NOT IN (subquery) crossed with external datasets
 
     public void testInSubqueryMainDatasetSubqueryIndex() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1115,7 +1103,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryIndex() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1132,7 +1119,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testInSubqueryMainIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1150,7 +1136,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1169,7 +1154,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testInSubqueryMainDatasetSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         registerEmployeesAlt();
 
@@ -1187,7 +1171,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         registerEmployeesAlt();
 
@@ -1214,7 +1197,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * {@code AbstractPhysicalOperationProviders$IntermediateInputs}.
      */
     public void testEmptyInSubqueryThenStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1229,7 +1211,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testEmptyInSubqueryThenGroupedStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1247,7 +1228,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * zero rows, no crash.
      */
     public void testEmptyInSubqueryThenSortOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1266,7 +1246,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * dataset scan alive, so this pins the unchanged collapse/scan path next to the empty one.
      */
     public void testNonEmptyInSubqueryThenStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1286,7 +1265,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * external aggregation split (the counterpart of {@link #testEmptyInSubqueryThenStatsOnDataset}).
      */
     public void testNotInEmptySubqueryThenStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1302,7 +1280,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
     /** Row-returning variant of {@link #testNotInEmptySubqueryThenStatsOnDataset}: every dataset row comes back. */
     public void testNotInEmptySubqueryOnDatasetKeepsAllRows() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1326,7 +1303,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
      * substitution this shape crashed external physical planning the same way.
      */
     public void testNotInSubqueryWithNullThenStatsOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1342,7 +1318,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
     /** Every right value NULL: same ANTI short-circuit, pinned on the row-returning path — zero rows, no crash. */
     public void testNotInSubqueryAllNullOnDataset() {
-        requireInSubquery();
         registerEmployees();
 
         try (var response = run(syncEsqlQueryRequest("""
@@ -1359,7 +1334,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     // WHERE ... IN / NOT IN (subquery) crossing a time-series index with an external dataset
 
     public void testInSubqueryMainTimeSeriesIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1376,7 +1350,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainTimeSeriesIndexSubqueryDataset() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1393,7 +1366,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testInSubqueryMainDatasetSubqueryTimeSeriesIndex() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1411,7 +1383,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryTimeSeriesIndex() {
-        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1435,8 +1406,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     // testInSubqueryMainTimeSeriesIndexSubqueryDataset, exercising the IN/NOT IN join below a lowered TS aggregation.
 
     public void testInSubqueryMainTimeSeriesRateSubqueryDataset() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1456,8 +1425,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainTimeSeriesRateSubqueryDataset() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1479,8 +1446,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     // index via TS with a rate(...) aggregate (instead of plain FROM). Mirrors testInSubqueryMainDatasetSubqueryTimeSeriesIndex.
 
     public void testInSubqueryMainDatasetSubqueryTimeSeriesRate() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1500,8 +1465,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryTimeSeriesRate() {
-        requireInSubquery();
-        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1518,6 +1481,114 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1).toString(), equalTo("Engineering"));
             assertThat(rows.get(1).get(0), equalTo(2));
             assertThat(rows.get(1).get(1).toString(), equalTo("Engineering"));
+        }
+    }
+
+    // Nested subquery, view, FORK and dataset
+
+    public void testForkAfterSubqueryOnDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees), (FROM employees_alt)
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testForkInsideDatasetSubquery() {
+        registerEmployees();
+        registerEmployeesAlt();
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | FORK (WHERE department == "Engineering") (WHERE department == "Sales")),
+                 (FROM employees_alt | WHERE emp_no == 10 | EVAL _fork = "fork1")
+            | KEEP _fork, emp_no
+            | SORT _fork, emp_no
+            """), TIMEOUT)) {
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of("fork1", 1), List.of("fork1", 2), List.of("fork1", 10), List.of("fork2", 3)))
+            );
+        }
+    }
+
+    public void testForkAfterViewOverDataset() {
+        registerEmployees();
+        createView("emp_ds_view", "FROM employees");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM emp_ds_view
+            | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)
+            | KEEP _fork, emp_no
+            | SORT _fork, emp_no
+            """), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 1), List.of("fork1", 2), List.of("fork2", 3))));
+        }
+    }
+
+    public void testViewReferencingForkAndDataset() {
+        registerEmployees();
+        createView("emp_fork_view", "FROM employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM emp_fork_view
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(2L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(1L));
+        }
+    }
+
+    public void testForkAfterSubqueryDatasetView() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_alt_view", "FROM employees_alt");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees), emp_alt_view
+            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testViewReferencingForkDatasetInSubquery() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_fork_view", "FROM employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM emp_fork_view),
+                 (FROM employees_alt | WHERE emp_no == 10 | EVAL _fork = "fork1")
+            | STATS c = COUNT(*) BY _fork
+            | KEEP _fork, c
+            | SORT _fork
+            """), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(3L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(1L));
         }
     }
 

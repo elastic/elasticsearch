@@ -13,11 +13,15 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.junit.Before;
 
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Subqueries in the {@code FROM} command combined with logical views.
@@ -31,6 +35,23 @@ import static org.hamcrest.Matchers.equalTo;
  * with {@link SubqueryIT} or {@link SubqueryFailureIT}.
  */
 public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
+
+    @Before
+    public void setupIndex() {
+        client().admin().indices().prepareCreate("airports").setMapping("id", "type=integer", "name", "type=keyword").get();
+        client().prepareBulk()
+            .add(new IndexRequest("airports").id("1").source("id", 1, "name", "a"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        client().admin().indices().prepareCreate("employees").setMapping("id", "type=integer", "name", "type=keyword").get();
+        client().prepareBulk()
+            .add(new IndexRequest("employees").id("1").source("id", 1, "name", "e"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        ensureYellow("airports", "employees");
+    }
 
     /**
      * A wildcard that matches both a view and a real index, combined with a sibling subquery, used to be rejected: the pattern expanded
@@ -57,13 +78,67 @@ public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
         assertWildcardViewUnionWithSubquery("FROM (FROM airports*), (FROM employees)");
     }
 
+    // subquery, view and fork
+
+    public void testForkInsideView() {
+        installView("fork_view", "FROM airports | FORK (WHERE id > 0) (WHERE id < 2)");
+        try {
+            var query = """
+                FROM (FROM fork_view),
+                     (FROM employees | WHERE id > 0 | EVAL _fork = "fork1")
+                | KEEP _fork, id
+                | SORT _fork, id
+                """;
+            try (var resp = run(syncEsqlQueryRequest(query))) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(rows, hasSize(3));
+
+                assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(0).get(1), equalTo(1));
+                assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(1).get(1), equalTo(1));
+                assertThat(rows.get(2).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(2).get(1), equalTo(1));
+            }
+        } finally {
+            deleteViews("fork_view");
+        }
+    }
+
+    public void testForkInsideViewAndSubquery() {
+        installView("fork_view", "FROM airports | FORK (WHERE id > 0) (WHERE id < 2)");
+        try {
+            var query = """
+                FROM (FROM fork_view),
+                     (FROM employees | FORK (WHERE id > 0) (WHERE id < 2))
+                | KEEP _fork, id
+                | SORT _fork, id
+                """;
+            try (var resp = run(syncEsqlQueryRequest(query))) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(rows, hasSize(4));
+
+                assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(0).get(1), equalTo(1));
+                assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+                assertThat(rows.get(1).get(1), equalTo(1));
+                assertThat(rows.get(2).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(2).get(1), equalTo(1));
+                assertThat(rows.get(3).get(0).toString(), equalTo("fork2"));
+                assertThat(rows.get(3).get(1), equalTo(1));
+            }
+        } finally {
+            deleteViews("fork_view");
+        }
+    }
+
     /**
      * Runs {@code query} — which must union the {@code airports*} wildcard (view + index) with the {@code employees} index in some
      * arrangement — and asserts the flattened union it should now produce.
      */
     private void assertWildcardViewUnionWithSubquery(String query) {
         assumeViewBranchingSupported();
-        setupWildcardMatchingViewAndIndices();
+        setupWildcardMatchingView();
         try (var response = run(query + " | SORT name | KEEP id, name")) {
             assertThat(
                 "the wildcard's view and index branches plus the subquery branch, flattened into one union",
@@ -87,20 +162,7 @@ public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
      * {@code ViewUnionAll} of the view and the real index. The two indices share the same mapping so the top-level {@code UnionAll} has
      * no column-type conflicts that would fail verification.
      */
-    private void setupWildcardMatchingViewAndIndices() {
-        client().admin().indices().prepareCreate("airports").setMapping("id", "type=integer", "name", "type=keyword").get();
-        client().prepareBulk()
-            .add(new IndexRequest("airports").id("1").source("id", 1, "name", "a"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-
-        client().admin().indices().prepareCreate("employees").setMapping("id", "type=integer", "name", "type=keyword").get();
-        client().prepareBulk()
-            .add(new IndexRequest("employees").id("1").source("id", 1, "name", "e"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-
-        ensureYellow("airports", "employees");
+    private void setupWildcardMatchingView() {
         installView("airports_view", "FROM airports | LIMIT 10");
     }
 

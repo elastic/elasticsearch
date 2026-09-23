@@ -17,6 +17,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -95,6 +96,7 @@ import static org.hamcrest.Matchers.not;
  * Negative tests for subquery analysis in {@code FROM} (and the related {@code ViewUnionAll}/{@code UnionAll} planning), or those don't
  * fit the golden tests. The successful plan-shape (positive) tests over real CSV datasets now live in {@code AnalyzerSubqueryGoldenTests}.
  */
+@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
 public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
     public AnalyzerSubqueryTests(VersionMode versionMode) {
@@ -1819,21 +1821,6 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
     }
 
-    public void testForkAfterNineSubqueryBranches() {
-        analyzer().addDefaultIndex().error("""
-            FROM test, (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test)
-            | FORK (WHERE true) (WHERE true)
-            """, containsString("FORK after subquery is not supported"));
-    }
-
-    /**
-     * Analyzes a subquery query over two external datasets ({@code salaries_int}/{@code salaries_long}) that share
-     * {@code emp_no}/{@code name} but type {@code salary} differently ({@code integer} vs {@code long}). Mirrors the
-     * production pipeline: {@link DatasetRewriter} turns each {@code FROM <dataset>} into the
-     * {@code UnresolvedExternalRelation} the {@code EXTERNAL} command produces, which the analyzer resolves against the
-     * configured external source schemas — so a dataset branch is backed by an {@link ExternalRelation}, exactly like a
-     * real dataset subquery. The plan is analyzed (not optimized) to match the neighbouring tests.
-     */
     /**
      * The outer {@code METADATA} request must not be applied until the subquery's output is final.
      * A body ending in {@code KEEP *} still exposes an unresolved star when the Initialize batch runs, so
@@ -1941,6 +1928,89 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                 nullFilledClientIps.contains(converted.id())
             );
         }
+    }
+
+    // consecutive forks are not supported yet
+    public void testConsecutiveForksInMainQuery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            | FORK (WHERE salary > 100) (WHERE salary <= 100)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testConsecutiveForksInsideInSubquery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | WHERE emp_no IN (
+                FROM test
+                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+                | FORK (WHERE salary > 100) (WHERE salary <= 100)
+                | KEEP emp_no
+            )
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testNestedForksInMainQuery() {
+        analyzer().addEmployees("test").error("""
+                FROM test
+                | FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+                       (WHERE emp_no > 100)
+                | KEEP emp_no
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testNestedForksInsideInSubquery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | WHERE emp_no IN (
+                FROM test
+                | FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+                       (WHERE emp_no > 100)
+                | KEEP emp_no
+            )
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testForkBeforeAndAfterInSubqueryInMainQuery() {
+        analyzer().addEmployees("test").error("""
+            FROM test
+            | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            | WHERE emp_no IN (FROM test | KEEP emp_no)
+            | FORK (WHERE salary > 100) (WHERE salary <= 100)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    public void testForkInsideAndAfterFork() {
+        String message = analyzer().addEmployees("test").error("""
+                FROM test
+                | FORK
+                  (FORK (FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+                        (WHERE emp_no > 50))
+                  (WHERE emp_no > 100)
+                | KEEP emp_no
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
+    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected.
+    public void testConsecutiveForksWithFromSubquery() {
+        analyzer().addEmployees("test").error("""
+            FROM (
+                FROM test
+                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
+            )
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
+    }
+
+    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
+    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected.
+    public void testConsecutiveForksWithNestedView() {
+        analyzer().addEmployees("test").addView("fork_view", "FROM test | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)").error("""
+            FROM fork_view
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, containsString("Only a single FORK command is supported, but found multiple"));
     }
 
     private LogicalPlan analyzeExternalDatasetSubquery(String query) {

@@ -1,0 +1,6 @@
+SET unmapped_fields="nullify";
+FROM (FROM employees), (FROM employees, employees_incompatible)
+| FORK (WHERE true) (WHERE true)
+| WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+| EVAL e = TO_STRING(emp_no)
+| KEEP _fork, e

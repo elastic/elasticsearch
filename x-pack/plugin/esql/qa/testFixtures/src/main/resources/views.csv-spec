@@ -2424,3 +2424,991 @@ FROM employees_stats_where_in_subquery_view
 view_rows:long | max_doubled:long
 1              | 6
 ;
+
+// with nested subquery and fork
+
+nestedViewUnionAllSubquery
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM view_with_unionall | WHERE emp_no == 10001),
+     (FROM employees_all | WHERE emp_no == 10002)
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+;
+
+nestedViewForkStatsSortInMainQuery
+required_capability: fork_v9
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: views_deduplication_bugfix
+
+FROM employees_extra
+| WHERE emp_no <= 10003
+| FORK (WHERE emp_no == 10001) (WHERE emp_no > 10001)
+| STATS c = COUNT(*) BY _fork, emp_no
+| SORT _fork, emp_no
+;
+
+c:long | _fork:keyword | emp_no:integer
+2      | fork1         | 10001
+2      | fork2         | 10002
+2      | fork2         | 10003
+;
+
+forkViewAndNonForkingView
+required_capability: fork_v9
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM view_with_fork, employees_all
+| WHERE emp_no == 10091
+| KEEP emp_no, _fork
+| SORT _fork
+;
+
+emp_no:integer | _fork:keyword
+10091          | fork1
+10091          | null
+;
+
+forkViewStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM view_with_fork
+| STATS c = COUNT(*) BY _fork
+| SORT _fork
+;
+
+c:long | _fork:keyword
+1      | fork1
+1      | fork2
+;
+
+forkViewLookupJoinInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: join_lookup_v12
+
+FROM view_with_fork
+| EVAL language_code = 1
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP _fork, emp_no, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword
+fork1         | 10091          | English
+fork2         | 10092          | English
+;
+
+subqueryViewForkStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: views_deduplication_bugfix
+
+FROM view_with_subquery, employees
+| WHERE emp_no <= 10003
+| FORK (WHERE emp_no == 10001) (WHERE emp_no > 10001)
+| STATS c = COUNT(*) BY _fork, emp_no
+| SORT _fork, emp_no
+;
+
+c:long | _fork:keyword | emp_no:integer
+2      | fork1         | 10001
+2      | fork2         | 10002
+2      | fork2         | 10003
+;
+
+viewForkInsideAndAfterUnionAllSubquery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM view_with_fork),
+     (FROM employees_all | WHERE emp_no == 10093 | EVAL _fork = "fork1")
+| FORK (WHERE emp_no > 10091) (WHERE emp_no <= 10091)
+| KEEP _fork, emp_no
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer
+fork1         | 10092
+fork1         | 10093
+fork2         | 10091
+;
+
+// View + nested subquery + FORK mixed with EVAL, WHERE, STATS, INLINE STATS, LOOKUP JOIN, implicit/explicit casts,
+// and unmapped_fields=nullify/load.
+
+viewInSubqueryWithEvalFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM employees_all | WHERE emp_no >= 10091 AND emp_no < 10093),
+     (FROM employees | WHERE emp_no >= 10092 AND emp_no < 10094)
+| EVAL tag = emp_no::keyword
+| FORK (WHERE emp_no == 10091) (WHERE emp_no == 10092) (WHERE emp_no == 10093)
+| KEEP _fork, emp_no, tag
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | tag:keyword
+fork1         | 10091          | 10091
+fork2         | 10092          | 10092
+fork2         | 10092          | 10092
+fork3         | 10093          | 10093
+;
+
+viewInSubqueryWithForkEvalInForkBranches
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM employees_all | WHERE emp_no == 10091),
+     (FROM (FROM employees | WHERE emp_no == 10092),
+           (FROM employees_all | WHERE emp_no == 10093))
+| FORK (WHERE emp_no == 10091 | EVAL tag = "a") (WHERE emp_no >= 10092 | EVAL tag = "b")
+| KEEP _fork, emp_no, tag
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | tag:keyword
+fork1         | 10091          | a
+fork2         | 10092          | b
+fork2         | 10093          | b
+;
+
+viewWithSubqueryInSubqueryWithEvalFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM view_with_subquery | WHERE emp_no == 10001),
+     (FROM employees_all | WHERE emp_no == 10002)
+| EVAL tag = emp_no::keyword
+| FORK (WHERE emp_no == 10001) (WHERE emp_no == 10002)
+| KEEP _fork, emp_no, tag
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | tag:keyword
+fork1         | 10001          | 10001
+fork2         | 10002          | 10002
+;
+
+viewInSubqueryWithForkStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM employees_all | WHERE emp_no >= 10091 AND emp_no < 10093),
+     (FROM employees | WHERE emp_no >= 10092 AND emp_no < 10094)
+| FORK (WHERE emp_no <= 10092) (WHERE emp_no >= 10092)
+| STATS c = COUNT(*) BY _fork
+| SORT _fork
+;
+
+c:long | _fork:keyword
+3      | fork1
+3      | fork2
+;
+
+viewInSubqueryStatsInSubqueryBranchForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM employees_all | WHERE emp_no <= 10005 | STATS c = COUNT(*)),
+     (FROM (FROM employees | WHERE emp_no > 10095 | STATS c = COUNT(*)))
+| FORK (WHERE c <= 5) (WHERE c > 0)
+| KEEP _fork, c
+| SORT _fork, c
+;
+
+_fork:keyword | c:long
+fork1         | 5
+fork1         | 5
+fork2         | 5
+fork2         | 5
+;
+
+viewInSubqueryWithForkStatsInForkBranches
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM employees_all | WHERE emp_no <= 10003),
+     (FROM employees | WHERE emp_no > 10097)
+| FORK (STATS c = COUNT(*)) (STATS mx = MAX(emp_no))
+| KEEP _fork, c, mx
+| SORT _fork
+;
+
+_fork:keyword | c:long | mx:integer
+fork1         | 6      | null
+fork2         | null   | 10100
+;
+
+viewInSubqueryWithInlineStatsForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+
+FROM (FROM employees_all | WHERE emp_no <= 10003),
+     (FROM (FROM employees | WHERE emp_no == 10001),
+           (FROM employees_all | WHERE emp_no == 10002))
+| INLINE STATS c = COUNT(*)
+| FORK (WHERE emp_no == 10001) (WHERE emp_no >= 10002)
+| KEEP _fork, emp_no, c
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | c:long
+fork1         | 10001          | 5
+fork1         | 10001          | 5
+fork2         | 10002          | 5
+fork2         | 10002          | 5
+fork2         | 10003          | 5
+;
+
+viewInSubqueryWithForkInlineStatsInForkBranches
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+
+FROM (FROM employees_all | WHERE emp_no <= 10003),
+     (FROM employees | WHERE emp_no == 10001)
+| FORK (INLINE STATS x = MAX(emp_no)) (WHERE emp_no == 10001 | INLINE STATS x = MIN(emp_no))
+| KEEP _fork, emp_no, x
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | x:integer
+fork1         | 10001          | 10003
+fork1         | 10001          | 10003
+fork1         | 10002          | 10003
+fork1         | 10003          | 10003
+fork2         | 10001          | 10001
+fork2         | 10001          | 10001
+;
+
+viewWithUnionallInSubqueryInlineStatsForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: inline_stats
+
+FROM (FROM view_with_unionall),
+     (FROM employees_all | WHERE emp_no == 10003)
+| INLINE STATS c = COUNT(*)
+| FORK (WHERE emp_no == 10001) (WHERE emp_no != 10001)
+| KEEP _fork, emp_no, c
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | c:long
+fork1         | 10001          | 3
+fork2         | 10002          | 3
+fork2         | 10003          | 3
+;
+
+viewWithForkInSubqueryEvalStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM (FROM view_with_fork),
+     (FROM employees_all | WHERE emp_no == 10093 | EVAL _fork = "fork1")
+| EVAL tag = CONCAT(_fork, "-", emp_no::keyword)
+| STATS c = COUNT(*) BY _fork, tag
+| SORT _fork, tag
+;
+
+c:long | _fork:keyword | tag:keyword
+1      | fork1         | fork1-10091
+1      | fork1         | fork1-10093
+1      | fork2         | fork2-10092
+;
+
+viewWithForkInSubqueryLookupJoinForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: join_lookup_v12
+
+FROM (FROM view_with_fork),
+     (FROM employees_all | WHERE emp_no == 10093 | EVAL _fork = "fork1")
+| EVAL language_code = languages
+| LOOKUP JOIN _coordinator:languages_lookup ON language_code
+| FORK (WHERE language_name == "Spanish") (WHERE language_name == "English")
+| KEEP _fork, emp_no, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword
+fork1         | 10091          | Spanish
+fork1         | 10093          | Spanish
+fork2         | 10092          | English
+;
+
+viewInSubqueryLookupJoinInSubqueryBranchForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: join_lookup_v12
+
+FROM
+  (FROM
+     (FROM employees_all
+      | WHERE emp_no == 10001
+      | EVAL language_code = languages
+      | LOOKUP JOIN languages_lookup ON language_code
+      | KEEP emp_no, language_name),
+     (FROM employees | WHERE emp_no == 10002 | KEEP emp_no)
+  ),
+  (FROM employees_all | WHERE emp_no == 10003 | KEEP emp_no)
+| FORK (WHERE emp_no == 10001) (WHERE emp_no != 10001)
+| KEEP _fork, emp_no, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword
+fork1         | 10001          | French
+fork2         | 10002          | null
+fork2         | 10003          | null
+;
+
+viewInSubqueryCoordinatorLookupJoinInSubqueryBranchForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: join_lookup_v12
+
+FROM
+  (FROM
+     (FROM employees_all | WHERE emp_no == 10001),
+     (FROM employees | WHERE emp_no == 10003)
+   | EVAL language_code = languages
+   | LOOKUP JOIN _coordinator:languages_lookup ON language_code
+   | KEEP emp_no, language_name
+  ),
+  (FROM employees_all | WHERE emp_no == 10002 | KEEP emp_no)
+| FORK (WHERE language_name IS NOT NULL) (WHERE language_name IS NULL)
+| KEEP _fork, emp_no, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword
+fork1         | 10001          | French
+fork1         | 10003          | German
+fork2         | 10002          | null
+;
+
+viewInSubqueryCoordinatorLookupJoinInForkBranch
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: join_lookup_v12
+
+FROM (FROM employees_all | WHERE emp_no == 10001 OR emp_no == 10003),
+     (FROM employees | WHERE emp_no == 10002)
+| EVAL language_code = languages
+| FORK (WHERE emp_no == 10001 | LOOKUP JOIN _coordinator:languages_lookup ON language_code)
+       (WHERE emp_no >= 10002 | LOOKUP JOIN _coordinator:languages_lookup ON language_code)
+| KEEP _fork, emp_no, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword
+fork1         | 10001          | French
+fork2         | 10002          | null
+fork2         | 10003          | German
+;
+
+viewInSubqueryLookupJoinInSubqueryBranchInlineStatsForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: inline_stats
+required_capability: join_lookup_v12
+
+FROM
+  (FROM
+     (FROM employees_all
+      | WHERE emp_no == 10001
+      | EVAL language_code = languages
+      | LOOKUP JOIN languages_lookup ON language_code
+      | KEEP emp_no, language_name),
+     (FROM employees | WHERE emp_no == 10002 | KEEP emp_no)
+  ),
+  (FROM employees_all | WHERE emp_no == 10003 | KEEP emp_no)
+| INLINE STATS c = COUNT(*) BY language_name
+| FORK (WHERE emp_no == 10001) (WHERE emp_no != 10001)
+| KEEP _fork, emp_no, language_name, c
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword | c:long
+fork1         | 10001          | French                | 1
+fork2         | 10002          | null                  | 2
+fork2         | 10003          | null                  | 2
+;
+
+viewInSubqueryLookupJoinExplicitCastForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: join_lookup_v12
+
+FROM (FROM view_sample_data | WHERE event_duration == 1232382),
+     (FROM (FROM sample_data | WHERE event_duration == 1756467),
+           (FROM view_sample_data | WHERE event_duration == 2764889))
+| EVAL client_ip = client_ip::keyword
+| LOOKUP JOIN _coordinator:clientips_lookup ON client_ip
+| FORK (WHERE env == "Development") (WHERE env == "Production") (WHERE env == "QA")
+| KEEP _fork, client_ip, env, event_duration
+| SORT _fork
+;
+
+_fork:keyword | client_ip:keyword | env:keyword  | event_duration:long
+fork1         | 172.21.0.5        | Development  | 1232382
+fork2         | 172.21.3.15       | Production   | 1756467
+fork3         | 172.21.2.113      | QA           | 2764889
+;
+
+viewInSubqueryForkImplicitDateNanosCast
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM (FROM view_sample_data),
+     (FROM sample_data_ts_nanos,
+           (FROM sample_data))
+| WHERE event_duration == 1232382
+| FORK (WHERE @timestamp >= TO_DATE_NANOS("2023-10-23T13:33:34.937123456Z")) (WHERE @timestamp < TO_DATE_NANOS("2023-10-23T13:33:34.937123456Z"))
+| KEEP _fork, @timestamp, event_duration
+| SORT _fork, @timestamp
+;
+
+_fork:keyword | @timestamp:date_nanos          | event_duration:long
+fork1         | 2023-10-23T13:33:34.937123456Z | 1232382
+fork2         | 2023-10-23T13:33:34.937Z       | 1232382
+fork2         | 2023-10-23T13:33:34.937Z       | 1232382
+;
+
+viewInSubqueryForkExplicitDateNanosCastInForkBranches
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: fork_union_types
+
+FROM (FROM view_sample_data),
+     (FROM sample_data_ts_nanos,
+           (FROM sample_data_ts_long | EVAL @timestamp = @timestamp::date_nanos))
+| WHERE event_duration == 1232382
+| FORK (WHERE @timestamp < "2000-01-01T00:00:00Z") (WHERE @timestamp >= "2000-01-01T00:00:00Z")
+| KEEP _fork, @timestamp, event_duration
+| SORT _fork, @timestamp
+;
+
+_fork:keyword | @timestamp:date_nanos          | event_duration:long
+fork1         | 1970-01-01T00:28:18.068014937Z | 1232382
+fork2         | 2023-10-23T13:33:34.937Z       | 1232382
+fork2         | 2023-10-23T13:33:34.937123456Z | 1232382
+;
+
+viewInSubqueryForkEvalStatsLookupInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: join_lookup_v12
+
+FROM (FROM employees_all | WHERE emp_no <= 10003),
+     (FROM employees | WHERE emp_no == 10001)
+| EVAL language_code = languages
+| LOOKUP JOIN _coordinator:languages_lookup ON language_code
+| EVAL tag = language_name
+| FORK (WHERE emp_no == 10001) (WHERE emp_no != 10001)
+| STATS c = COUNT(*) BY _fork, tag
+| SORT _fork, tag
+;
+
+c:long | _fork:keyword | tag:keyword
+2      | fork1         | French
+1      | fork2         | German
+1      | fork2         | null
+;
+
+viewInSubqueryForkNullifyUnmappedInForkBranchAndKeep
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_fork_unmapped_nullify
+
+SET unmapped_fields="nullify"\;
+FROM (FROM employees_all | WHERE emp_no <= 10003),
+     (FROM employees | WHERE emp_no == 10001)
+| FORK (WHERE does_not_exist_field IS NULL) (WHERE emp_no == 10001)
+| KEEP _fork, emp_no, does_not_exist_field
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | does_not_exist_field:null
+fork1         | 10001          | null
+fork1         | 10001          | null
+fork1         | 10002          | null
+fork1         | 10003          | null
+fork2         | 10001          | null
+fork2         | 10001          | null
+;
+
+viewInSubqueryForkLoadUnmappedInSubqueryForkBranches
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconnection error" OR unmapped_message == "43"),
+     (FROM (FROM view_sample_data | WHERE event_duration == 1232382), (FROM employees_all | WHERE emp_no == 10001))
+| FORK (WHERE unmapped_message == "Disconnection error") (WHERE unmapped_message IS NULL)
+| KEEP _fork, unmapped_message, emp_no
+| SORT _fork, unmapped_message, emp_no NULLS LAST
+;
+
+_fork:keyword | unmapped_message:keyword | emp_no:integer
+fork1         | Disconnection error      | null
+fork1         | Disconnection error      | null
+fork1         | Disconnection error      | null
+fork2         | null                     | 10001
+fork2         | null                     | null
+;
+
+forkViewInSubqueryInlineStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: inline_stats
+
+FROM (FROM view_with_fork),
+     (FROM employees_all | WHERE emp_no == 10093)
+| INLINE STATS c = COUNT(*)
+| KEEP emp_no, _fork, c
+| SORT emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword | c:long
+10091          | fork1         | 3
+10092          | fork2         | 3
+10093          | null          | 3
+;
+
+twoViewsForkEvalStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: views_deduplication_bugfix
+
+FROM employees_all, view_with_subquery
+| WHERE emp_no <= 10003
+| EVAL tag = emp_no::keyword
+| FORK (WHERE emp_no == 10001) (WHERE emp_no > 10001)
+| STATS c = COUNT(*) BY _fork, tag
+| SORT _fork, tag
+;
+
+c:long | _fork:keyword | tag:keyword
+2      | fork1         | 10001
+2      | fork2         | 10002
+2      | fork2         | 10003
+;
+
+nestedViewForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: views_deduplication_bugfix
+
+FROM (FROM employees_extra | WHERE emp_no == 10001),
+     (FROM employees_all | WHERE emp_no == 10002)
+| FORK (WHERE emp_no == 10001) (WHERE emp_no == 10002)
+| KEEP _fork, emp_no
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer
+fork1         | 10001
+fork1         | 10001
+fork2         | 10002
+;
+
+forkViewInSubqueryDropForkInSubqueryBranchStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM (FROM view_with_fork | DROP _fork),
+     (FROM employees_all | WHERE emp_no == 10093)
+| STATS c = COUNT(*) BY emp_no
+| SORT emp_no
+;
+
+c:long | emp_no:integer
+1      | 10091
+1      | 10092
+1      | 10093
+;
+
+viewInSubqueryRenameForkAfterImplicitCast
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM (FROM view_sample_data),
+     (FROM sample_data_ts_nanos, (FROM sample_data))
+| WHERE event_duration == 1232382
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| FORK (WHERE x >= TO_DATE_NANOS("2023-10-23T13:33:34.937123456Z")) (WHERE x < TO_DATE_NANOS("2023-10-23T13:33:34.937123456Z"))
+| KEEP _fork, x
+| SORT _fork, x
+;
+
+_fork:keyword | x:date_nanos
+fork1         | 2023-10-23T13:33:34.937123456Z
+fork2         | 2023-10-23T13:33:34.937Z
+fork2         | 2023-10-23T13:33:34.937Z
+;
+
+unionAllViewForkInSubquery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+
+FROM (FROM employees_all | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHERE emp_no == 10091) (WHERE emp_no == 10092)),
+     (FROM view_with_unionall | WHERE emp_no == 10001 | EVAL _fork = "fork1")
+| KEEP _fork, emp_no
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer
+fork1         | 10001
+fork1         | 10091
+fork2         | 10092
+;
+
+viewInSubqueryLookupJoinForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: join_lookup_v12
+
+FROM (FROM employees_all | WHERE emp_no == 10001),
+     (FROM employees | WHERE emp_no == 10003)
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| FORK (WHERE language_name == "French") (WHERE language_name == "German")
+| KEEP _fork, emp_no, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword
+fork1         | 10001          | French
+fork2         | 10003          | German
+;
+
+forkViewInSubqueryLoadUnmappedInWhereKeep
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM (FROM view_with_fork),
+     (FROM employees_all | WHERE emp_no == 10093 | EVAL _fork = "fork1")
+| WHERE does_not_exist_field IS NULL
+| KEEP _fork, emp_no, does_not_exist_field
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | does_not_exist_field:keyword
+fork1         | 10091          | null
+fork1         | 10093          | null
+fork2         | 10092          | null
+;
+
+viewInSubqueryKeepStarRenameForkAfterImplicitCast
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM (FROM view_sample_data),
+     (FROM sample_data_ts_nanos)
+| WHERE event_duration == 1232382
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| KEEP *
+| FORK (WHERE x >= TO_DATE_NANOS("2023-10-23T13:33:34.937123456Z")) (WHERE x < TO_DATE_NANOS("2023-10-23T13:33:34.937123456Z"))
+| KEEP _fork, x
+| SORT _fork, x
+;
+
+_fork:keyword | x:date_nanos
+fork1         | 2023-10-23T13:33:34.937123456Z
+fork2         | 2023-10-23T13:33:34.937Z
+;
+
+
+forkViewInlineStatsStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM view_with_fork
+| EVAL x = emp_no
+| INLINE STATS d = MAX(x)
+| STATS cnt = COUNT(*), mx = MAX(d) BY _fork
+| SORT _fork
+;
+
+cnt:long | mx:integer | _fork:keyword
+1        | 10092      | fork1
+1        | 10092      | fork2
+;
+
+forkViewPromotedInlineStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM (FROM view_with_fork)
+| EVAL x = emp_no
+| INLINE STATS d = MAX(x)
+| KEEP emp_no, _fork, d
+| SORT emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword | d:integer
+10091          | fork1         | 10092
+10092          | fork2         | 10092
+;
+
+twoViewsStatsForkInMainQuery
+required_capability: fork_v9
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+required_capability: views_deduplication_bugfix
+
+FROM employees_all, view_with_subquery
+| STATS max_salary = MAX(salary) BY gender
+| EVAL g = TO_STRING(gender)
+| FORK (WHERE g == "F") (WHERE g != "F" OR g IS NULL)
+| KEEP _fork, gender, g, max_salary
+| SORT _fork, gender
+;
+
+_fork:keyword | gender:keyword | g:keyword | max_salary:integer
+fork1         | F              | F         | 74572
+fork2         | M              | M         | 74999
+fork2         | null           | null      | 73717
+;
+
+viewInSubqueryExplicitCastForkStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_repeated_conversions
+
+FROM (FROM view_sample_data), (FROM sample_data)
+| WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "172.21.3.15"
+| FORK (WHERE client_ip == "172.21.0.5") (WHERE client_ip != "172.21.0.5")
+| STATS c = COUNT(*) BY _fork, client_ip
+| SORT _fork, client_ip
+;
+
+c:long | _fork:keyword | client_ip:ip
+2      | fork1         | 172.21.0.5
+2      | fork2         | 172.21.2.113
+2      | fork2         | 172.21.2.162
+;
+
+viewInSubqueryImplicitCastForkStatsInMainQuery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_fix_convert_group_key
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM (FROM view_sample_data),
+     (FROM sample_data_ts_nanos)
+| WHERE event_duration == 1232382
+| STATS c = COUNT(*) BY @timestamp
+| EVAL t = TO_STRING(@timestamp)
+| FORK (WHERE @timestamp >= TO_DATE_NANOS("2023-10-23T13:33:34.937123456Z")) (WHERE @timestamp < TO_DATE_NANOS("2023-10-23T13:33:34.937123456Z"))
+| KEEP _fork, @timestamp, c, t
+| SORT _fork, @timestamp
+;
+
+_fork:keyword | @timestamp:date_nanos | c:long | t:keyword
+fork1         | 2023-10-23T13:33:34.937123456Z | 1 | 2023-10-23T13:33:34.937123456Z
+fork2         | 2023-10-23T13:33:34.937Z | 1 | 2023-10-23T13:33:34.937Z
+;
+
+viewAndMultiTypedBranchSameConversionResolvedOnLaterPass
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: subquery_in_from_command_conversion_resolved_on_later_pass
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM (FROM view_with_subquery), (FROM employees, employees_incompatible)
+| WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+| EVAL e = TO_STRING(emp_no)
+| STATS c = COUNT(*) BY e
+;
+
+c:long | e:keyword
+3      | 10001
+;
+
+viewSameConversionTwice
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: subquery_in_from_command_repeated_conversions
+
+FROM (FROM view_sample_data), (FROM sample_data)
+| WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "172.21.3.15"
+| STATS c = COUNT(*) BY client_ip
+| SORT client_ip
+;
+
+c:long | client_ip:ip
+2      | 172.21.0.5
+2      | 172.21.2.113
+2      | 172.21.2.162
+;

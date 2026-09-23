@@ -44,7 +44,7 @@ public class AddTopNPreFilterToAggregateGoldenTests extends GoldenTestCase {
             """).stages(STAGES).since(TOPN_PREFILTER_LONG).run();
     }
 
-    public void testSortByAliasedLong() {
+    public void testSortByAliasedLongNullsFirst() {
         builder("""
             FROM all_types
             | STATS c = count(*) BY k = long, keyword
@@ -53,7 +53,7 @@ public class AddTopNPreFilterToAggregateGoldenTests extends GoldenTestCase {
             """).stages(STAGES).since(TOPN_PREFILTER_LONG).run();
     }
 
-    public void testSortedByNotLongFirst() {
+    public void testSortByKeywordNotPreFiltered() {
         runGoldenTest("""
             FROM all_types
             | STATS count(*) BY long, keyword

@@ -262,7 +262,14 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
-                return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    leafFactory,
+                    name(),
+                    value,
+                    caseInsensitive,
+                    context.getCircuitBreaker()
+                );
             } else {
                 return super.wildcardQuery(value, method, caseInsensitive, context);
             }

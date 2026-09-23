@@ -28,6 +28,9 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -618,5 +621,31 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
 
     private static BinaryDocValuesFormat randomFormat() {
         return randomFrom(SEPARATE_COUNT, ARRAY_ORDER_INLINE_NULL);
+    }
+
+    // '*' followed by 65 'a's: the NFA has a non-deterministic choice at every 'a'
+    // (loop or advance chain), so subset construction creates 66 DFA states and the
+    // CB fires at state 64.
+    private static final String COMPLEX_WILDCARD = "*" + "a".repeat(65);
+
+    public void testCircuitBreakerConsultedForWildcard() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", COMPLEX_WILDCARD, false, SEPARATE_COUNT, breaker);
+        assertTrue("circuit breaker should be consulted during case-sensitive wildcard automaton construction", breaker.wasCalled());
+    }
+
+    public void testCircuitBreakerConsultedForCaseInsensitiveWildcard() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", COMPLEX_WILDCARD, true, SEPARATE_COUNT, breaker);
+        assertTrue("circuit breaker should be consulted during case-insensitive wildcard automaton construction", breaker.wasCalled());
+    }
+
+    public void testCircuitBreakerTripsForComplexWildcard() {
+        CircuitBreaker tinyBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(1));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", COMPLEX_WILDCARD, false, SEPARATE_COUNT, tinyBreaker)
+        );
+        assertEquals("no memory should remain reserved after breaker trips", 0, tinyBreaker.getUsed());
     }
 }

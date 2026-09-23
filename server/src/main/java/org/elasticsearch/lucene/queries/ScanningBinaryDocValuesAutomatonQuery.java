@@ -12,13 +12,13 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 
@@ -56,6 +56,16 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
 
     /** Creates a query matching a wildcard pattern, rewriting {@code *literal*} patterns to a faster contains query. */
     public static Query forWildcard(String fieldName, String pattern, boolean caseInsensitive, BinaryDocValuesFormat binaryFormat) {
+        return forWildcard(fieldName, pattern, caseInsensitive, binaryFormat, null);
+    }
+
+    static Query forWildcard(
+        String fieldName,
+        String pattern,
+        boolean caseInsensitive,
+        BinaryDocValuesFormat binaryFormat,
+        @Nullable CircuitBreaker breaker
+    ) {
         if (caseInsensitive == false) {
             var innerPattern = getContainsPattern(pattern);
             if (innerPattern != null) {
@@ -64,7 +74,7 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
         }
         return new ScanningBinaryDocValuesAutomatonQuery(
             fieldName,
-            buildAutomaton(fieldName, pattern, caseInsensitive),
+            buildAutomaton(fieldName, pattern, caseInsensitive, breaker),
             binaryFormat,
             "pattern=" + pattern + ",caseInsensitive=" + caseInsensitive
         );
@@ -115,15 +125,12 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
         );
     }
 
-    private static Automaton buildAutomaton(String fieldName, String pattern, boolean caseInsensitive) {
+    private static Automaton buildAutomaton(String fieldName, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker) {
         Term term = new Term(Objects.requireNonNull(fieldName), Objects.requireNonNull(pattern));
-        Automaton automaton;
         if (caseInsensitive) {
-            automaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term);
-        } else {
-            automaton = WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, breaker);
         }
-        return automaton;
+        return AutomatonQueries.toWildcardAutomaton(term, breaker);
     }
 
     /**

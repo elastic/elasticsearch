@@ -84,8 +84,12 @@ public class AutomatonQueries {
     /**
      * Convert Lucene wildcard syntax into an automaton, checking a circuit breaker
      * during determinization to prevent OOM from huge automatons.
+     * If {@code circuitBreaker} is {@code null}, falls back to unguarded determinization.
      */
-    public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery, CircuitBreaker circuitBreaker) {
+    public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery, @Nullable CircuitBreaker circuitBreaker) {
+        if (circuitBreaker == null) {
+            return toCaseInsensitiveWildcardAutomaton(wildcardquery);
+        }
         Automaton nfa = toCaseInsensitiveWildcardNFA(wildcardquery);
         return CircuitBreakingOperations.determinize(
             nfa,
@@ -98,8 +102,12 @@ public class AutomatonQueries {
     /**
      * Convert Lucene wildcard syntax into a case-sensitive automaton, checking a circuit breaker
      * during determinization to prevent OOM from huge automatons.
+     * If {@code circuitBreaker} is {@code null}, falls back to unguarded determinization.
      */
-    public static Automaton toWildcardAutomaton(Term wildcardquery, CircuitBreaker circuitBreaker) {
+    public static Automaton toWildcardAutomaton(Term wildcardquery, @Nullable CircuitBreaker circuitBreaker) {
+        if (circuitBreaker == null) {
+            return WildcardQuery.toAutomaton(wildcardquery, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        }
         Automaton nfa = toWildcardNFA(wildcardquery);
         return CircuitBreakingOperations.determinize(
             nfa,
@@ -115,14 +123,19 @@ public class AutomatonQueries {
      * - Building the NFA ({@link #buildRegexpNfa}), which can blow up while expanding bounded repetitions
      * - Determinizing it into a DFA ({@link CircuitBreakingOperations#determinize}), which accounts for the DFA as it grows.
      * If either step would exceed the breaker's budget the query is rejected with a {@code CircuitBreakingException}.
+     * If {@code circuitBreaker} is {@code null}, falls back to unguarded determinization.
      */
     public static Automaton toRegexpAutomaton(
         Term term,
         int syntaxFlags,
         int matchFlags,
         int maxDeterminizedStates,
-        CircuitBreaker circuitBreaker
+        @Nullable CircuitBreaker circuitBreaker
     ) {
+        if (circuitBreaker == null) {
+            RegExp regex = new RegExp(term.text(), syntaxFlags, matchFlags);
+            return Operations.determinize(regex.toAutomaton(), maxDeterminizedStates);
+        }
         Automaton nfa = buildRegexpNfa(term.text(), syntaxFlags, matchFlags, circuitBreaker, term.field());
         return CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
     }

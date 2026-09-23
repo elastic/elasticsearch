@@ -1385,7 +1385,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return binaryQueries().wildcard(name(), value, caseInsensitive);
+                    return binaryQueries().wildcard(name(), value, caseInsensitive, context.getCircuitBreaker());
                 }
 
                 if (caseInsensitive == false) {
@@ -1398,7 +1398,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
-                return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    leafFactory,
+                    name(),
+                    value,
+                    caseInsensitive,
+                    context.getCircuitBreaker()
+                );
             }
         }
 
@@ -1415,7 +1422,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return binaryQueries().wildcard(name(), value, false);
+                    return binaryQueries().wildcard(name(), value, false, context.getCircuitBreaker());
                 } else {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {

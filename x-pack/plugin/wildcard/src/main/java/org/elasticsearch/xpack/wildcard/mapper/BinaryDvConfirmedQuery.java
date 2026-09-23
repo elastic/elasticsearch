@@ -24,14 +24,12 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
@@ -182,7 +180,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
         return new BinaryDvConfirmedTermsQuery(approximation, field, terms, arrayOrder);
     }
 
-    protected abstract BinaryDVMatcher getBinaryDVMatcher();
+    protected abstract BinaryDVMatcher getBinaryDVMatcher(@Nullable CircuitBreaker breaker);
 
     protected abstract Query rewrite(Query approxRewrite) throws IOException;
 
@@ -201,8 +199,8 @@ abstract class BinaryDvConfirmedQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         final Weight approxWeight = approxQuery.createWeight(searcher, scoreMode, boost);
-        final BinaryDVMatcher matcher = getBinaryDVMatcher();
         final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
+        final BinaryDVMatcher matcher = getBinaryDVMatcher(breaker);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -301,8 +299,8 @@ abstract class BinaryDvConfirmedQuery extends Query {
         }
 
         @Override
-        protected BinaryDVMatcher getBinaryDVMatcher() {
-            final ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automatonProvider.getAutomaton(field));
+        protected BinaryDVMatcher getBinaryDVMatcher(@Nullable CircuitBreaker breaker) {
+            final ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automatonProvider.getAutomaton(field, breaker));
             return (values) -> {
                 int count = values.docValueCount();
                 for (int i = 0; i < count; i++) {
@@ -350,7 +348,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
         }
 
         @Override
-        protected BinaryDVMatcher getBinaryDVMatcher() {
+        protected BinaryDVMatcher getBinaryDVMatcher(@Nullable CircuitBreaker breaker) {
             return (values) -> {
                 int count = values.docValueCount();
                 for (int i = 0; i < count; i++) {
@@ -404,15 +402,17 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     private interface AutomatonProvider {
-        Automaton getAutomaton(String field);
+        Automaton getAutomaton(String field, @Nullable CircuitBreaker breaker);
     }
 
     private record PatternAutomatonProvider(String matchPattern, boolean caseInsensitive) implements AutomatonProvider {
         @Override
-        public Automaton getAutomaton(String field) {
-            return caseInsensitive
-                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, matchPattern))
-                : WildcardQuery.toAutomaton(new Term(field, matchPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        public Automaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
+            Term term = new Term(field, matchPattern);
+            if (caseInsensitive) {
+                return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, breaker);
+            }
+            return AutomatonQueries.toWildcardAutomaton(term, breaker);
         }
     }
 
@@ -420,9 +420,8 @@ abstract class BinaryDvConfirmedQuery extends Query {
         implements
             AutomatonProvider {
         @Override
-        public Automaton getAutomaton(String field) {
-            RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
-            return Operations.determinize(regex.toAutomaton(), maxDeterminizedStates);
+        public Automaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
+            return AutomatonQueries.toRegexpAutomaton(new Term(field, value), syntaxFlags, matchFlags, maxDeterminizedStates, breaker);
         }
     }
 
@@ -430,14 +429,14 @@ abstract class BinaryDvConfirmedQuery extends Query {
         implements
             AutomatonProvider {
         @Override
-        public Automaton getAutomaton(String field) {
+        public Automaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
             return TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
         }
     }
 
     private record FuzzyQueryAutomatonProvider(String searchTerm, FuzzyQuery fuzzyQuery) implements AutomatonProvider {
         @Override
-        public Automaton getAutomaton(String field) {
+        public Automaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
             return fuzzyQuery.getAutomata().automaton;
         }
     }
@@ -457,7 +456,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
         }
 
         @Override
-        public Automaton getAutomaton(String field) {
+        public Automaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
             return supplier.get();
         }
 

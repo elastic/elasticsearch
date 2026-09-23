@@ -124,14 +124,14 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
     }
 
     @Override
-    public Query wildcard(String field, String pattern, boolean caseInsensitive) {
+    public Query wildcard(String field, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker) {
         if (caseInsensitive == false) {
             // Rewrites a pattern naming a term, a prefix or a contained run into the query that answers it directly.
             return ColumnarStringAutomatonQuery.forWildcard(field, pattern, BUDGET);
         }
         return new ColumnarStringAutomatonQuery(
             field,
-            AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, pattern)),
+            AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, pattern), breaker),
             "pattern=" + pattern + ",caseInsensitive=true",
             BUDGET
         );

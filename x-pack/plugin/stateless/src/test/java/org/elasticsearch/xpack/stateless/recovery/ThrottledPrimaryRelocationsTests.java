@@ -550,6 +550,42 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         assertThat(started.get(), equalTo(6));
     }
 
+    public void testZeroHeapFallsBackToStaticLimit() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // ByteSizeValue.ZERO simulates an unknown heap (JvmInfo.getMem().getHeapMax() == 0)
+        final var started = new AtomicInteger();
+
+        final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
+            taskQueue::scheduleNow,
+            (parentClient, request, shard, listener) -> {
+                started.incrementAndGet();
+                taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
+            },
+            ByteSizeValue.ZERO
+        );
+        throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
+        throttle.updateMaxConcurrentOutgoingRelocations(2);
+        throttle.updateMaxConcurrentOutgoingRelocationsPerHeapGb(1.0);
+
+        taskQueue.runAllRunnableTasks();
+
+        for (int i = 0; i < 4; i++) {
+            final var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
+            throttle.enqueueRelocation(
+                null,
+                createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId),
+                mockShard(shardId),
+                ActionListener.noop()
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("unknown heap (0) should fall back to static limit=2", started.get(), equalTo(2));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(4));
+    }
+
     public void testHeapBasedLimitDeferredToMaxConcurrentLimit() {
         final var taskQueue = new DeterministicTaskQueue();
         // 2 GB heap, ratio in [2, Double.MAX_VALUE] -> heap ceiling >= 4, but max_concurrent=3 wins
@@ -582,6 +618,48 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         taskQueue.runAllRunnableTasks();
         assertThat("max_concurrent_outgoing=3 should cap at 3", started.get(), equalTo(3));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(6));
+    }
+
+    public void testHeapBasedLimitIncreaseCannotExceedStaticLimit() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var started = new AtomicInteger();
+
+        final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
+            taskQueue::scheduleNow,
+            (parentClient, request, shard, listener) -> {
+                started.incrementAndGet();
+                taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
+            },
+            ByteSizeValue.ofGb(2)
+        );
+        throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
+
+        // 2 GB heap, ratio 0.5 -> effective = min(3, ceil(2 * 0.5)) = min(3, 1) = 1
+        throttle.updateMaxConcurrentOutgoingRelocations(3);
+        throttle.updateMaxConcurrentOutgoingRelocationsPerHeapGb(0.5);
+
+        taskQueue.runAllRunnableTasks();
+
+        for (int i = 0; i < 6; i++) {
+            final var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
+            throttle.enqueueRelocation(
+                null,
+                createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId),
+                mockShard(shardId),
+                ActionListener.noop()
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("heap-based limit should limit number of relocations to 1", started.get(), equalTo(1));
+
+        // Increasing ratio to 4.0 -> ceil(2 * 4.0) = 8, but static limit of 3 should still cap it
+        throttle.updateMaxConcurrentOutgoingRelocationsPerHeapGb(4.0);
+        taskQueue.runAllRunnableTasks();
+        assertThat("static limit should limit number of relocations to 3", started.get(), equalTo(3));
         taskQueue.runAllTasks();
         assertThat(started.get(), equalTo(6));
     }
@@ -671,6 +749,21 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat(throttle.activeRelocationCount(), equalTo(0));
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
+    }
+
+    public void testPerHeapGbSettingRejectsZero() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(
+                Settings.builder()
+                    .put(
+                        StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
+                            .getKey(),
+                        0.0
+                    )
+                    .build()
+            )
+        );
     }
 
     private static StatelessPrimaryRelocationAction.Request createStartRelocationRequest(DiscoveryNode targetNode, ShardId shardId) {

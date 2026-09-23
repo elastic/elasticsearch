@@ -101,8 +101,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     /// The effective limit is `min(max_concurrent_outgoing_recoveries, ceil(heapGb * max_concurrent_outgoing_recoveries_per_heap_gb))`.
     /// See [ThrottledPrimaryRelocations].
     ///
-    /// Defaults to `Double.MAX_VALUE` (disabled).
-    ///
     public static final Setting<Double> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING = Setting.doubleSetting(
         "indices.recovery.max_concurrent_outgoing_recoveries_per_heap_gb",
         Double.MAX_VALUE,
@@ -694,18 +692,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 );
         }
 
-        /// Returns the effective max concurrent outgoing relocations, derived from [#maxConcurrentRelocations] and
-        /// [#maxConcurrentRelocationsPerHeapGb].
-        private int effectiveMaxConcurrentRelocations() {
-            assert Thread.holdsLock(this);
-            if (maxConcurrentRelocationsPerHeapGb == Double.MAX_VALUE) {
-                return maxConcurrentRelocations;
-            }
-            final double heapInGb = maxHeap.getGbFrac();
-            assert heapInGb > 0;
-            return Math.min(maxConcurrentRelocations, (int) Math.ceil(heapInGb * maxConcurrentRelocationsPerHeapGb));
-        }
-
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
             if (event.nodesRemoved()) {
@@ -792,6 +778,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             synchronized (this) {
                 oldMax = maxConcurrentRelocations;
                 maxConcurrentRelocations = newMax;
+                if (oldMax == 0.0) { // skip startRelocationsUpToLimit on first setting initialization
+                    assert pendingRelocations.isEmpty();
+                    return;
+                }
             }
             if (oldMax < newMax) {
                 // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
@@ -802,11 +792,30 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
         // visible for testing
         void updateMaxConcurrentOutgoingRelocationsPerHeapGb(double newRatio) {
+            final double oldRatio;
             synchronized (this) {
+                oldRatio = maxConcurrentRelocationsPerHeapGb;
                 maxConcurrentRelocationsPerHeapGb = newRatio;
+                if (oldRatio == 0.0) { // skip startRelocationsUpToLimit on first setting initialization
+                    assert pendingRelocations.isEmpty();
+                    return;
+                }
             }
-            // Always attempt to drain for simplicity. An increase may free up slots, a decrease is a no-op
-            executor.execute(this::startRelocationsUpToLimit);
+            if (oldRatio < newRatio && oldRatio != 0.0) {
+                executor.execute(this::startRelocationsUpToLimit);
+            }
+        }
+
+        /// Returns the effective max concurrent outgoing relocations, derived from [#maxConcurrentRelocations] and
+        /// [#maxConcurrentRelocationsPerHeapGb].
+        private int effectiveMaxConcurrentRelocations() {
+            assert Thread.holdsLock(this);
+            final double heapInGb = maxHeap.getGbFrac();
+            assert heapInGb >= 0;
+            if (heapInGb == 0) { // Heap size unknown, fall back to the static limit.
+                return maxConcurrentRelocations;
+            }
+            return Math.min(maxConcurrentRelocations, (int) Math.ceil(heapInGb * maxConcurrentRelocationsPerHeapGb));
         }
 
         private void startRelocationsUpToLimit() {

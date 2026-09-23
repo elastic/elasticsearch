@@ -4635,6 +4635,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
                     if (converts != null) {
                         for (AbstractConvertFunction convert : converts) {
+                            String convertedName = Attribute.rawTemporaryName(
+                                oldAttr.name(),
+                                "converted_to",
+                                convert.dataType().typeName()
+                            );
+                            Attribute existingUnionOutput = unionOutputByName.get(convertedName);
+                            if (existingUnionOutput != null) {
+                                Attribute existingChildOutput = childOutputByName.get(convertedName);
+                                if (existingChildOutput != null && isSameConversion(child, existingChildOutput, convert, oldAttr.name())) {
+                                    alreadyPushedDown.putIfAbsent(convert, existingUnionOutput);
+                                } else {
+                                    notReusable.add(convert);
+                                }
+                                continue;
+                            }
                             Expression pushedDownConvert = convert.replaceChildren(Collections.singletonList(oldAttr));
                             // If this branch's input to the convert is itself a multi-typed field, ResolveUnionTypes would resolve the
                             // pushed-down convert into a synthetic field named exactly like the alias we would create here. Having both
@@ -4645,22 +4660,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 branchUnionFieldAttributes,
                                 context
                             );
-                            String convertedName = Attribute.rawTemporaryName(
-                                oldAttr.name(),
-                                "converted_to",
-                                convert.dataType().typeName()
-                            );
-                            Attribute existingUnionOutput = unionOutputByName.get(convertedName);
-                            if (existingUnionOutput != null) {
-                                Attribute existingChildOutput = childOutputByName.get(convertedName);
-                                Expression conversion = resolved instanceof FieldAttribute rf && rf.synthetic() ? rf : pushedDownConvert;
-                                if (existingChildOutput != null && isSameConversion(child, existingChildOutput, conversion)) {
-                                    alreadyPushedDown.putIfAbsent(convert, existingUnionOutput);
-                                } else {
-                                    notReusable.add(convert);
-                                }
-                                continue;
-                            }
                             if (resolved instanceof FieldAttribute resolvedField && resolvedField.synthetic()) {
                                 newChildOutput.add(resolvedField);
                                 resolvedUnionFields.add(resolvedField);
@@ -4698,22 +4697,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Whether {@code existing}, a column of {@code branch}'s output, was produced by a conversion equal to {@code conversion}: either
-         * the same synthetic multi-typed field, or an {@link Alias} of an equal pushed-down conversion function.
+         * Whether {@code existing}, a column of {@code branch}'s output, was produced by {@code convert} applied to the branch column
+         * named {@code inputName}: either an {@link Alias} of the pushed-down conversion, or a synthetic multi-typed field whose
+         * per-type conversions all use it. The input is matched by name rather than by attribute, because a later pass can see the
+         * branch column already replaced, e.g. by a null filler when its type conflicts with the other branches.
          */
-        private static boolean isSameConversion(LogicalPlan branch, Attribute existing, Expression conversion) {
-            if (conversion instanceof FieldAttribute resolvedField) {
-                return existing instanceof FieldAttribute existingField && existingField.field().equals(resolvedField.field());
+        private static boolean isSameConversion(LogicalPlan branch, Attribute existing, AbstractConvertFunction convert, String inputName) {
+            if (existing instanceof FieldAttribute existingField && existingField.field() instanceof UnionTypeEsField unionTypeEsField) {
+                Collection<Expression> conversions = unionTypeEsField.getConversionExpressions();
+                return conversions.isEmpty() == false && conversions.stream().allMatch(e -> isConversionOf(e, convert, inputName));
             }
             Holder<Boolean> same = new Holder<>(false);
             branch.forEachDown(Eval.class, eval -> {
                 for (Alias alias : eval.fields()) {
-                    if (alias.id().equals(existing.id()) && alias.child().equals(conversion)) {
+                    if (alias.id().equals(existing.id()) && isConversionOf(alias.child(), convert, inputName)) {
                         same.set(true);
                     }
                 }
             });
             return same.get();
+        }
+
+        /**
+         * Whether {@code expression} is {@code convert}, with the same function and parameters, applied to an attribute named
+         * {@code inputName}.
+         */
+        private static boolean isConversionOf(Expression expression, AbstractConvertFunction convert, String inputName) {
+            return expression instanceof AbstractConvertFunction existing
+                && existing.field() instanceof Attribute input
+                && input.name().equals(inputName)
+                && convert.replaceChildren(Collections.singletonList(input)).equals(existing);
         }
 
         /**

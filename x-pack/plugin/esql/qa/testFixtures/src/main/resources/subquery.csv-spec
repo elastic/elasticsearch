@@ -1673,6 +1673,22 @@ c:long | ip:keyword
 8      | 172.21.3.15
 ;
 
+subqueryInFromWithSameConversionResolvedOnLaterPassOverPlainAndMultiTypedBranches
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_conversion_resolved_on_later_pass
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM (FROM employees), (FROM employees, employees_incompatible)
+| WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+| EVAL e = TO_STRING(emp_no)
+| STATS c = COUNT(*) BY e
+;
+
+c:long | e:keyword
+3      | 10001
+;
+
 subqueryInFromWithInlineStatsPruning
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_inline_stats_pruning

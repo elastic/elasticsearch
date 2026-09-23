@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.request;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
@@ -39,18 +40,16 @@ public class TencentCloudChatCompletionRequest implements OutboundUnifiedComplet
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.uri());
-        httpPost.setEntity(createEntity());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.uri()).build();
+
+        httpPost.setBody(
+            Strings.toString(new TencentCloudChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
+        );
 
         RequestUtils.decorateWithAuthHeader(httpPost, model.getSecretSettings().apiKey());
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
-    }
-
-    private ByteArrayEntity createEntity() {
-        return new ByteArrayEntity(
-            Strings.toString(new TencentCloudChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
-        );
     }
 
     @Override

@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
@@ -41,10 +40,8 @@ public class CustomResponseHandlerTests extends ESTestCase {
     }
 
     private static HttpResult createResult(int statusCode, String message) throws IOException {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(statusCode);
 
         String responseJson = XContentHelper.stripWhitespace(Strings.format("""
                 {

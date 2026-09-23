@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
@@ -36,12 +33,9 @@ public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements 
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        var httpPost = new HttpPost(getURI());
+        var httpPost = SimpleRequestBuilder.post(getURI()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
-        httpPost.setEntity(byteEntity);
-
-        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+        httpPost.setBody(requestEntity.getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
         var headers = taskSettings.headers();
         if (headers.mapValue().isPresent()) {
@@ -50,8 +44,8 @@ public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements 
             }
         }
 
-        model.secretsApplier().applyTo(httpPost, listener.delegateFailureAndWrap((httpRequestActionListener, httpRequestBase) -> {
-            httpRequestActionListener.onResponse(new HttpRequest(httpRequestBase, getInferenceEntityId()));
+        model.secretsApplier().applyTo(httpPost, listener.delegateFailureAndWrap((httpRequestActionListener, simpleHttpRequest) -> {
+            httpRequestActionListener.onResponse(new HttpRequest(simpleHttpRequest, getInferenceEntityId()));
         }));
     }
 

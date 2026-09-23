@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.request;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -48,12 +49,12 @@ public class JinaAIRerankRequest implements OutboundRerankRequest {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(getURI());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(getURI()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new JinaAIRerankRequestEntity(query, input, returnDocuments, topN, model)).getBytes(StandardCharsets.UTF_8)
+        httpPost.setBody(
+            Strings.toString(new JinaAIRerankRequestEntity(query, input, returnDocuments, topN, model)).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
         decorateWithAuthHeader(httpPost, model.apiKey());
 

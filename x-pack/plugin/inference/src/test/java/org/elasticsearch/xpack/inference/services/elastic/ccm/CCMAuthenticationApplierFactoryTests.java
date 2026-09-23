@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.ccm;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpGet;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -52,7 +52,7 @@ public class CCMAuthenticationApplierFactoryTests extends ESTestCase {
 
     public void testNoopApplierReturnsSameRequest() {
         var applier = CCMAuthenticationApplierFactory.NOOP_APPLIER;
-        var request = new HttpGet("http://localhost");
+        var request = SimpleRequestBuilder.get("http://localhost").build();
         var result = applier.apply(request);
         assertThat(result, sameInstance(request));
     }
@@ -60,7 +60,7 @@ public class CCMAuthenticationApplierFactoryTests extends ESTestCase {
     public void testAuthenticationHeaderApplierSetsAuthorizationHeader() {
         var secret = "my-secret";
         var applier = new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret);
-        var request = new HttpGet("http://localhost");
+        var request = SimpleRequestBuilder.get("http://localhost").build();
         applier.apply(request);
         assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(apiKey(secret)));
     }

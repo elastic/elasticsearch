@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
@@ -30,11 +30,11 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
     protected URI nonStreamingUri;
 
     /**
-     * This field defines the behaviour used to apply authorization headers to a {@link HttpPost}. By default, this is
-     * {@link GoogleVertexAiRequestUtils#decorateWithBearerToken(HttpPost, GoogleVertexAiSecretSettings)}. Unit tests may provide different
-     * behaviour to allow requests to be created without needing to retrieve credentials.
+     * This field defines the behaviour used to apply authorization headers to a {@link SimpleHttpRequest}. By default, this is
+     * {@link GoogleVertexAiRequestUtils#decorateWithBearerToken(SimpleHttpRequest, GoogleVertexAiSecretSettings)}. Unit tests may provide
+     * different behaviour to allow requests to be created without needing to retrieve credentials.
      */
-    private final BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator;
+    private final BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator;
 
     public GoogleVertexAiModel(
         ModelConfigurations configurations,
@@ -57,7 +57,7 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
         ModelConfigurations configurations,
         ModelSecrets secrets,
         GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings,
-        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator
     ) {
         super(configurations, secrets);
 
@@ -91,7 +91,7 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
         return nonStreamingUri;
     }
 
-    public BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator() {
+    public BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator() {
         return authHeaderDecorator;
     }
 

@@ -415,7 +415,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
 
         action.doExecute(task, request, future);
 
-        expectThrows(TaskCancelledException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        TaskCancelledException e = expectThrows(TaskCancelledException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(e.getMessage(), containsString("task cancelled [test]"));
         assertFalse(client.fieldMappingsRequested);
     }
 

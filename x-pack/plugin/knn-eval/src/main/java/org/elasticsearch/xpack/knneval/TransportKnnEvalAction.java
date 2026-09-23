@@ -37,7 +37,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -326,11 +325,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     }
 
     private static boolean checkCancelled(Task task, ActionListener<KnnEvalResponse> listener) {
-        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-            listener.onFailure(new TaskCancelledException("task cancelled"));
-            return true;
-        }
-        return false;
+        return task instanceof CancellableTask cancellableTask && cancellableTask.notifyIfCancelled(listener);
     }
 
     private void setParentTask(Task task, ActionRequest childRequest) {

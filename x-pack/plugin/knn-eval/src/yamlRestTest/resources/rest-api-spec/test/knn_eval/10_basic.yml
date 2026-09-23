@@ -570,6 +570,53 @@ teardown:
   - match: { results.0.recall: 1.0 }
 
 ---
+"Base64 encoded vectors can be sampled from source":
+  - do:
+      indices.create:
+        index: knn_eval_encoded_sample
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mapping:
+                exclude_source_vectors: false
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      bulk:
+        index: knn_eval_encoded_sample
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"emb": "vwGwir8ZSvW/SR0VPpG3F76CM5y/e2RavYuscT9oWHk/a7L/vjwb2j89Y4g/N6eHvwFHrj8I7zU+12X+vtsImr9O0ok+3S8bP0QYk79mOIa+/IS2vyhsIj8mbPS+9PDYP2+De79Ghys/LmmtPypeNb7ztkY/CB1+vwk3TD9pSvU/C802PdIf876NXPs/IOVgvq13Mr9EeuG/Mh/zvxOvuL7fO2S/Z87ZvqKCQT9aV6i+45WBvZFocz7g0bc/NVm0PdcKPT375227KmTDPgxJur8lBIG+t87Zvj7Fbb8nUlQ/JP30vyHKwT5ruYw+cImgvgLeAb8DU/i/RoCdPpULDw=="}'
+          - '{"index": {"_id": "2"}}'
+          - '{"emb": "vwGwir8ZSvW/SR0VPpG3F76CM5y/e2RavYuscT9oWHk/a7L/vjwb2j89Y4g/N6eHvwFHrj8I7zU+12X+vtsImr9O0ok+3S8bP0QYk79mOIa+/IS2vyhsIj8mbPS+9PDYP2+De79Ghys/LmmtPypeNb7ztkY/CB1+vwk3TD9pSvU/C802PdIf876NXPs/IOVgvq13Mr9EeuG/Mh/zvxOvuL7fO2S/Z87ZvqKCQT9aV6i+45WBvZFocz7g0bc/NVm0PdcKPT375227KmTDPgxJur8lBIG+t87Zvj7Fbb8nUlQ/JP30vyHKwT5ruYw+cImgvgLeAb8DU/i/RoCdPpULDw=="}'
+
+  - do:
+      knn_eval:
+        index: knn_eval_encoded_sample
+        body:
+          field: emb
+          k: 1
+          sample:
+            size: 2
+          baseline:
+            exact: true
+          knn_settings:
+            - visit_percentage: 100
+
+  - match: { results.0.recall: 1.0 }
+  - match: { results.0.included_queries: 2 }
+
+---
 "An undecodable query vector fails only its own query":
   - do:
       knn_eval:

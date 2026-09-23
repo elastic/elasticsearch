@@ -269,6 +269,8 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertThat(request.source().query(), instanceOf(FunctionScoreQueryBuilder.class));
         assertEquals(QueryBuilders.existsQuery("emb"), ((FunctionScoreQueryBuilder) request.source().query()).query());
         assertEquals(sample.getSize(), request.source().size());
+        assertEquals("emb", request.source().fetchFields().getFirst().field);
+        assertEquals("array", request.source().fetchFields().getFirst().format);
     }
 
     /** A sampled query spends one hit and one candidate on its own document, so both grow by one to leave it the requested budget. */

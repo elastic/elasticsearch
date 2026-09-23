@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
@@ -44,7 +45,11 @@ final class KnnEvalSearches {
         }
         SearchSourceBuilder source = new SearchSourceBuilder().query(
             QueryBuilders.functionScoreQuery(QueryBuilders.existsQuery(spec.getField()), randomScore)
-        ).size(sample.getSize()).fetchSource(false).fetchField(spec.getField()).pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
+        )
+            .size(sample.getSize())
+            .fetchSource(false)
+            .fetchField(new FieldAndFormat(spec.getField(), "array", null))
+            .pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId));
         return searchRequest(source);
     }
 

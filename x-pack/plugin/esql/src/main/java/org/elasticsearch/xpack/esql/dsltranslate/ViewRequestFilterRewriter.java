@@ -94,9 +94,12 @@ public final class ViewRequestFilterRewriter {
     private ViewRequestFilterRewriter() {}
 
     /**
-     * Whether every node the plan targets can deserialize the functions the translated filter may contain. This is the
-     * version gate described in the class javadoc; {@link #rewrite} and {@code PlannerUtils.integrateEsFilterIntoFragment}
-     * both consult it so the logical filter and the Lucene fallback can never both apply, or both be absent.
+     * Whether the rewrite itself exists on every node the plan targets. It does NOT promise that every function a
+     * translated filter may contain is deserializable there — one constant cannot, because the set of functions
+     * {@link QueryDslTranslator} synthesizes grows as translations are added. Each such function is gated separately,
+     * against its own pin, inside the translator. {@link #rewrite} and
+     * {@code PlannerUtils.integrateEsFilterIntoFragment} both consult this so the logical filter and the Lucene
+     * fallback can never both apply, or both be absent.
      */
     public static boolean supportsRewrite(TransportVersion minimumVersion) {
         return minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET);
@@ -176,7 +179,7 @@ public final class ViewRequestFilterRewriter {
         LogicalPlan rewritten = analyzed.transformDownSkipBranch((plan, skipBranch) -> {
             if (plan instanceof ViewUnionAll vua) {
                 skipBranch.set(true);
-                return applyRequestFilterToViewBranches(vua, requestFilter, configuration, skipped);
+                return applyRequestFilterToViewBranches(vua, requestFilter, configuration, skipped, minimumVersion);
             }
             return plan;
         });
@@ -202,7 +205,8 @@ public final class ViewRequestFilterRewriter {
         ViewUnionAll vua,
         QueryBuilder requestFilter,
         Configuration configuration,
-        Set<String> skipped
+        Set<String> skipped,
+        TransportVersion minimumVersion
     ) {
         LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
         boolean changed = false;
@@ -212,7 +216,7 @@ public final class ViewRequestFilterRewriter {
             if (vua.isViewBranch(key) == false) {
                 newSubqueries.put(key, child);
             } else {
-                QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration);
+                QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration, minimumVersion);
                 // The same construct can fail more than once on one view (two wildcard clauses, say); the set keeps the header short.
                 for (QueryDslTranslator.UnsupportedClause unsupported : result.unsupported()) {
                     skipped.add("[" + unsupported.construct() + "] on view [" + key + "]");
@@ -242,7 +246,8 @@ public final class ViewRequestFilterRewriter {
     private static QueryDslTranslator.TranslationResult translateFilter(
         List<Attribute> output,
         QueryBuilder filter,
-        Configuration configuration
+        Configuration configuration,
+        TransportVersion minimumVersion
     ) {
         Map<String, Attribute> byName = new HashMap<>();
         for (Attribute a : output) {
@@ -251,7 +256,7 @@ public final class ViewRequestFilterRewriter {
         QueryDslTranslator translator = new QueryDslTranslator(name -> {
             Attribute a = byName.get(name);
             return a != null ? a : Literal.NULL;
-        }, byName.keySet(), configuration);
+        }, byName.keySet(), configuration, minimumVersion);
         return translator.translate(filter);
     }
 

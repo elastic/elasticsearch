@@ -4110,6 +4110,11 @@ public class EsqlCapabilities {
          */
         STREAMING(Build.current().isSnapshot()),
 
+        /**
+         * Adds a pre-filter below a limited aggregation grouped by a long and other fields.
+         */
+        TOPN_PREFILTER_LONG,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -1844,25 +1844,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     public void testCanRemainNotPreferredMovesAreCountedWithDeciderLabel() {
         final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
         final var sourceNodeId = startedShardSourceNodeName(clusterState);
-        final var meterRegistry = new RecordingMeterRegistry();
-        final var allocator = new BalancedShardsAllocator(
-            BalancerSettings.DEFAULT,
-            TEST_WRITE_LOAD_FORECASTER,
-            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
-            meterRegistry
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new AlwaysNotPreferredCanRemainDecider())
+                .mutable()
         );
-        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(new AlwaysNotPreferredCanRemainDecider())
-            .mutable();
-
-        allocator.allocate(allocation);
-
-        final var measurements = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocator.CAN_REMAIN_MOVE_METRIC);
-        assertThat(measurements, hasSize(1));
-        final var m = measurements.getFirst();
-        assertThat(m.getLong(), is(1L));
-        Map<String, Object> attributes = m.attributes();
         assertThat(attributes, hasEntry("es_can_remain_decision", "not_preferred"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "AlwaysNotPreferredCanRemainDecider"));
         assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
@@ -1875,25 +1861,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     public void testCanRemainNoMovesAreCountedWithDeciderLabel() {
         final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 2, 1);
         final var sourceNodeId = startedShardSourceNodeName(clusterState);
-        final var meterRegistry = new RecordingMeterRegistry();
-        final var allocator = new BalancedShardsAllocator(
-            BalancerSettings.DEFAULT,
-            TEST_WRITE_LOAD_FORECASTER,
-            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
-            meterRegistry
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(new AlwaysNoCanRemainDecider()).mutable()
         );
-        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(new AlwaysNoCanRemainDecider())
-            .mutable();
-
-        allocator.allocate(allocation);
-
-        final var measurements = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocator.CAN_REMAIN_MOVE_METRIC);
-        assertThat(measurements, hasSize(1));
-        final var m = measurements.getFirst();
-        assertThat(m.getLong(), is(1L));
-        final var attributes = m.attributes();
         assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "AlwaysNoCanRemainDecider"));
         assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
@@ -1908,25 +1878,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // The nodes we get don't have names, and the decider falls back to the IDs if the node has no name
         final var sourceNodeId = startedShardSourceNodeName(clusterState);
         final var allNodeIds = clusterState.nodes().stream().map(DiscoveryNode::getId).map(n -> (Object) n).collect(toSet());
-        final var meterRegistry = new RecordingMeterRegistry();
-        final var allocator = new BalancedShardsAllocator(
-            BalancerSettings.DEFAULT,
-            TEST_WRITE_LOAD_FORECASTER,
-            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
-            meterRegistry
+        final var attributes = allocateAndGetCanRemainMetricAttributes(
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new MustMoveToNotPreferredTargetDecider())
+                .mutable()
         );
-        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(new MustMoveToNotPreferredTargetDecider())
-            .mutable();
-
-        allocator.allocate(allocation);
-
-        final var measurements = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocator.CAN_REMAIN_MOVE_METRIC);
-        assertThat(measurements, hasSize(1));
-        final var m = measurements.getFirst();
-        assertThat(m.getLong(), is(1L));
-        final var attributes = m.attributes();
         assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "MustMoveToNotPreferredTargetDecider"));
         assertThat(attributes, hasEntry("es_can_allocate_decision", "not_preferred"));
@@ -1947,24 +1903,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .filter(ShardRouting::started)
             .findFirst()
             .orElseThrow();
-        final var meterRegistry = new RecordingMeterRegistry();
-        final var allocator = new BalancedShardsAllocator(
-            BalancerSettings.DEFAULT,
-            TEST_WRITE_LOAD_FORECASTER,
-            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
-            meterRegistry
-        );
         final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
         allocation.addIgnoreShardForNode(startedShard.shardId(), startedShard.currentNodeId());
-
-        allocator.allocate(allocation);
-
-        final var measurements = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocator.CAN_REMAIN_MOVE_METRIC);
-        assertThat(measurements, hasSize(1));
-        final var measurement = measurements.getFirst();
-        assertThat(measurement.getLong(), is(1L));
-        final var attributes = measurement.attributes();
+        final var attributes = allocateAndGetCanRemainMetricAttributes(allocation);
         assertThat(attributes, hasEntry("es_can_remain_decision", "no"));
         assertThat(attributes, hasEntry("es_can_remain_decider", "none"));
         assertThat(attributes, hasEntry("es_can_allocate_decision", "yes"));
@@ -1985,6 +1926,23 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .currentNodeId();
         final var name = clusterState.nodes().get(sourceNodeId).getName();
         return name != null && name.isEmpty() == false ? name : sourceNodeId;
+    }
+
+    private Map<String, Object> allocateAndGetCanRemainMetricAttributes(RoutingAllocation allocation) {
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var allocator = new BalancedShardsAllocator(
+            BalancerSettings.DEFAULT,
+            TEST_WRITE_LOAD_FORECASTER,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT),
+            meterRegistry
+        );
+        allocator.allocate(allocation);
+        final var measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BalancedShardsAllocator.CAN_REMAIN_MOVE_METRIC);
+        assertThat(measurements, hasSize(1));
+        final var measurement = measurements.getFirst();
+        assertThat(measurement.getLong(), is(1L));
+        return measurement.attributes();
     }
 
     /**

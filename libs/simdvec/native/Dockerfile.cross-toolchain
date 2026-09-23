@@ -68,13 +68,11 @@ RUN echo "deb [check-valid-until=no] http://archive.debian.org/debian buster mai
         linux-libc-dev-amd64-cross \
     && rm -rf /var/lib/apt/lists/*
 
-# llvm-mingw: clang + mingw-w64 + UCRT + libc++ + lld, prebuilt for both host
-# architectures. Pinned by release date and sha256 for reproducibility.
-# Cross-links to /opt/llvm-mingw so downstream tools (Makefiles) see a stable
+# llvm-mingw, pinned by release date and sha256 for reproducibility.
+# Deployed to /opt/llvm-mingw so downstream tools (make) see a stable
 # path independent of host arch.
 # TARGETARCH is populated by buildx; when built with plain `docker build`
-# (e.g. Debian's docker.io without the buildx plugin) it is unset and we fall
-# back to `uname -m`.
+# it is unset and we fall back to `uname -m`.
 ARG LLVM_MINGW_VERSION=20260908
 ARG TARGETARCH
 RUN if [ -z "$TARGETARCH" ]; then \

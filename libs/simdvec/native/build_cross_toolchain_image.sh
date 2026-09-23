@@ -40,9 +40,6 @@ cd "$(dirname "$0")"
 
 if [ "$LOCAL" = true ]; then
   echo "Building $IMAGE (host platform only) ..."
-  # Plain `docker build` (not buildx) for portability with Debian's docker.io
-  # which doesn't ship the buildx plugin. The Dockerfile falls back to `uname -m`
-  # when the TARGETARCH build arg is unset (buildx sets it; plain build doesn't).
   docker build --pull \
     -f Dockerfile.cross-toolchain \
     -t "$IMAGE" \

@@ -403,7 +403,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 :   Privilege to perform all write operations to documents, which includes the permission to index, update, and delete documents as well as performing bulk operations, while also allowing to dynamically update the index mapping.
 
     :::{important}
-    Don't use this privilege to update index mappings with the {ref}/indices-put-mapping.html[updating mapping API].
+    Don't use this privilege to update index mappings with the [updating mapping API]({{es-apis}}operation/operation-indices-put-mapping).
     That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
     Grant the `manage` privilege for explicit mapping updates.
     :::

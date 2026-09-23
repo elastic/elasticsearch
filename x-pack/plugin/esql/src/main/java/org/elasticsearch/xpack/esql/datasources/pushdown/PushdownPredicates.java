@@ -12,6 +12,10 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -30,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.util.List;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
@@ -127,6 +132,19 @@ public final class PushdownPredicates {
         if (expr instanceof Range range && range.value() instanceof NamedExpression) {
             return (range.lower().foldable() == false || isAgreeingPushdownLiteral(range.value().dataType(), range.lower()))
                 && (range.upper().foldable() == false || isAgreeingPushdownLiteral(range.value().dataType(), range.upper()));
+        }
+        if (expr instanceof MvContains mvContains) {
+            return leafLiteralAgrees(mvContains.left(), mvContains.right());
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            return leafLiteralAgrees(mvIntersects.left(), mvIntersects.right());
+        }
+        if (expr instanceof MvInRange mvInRange && mvInRange.field() instanceof NamedExpression field) {
+            return (mvInRange.lower().foldable() == false || isAgreeingPushdownLiteral(field.dataType(), mvInRange.lower()))
+                && (mvInRange.upper().foldable() == false || isAgreeingPushdownLiteral(field.dataType(), mvInRange.upper()));
+        }
+        if (expr instanceof MvCompare mvCompare && mvCompare.field() instanceof NamedExpression field) {
+            return mvCompare.bound().foldable() == false || isAgreeingPushdownLiteral(field.dataType(), mvCompare.bound());
         }
         if (expr instanceof And and) {
             return allPushdownLiteralsAgree(and.left()) && allPushdownLiteralsAgree(and.right());
@@ -244,5 +262,103 @@ public final class PushdownPredicates {
             && isVirtualColumn(ne) == false
             && typeSupported.test(ne.dataType())
             && c.substr().foldable();
+    }
+
+    /**
+     * {@code mv_contains(f, v)} — some value of {@code f} equals {@code v}, so the bound is the one {@link #isComparison}
+     * carries. A superset, never {@code YES}: the exact predicate stays in {@code FilterExec}.
+     * <p>
+     * The {@link NamedExpression} requirement is load-bearing. A case-insensitive term arrives as
+     * {@code mv_contains(TO_LOWER(f), lowered)}, and statistics hold original-case values, so pruning on the lowered
+     * literal would under-match — and a pruned unit cannot be recovered.
+     */
+    public static boolean isMvContains(MvContains mv, Predicate<DataType> typeSupported) {
+        if (mv.left() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && typeSupported.test(ne.dataType())
+            && mv.right().foldable()
+            && isAgreeingPushdownLiteral(ne.dataType(), mv.right())) {
+            Object value = literalValueOf(mv.right());
+            // A list-valued mv_contains ("f contains all of these") is legal but is a different predicate from the
+            // scalar sibling, and the DSL translator never emits it. Decline rather than map it to the wrong bound.
+            return value != null && value instanceof List == false;
+        }
+        return false;
+    }
+
+    /**
+     * The {@code IN} bound. The set arrives as a <em>single</em> list-valued literal, not {@link In}'s list of
+     * literals, so callers unpack it rather than iterating children.
+     */
+    public static boolean isMvIntersects(MvIntersects mv, Predicate<DataType> typeSupported) {
+        if (mv.left() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && typeSupported.test(ne.dataType())
+            && mv.right().foldable()
+            && isAgreeingPushdownLiteral(ne.dataType(), mv.right())) {
+            Object value = literalValueOf(mv.right());
+            if (value instanceof List<?> values) {
+                for (Object v : values) {
+                    if (v != null) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            return value != null;
+        }
+        return false;
+    }
+
+    /**
+     * The {@code Range} bound, and the arm a time filter travels on — a two-sided DSL {@code range} lands here, and so
+     * does equality on a date, which is the closed range spanning the value's rounding unit rather than a point.
+     * <p>
+     * Inclusivity is not read: a closed interval is a superset of a half-open one, so the inclusive bound prunes fewer
+     * units and never drops a row.
+     */
+    public static boolean isMvInRange(MvInRange mv, Predicate<DataType> typeSupported) {
+        return mv.field() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && typeSupported.test(ne.dataType())
+            && mv.lower().foldable()
+            && mv.upper().foldable()
+            && isScalarBound(mv.lower())
+            && isScalarBound(mv.upper())
+            && isAgreeingPushdownLiteral(ne.dataType(), mv.lower())
+            && isAgreeingPushdownLiteral(ne.dataType(), mv.upper());
+    }
+
+    /**
+     * The one-sided forms. One helper covers both: they present the same structure, and the direction is the subclass,
+     * which callers read where they pick a comparison operator. {@link MvCompare#INCLUDE_BOUND} is not read — see
+     * {@link #isMvInRange}.
+     */
+    public static boolean isMvCompare(MvCompare mv, Predicate<DataType> typeSupported) {
+        return mv.field() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && typeSupported.test(ne.dataType())
+            && mv.bound().foldable()
+            && isScalarBound(mv.bound())
+            && isAgreeingPushdownLiteral(ne.dataType(), mv.bound());
+    }
+
+    /**
+     * A single non-null value. An ordered bound may be written as a list — {@code mv_in_range} and {@code MvCompare}
+     * both type-resolve a list literal of the field's type — and a list is not a bound any statistics comparison can
+     * use, so it declines here rather than reaching a builder that would cast it to a number. {@code isMvContains}
+     * declines a list for its own reason: it is a different predicate, not a malformed one.
+     */
+    private static boolean isScalarBound(Expression bound) {
+        Object value = literalValueOf(bound);
+        return value != null && value instanceof List == false;
+    }
+
+    /** An {@code mv_} leaf's literal agrees with its field, or the leaf is not a field-and-literal shape at all. */
+    private static boolean leafLiteralAgrees(Expression field, Expression literal) {
+        if (field instanceof NamedExpression named && literal.foldable()) {
+            return isAgreeingPushdownLiteral(named.dataType(), literal);
+        }
+        return true;
     }
 }

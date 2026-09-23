@@ -184,7 +184,7 @@ setup:
             properties:
               my_vector_byte:
                 type: dense_vector
-                index : false
+                index: false
                 element_type: byte
               my_vector_byte_indexed:
                 type: dense_vector

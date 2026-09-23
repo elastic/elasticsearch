@@ -23,7 +23,8 @@ import java.util.function.LongSupplier;
 /// Wraps an [AbstractThrottledTaskRunner] and publishes metrics about it under `es.throttled_task_runner.<name>.tasks.*`: the number
 /// of queued tasks, the number of running tasks, and a histogram of how long each task waited in the queue.
 ///
-/// Queue latency captures the waiting time till the task gets a free slot in the underlying runner, before it gets executed to the executor.
+/// Queue latency captures the waiting time till the task gets a free slot in the underlying runner,
+/// before it gets executed to the executor.
 public class InstrumentedThrottledTaskRunner<T extends ActionListener<Releasable>> {
     static final String THROTTLED_TASK_RUNNER_METRIC_PREFIX = "es.throttled_task_runner.";
     static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE = ".tasks.queue.size";

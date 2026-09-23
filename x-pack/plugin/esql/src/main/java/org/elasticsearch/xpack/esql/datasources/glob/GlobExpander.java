@@ -694,7 +694,11 @@ public final class GlobExpander {
 
         matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
         if (matched.isEmpty()) {
-            return listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pattern, null, listingWarnings);
+            // A bound that then filters to nothing is still truncated. EMPTY cannot carry the flag, and caching
+            // it as a complete empty listing would hide files past the bound that fall inside the range.
+            return listingWarnings.isEmpty() && truncated == false
+                ? FileList.EMPTY
+                : new GenericFileList(List.of(), pattern, null, listingWarnings, truncated);
         }
 
         fileOrder.apply(matched);

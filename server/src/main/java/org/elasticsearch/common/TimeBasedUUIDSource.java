@@ -12,6 +12,9 @@ package org.elasticsearch.common;
 import java.util.OptionalInt;
 import java.util.function.Supplier;
 
+/**
+ * Generates base64 UUIDs from a timestamp, a sequence number and the MAC address.
+ */
 class TimeBasedUUIDSource implements UUIDSource {
 
     private final TimeBasedUUIDGenerator timeBasedGenerator;

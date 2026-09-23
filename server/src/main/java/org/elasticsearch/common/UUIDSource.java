@@ -11,6 +11,9 @@ package org.elasticsearch.common;
 
 import java.util.OptionalInt;
 
+/**
+ * Generates base64 UUIDs.
+ */
 public interface UUIDSource {
 
     String base64UUID();

@@ -75,23 +75,17 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> {
-                VectorData vd = VectorData.parseXContent(p);
-                if (vd != null) {
-                    long bytes = vd.floatVector() != null
-                        ? (long) vd.floatVector().length * Float.BYTES
-                        : vd.byteVector() != null ? vd.byteVector().length : vd.stringVector() != null
-                            ? (long) vd.stringVector().length() * Character.BYTES + 64L
-                            : 0L;
-                    AbstractQueryBuilder.chargeRawBytes(bytes, c);
-                }
-                return vd;
-            },
-            QUERY_VECTOR_FIELD,
-            ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER
-        );
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+            VectorData vd = VectorData.parseXContent(p);
+            if (vd != null) {
+                long bytes = vd.floatVector() != null ? (long) vd.floatVector().length * Float.BYTES
+                    : vd.byteVector() != null ? vd.byteVector().length
+                    : vd.stringVector() != null ? (long) vd.stringVector().length() * Character.BYTES + 64L
+                    : 0L;
+                AbstractQueryBuilder.chargeRawBytes(bytes, c);
+            }
+            return vd;
+        }, QUERY_VECTOR_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER);
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);

@@ -1170,7 +1170,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return nodeName(node);
         }
 
-        private String nodeName(DiscoveryNode node) {
+        private static String nodeName(DiscoveryNode node) {
             final var name = node.getName();
             return name != null && name.isEmpty() == false ? name : node.getId();
         }

@@ -268,7 +268,9 @@ public class PartitionValueMatcherTests extends ESTestCase {
     /** What the compute engine answers for {@code filter} on a row whose {@code k} holds {@code value}. */
     private static Object engineAnswer(Expression filter, Object value, DataType columnType) {
         Literal row = new Literal(SRC, columnType == DataType.KEYWORD ? new BytesRef((String) value) : value, columnType);
-        return filter.transformUp(FieldAttribute.class, column -> row).fold(FoldContext.small());
+        Object answer = filter.transformUp(FieldAttribute.class, column -> row).fold(FoldContext.small());
+        assertNotNull("the engine must decide " + filter.nodeString() + " on " + value, answer);
+        return answer;
     }
 
     /**

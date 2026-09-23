@@ -3373,9 +3373,9 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * The engine's {@code IN} orders doubles with {@code Double.compare}, so unlike {@code ==} it tells {@code -0.0}
-     * from {@code 0.0}, and the matcher does not. For such a pair {@code IN} is left unknown rather than copying either
-     * answer: a confident one prunes matching files under {@code IN} or under {@code NOT IN}, depending on which way
-     * the engine leans.
+     * from {@code 0.0}, and the matcher does not. For such a pair {@code IN} is left unknown. The matcher's "equal"
+     * prunes matching files under {@code NOT IN}; copying the engine's current "not equal" is right only while
+     * {@code IN} disagrees with {@code ==}, and would prune matching files under plain {@code IN} once the two agree.
      */
     private static boolean zerosOfOppositeSign(Object a, Object b) {
         return a instanceof Number na

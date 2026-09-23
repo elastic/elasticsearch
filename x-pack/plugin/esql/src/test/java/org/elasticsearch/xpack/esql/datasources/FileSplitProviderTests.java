@@ -664,6 +664,7 @@ public class FileSplitProviderTests extends ESTestCase {
         for (Expression positive : filters) {
             for (Expression filter : List.of(positive, new Not(SRC, positive))) {
                 Object engine = filter.transformUp(Attribute.class, a -> Literal.of(a, value)).fold(FoldContext.small());
+                assertNotNull("the engine must decide [" + filter.nodeString() + "]", engine);
                 assertEquals(
                     "the split layer must answer [" + filter.nodeString() + "] on " + column + "=" + value + " as the engine does",
                     engine,

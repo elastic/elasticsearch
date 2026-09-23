@@ -96,16 +96,21 @@ public class ProblemsTracker implements ProgressListener {
     }
 
     private static String severityName(Severity severity) {
-        if (severity == Severity.ERROR) {
+        if (severity.isKnown() == false) {
+            return UNKNOWN_SEVERITY;
+        }
+
+        int severityValue = severity.getSeverity();
+        if (severityValue == Severity.ERROR.getSeverity()) {
             return "ERROR";
         }
-        if (severity == Severity.WARNING) {
+        if (severityValue == Severity.WARNING.getSeverity()) {
             return "WARNING";
         }
-        if (severity == Severity.ADVICE) {
+        if (severityValue == Severity.ADVICE.getSeverity()) {
             return "ADVICE";
         }
-        return severity.isKnown() ? Integer.toString(severity.getSeverity()) : UNKNOWN_SEVERITY;
+        return Integer.toString(severityValue);
     }
 
     private static String fullyQualifiedName(ProblemId problemId) {

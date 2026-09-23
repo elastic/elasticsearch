@@ -76,9 +76,12 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
                 .getSourceSets()
                 .getByName(SourceSet.MAIN_SOURCE_SET_NAME);
             Configuration runtimeConfiguration = project.getConfigurations().getByName(main.getRuntimeClasspathConfigurationName());
-            generateSnykDependencyGraph.getDependencyEdges().set(
-                providerFactory.provider(() -> dependencyEdges(runtimeConfiguration.getIncoming().getResolutionResult().getRootComponent().get()))
-            );
+            generateSnykDependencyGraph.getDependencyEdges()
+                .set(
+                    providerFactory.provider(
+                        () -> dependencyEdges(runtimeConfiguration.getIncoming().getResolutionResult().getRootComponent().get())
+                    )
+                );
         }));
     }
 
@@ -94,16 +97,18 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
         LinkedHashSet<String> edges,
         LinkedHashSet<String> visited
     ) {
-        parentComponent.getDependencies().stream().filter(ResolvedDependencyResult.class::isInstance).map(ResolvedDependencyResult.class::cast).forEach(
-            dependency -> {
+        parentComponent.getDependencies()
+            .stream()
+            .filter(ResolvedDependencyResult.class::isInstance)
+            .map(ResolvedDependencyResult.class::cast)
+            .forEach(dependency -> {
                 ResolvedComponentResult childComponent = dependency.getSelected();
                 String childNodeId = childNodeId(childComponent);
                 edges.add(parentNodeId + "->" + childNodeId);
                 if (visited.add(childNodeId)) {
                     dependencyEdges(childNodeId, childComponent, edges, visited);
                 }
-            }
-        );
+            });
     }
 
     private static String childNodeId(ResolvedComponentResult component) {

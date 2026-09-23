@@ -89,11 +89,7 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
     private Map<String, Object> generateGradleGraphPayload() {
         SnykDependencyGraphBuilder builder = new SnykDependencyGraphBuilder(gradleVersion.get());
         String effectiveProjectPath = projectPath.get();
-        builder.walkGraph(
-            (effectiveProjectPath.equals(":") ? projectName.get() : effectiveProjectPath),
-            version.get(),
-            dependencyGraph()
-        );
+        builder.walkGraph((effectiveProjectPath.equals(":") ? projectName.get() : effectiveProjectPath), version.get(), dependencyGraph());
         return Map.of(
             "meta",
             FIXED_META_DATA,

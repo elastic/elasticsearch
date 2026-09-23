@@ -458,22 +458,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             return embedding;
         }
 
-        // Copied from DenseVectorFieldMapperTestUtils due to dependency restrictions
         private static int getEmbeddingLength(ElementType elementType, @Nullable Integer dimensions) {
-            if (dimensions == null) {
-                dimensions = DEFAULT_EMBEDDING_DIMENSIONS;
-            }
-            return getDimensionsForElementType(elementType, dimensions);
-        }
-
-        private static int getDimensionsForElementType(ElementType elementType, int dimensions) {
-            return switch (elementType) {
-                case FLOAT, BFLOAT16, BYTE -> dimensions;
-                case BIT -> {
-                    assert dimensions % Byte.SIZE == 0;
-                    yield dimensions / Byte.SIZE;
-                }
-            };
+            return elementType.vectorLength(dimensions == null ? DEFAULT_EMBEDDING_DIMENSIONS : dimensions);
         }
 
         private static List<Float> toUnitVector(List<Float> embedding) {

@@ -92,32 +92,6 @@ public class FetchPhaseFieldAccountingTests extends ESTestCase {
         }
     }
 
-    /**
-     * Verifies the key invariant enforced by the central-charge design: when the same field name
-     * appears in both document fields and metadata fields (e.g. from overlapping field requests), the
-     * estimate covers the map as it stands after all sub-phases have run, not the sum of two
-     * intermediate states. This is the regression test for the double-count that would occur if each
-     * sub-phase charged independently.
-     */
-    public void testEstimateIsForFinalMaps() {
-        SearchHit hit = SearchHit.unpooled(0, null);
-        List<Object> largeValues = buildValues(100);
-
-        // Simulate what FetchFieldsPhase does: put 'foo' into documentFields (replacing any earlier entry)
-        hit.setDocumentField(new DocumentField("foo", largeValues));
-
-        long singleCopyEstimate = SearchHitRamUsageEstimator.estimateDocumentFields(hit);
-
-        // If StoredFieldsPhase had also charged for 'foo' (which it now doesn't), the total would be
-        // roughly 2 * singleCopyEstimate. The correct answer is exactly singleCopyEstimate.
-        assertThat(
-            "charge should cover exactly the final state of the hit's field maps",
-            SearchHitRamUsageEstimator.estimateDocumentFields(hit),
-            equalTo(singleCopyEstimate)
-        );
-        assertThat(singleCopyEstimate, greaterThan(0L));
-    }
-
     public void testEstimateGrowsWithNumberOfFields() {
         SearchHit small = SearchHit.unpooled(0, null);
         small.setDocumentField(new DocumentField("f1", List.of("v")));

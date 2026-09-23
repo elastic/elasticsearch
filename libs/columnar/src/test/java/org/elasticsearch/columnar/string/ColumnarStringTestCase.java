@@ -187,8 +187,9 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     }
 
     /**
-     * A block of lengths no smaller than the block of values, and often much smaller than the default, so the
-     * columns these tests write cross many blocks of lengths and a block of values lands on their edges.
+     * A block of lengths that is the block of values doubled a random number of times, up to the largest
+     * block the format writes. Sized off the values so a block of them lands on a block of lengths, and
+     * random so the columns these tests write cross a varying number of them.
      */
     protected static int randomLengthBlockSize(int valuesPerBlock) {
         int size = valuesPerBlock;

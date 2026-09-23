@@ -136,10 +136,6 @@ public final class ColumnarTestUtils {
         };
     }
 
-    /**
-     * Returns a {@link Codec} that routes all doc-values fields through a {@link ColumNARDocValuesFormat}
-     * whose columns are all of {@code type}.
-     */
     /** Records every temporary file the columnar writers ask the directory for, by suffix. */
     public static final class TempOutputRecorder extends FilterDirectory {
         public final Set<String> columnarSuffixes = ConcurrentHashMap.newKeySet();
@@ -157,13 +153,14 @@ public final class ColumnarTestUtils {
         }
     }
 
+    /**
+     * Returns a {@link Codec} that routes all doc-values fields through a {@link ColumNARDocValuesFormat}
+     * whose columns are all of {@code type}.
+     */
     public static Codec columnarCodec(final ColumnarFieldType type) {
         return columnarCodec(new ColumNARDocValuesFormat(field -> type));
     }
 
-    /**
-     * Returns a {@link Codec} that routes all doc-values fields through {@code fmt}.
-     */
     /**
      * The columnar format for {@code field} and the default for everything else, for a test that needs a
      * companion field the columnar format does not write, such as one to sort the index on.
@@ -187,6 +184,7 @@ public final class ColumnarTestUtils {
         };
     }
 
+    /** Returns a {@link Codec} that routes all doc-values fields through {@code fmt}. */
     public static Codec columnarCodec(final DocValuesFormat fmt) {
         final Codec base = TestUtil.getDefaultCodec();
         return new FilterCodec(base.getName(), base) {

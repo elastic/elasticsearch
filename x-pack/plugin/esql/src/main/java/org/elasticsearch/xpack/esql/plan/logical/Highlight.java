@@ -422,7 +422,7 @@ public class Highlight extends UnaryPlan
             );
             // Enforce ON membership only when the query and field list are both explicit. An implicit query
             // treats a field outside ON as match-none instead of failing.
-            for (Map<String, NamedAnalyzer> fieldAnalyzers : resolved.variants()) {
+            for (Map<String, NamedAnalyzer> fieldAnalyzers : resolved.analysisGroups()) {
                 HighlightQueryBuilders.verify(
                     query,
                     fieldAnalyzers,

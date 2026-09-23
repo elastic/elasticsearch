@@ -78,15 +78,15 @@ import java.util.function.Supplier;
  * row. Query DSL behaves the same when it re-analyzes a field. It can match beyond the limit only when offsets come from
  * the index, which this operator does not use.
  * <p>
- * When the queried indices disagree on a field's analyzer, {@link HighlightConfig#variantByIndex()} picks the
- * {@link HighlightConfig.Variant} for each row from its {@code _index} value.
+ * When the queried indices disagree on a field's analyzer, {@link HighlightConfig#groupByIndex()} picks the
+ * {@link HighlightConfig.AnalysisGroup} for each row from its {@code _index} value.
  * <p>
  * TODO: use real index offsets when highlighting can run against shard data.
  */
 public class HighlightOperator extends AbstractPageMappingOperator {
 
     /**
-     * @param indexEvaluatorFactory evaluates each row's {@code _index}; {@code null} when every row uses the first variant
+     * @param indexEvaluatorFactory evaluates each row's {@code _index}; {@code null} when every row uses the first group
      */
     public record Factory(
         HighlightConfig config,
@@ -120,8 +120,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final ExpressionEvaluator[] fieldEvaluators;
     private final @Nullable ExpressionEvaluator indexEvaluator;
     private final MemoryIndex memoryIndex;
-    private final Variant[] variants;
-    private final Map<BytesRef, Variant> variantByIndex;
+    private final AnalysisGroup[] analysisGroups;
+    private final Map<BytesRef, AnalysisGroup> groupByIndex;
 
     public HighlightOperator(
         BlockFactory blockFactory,
@@ -136,7 +136,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.fieldNames = config.fieldNames();
         assert fieldNames.size() == fieldEvaluators.length
             : "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match ON expression count [" + fieldEvaluators.length + "]";
-        assert config.variantByIndex().isEmpty() || indexEvaluator != null : "HIGHLIGHT per-index analyzers need the row's _index";
+        assert config.groupByIndex().isEmpty() || indexEvaluator != null : "HIGHLIGHT per-index analyzers need the row's _index";
         Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
         this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
         // Coordinator-side highlighting has no IndexSettings yet, so the index cap is just the default. Clamping the
@@ -156,20 +156,23 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.memoryIndex = new MemoryIndex(true); // true == store offsets, required by OffsetSource.POSTINGS
         // Term extraction for the highlighters only.
         IndexSearcher searcher = memoryIndex.createSearcher();
-        this.variants = config.requiredVariants().stream().map(v -> new Variant(v, searcher)).toArray(Variant[]::new);
-        this.variantByIndex = new HashMap<>();
-        config.variantByIndex().forEach((index, variant) -> variantByIndex.put(new BytesRef(index), variants[variant]));
+        this.analysisGroups = config.requiredAnalysisGroups()
+            .stream()
+            .map(g -> new AnalysisGroup(g, searcher))
+            .toArray(AnalysisGroup[]::new);
+        this.groupByIndex = new HashMap<>();
+        config.groupByIndex().forEach((index, group) -> groupByIndex.put(new BytesRef(index), analysisGroups[group]));
     }
 
     /** The analyzers, query, and highlighters rows of one analyzer combination are highlighted with. */
-    private final class Variant {
+    private final class AnalysisGroup {
         private final List<NamedAnalyzer> fieldAnalyzers;
         private final CustomUnifiedHighlighter[] highlighters;
         private final TokenKeepSet keepSet;
 
-        Variant(HighlightConfig.Variant variant, IndexSearcher searcher) {
-            this.fieldAnalyzers = variant.fieldAnalyzers();
-            Query query = variant.query();
+        AnalysisGroup(HighlightConfig.AnalysisGroup group, IndexSearcher searcher) {
+            this.fieldAnalyzers = group.fieldAnalyzers();
+            Query query = group.query();
             assert fieldNames.size() == fieldAnalyzers.size()
                 : "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match analyzer count [" + fieldAnalyzers.size() + "]";
             this.highlighters = new CustomUnifiedHighlighter[fieldNames.size()];
@@ -296,7 +299,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         try (Block indexBlock = indexEvaluator == null ? null : indexEvaluator.eval(page)) {
             initFields(page, rowCount, fields);
             for (int row = 0; row < rowCount; row++) {
-                highlightRow(row, fields, variantFor(indexBlock, row, scratch), scratch);
+                highlightRow(row, fields, groupFor(indexBlock, row, scratch), scratch);
             }
             buildHighlightedBlocks(fields, highlightedBlocks);
             Page result = page.appendBlocks(highlightedBlocks);
@@ -310,13 +313,13 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
     }
 
-    /** Rows with no or an unknown {@code _index} use the first variant. */
-    private Variant variantFor(@Nullable Block indexBlock, int row, BytesRef scratch) {
+    /** Rows with no or an unknown {@code _index} use the first group. */
+    private AnalysisGroup groupFor(@Nullable Block indexBlock, int row, BytesRef scratch) {
         if (indexBlock == null || indexBlock.isNull(row)) {
-            return variants[0];
+            return analysisGroups[0];
         }
         BytesRef index = ((BytesRefBlock) indexBlock).getBytesRef(indexBlock.getFirstValueIndex(row), scratch);
-        return variantByIndex.getOrDefault(index, variants[0]);
+        return groupByIndex.getOrDefault(index, analysisGroups[0]);
     }
 
     private void initFields(Page page, int rowCount, HighlightField[] fields) {
@@ -346,7 +349,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private void highlightRow(int row, HighlightField[] fields, Variant variant, BytesRef scratch) {
+    private void highlightRow(int row, HighlightField[] fields, AnalysisGroup group, BytesRef scratch) {
         boolean hasRowValues = false;
         for (HighlightField field : fields) {
             field.loadRowText(row, scratch);
@@ -356,7 +359,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             appendNulls(fields);
             return;
         }
-        LeafReader memoryIndexReader = indexRow(fields, variant);
+        LeafReader memoryIndexReader = indexRow(fields, group);
         if (memoryIndexReader == null) {
             appendNulls(fields);
             return;
@@ -368,7 +371,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 continue;
             }
             try {
-                appendSnippets(field.builder, highlight(memoryIndexReader, variant, fieldIndex, field.rowText));
+                appendSnippets(field.builder, highlight(memoryIndexReader, group, fieldIndex, field.rowText));
             } catch (IOException e) {
                 throw new IllegalStateException("HIGHLIGHT failed for ON field [" + field.name + "]", e);
             }
@@ -380,7 +383,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      * {@code null} when filtering kept nothing the query could match and {@code no_match_size} is 0, so every field of
      * the row is {@code null} and the caller can skip the highlighters.
      */
-    private LeafReader indexRow(HighlightField[] fields, Variant variant) {
+    private LeafReader indexRow(HighlightField[] fields, AnalysisGroup group) {
         memoryIndex.reset();
         boolean keptToken = false;
         for (int i = 0; i < fields.length; i++) {
@@ -389,13 +392,13 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 continue;
             }
             TokenStream tokenStream = new LimitTokenOffsetFilter(
-                rowTokenStream(field, variant.fieldAnalyzers.get(i)),
+                rowTokenStream(field, group.fieldAnalyzers.get(i)),
                 queryMaxAnalyzedOffset.getNotNull(),
                 false
             );
             KeepQueryTermsFilter filtered = null;
-            if (variant.keepSet != null) {
-                tokenStream = filtered = new KeepQueryTermsFilter(tokenStream, variant.keepSet);
+            if (group.keepSet != null) {
+                tokenStream = filtered = new KeepQueryTermsFilter(tokenStream, group.keepSet);
             }
             memoryIndex.addField(field.name, tokenStream); // addField resets and closes the stream
             if (filtered != null) {
@@ -403,7 +406,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             }
         }
         // With filtering off keptToken stays false, so it says nothing about the row.
-        if (variant.keepSet != null && keptToken == false && config.noMatchSize() == 0) {
+        if (group.keepSet != null && keptToken == false && config.noMatchSize() == 0) {
             return null;
         }
         // MemoryIndex snapshots FieldInfos at reader construction, so create it after addField.
@@ -574,8 +577,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     // CustomUnifiedHighlighter derives its FieldHighlighter from the query at build time and caches nothing from the
     // reader, so the constructor's per-field instances can be reused for every row and page.
-    private Snippet[] highlight(LeafReader memoryIndexReader, Variant variant, int fieldIndex, String text) throws IOException {
-        return variant.highlighters[fieldIndex].highlightField(memoryIndexReader, 0, () -> text);
+    private Snippet[] highlight(LeafReader memoryIndexReader, AnalysisGroup group, int fieldIndex, String text) throws IOException {
+        return group.highlighters[fieldIndex].highlightField(memoryIndexReader, 0, () -> text);
     }
 
     /**
@@ -618,7 +621,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     public String toString() {
         return getClass().getSimpleName()
             + "[query="
-            + config.variants().getFirst().query()
+            + config.analysisGroups().getFirst().query()
             + ", "
             + config.describe()
             + ", fields="

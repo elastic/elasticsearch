@@ -53,7 +53,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
                 getFieldAttribute("tag", KEYWORD)
             ),
             null
-        ).variants().getFirst();
+        ).analysisGroups().getFirst();
         assertThat(List.copyOf(resolved.keySet()), contains("title", "body", "note", "other", "tag"));
         assertThat(
             resolved.values().stream().map(NamedAnalyzer::name).toList(),
@@ -64,7 +64,10 @@ public class HighlightAnalyzersTests extends ESTestCase {
 
     public void testWithAnalyzerOverridesMappingAndDeclared() {
         Resolved resolved = resolve(List.of(textField("title", "whitespace"), declaredField("note", "simple")), "keyword");
-        assertThat(resolved.variants().getFirst().values().stream().map(NamedAnalyzer::name).toList(), contains("keyword", "keyword"));
+        assertThat(
+            resolved.analysisGroups().getFirst().values().stream().map(NamedAnalyzer::name).toList(),
+            contains("keyword", "keyword")
+        );
     }
 
     // Mapping analyzer this node cannot build. Resolve returns standard instead of failing the query.
@@ -86,38 +89,38 @@ public class HighlightAnalyzersTests extends ESTestCase {
     public void testMultiIndexAnalyzerConflictFallsBackAndWarns() {
         List<String> warnings = new ArrayList<>();
         Resolved resolved = resolve(List.of(conflictingField("title")), null, false, warnings);
-        assertThat(resolved.variants(), hasSize(1));
-        assertThat(resolved.variants().getFirst().get("title").name(), equalTo("standard"));
+        assertThat(resolved.analysisGroups(), hasSize(1));
+        assertThat(resolved.analysisGroups().getFirst().get("title").name(), equalTo("standard"));
         assertThat(warnings, hasItem(containsString("indices disagree on the analyzer")));
     }
 
     /**
      * With the row's index available, each index gets its own analyzer and no warning. {@code body} agrees everywhere,
-     * so the two {@code title} groups yield two variants besides the default, which keeps {@code standard} for rows
+     * so the two {@code title} groups yield two analysis groups besides the default, which keeps {@code standard} for rows
      * from an index outside the groups.
      */
     public void testMultiIndexAnalyzerConflictResolvesPerIndex() {
         List<String> warnings = new ArrayList<>();
         Resolved resolved = resolve(List.of(conflictingField("title"), textField("body", "simple")), null, true, warnings);
         assertThat(warnings, empty());
-        assertThat(resolved.variantByIndex(), equalTo(Map.of("books", 1, "books_english", 2, "books_english_2", 2)));
-        assertThat(names(resolved.variants().get(0)), contains("standard", "simple"));
-        assertThat(names(resolved.variants().get(1)), contains("whitespace", "simple"));
-        assertThat(names(resolved.variants().get(2)), contains("stop", "simple"));
-        assertThat(resolved.variants().get(1).get("title").getPositionIncrementGap("title"), equalTo(0));
+        assertThat(resolved.groupByIndex(), equalTo(Map.of("books", 1, "books_english", 2, "books_english_2", 2)));
+        assertThat(names(resolved.analysisGroups().get(0)), contains("standard", "simple"));
+        assertThat(names(resolved.analysisGroups().get(1)), contains("whitespace", "simple"));
+        assertThat(names(resolved.analysisGroups().get(2)), contains("stop", "simple"));
+        assertThat(resolved.analysisGroups().get(1).get("title").getPositionIncrementGap("title"), equalTo(0));
     }
 
-    // Groups with the same analyzer name but a different gap are distinct variants: NamedAnalyzer#equals ignores the gap.
-    public void testSameAnalyzerDifferentGapKeepsSeparateVariants() {
+    // Groups with the same analyzer name but a different gap are distinct analysis groups: NamedAnalyzer#equals ignores the gap.
+    public void testSameAnalyzerDifferentGapKeepsSeparateAnalysisGroups() {
         FieldAttribute field = textFieldWithGroups(
             "title",
             new IndexAnalyzerGroup("whitespace", 0, Set.of("a")),
             new IndexAnalyzerGroup("whitespace", 50, Set.of("b"))
         );
         Resolved resolved = resolve(List.of(field), null, true, new ArrayList<>());
-        assertThat(resolved.variantByIndex(), equalTo(Map.of("a", 1, "b", 2)));
-        assertThat(resolved.variants().get(1).get("title").getPositionIncrementGap("title"), equalTo(0));
-        assertThat(resolved.variants().get(2).get("title").getPositionIncrementGap("title"), equalTo(50));
+        assertThat(resolved.groupByIndex(), equalTo(Map.of("a", 1, "b", 2)));
+        assertThat(resolved.analysisGroups().get(1).get("title").getPositionIncrementGap("title"), equalTo(0));
+        assertThat(resolved.analysisGroups().get(2).get("title").getPositionIncrementGap("title"), equalTo(50));
     }
 
     // Indices whose analyzer was withheld or is not registered here use standard and are named in one warning per group.
@@ -130,7 +133,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
             new IndexAnalyzerGroup("my_plugin_analyzer", DEFAULT_POSITION_INCREMENT_GAP, Set.of("plugin"))
         );
         Resolved resolved = resolve(List.of(field), null, true, warnings);
-        assertThat(resolved.variantByIndex(), equalTo(Map.of("books_english", 1, "custom_a", 0, "custom_b", 0, "plugin", 0)));
+        assertThat(resolved.groupByIndex(), equalTo(Map.of("books_english", 1, "custom_a", 0, "custom_b", 0, "plugin", 0)));
         assertThat(warnings, hasSize(2));
         assertThat(
             warnings.get(0),
@@ -143,7 +146,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
     public void testIndexLocalAnalyzerFallsBackAndWarns() {
         List<String> warnings = new ArrayList<>();
         Resolved resolved = resolve(List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL)), null, true, warnings);
-        assertThat(resolved.variants().getFirst().get("title").name(), equalTo("standard"));
+        assertThat(resolved.analysisGroups().getFirst().get("title").name(), equalTo("standard"));
         assertThat(warnings, hasItem(containsString("its analyzer is defined in the index settings")));
     }
 
@@ -153,7 +156,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
             List<String> warnings = new ArrayList<>();
             Resolved resolved = resolve(List.of(field), "keyword", randomBoolean(), warnings);
             assertThat(warnings, hasSize(0));
-            assertThat(resolved.variants(), hasSize(1));
+            assertThat(resolved.analysisGroups(), hasSize(1));
         }
     }
 
@@ -185,7 +188,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
     }
 
     private static List<String> names(NamedExpression... onFields) {
-        return names(resolve(List.of(onFields), null).variants().getFirst());
+        return names(resolve(List.of(onFields), null).analysisGroups().getFirst());
     }
 
     private static List<String> names(Map<String, NamedAnalyzer> fieldAnalyzers) {

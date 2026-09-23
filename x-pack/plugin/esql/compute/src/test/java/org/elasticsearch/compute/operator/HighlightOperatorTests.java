@@ -722,15 +722,15 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * Each row is analyzed and searched the way its own index does: the english variant stems {@code Ring} and
+     * Each row is analyzed and searched the way its own index does: the english group stems {@code Ring} and
      * carries the query translated with that analyzer ({@code ring}), the standard one keeps {@code Ring} and queries
-     * {@code rings}. Rows with a null or unknown {@code _index} use the first variant.
+     * {@code rings}. Rows with a null or unknown {@code _index} use the first group.
      */
-    public void testPerIndexVariants() {
+    public void testPerIndexAnalysisGroups() {
         HighlightConfig config = config("rings", 5, 0, 0).withExecutionContext(
             List.of(
-                new HighlightConfig.Variant(namedAnalyzers(new StandardAnalyzer(), 1), contentTerm("rings")),
-                new HighlightConfig.Variant(namedAnalyzers(new EnglishAnalyzer(), 1), contentTerm("ring"))
+                new HighlightConfig.AnalysisGroup(namedAnalyzers(new StandardAnalyzer(), 1), contentTerm("rings")),
+                new HighlightConfig.AnalysisGroup(namedAnalyzers(new EnglishAnalyzer(), 1), contentTerm("ring"))
             ),
             Map.of("books_english", 1),
             CONTENT

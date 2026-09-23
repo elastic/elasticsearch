@@ -24,7 +24,7 @@ import java.util.stream.IntStream;
  * It contains two groups of values:
  * <ul>
  *     <li>user-facing highlight options resolved from {@code WITH { ... }}</li>
- *     <li>execution context (per-field {@link NamedAnalyzer}s and translated {@link Query} per {@link Variant}, and
+ *     <li>execution context (per-field {@link NamedAnalyzer}s and translated {@link Query} per {@link AnalysisGroup}, and
  *     target field names) attached during planning via {@link #withExecutionContext(List, Map, List)}</li>
  * </ul>
  * Keeping this record in the compute module (rather than referencing the ES|QL planning-layer options type) keeps
@@ -46,10 +46,10 @@ import java.util.stream.IntStream;
  *                           its mapping analyzer, a TO_TEXT declaration, or {@code standard}.
  * @param maxAnalyzedOffset  per-field analysis bound; a negative value means "use the default index setting" in the
  *                           current coordinator-side operator.
- * @param variants           analyzers and query per combination of analyzers some row needs. Rows use
- *                           {@code variants.getFirst()} unless {@code variantByIndex} says otherwise.
- * @param variantByIndex     {@code _index} value to the position in {@code variants} its rows use. Empty when every
- *                           row shares the first variant.
+ * @param analysisGroups     analyzers and query per combination of analyzers some row needs. Rows use
+ *                           {@code analysisGroups.getFirst()} unless {@code groupByIndex} says otherwise.
+ * @param groupByIndex       {@code _index} value to the position in {@code analysisGroups} its rows use. Empty when
+ *                           every row shares the first group.
  * @param fieldNames         highlighted field names, in the same order as field evaluators.
  */
 public record HighlightConfig(
@@ -65,8 +65,8 @@ public record HighlightConfig(
     boolean orderByScore,
     String analyzerName,
     int maxAnalyzedOffset,
-    List<Variant> variants,
-    Map<String, Integer> variantByIndex,
+    List<AnalysisGroup> analysisGroups,
+    Map<String, Integer> groupByIndex,
     List<String> fieldNames
 ) {
 
@@ -75,10 +75,10 @@ public record HighlightConfig(
 
     /**
      * The analyzer each ON field is analyzed and searched with, aligned by index with {@link #fieldNames}, and the
-     * Lucene query translated with those analyzers.
+     * Lucene query translated with those analyzers. Indices that analyze every ON field the same way share one group.
      */
-    public record Variant(List<NamedAnalyzer> fieldAnalyzers, Query query) {
-        public Variant {
+    public record AnalysisGroup(List<NamedAnalyzer> fieldAnalyzers, Query query) {
+        public AnalysisGroup {
             fieldAnalyzers = List.copyOf(fieldAnalyzers);
             Objects.requireNonNull(query, "HIGHLIGHT query must be set in execution context");
         }
@@ -118,17 +118,21 @@ public record HighlightConfig(
     }
 
     public HighlightConfig {
-        variants = List.copyOf(variants);
-        variantByIndex = Map.copyOf(variantByIndex);
+        analysisGroups = List.copyOf(analysisGroups);
+        groupByIndex = Map.copyOf(groupByIndex);
         fieldNames = List.copyOf(fieldNames);
     }
 
-    /** Single-variant shorthand: every row uses {@code fieldAnalyzers} and {@code query}. */
+    /** Single-group shorthand: every row uses {@code fieldAnalyzers} and {@code query}. */
     public HighlightConfig withExecutionContext(List<NamedAnalyzer> fieldAnalyzers, Query query, List<String> fieldNames) {
-        return withExecutionContext(List.of(new Variant(fieldAnalyzers, query)), Map.of(), fieldNames);
+        return withExecutionContext(List.of(new AnalysisGroup(fieldAnalyzers, query)), Map.of(), fieldNames);
     }
 
-    public HighlightConfig withExecutionContext(List<Variant> variants, Map<String, Integer> variantByIndex, List<String> fieldNames) {
+    public HighlightConfig withExecutionContext(
+        List<AnalysisGroup> analysisGroups,
+        Map<String, Integer> groupByIndex,
+        List<String> fieldNames
+    ) {
         return new HighlightConfig(
             queryText,
             preTag,
@@ -142,17 +146,17 @@ public record HighlightConfig(
             orderByScore,
             analyzerName,
             maxAnalyzedOffset,
-            variants,
-            variantByIndex,
+            analysisGroups,
+            groupByIndex,
             fieldNames
         );
     }
 
-    public List<Variant> requiredVariants() {
-        if (variants.isEmpty()) {
+    public List<AnalysisGroup> requiredAnalysisGroups() {
+        if (analysisGroups.isEmpty()) {
             throw new IllegalStateException("HIGHLIGHT field analyzers must be set in execution context");
         }
-        return variants;
+        return analysisGroups;
     }
 
     public String describe() {
@@ -177,15 +181,15 @@ public record HighlightConfig(
             + ", order_by_score="
             + orderByScore
             + ", analyzer="
-            + (variants.isEmpty() ? analyzerName : describeAnalyzers(variants.getFirst()))
+            + (analysisGroups.isEmpty() ? analyzerName : describeAnalyzers(analysisGroups.getFirst()))
             + describePerIndexAnalyzers()
             + ", max_analyzed_offset="
             + maxAnalyzedOffset;
     }
 
     /** One analyzer name, or {@code {field=analyzer, ...}} when fields differ. */
-    private String describeAnalyzers(Variant variant) {
-        List<NamedAnalyzer> fieldAnalyzers = variant.fieldAnalyzers();
+    private String describeAnalyzers(AnalysisGroup group) {
+        List<NamedAnalyzer> fieldAnalyzers = group.fieldAnalyzers();
         if (fieldAnalyzers.stream().map(NamedAnalyzer::name).distinct().count() == 1) {
             return fieldAnalyzers.getFirst().name();
         }
@@ -194,13 +198,13 @@ public record HighlightConfig(
             .collect(Collectors.joining(", ", "{", "}"));
     }
 
-    /** {@code , per_index_analyzer={index=analyzer, ...}} for rows that use another variant than the first; empty when none do. */
+    /** {@code , per_index_analyzer={index=analyzer, ...}} for rows that use another group than the first; empty when none do. */
     private String describePerIndexAnalyzers() {
-        if (variantByIndex.isEmpty()) {
+        if (groupByIndex.isEmpty()) {
             return "";
         }
         Map<String, String> byIndex = new TreeMap<>();
-        variantByIndex.forEach((index, variant) -> byIndex.put(index, describeAnalyzers(variants.get(variant))));
+        groupByIndex.forEach((index, group) -> byIndex.put(index, describeAnalyzers(analysisGroups.get(group))));
         return ", per_index_analyzer=" + byIndex;
     }
 

@@ -46,10 +46,10 @@ public final class HighlightAnalyzers {
     /**
      * The per-field analyzers, in ON order, for every combination of analyzers some row needs.
      *
-     * @param variants        {@code variants.getFirst()} applies to rows whose index is not in {@code variantByIndex}
-     * @param variantByIndex  index name to the position in {@code variants} its rows use. Empty when all rows share one.
+     * @param analysisGroups  {@code analysisGroups.getFirst()} applies to rows whose index is not in {@code groupByIndex}
+     * @param groupByIndex    index name to the position in {@code analysisGroups} its rows use. Empty when all rows share one.
      */
-    public record Resolved(List<Map<String, NamedAnalyzer>> variants, Map<String, Integer> variantByIndex) {}
+    public record Resolved(List<Map<String, NamedAnalyzer>> analysisGroups, Map<String, Integer> groupByIndex) {}
 
     /**
      * A mapping analyzer that fails to resolve on this node falls back to {@code standard} and emits a warning
@@ -92,22 +92,23 @@ public final class HighlightAnalyzers {
                 defaults.put(name, analyzerOf(field, analysisRegistry, warnings));
             }
         }
-        // Indices that end up with the same analyzer and gap for every field share a variant.
-        List<Map<String, NamedAnalyzer>> variants = new ArrayList<>();
-        variants.add(defaults);
-        Map<List<AnalyzerKey>, Integer> variantIds = new LinkedHashMap<>();
-        variantIds.put(AnalyzerKey.of(defaults), 0);
-        Map<String, Integer> variantByIndex = new LinkedHashMap<>();
+        // Unlike an IndexAnalyzerGroup, which covers one field, indices share an analysis group only when they end up
+        // with the same analyzer and gap for every field.
+        List<Map<String, NamedAnalyzer>> analysisGroups = new ArrayList<>();
+        analysisGroups.add(defaults);
+        Map<List<AnalyzerKey>, Integer> groupIds = new LinkedHashMap<>();
+        groupIds.put(AnalyzerKey.of(defaults), 0);
+        Map<String, Integer> groupByIndex = new LinkedHashMap<>();
         overridesByIndex.forEach((index, overrides) -> {
             Map<String, NamedAnalyzer> analyzers = new LinkedHashMap<>(defaults);
             analyzers.putAll(overrides);
-            Integer variant = variantIds.computeIfAbsent(AnalyzerKey.of(analyzers), k -> {
-                variants.add(analyzers);
-                return variants.size() - 1;
+            Integer groupId = groupIds.computeIfAbsent(AnalyzerKey.of(analyzers), k -> {
+                analysisGroups.add(analyzers);
+                return analysisGroups.size() - 1;
             });
-            variantByIndex.put(index, variant);
+            groupByIndex.put(index, groupId);
         });
-        return new Resolved(variants, variantByIndex);
+        return new Resolved(analysisGroups, groupByIndex);
     }
 
     /** {@link NamedAnalyzer#equals} only compares names; the gap matters for phrase matches across values. */

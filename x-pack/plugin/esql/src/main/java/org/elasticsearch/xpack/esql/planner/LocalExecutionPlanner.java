@@ -1642,16 +1642,18 @@ public class LocalExecutionPlanner {
             highlight.indexKey() != null,
             w -> {} // already emitted at verification
         );
-        List<HighlightConfig.Variant> variants = new ArrayList<>(resolved.variants().size());
+        List<HighlightConfig.AnalysisGroup> analysisGroups = new ArrayList<>(resolved.analysisGroups().size());
         String queryText = null;
-        for (Map<String, NamedAnalyzer> fieldAnalyzers : resolved.variants()) {
+        for (Map<String, NamedAnalyzer> fieldAnalyzers : resolved.analysisGroups()) {
             HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
                 queryExpr,
                 fieldAnalyzers,
                 context.analysisRegistry()
             );
             queryText = translated.queryText();
-            variants.add(new HighlightConfig.Variant(fieldNames.stream().map(fieldAnalyzers::get).toList(), translated.query()));
+            analysisGroups.add(
+                new HighlightConfig.AnalysisGroup(fieldNames.stream().map(fieldAnalyzers::get).toList(), translated.query())
+            );
         }
         HighlightConfig config = new HighlightConfig(
             queryText,
@@ -1666,13 +1668,13 @@ public class LocalExecutionPlanner {
             HighlightOptions.ORDER_SCORE.equals(options.order()),
             analyzerName,
             options.maxAnalyzedOffset()
-        ).withExecutionContext(variants, resolved.variantByIndex(), fieldNames);
+        ).withExecutionContext(analysisGroups, resolved.groupByIndex(), fieldNames);
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()
             .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
             .toList();
-        ExpressionEvaluator.Factory indexEvaluator = resolved.variantByIndex().isEmpty()
+        ExpressionEvaluator.Factory indexEvaluator = resolved.groupByIndex().isEmpty()
             ? null
             : EvalMapper.toEvaluator(context.foldCtx(), highlight.indexKey(), source.layout, context.analysisRegistry());
 

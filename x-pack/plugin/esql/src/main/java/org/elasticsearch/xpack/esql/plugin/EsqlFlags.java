@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Class holding all the flags that can be used to change behavior for certain features in ESQL.
@@ -227,5 +228,37 @@ public class EsqlFlags {
 
     public int maxBranchLevel() {
         return maxBranchLevel;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EsqlFlags that = (EsqlFlags) o;
+        return stringLikeOnIndex == that.stringLikeOnIndex
+            && roundToPushdownThreshold == that.roundToPushdownThreshold
+            && remoteFetchTopN == that.remoteFetchTopN
+            && maxBranchCount == that.maxBranchCount
+            && maxBranchLevel == that.maxBranchLevel;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(stringLikeOnIndex, roundToPushdownThreshold, remoteFetchTopN, maxBranchCount, maxBranchLevel);
+    }
+
+    @Override
+    public String toString() {
+        return "EsqlFlags[stringLikeOnIndex="
+            + stringLikeOnIndex
+            + ", roundToPushdownThreshold="
+            + roundToPushdownThreshold
+            + ", remoteFetchTopN="
+            + remoteFetchTopN
+            + ", maxBranchCount="
+            + maxBranchCount
+            + ", maxBranchLevel="
+            + maxBranchLevel
+            + ']';
     }
 }

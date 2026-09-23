@@ -168,7 +168,7 @@ public class AllocationDeciders {
      * overall decision is not {@code NOT_PREFERRED}. Used to label metrics for forced moves where the only viable
      * target node is not preferred.
      */
-    public @Nullable String canAllocateNotPreferredDeciderLabel(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public @Nullable String canAllocateNotPreferredDeciderName(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         final String[] labelHolder = { null };
         final Decision decision = withDecidersCheckingShardIgnoredNodes(allocation, shardRouting, node, decider -> {
             Decision d = decider.canAllocate(shardRouting, node, allocation);
@@ -188,7 +188,7 @@ public class AllocationDeciders {
      * viable target node is not preferred. Uses {@code withDeciders} (no shard-ignored check), consistent with
      * {@link #canForceAllocateDuringReplace}.
      */
-    public @Nullable String canForceAllocateDuringReplaceNotPreferredDeciderLabel(
+    public @Nullable String canForceAllocateDuringReplaceNotPreferredDeciderName(
         ShardRouting shardRouting,
         RoutingNode node,
         RoutingAllocation allocation

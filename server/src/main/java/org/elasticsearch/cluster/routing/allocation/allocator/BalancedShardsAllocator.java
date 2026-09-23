@@ -1297,8 +1297,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 && moveDecision.getTargetNode() != null) {
                 final var targetNode = routingNodes.node(moveDecision.getTargetNode().getId());
                 canAllocateNotPreferredDeciderName = usedVacatePath
-                    ? allocation.deciders().canForceAllocateDuringReplaceNotPreferredDeciderLabel(shardRouting, targetNode, allocation)
-                    : allocation.deciders().canAllocateNotPreferredDeciderLabel(shardRouting, targetNode, allocation);
+                    ? allocation.deciders().canForceAllocateDuringReplaceNotPreferredDeciderName(shardRouting, targetNode, allocation)
+                    : allocation.deciders().canAllocateNotPreferredDeciderName(shardRouting, targetNode, allocation);
             } else {
                 canAllocateNotPreferredDeciderName = null;
             }

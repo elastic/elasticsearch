@@ -382,7 +382,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         RoutingNode routingNode = RoutingNodesHelper.routingNode(randomIdentifier(), null);
         RoutingAllocation allocation = createRoutingAllocation(deciders);
         allocation.setDebugMode(RoutingAllocation.DebugMode.OFF);
-        return deciders.canAllocateNotPreferredDeciderLabel(shard, routingNode, allocation);
+        return deciders.canAllocateNotPreferredDeciderName(shard, routingNode, allocation);
     }
 
     // === canForceAllocateDuringReplaceNotPreferredDeciderLabel tests ===
@@ -427,10 +427,10 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         allocation.addIgnoreShardForNode(shard.shardId(), routingNode.nodeId());
 
         // canAllocateNotPreferredDeciderLabel returns null: shard-ignored check short-circuits to NO
-        assertThat(deciders.canAllocateNotPreferredDeciderLabel(shard, routingNode, allocation), nullValue());
+        assertThat(deciders.canAllocateNotPreferredDeciderName(shard, routingNode, allocation), nullValue());
         // canForceAllocateDuringReplaceNotPreferredDeciderLabel skips the ignored check
         assertThat(
-            deciders.canForceAllocateDuringReplaceNotPreferredDeciderLabel(shard, routingNode, allocation),
+            deciders.canForceAllocateDuringReplaceNotPreferredDeciderName(shard, routingNode, allocation),
             equalTo(TestAllocationDecider.class.getSimpleName())
         );
     }
@@ -440,7 +440,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         RoutingNode routingNode = RoutingNodesHelper.routingNode(randomIdentifier(), null);
         RoutingAllocation allocation = createRoutingAllocation(deciders);
         allocation.setDebugMode(RoutingAllocation.DebugMode.OFF);
-        return deciders.canForceAllocateDuringReplaceNotPreferredDeciderLabel(shard, routingNode, allocation);
+        return deciders.canForceAllocateDuringReplaceNotPreferredDeciderName(shard, routingNode, allocation);
     }
 
     private static final class FirstNotPreferredDecider extends AllocationDecider {

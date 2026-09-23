@@ -147,16 +147,15 @@ public class WorkloadIdentityHttpClientManagerTests extends ESTestCase {
     }
 
     /**
-     * {@code close()} from {@code INIT} or {@code INIT_RELOADED} must not throw and must not
-     * flip the state: only the {@code STARTED → CLOSED} CAS in {@code close()} triggers cleanup.
-     * Models the partial-init path where the never-started manager is dropped.
+     * {@code close()} from {@code INIT} must not throw, must flip the state to {@code CLOSED}, and
+     * must release the evictor thread started by {@code build()}. Models the partial-init path where
+     * the never-started manager is dropped.
      */
-    public void testCloseBeforeStartIsNoOp() {
+    public void testCloseBeforeStartClosesManager() {
         final WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig);
         manager.close();
-        // State must still be INIT — close()'s CAS(STARTED, CLOSED) requires start() first.
         final IllegalStateException ex = expectThrows(IllegalStateException.class, manager::getHttpClient);
-        assertThat(ex.getMessage(), containsString("[INIT]"));
+        assertThat(ex.getMessage(), containsString("[CLOSED]"));
     }
 
     /**

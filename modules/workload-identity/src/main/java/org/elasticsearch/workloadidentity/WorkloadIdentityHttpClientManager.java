@@ -10,11 +10,13 @@
 package org.elasticsearch.workloadidentity;
 
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.TlsConfig;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.core5.http2.HttpVersionPolicy;
 import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
@@ -41,8 +43,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@code false} from {@code keepAlive} when they differ.
  *
  * <p>Lifecycle: {@code INIT} (constructed) &rarr; {@code INIT_RELOADED} (first {@link #reload()})
- * &rarr; {@code STARTED} ({@link #start()}) &rarr;
- * {@code CLOSED} ({@link #close()}).
+ * &rarr; {@code STARTED} ({@link #start()}) &rarr; {@code CLOSED} ({@link #close()}).
+ * {@link #close()} may be called from any state and is idempotent.
  */
 public final class WorkloadIdentityHttpClientManager implements Closeable {
 
@@ -81,6 +83,7 @@ public final class WorkloadIdentityHttpClientManager implements Closeable {
             .setMaxConnTotal(maxTotalConnections)
             .setMaxConnPerRoute(maxRouteConnections)
             .setDefaultConnectionConfig(ConnectionConfig.custom().setConnectTimeout(Timeout.ofMilliseconds(connectTimeoutMillis)).build())
+            .setDefaultTlsConfig(TlsConfig.custom().setVersionPolicy(HttpVersionPolicy.FORCE_HTTP_1).build())
             .build();
 
         // Override the IOReactorConfig default of availableProcessors(): this client is low-QPS
@@ -92,6 +95,7 @@ public final class WorkloadIdentityHttpClientManager implements Closeable {
             .setConnectionReuseStrategy(new RotationAwareReuseStrategy(tlsStrategy))
             .disableCookieManagement()
             .disableConnectionState()
+            .disableAutomaticRetries()
             .evictExpiredConnections()
             .evictIdleConnections(TimeValue.ofMilliseconds(connectionMaxIdleMillis))
             .build();
@@ -150,12 +154,12 @@ public final class WorkloadIdentityHttpClientManager implements Closeable {
     }
 
     /**
-     * Shut down the started HC client. Only the {@code STARTED → CLOSED} transition does work;
-     * calls from any other state (including a repeat call from {@code CLOSED}) silently return.
+     * Shut down the HC client and release resources. The first call from any non-{@code CLOSED}
+     * state performs the shutdown; subsequent calls (idempotent) silently return.
      */
     @Override
     public void close() {
-        if (state.compareAndSet(State.STARTED, State.CLOSED) == false) {
+        if (state.getAndSet(State.CLOSED) == State.CLOSED) {
             return;
         }
         try {

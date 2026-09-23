@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import javax.net.ssl.SSLSession;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -122,6 +123,36 @@ public class RotationAwareReuseStrategyTests extends ESTestCase {
         when(session.getValue(ReloadableTlsStrategy.SESSION_KEY)).thenReturn("not-an-integer");
 
         assertTrue(strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(session)));
+    }
+
+    /**
+     * Simulates the post-rotation retire path without relying on {@code closeIdle()}: a connection
+     * whose TLS session was stamped at epoch N returns {@code keepAlive=false} after the epoch
+     * advances to N+1, while a connection stamped at N+1 still keeps alive. This is the mechanism
+     * by which in-flight connections are retired after their response completes.
+     */
+    public void testConnectionsStampedAtOldEpochAreRetiredAfterRotation() {
+        final ReloadableTlsStrategy tlsStrategy = new ReloadableTlsStrategy();
+        tlsStrategy.setDelegate(mock(DefaultClientTlsStrategy.class));
+        final int epochBefore = tlsStrategy.currentEpoch();
+
+        final SSLSession oldSession = mock(SSLSession.class);
+        when(oldSession.getValue(ReloadableTlsStrategy.SESSION_KEY)).thenReturn(epochBefore);
+
+        // Rotate: epoch advances
+        tlsStrategy.setDelegate(mock(DefaultClientTlsStrategy.class));
+        final int epochAfter = tlsStrategy.currentEpoch();
+        assertThat(epochAfter, greaterThan(epochBefore));
+
+        final SSLSession newSession = mock(SSLSession.class);
+        when(newSession.getValue(ReloadableTlsStrategy.SESSION_KEY)).thenReturn(epochAfter);
+
+        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, allowingFallback());
+
+        assertFalse("connection from before rotation must be retired", strategy.keepAlive(
+            mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(oldSession)));
+        assertTrue("connection from after rotation must be kept alive", strategy.keepAlive(
+            mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(newSession)));
     }
 
     public void testNoSSLSessionVerification() {

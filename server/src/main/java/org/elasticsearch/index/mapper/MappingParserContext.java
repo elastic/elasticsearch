@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -188,6 +189,14 @@ public class MappingParserContext {
 
     public Supplier<TransportVersion> clusterTransportVersion() {
         return clusterTransportVersion;
+    }
+
+    /**
+     * Returns {@code true} if all nodes in the cluster support {@code feature}.
+     */
+    public boolean clusterHasFeature(NodeFeature feature) {
+        // TODO: wire to FeatureService
+        return true;
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {

@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * A Reactor {@link Scheduler} running on an Elasticsearch thread pool whose {@link Worker}s run their tasks one at a time and in submission
@@ -70,6 +69,9 @@ public final class TrampolineScheduler implements Scheduler {
 
     @Override
     public Disposable schedule(Runnable task, long delay, TimeUnit unit) {
+        if (delay <= 0L) {
+            return schedule(task);
+        }
         return scheduleDelayed(task, delay, unit, trampoline::schedule, null);
     }
 
@@ -121,16 +123,14 @@ public final class TrampolineScheduler implements Scheduler {
         Runnable task,
         long delay,
         TimeUnit unit,
-        Function<Runnable, Disposable> scheduleNow,
+        Consumer<Runnable> scheduleNow,
         @Nullable TrampolineWorker owner
     ) {
-        if (delay <= 0L) {
-            return scheduleNow.apply(task);
-        }
+        assert delay > 0L : delay;
         final TimedTask timed = new TimedTask(task, owner);
         try {
             timed.setTimer(
-                threadPool.schedule(() -> timed.fire(scheduleNow::apply), new TimeValue(delay, unit), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                threadPool.schedule(() -> timed.fire(scheduleNow), new TimeValue(delay, unit), EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         } catch (RejectedExecutionException e) {
             timed.dispose();
@@ -185,6 +185,9 @@ public final class TrampolineScheduler implements Scheduler {
 
         @Override
         public Disposable schedule(Runnable task, long delay, TimeUnit unit) {
+            if (delay <= 0L) {
+                return scheduleNow(task);
+            }
             return scheduleDelayed(task, delay, unit, this::scheduleNow, this);
         }
 

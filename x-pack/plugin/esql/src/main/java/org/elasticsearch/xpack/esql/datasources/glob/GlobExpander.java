@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -42,8 +41,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -740,7 +737,6 @@ public final class GlobExpander {
                     recursive,
                     partitionConfig,
                     fileOrder,
-                    concurrency,
                     isCancelled
                 );
             }
@@ -874,7 +870,7 @@ public final class GlobExpander {
 
     /**
      * Drains a single prefix through a {@link StorageIterator}, applying per-entry rules. Uses shared
-     * {@link AtomicInteger} counters so cap checks are accurate across concurrent callers.
+     * {@link AtomicInteger} counters so cap checks accumulate correctly across all prefix drains.
      */
     private static DrainResult drainOnePrefix(
         StoragePath drainPrefix,
@@ -985,14 +981,14 @@ public final class GlobExpander {
     }
 
     /**
-     * Fan-out listing: drains each prefix in {@code prefixSet.prefixes()} concurrently using virtual threads and
-     * merges results in provider listing order. Files at intermediate levels (collected during descent) are included
-     * in the merge. Caps are checked via shared atomics so workers cannot each accumulate up to the cap before any
-     * check fires.
+     * Fan-out listing: drains each prefix in {@code prefixSet.prefixes()} sequentially and merges results in
+     * provider listing order. Files at intermediate levels (collected during descent) are included in the merge.
+     * Shared {@link AtomicInteger} counters let cap checks accumulate across all prefix drains.
      *
-     * <p>Virtual threads are used so that I/O-blocking drain tasks never occupy a carrier thread while waiting,
-     * eliminating the deadlock that would arise from blocking {@code esql_external_io} pool threads in a gather
-     * latch while submitting new work to the same pool.
+     * <p>Drains are sequential rather than parallel: the calling thread belongs to the {@code esql_external_io}
+     * pool and blocking it in a gather latch while submitting new work to the same pool can deadlock when the pool
+     * is saturated. A proper parallel implementation requires an async fan-out (following the pattern of
+     * {@code FileSplitProvider.discoverSplitsAsync}) and is left for a follow-up.
      */
     private static FileList fanOutDrain(
         String pattern,
@@ -1007,7 +1003,6 @@ public final class GlobExpander {
         boolean recursive,
         PartitionConfig partitionConfig,
         FileOrderConfig fileOrder,
-        int concurrency,
         BooleanSupplier isCancelled
     ) throws IOException {
         AtomicInteger sharedListedCount = new AtomicInteger();
@@ -1023,35 +1018,24 @@ public final class GlobExpander {
             sharedKeptCount
         );
 
-        List<DrainResult> drainResults;
-        // Virtual threads unmount from carrier threads during I/O blocking, so they never hold an
-        // esql_external_io pool slot while waiting — eliminating the gather-latch deadlock.
-        try (ExecutorService vtExec = Executors.newVirtualThreadPerTaskExecutor()) {
-            try {
-                drainResults = BoundedParallelGather.gather(
-                    prefixSet.prefixes(),
-                    p -> drainOnePrefix(
-                        p,
-                        rootPrefixStr,
-                        provider,
-                        matcher,
-                        nameFilter,
-                        fileHints,
-                        maxDiscoveredFiles,
-                        maxListedObjects,
-                        recursive,
-                        sharedListedCount,
-                        sharedKeptCount,
-                        isCancelled
-                    ),
-                    concurrency,
-                    vtExec
-                );
-            } catch (RuntimeException | IOException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new IOException("listing fan-out failed", e);
-            }
+        List<DrainResult> drainResults = new ArrayList<>(prefixSet.prefixes().size());
+        for (StoragePath p : prefixSet.prefixes()) {
+            drainResults.add(
+                drainOnePrefix(
+                    p,
+                    rootPrefixStr,
+                    provider,
+                    matcher,
+                    nameFilter,
+                    fileHints,
+                    maxDiscoveredFiles,
+                    maxListedObjects,
+                    recursive,
+                    sharedListedCount,
+                    sharedKeptCount,
+                    isCancelled
+                )
+            );
         }
 
         // Merge all results — topFiles and each prefix drain — then sort by path to match the provider's

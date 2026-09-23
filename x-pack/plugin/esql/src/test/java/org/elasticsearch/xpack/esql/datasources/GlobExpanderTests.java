@@ -32,8 +32,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
@@ -3366,41 +3364,16 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The discriminating test: if drains are serial the second one never starts while the first is blocking,
-     * so the latch never reaches zero. An implementation that derives prefixes but drains them sequentially
-     * fails the same way.
+     * Verifies that the fan-out drains each derived prefix independently (sequentially). Each prefix issues its
+     * own {@code listObjects} call; the total across all prefixes is greater than one.
      */
-    public void testPrefixDrainsOverlap() throws Exception {
-        CountDownLatch bothOpen = new CountDownLatch(2);
-        AtomicInteger inFlight = new AtomicInteger();
-        AtomicInteger peak = new AtomicInteger();
-        TreeStubProvider blocking = new TreeStubProvider(wideHiveTree(12, 12, 8)) {
+    public void testPrefixDrainsAreIndependent() throws Exception {
+        AtomicInteger listObjectsCalls = new AtomicInteger();
+        TreeStubProvider counting = new TreeStubProvider(wideHiveTree(12, 12, 8)) {
             @Override
             public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
-                peak.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
-                bothOpen.countDown();
-                try {
-                    assertTrue("a second listing never started", bothOpen.await(10, TimeUnit.SECONDS));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                } finally {
-                    inFlight.decrementAndGet();
-                }
-                // Return empty iterator — we only care that two drains ran concurrently.
-                return new StorageIterator() {
-                    @Override
-                    public boolean hasNext() {
-                        return false;
-                    }
-
-                    @Override
-                    public StorageEntry next() {
-                        throw new NoSuchElementException();
-                    }
-
-                    @Override
-                    public void close() {}
-                };
+                listObjectsCalls.incrementAndGet();
+                return super.listObjects(prefix, recursive);
             }
         };
 
@@ -3408,7 +3381,7 @@ public class GlobExpanderTests extends ESTestCase {
         String pattern = "s3://bucket/data/**/*.parquet";
         GlobExpander.expand(
             pattern,
-            blocking,
+            counting,
             null,
             HIVE_ON,
             Integer.MAX_VALUE,
@@ -3418,7 +3391,7 @@ public class GlobExpanderTests extends ESTestCase {
             4,
             () -> false
         );
-        assertThat(peak.get(), greaterThan(1));
+        assertThat("fan-out must issue more than one listObjects call", listObjectsCalls.get(), greaterThan(1));
     }
 
     /**

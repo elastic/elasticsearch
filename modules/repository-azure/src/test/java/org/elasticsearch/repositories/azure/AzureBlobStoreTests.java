@@ -101,12 +101,12 @@ public class AzureBlobStoreTests extends ESTestCase {
     public void testUploadBlockSizeSettings() {
         // default value
         var azureBlobStore = newBlobStore(Settings.EMPTY);
-        assertEquals(azureBlobStore.getUploadBlockSize(), AzureRepository.Repository.DEFAULT_BLOCK_SIZE.getBytes());
+        assertEquals(AzureRepository.Repository.DEFAULT_BLOCK_SIZE.getBytes(), azureBlobStore.getUploadBlockSize());
 
         azureBlobStore = newBlobStore(
             Settings.builder().put(AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), "10mb").build()
         );
-        assertEquals(azureBlobStore.getUploadBlockSize(), ByteSizeUnit.MB.toBytes(10));
+        assertEquals(ByteSizeUnit.MB.toBytes(10), azureBlobStore.getUploadBlockSize());
 
         // below minimum
         assertThrows(

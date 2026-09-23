@@ -89,7 +89,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         public static final long MAX_BLOCK_NUMBER = 50000;
 
         /**
-         * The maximum size of a PutBlock blob.
+         * The maximum size of a PutBlock blob in API version up to 2019-07-07.
          * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
          */
         public static final ByteSizeValue MAX_BLOCK_SIZE = ByteSizeValue.of(100, ByteSizeUnit.MB);
@@ -127,14 +127,14 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
         /**
          * Block size for multi-block uploads. The Azure repository will use the Put block and Put block list APIs to split the
-         * stream into several part, each of block_size length, and will upload each part in its own request.
+         * stream into several parts, each of block_size length, and will upload each part in its own request.
          */
         public static final Setting<ByteSizeValue> MULTIPART_UPLOAD_PART_SIZE_SETTING = Setting.byteSizeSetting(
             "multipart_upload_part_size",
             DEFAULT_BLOCK_SIZE,
             // Azure doesn't have a hard limit but recommends at least 256 KiB.
             // See https://learn.microsoft.com/en-us/azure/storage/blobs/scalability-targets#scale-targets-for-blob-storage.
-            ByteSizeValue.of(256, ByteSizeUnit.KB),
+            ByteSizeValue.of(256 + 1, ByteSizeUnit.KB),
             MAX_BLOCK_SIZE,
             Property.NodeScope
         );

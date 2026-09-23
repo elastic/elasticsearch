@@ -20,10 +20,11 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  * than it was today.
  *
  * @param dictionary when the column's values are named by ordinals rather than stored
+ * @param summary    how much of what the column held it summarises for a later merge
  * @param chunkCodec what compresses the chunks the values are written in
  * @param sizes      the units the column's streams are written in
  */
-public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkCodec, Sizes sizes) {
+public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy summary, ChunkCodec chunkCodec, Sizes sizes) {
 
     /**
      * The units a string column's streams are written in: what a block addresses, and what closes a chunk of
@@ -155,11 +156,27 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         DEFAULT_SLOT_COUNTS_BLOCK_SIZE
     );
 
-    public static final StringColumnOptions DEFAULT = new StringColumnOptions(DEFAULT_DICTIONARY, ChunkCodec.ZSTD, DEFAULT_SIZES);
+    /**
+     * How much of what a column held it summarises for a later merge, when a field names nothing of its own.
+     *
+     * <p>The same half a megabyte the dictionary is capped at, since what a merge may name is bounded by that
+     * cap too: a summary larger than it describes terms no merged dictionary could hold.
+     */
+    public static final SummaryPolicy DEFAULT_SUMMARY = new SummaryPolicy(DEFAULT_DICTIONARY.maxBytes());
+
+    public static final StringColumnOptions DEFAULT = new StringColumnOptions(
+        DEFAULT_DICTIONARY,
+        DEFAULT_SUMMARY,
+        ChunkCodec.ZSTD,
+        DEFAULT_SIZES
+    );
 
     public StringColumnOptions {
         if (dictionary == null) {
             throw new IllegalArgumentException("a dictionary policy is required; use DictionaryPolicy.NONE to store the values");
+        }
+        if (summary == null) {
+            throw new IllegalArgumentException("a summary policy is required; use SummaryPolicy.NONE to summarise nothing");
         }
         if (chunkCodec == null) {
             throw new IllegalArgumentException("a chunk codec is required; use ChunkCodec.IDENTITY to store the bytes as they are");
@@ -169,13 +186,17 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         }
     }
 
-    /** These options with a different dictionary policy, for a field that should decide it differently. */
-    public StringColumnOptions withDictionary(DictionaryPolicy policy) {
-        return new StringColumnOptions(policy, chunkCodec, sizes);
+    /**
+     * These options under different policies, for a field that should decide differently. Both are given,
+     * since what a column names and what it summarises are chosen together: a field that wants neither says
+     * so twice rather than setting one and inheriting the other.
+     */
+    public StringColumnOptions withPolicies(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
+        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes);
     }
 
     /** These options with different sizes, for a field whose shape is not what the defaults were measured on. */
     public StringColumnOptions withSizes(Sizes other) {
-        return new StringColumnOptions(dictionary, chunkCodec, other);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, other);
     }
 }

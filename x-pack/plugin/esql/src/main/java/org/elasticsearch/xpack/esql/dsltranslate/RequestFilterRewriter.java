@@ -112,16 +112,27 @@ public final class RequestFilterRewriter {
         // Deduplicate: the same construct can fail several times on the same dataset (e.g. two wildcard clauses),
         // and repeating the pair only inflates the header. LinkedHashSet keeps the first-seen order.
         Set<String> skipped = new LinkedHashSet<>();
+        Set<String> gated = new LinkedHashSet<>();
         for (FilterRewriter.NodeFailure nf : failures) {
-            skipped.add("[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]");
+            String where = "[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]";
+            // A construct skipped because some node is too old is NOT an unsupported construct, and saying so sends
+            // the operator looking for a capability the cluster already has. It gets its own sentence, naming why.
+            if (nf.clause().reason() != null) {
+                gated.add(where + " because " + nf.clause().reason());
+            } else {
+                skipped.add(where);
+            }
         }
-        // "could not be fully applied" is accurate whether some conjuncts were installed or none were.
-        HeaderWarning.addWarning(
-            "The request filter could not be fully applied to external dataset(s); the following Query DSL constructs"
-                + " are not supported and were skipped: "
-                + String.join("; ", skipped)
-                + ". Use a WHERE clause to filter rows from external datasets instead."
-        );
+        StringBuilder message = new StringBuilder("The request filter could not be fully applied to external dataset(s)");
+        if (skipped.isEmpty() == false) {
+            // "could not be fully applied" is accurate whether some conjuncts were installed or none were.
+            message.append("; the following Query DSL constructs are not supported and were skipped: ").append(String.join("; ", skipped));
+        }
+        if (gated.isEmpty() == false) {
+            message.append("; the following were skipped: ").append(String.join("; ", gated));
+        }
+        message.append(". Use a WHERE clause to filter rows from external datasets instead.");
+        HeaderWarning.addWarning(message.toString());
     }
 
     /** Warns that the filter was not applied to the plan's dataset leaves, naming them, when there are any. */

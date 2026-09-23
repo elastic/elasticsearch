@@ -140,9 +140,10 @@ public class RequestFilterRewriterTests extends ESTestCase {
         assertThat("the survivable conjunct is installed", condition.anyMatch(MvInRange.class::isInstance), equalTo(true));
         assertThat("the gated conjunct is not", condition.anyMatch(MvCompare.class::isInstance), equalTo(false));
         assertWarnings(
-            "The request filter could not be fully applied to external dataset(s); the following Query DSL constructs"
-                + " are not supported and were skipped: [range[single lower bound on keyword \u2014 needs a newer node]]"
-                + " on dataset [ds]. Use a WHERE clause to filter rows from external datasets instead."
+            "The request filter could not be fully applied to external dataset(s); the following were skipped: "
+                + "[range[single lower bound on keyword]] on dataset [ds] because "
+                + QueryDslTranslator.VERSION_REASON
+                + ". Use a WHERE clause to filter rows from external datasets instead."
         );
     }
 

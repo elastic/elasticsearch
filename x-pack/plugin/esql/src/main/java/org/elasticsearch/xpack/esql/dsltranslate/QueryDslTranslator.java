@@ -83,7 +83,7 @@ public final class QueryDslTranslator {
      * name. Reported at leaf granularity: if {@code C OR D} fails because {@code D} is a wildcard, the clause is
      * {@code D}, not {@code C OR D}.
      */
-    public record UnsupportedClause(org.elasticsearch.index.query.QueryBuilder clause, String construct) {}
+    public record UnsupportedClause(org.elasticsearch.index.query.QueryBuilder clause, String construct, String reason) {}
 
     /**
      * The result of a full translation. {@link #applied()} is the translatable subset of the filter — equal to or
@@ -151,7 +151,7 @@ public final class QueryDslTranslator {
         try {
             return dispatch(query);
         } catch (TranslationUnsupportedException e) {
-            unsupported.add(new UnsupportedClause(query, e.construct()));
+            unsupported.add(new UnsupportedClause(query, e.construct(), e.reason()));
             return null;
         }
     }
@@ -190,7 +190,7 @@ public final class QueryDslTranslator {
         try {
             requiredShould = parseBoolOptions(bool);
         } catch (TranslationUnsupportedException e) {
-            unsupported.add(new UnsupportedClause(bool, e.construct()));
+            unsupported.add(new UnsupportedClause(bool, e.construct(), e.reason()));
             boolOptionsOk = false;
         }
         List<Expression> conjuncts = new ArrayList<>();
@@ -677,7 +677,7 @@ public final class QueryDslTranslator {
             return gated(
                 field,
                 MvGreater.MV_COMPARE_TRANSPORT_VERSION,
-                "range[single lower bound on " + type.typeName() + " \u2014 needs a newer node]",
+                "range[single lower bound on " + type.typeName() + "]",
                 () -> checkedLeaf(
                     field,
                     new MvGreater(Source.EMPTY, field, literalFor(field, range.from()), includeBoundOptions(range.includeLower()))
@@ -687,7 +687,7 @@ public final class QueryDslTranslator {
         return gated(
             field,
             MvLess.MV_COMPARE_TRANSPORT_VERSION,
-            "range[single upper bound on " + type.typeName() + " \u2014 needs a newer node]",
+            "range[single upper bound on " + type.typeName() + "]",
             () -> checkedLeaf(
                 field,
                 new MvLess(Source.EMPTY, field, literalFor(field, range.to()), includeBoundOptions(range.includeUpper()))
@@ -767,25 +767,15 @@ public final class QueryDslTranslator {
             return checkedLeaf(field, new MvInRange(Source.EMPTY, field, longLit(lo, type), longLit(hi, type)));
         }
         if (hasLower) {
-            return gated(
-                field,
-                MvGreater.MV_COMPARE_TRANSPORT_VERSION,
-                "range[single lower bound on " + type.typeName() + " \u2014 needs a newer node]",
-                () -> {
-                    long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
-                    return checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)));
-                }
-            );
+            return gated(field, MvGreater.MV_COMPARE_TRANSPORT_VERSION, "range[single lower bound on " + type.typeName() + "]", () -> {
+                long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
+                return checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)));
+            });
         }
-        return gated(
-            field,
-            MvLess.MV_COMPARE_TRANSPORT_VERSION,
-            "range[single upper bound on " + type.typeName() + " \u2014 needs a newer node]",
-            () -> {
-                long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
-                return checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)));
-            }
-        );
+        return gated(field, MvLess.MV_COMPARE_TRANSPORT_VERSION, "range[single upper bound on " + type.typeName() + "]", () -> {
+            long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
+            return checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)));
+        });
     }
 
     /**
@@ -863,12 +853,16 @@ public final class QueryDslTranslator {
      * translator emits grows whenever a translation is added — so the two drift apart silently, and an older node
      * answers {@code Unknown NamedWriteable} for a plan it was sent. Each emitted function that postdates the
      * rewrite's gate is therefore checked against its own pin here, and a clause needing one the cluster lacks is
-     * untranslatable like any other unsupported construct: the default policy fails the query naming it, partial mode
-     * drops the clause with a warning and still applies the rest.
+     * untranslatable like any other unsupported construct: in production the clause is dropped with a warning and the
+     * rest of the filter still applies; the strict arm, which fails the query naming the construct, exists only to
+     * keep that policy under test.
      * <p>
      * {@code mv_in_range}, {@code mv_contains} and {@code mv_intersects} need no check: all three predate the
      * rewrite's own gate, so any node that reaches this code at all already has them.
      */
+    /** Why a version-gated construct was skipped. Separate from the construct name so the name stays the name. */
+    static final String VERSION_REASON = "the cluster contains a node too old to evaluate it";
+
     private Expression gated(Expression field, TransportVersion required, String construct, Supplier<Expression> leaf) {
         if (minimumVersion.supports(required) == false) {
             // A MISSING field is null-bound and every leaf folds it to false, so the answer here needs no function at
@@ -878,7 +872,7 @@ public final class QueryDslTranslator {
             if (isPresent(field) == false) {
                 return Literal.FALSE;
             }
-            throw new TranslationUnsupportedException(construct);
+            throw new TranslationUnsupportedException(construct, VERSION_REASON);
         }
         return leaf.get();
     }

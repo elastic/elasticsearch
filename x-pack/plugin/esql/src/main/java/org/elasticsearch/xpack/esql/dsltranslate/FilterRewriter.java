@@ -76,6 +76,9 @@ public final class FilterRewriter {
      * @param filter        the Query DSL to translate; must not be null.
      * @param configuration the query configuration, carrying the {@code now} anchor for date math and the locale
      *                      for case-folding.
+     * @param minimumVersion the minimum transport version across the nodes this plan targets, consulted per
+     *                       emitted function. Supplying {@link org.elasticsearch.TransportVersion#current()}
+     *                       disables that gate, which is correct only where every node is known current.
      */
     public static RewriteResult rewrite(
         LogicalPlan plan,

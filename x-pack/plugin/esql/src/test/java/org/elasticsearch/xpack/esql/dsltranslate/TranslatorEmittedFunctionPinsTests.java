@@ -46,8 +46,9 @@ import static org.hamcrest.Matchers.equalTo;
  * output: a test over the output only covers the shapes someone wrote a case for, and the emit site nobody thought
  * of is exactly the one that ships unpinned. It counts classes, not sites, so adding a second unpinned emit site for
  * an already-declared gated class passes here — {@code QueryDslTranslatorTests} covers both paths per function for
- * that. It sees only {@code new X(}, so a static factory or an {@code X::new} reference is invisible to it, and a
- * factory is the natural next thing someone writes — keep synthesizing through constructors, or widen the pattern.
+ * that. It sees only {@code new X(}, and the shapes it cannot see — a static factory, an {@code X::new} reference —
+ * are held shut by {@code testNoExpressionIsBuiltInAShapeTheCensusCannotSee} rather than by a sentence asking nicely.
+ * It reads one file, so an emit moved into a helper class elsewhere in this package would still be invisible.
  * And it forces the DECLARATION, not its correctness: whether the pin named is the version that function actually
  * arrived in is settled by the behavioural cases in that suite, not here.
  */
@@ -84,6 +85,18 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
     );
 
     private static final Pattern CONSTRUCTION = Pattern.compile("\\bnew\\s+([A-Z]\\w+)\\s*\\(");
+    // The shapes this census cannot see. The sibling census guards its own blind spot executably rather than in
+    // prose; this does the same, so a new expression built through a factory or a constructor reference cannot
+    // slip past by being spelled differently.
+    private static final Pattern STATIC_FACTORY = Pattern.compile("\\b([A-Z]\\w+)\\s*\\.\\s*([a-z]\\w*)\\s*\\(");
+    private static final Pattern CTOR_REFERENCE = Pattern.compile("\\b([A-Z]\\w+)\\s*::\\s*new");
+
+    /**
+     * Factory calls on an expression class that are known not to synthesize a gated function. {@code Literal.keyword}
+     * builds the options map's key; {@code Literal} predates the rewrite's gate. Anything else is a new way to build
+     * an expression that {@link #CONSTRUCTION} cannot see, and has to be looked at before it is added here.
+     */
+    private static final Set<String> DECLARED_FACTORIES = Set.of("Literal.keyword");
     private static final Pattern EXPRESSION_IMPORT = Pattern.compile(
         "^import\\s+org\\.elasticsearch\\.xpack\\.esql\\.(?:core\\.)?expression\\.[\\w.]*?([A-Z]\\w+);",
         Pattern.MULTILINE
@@ -117,6 +130,42 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         Set<String> declaredButGone = new TreeSet<>(declared);
         declaredButGone.removeAll(emitted);
         assertThat("declared but no longer constructed — delete the declaration: " + declaredButGone, declaredButGone, empty());
+    }
+
+    /**
+     * {@link #CONSTRUCTION} sees only {@code new X(}. A static factory or an {@code X::new} reference builds an
+     * expression the census would never count, so a function synthesized that way would ship unpinned with the build
+     * green. Naming that in prose is a rule with no executor; this is the executor.
+     */
+    public void testNoExpressionIsBuiltInAShapeTheCensusCannotSee() throws IOException {
+        String source = Files.readString(esqlModuleRoot().resolve(TRANSLATOR));
+        Set<String> imported = importedExpressionClasses(source);
+
+        Set<String> factories = new TreeSet<>();
+        Matcher m = STATIC_FACTORY.matcher(source);
+        while (m.find()) {
+            if (imported.contains(m.group(1))) {
+                factories.add(m.group(1) + "." + m.group(2));
+            }
+        }
+        factories.removeAll(DECLARED_FACTORIES);
+        assertThat(
+            "an expression built through a static factory is invisible to the construction census, so it could ship "
+                + "unpinned with this suite green. Build it with a constructor, or declare it in DECLARED_FACTORIES "
+                + "once you have checked it synthesizes nothing that postdates the rewrite's gate: "
+                + factories,
+            factories,
+            empty()
+        );
+
+        Set<String> refs = new TreeSet<>();
+        Matcher r = CTOR_REFERENCE.matcher(source);
+        while (r.find()) {
+            if (imported.contains(r.group(1))) {
+                refs.add(r.group(1) + "::new");
+            }
+        }
+        assertThat("a constructor reference is invisible to the construction census too: " + refs, refs, empty());
     }
 
     public void testEveryGatedExpressionHasItsPinConsulted() throws IOException {
@@ -177,6 +226,16 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         assertThat(emittedExpressionClasses(fake), equalTo(Set.of("Or")));
     }
 
+    /** The simple names the source imports as an ES|QL expression. */
+    private static Set<String> importedExpressionClasses(String source) {
+        Set<String> imported = new TreeSet<>();
+        Matcher im = EXPRESSION_IMPORT.matcher(source);
+        while (im.find()) {
+            imported.add(im.group(1));
+        }
+        return imported;
+    }
+
     /** The pin constants the source is seen to consult. */
     private static Set<String> pinsConsulted(String source) {
         Set<String> consulted = new TreeSet<>();
@@ -192,11 +251,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
      * a {@code BigDecimal} or a local record out of the census without maintaining a list of things to ignore.
      */
     private static Set<String> emittedExpressionClasses(String source) {
-        Set<String> imported = new TreeSet<>();
-        Matcher im = EXPRESSION_IMPORT.matcher(source);
-        while (im.find()) {
-            imported.add(im.group(1));
-        }
+        Set<String> imported = importedExpressionClasses(source);
         Set<String> emitted = new TreeSet<>();
         Matcher cm = CONSTRUCTION.matcher(source);
         while (cm.find()) {

@@ -658,6 +658,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
             assertFalse(q + " is not translatable below the pin", below.isComplete());
             assertThat(below.unsupported(), hasSize(1));
             assertThat(below.unsupported().get(0).construct(), containsString("on keyword"));
+            assertThat(below.unsupported().get(0).reason(), equalTo(QueryDslTranslator.VERSION_REASON));
             assertThat("no gated function is built below the pin", below.applied().anyMatch(MvCompare.class::isInstance), equalTo(false));
 
             assertThat("at or above the pin it still translates", translateResult(q).unsupported(), empty());
@@ -677,7 +678,11 @@ public class QueryDslTranslatorTests extends ESTestCase {
                 QueryDslTranslator.TranslationResult below = translateResult(q, BELOW_MV_COMPARE);
                 assertFalse(field + " single-bound range is not translatable below the pin", below.isComplete());
                 assertThat(below.unsupported(), hasSize(1));
-                assertThat(below.unsupported().get(0).construct(), containsString("needs a newer node"));
+                assertThat(
+                    below.unsupported().get(0).construct(),
+                    containsString("on " + (field.equals("ts_nanos") ? "date_nanos" : "date"))
+                );
+                assertThat(below.unsupported().get(0).reason(), equalTo(QueryDslTranslator.VERSION_REASON));
                 assertThat(below.applied().anyMatch(MvCompare.class::isInstance), equalTo(false));
 
                 assertThat("at or above the pin it still translates", translateResult(q).unsupported(), empty());
@@ -712,32 +717,23 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * A construct string that has nothing to do with node version must not say it does. The version suffix was once
-     * applied to every construct string in this file by an unanchored edit, and nothing here noticed, because no case
-     * asserted any of the untouched ones. This is that case.
+     * Only a version gate carries a reason. A degradation with a permanent or input-driven cause must not claim one,
+     * or the operator is sent looking for a capability the cluster already has. An earlier revision of this change
+     * stamped the version wording onto seven unrelated construct strings and the whole suite stayed green, because
+     * nothing asserted any of them. This is that assertion.
      */
-    public void testUnrelatedDegradationsDoNotBlameTheNodeVersion() {
+    public void testOnlyVersionGatesCarryAReason() {
         for (var q : List.of(
             QueryBuilders.rangeQuery("status").gte("not-a-number").lte(10),
+            QueryBuilders.rangeQuery("score").gt(1.5).lt(9.5),
             QueryBuilders.rangeQuery("tags").gt("a").lt("z"),
-            QueryBuilders.termQuery("body", "anything")
+            QueryBuilders.termQuery("body", "anything"),
+            QueryBuilders.termsQuery("status", List.of("abc"))
         )) {
-            QueryDslTranslator.TranslationResult result = translateResult(q);
-            for (QueryDslTranslator.UnsupportedClause clause : result.unsupported()) {
-                assertThat(
-                    q + " degrades for its own reason, not a version one",
-                    clause.construct(),
-                    not(containsString("needs a newer node"))
-                );
+            for (QueryDslTranslator.UnsupportedClause clause : translateResult(q).unsupported()) {
+                assertNull(q + " degrades for its own reason, which is not a version one", clause.reason());
             }
         }
-    }
-
-    /** The gate is scoped to what postdates the pin: a two-bound range still translates below it, via mv_in_range. */
-    public void testTwoBoundRangeNotGated() {
-        QueryDslTranslator.TranslationResult below = translateResult(QueryBuilders.rangeQuery("tags").gte("a").lte("z"), BELOW_MV_COMPARE);
-        assertThat("mv_in_range predates the pin and stays available", below.unsupported(), empty());
-        assertThat(below.applied(), instanceOf(MvInRange.class));
     }
 
     // Every field the binder knows, of every type, plus one it does not.

@@ -2270,6 +2270,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
+    /**
+     * A {@link MoveDecision} with the names of the deciders that influenced the decision.
+     *
+     * @param moveDecision The final decision
+     * @param canRemainDeciderName The name of the decider that indicated the shard must move (only populated when canRemain is "no"
+     *                             or "not preferred")
+     * @param canAllocateNotPreferredDeciderName The name of the first decider that indicated the shard should not be allocated
+     *                                           to the target node (only populated when canRemain is "no" and canAllocate is
+     *                                           "not preferred")
+     */
     private record MoveDecisionWithDeciderName(
         MoveDecision moveDecision,
         @Nullable String canRemainDeciderName,

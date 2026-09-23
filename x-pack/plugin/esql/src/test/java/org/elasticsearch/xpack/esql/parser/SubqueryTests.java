@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -1018,14 +1019,16 @@ public class SubqueryTests extends AbstractStatementParserTests {
      * The medatada options from the main query are not propagated into subqueries.
      *
      * Aggregate[[?a],[?COUNT[*] AS cnt#6, ?a]]
-     * \_UnionAll[[]]
-     *   |_UnresolvedRelation[]
-     *   \_Subquery[]
-     *     \_Filter[?a &gt; 10[INTEGER]]
-     *       \_UnionAll[[]]
-     *         |_UnresolvedRelation[]
-     *         \_Subquery[]
-     *           \_UnresolvedRelation[]
+     * \_UnresolvedMetadata[]
+     *   \_UnionAll[[]]
+     *     |_UnresolvedRelation[]
+     *     \_Subquery[]
+     *       \_Filter[?a &gt; 10[INTEGER]]
+     *         \_UnresolvedMetadata[]
+     *           \_UnionAll[[]]
+     *             |_UnresolvedRelation[]
+     *             \_Subquery[]
+     *               \_UnresolvedRelation[]
      */
     public void testSubqueriesWithMetadada() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -1039,7 +1042,10 @@ public class SubqueryTests extends AbstractStatementParserTests {
 
         LogicalPlan plan = query(query);
         Aggregate aggregate = as(plan, Aggregate.class);
-        UnionAll unionAll = as(aggregate.child(), UnionAll.class);
+        UnresolvedMetadata outerUnresolvedMetadata = as(aggregate.child(), UnresolvedMetadata.class);
+        assertEquals(1, outerUnresolvedMetadata.metadataFields().size());
+        assertEquals("_index", as(outerUnresolvedMetadata.metadataFields().get(0), MetadataAttribute.class).name());
+        UnionAll unionAll = as(outerUnresolvedMetadata.child(), UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
         assertEquals(2, children.size());
         // main statement
@@ -1052,7 +1058,10 @@ public class SubqueryTests extends AbstractStatementParserTests {
         // subquery1
         Subquery subquery = as(children.get(1), Subquery.class);
         Filter filter = as(subquery.plan(), Filter.class);
-        unionAll = as(filter.child(), UnionAll.class);
+        UnresolvedMetadata innerUnresolvedMetadata = as(filter.child(), UnresolvedMetadata.class);
+        assertEquals(1, innerUnresolvedMetadata.metadataFields().size());
+        assertEquals("_score", as(innerUnresolvedMetadata.metadataFields().get(0), MetadataAttribute.class).name());
+        unionAll = as(innerUnresolvedMetadata.child(), UnionAll.class);
         children = unionAll.children();
         assertEquals(2, children.size());
         UnresolvedRelation subqueryRelation = as(children.get(0), UnresolvedRelation.class);

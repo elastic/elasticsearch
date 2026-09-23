@@ -28,6 +28,7 @@ import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
@@ -47,6 +48,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -697,6 +699,27 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     private static boolean columnarFeatureFlagEnabled() {
         return ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled();
+    }
+
+    /**
+     * A vectordb index never scans {@code _id} -- the only read of it is the top-N fetch -- so it is written
+     * with its own format instance, cutting a block at 128 documents rather than the thousands the scanned
+     * columns around it are written in.
+     */
+    public void testVectorDbColumnarIdDocValuesFormat() throws IOException {
+        assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            IndexMode.VECTORDB_COLUMNAR,
+            randomColumnarEligibleIndexVersion(),
+            randomBoolean()
+        );
+        final DocValuesFormat idFormat = supplier.getDocValuesFormatForField(IdFieldMapper.NAME);
+        final DocValuesFormat otherFormat = supplier.getDocValuesFormatForField("size");
+
+        assertNotSame("_id is written by its own instance", idFormat, otherFormat);
+        assertThat("but by the same format, so one reader serves both", idFormat.getName(), equalTo(otherFormat.getName()));
+        assertThat(((ES819TSDBDocValuesFormat) idFormat).binaryBlockCountThreshold(), equalTo(128));
+        assertThat(((ES819TSDBDocValuesFormat) otherFormat).binaryBlockCountThreshold(), equalTo(8096));
     }
 
     private static IndexMode randomColumnarMode() {

@@ -915,14 +915,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Waits for the specified data stream to have the expected number of backing indices.
      */
-    public static List<String> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
+    public static List<Index> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
         return waitForDataStreamIndices(dataStreamName, expectedSize, false);
     }
 
     /**
      * Waits for the specified data stream to have the expected number of backing or failure indices.
      */
-    public static List<String> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
+    public static List<Index> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
         // We listen to the cluster state on the master node to ensure all other nodes have already acked the new cluster state.
         // This avoids inconsistencies in subsequent API calls which might hit a non-master node.
         final var listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
@@ -933,18 +933,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
         });
         safeAwait(listener, TimeValue.timeValueSeconds(30));
-        final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
+        final var backingIndices = getDataStreamBackingIndices(dataStreamName, failureStore);
         assertEquals(
             Strings.format(
                 "Retrieved number of data stream indices doesn't match expectation for data stream [%s]. Expected %d but got %s",
                 dataStreamName,
                 expectedSize,
-                backingIndexNames
+                backingIndices
             ),
             expectedSize,
-            backingIndexNames.size()
+            backingIndices.size()
         );
-        return backingIndexNames;
+        return backingIndices;
     }
 
     /**
@@ -958,6 +958,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Returns a list of the data stream's backing or failure index names.
      */
     public static List<String> getDataStreamBackingIndexNames(String dataStreamName, boolean failureStore) {
+        return getDataStreamBackingIndices(dataStreamName, failureStore).stream().map(Index::getName).toList();
+    }
+
+    /**
+     * Returns a list of the data stream's backing or failure indices.
+     */
+    public static List<Index> getDataStreamBackingIndices(String dataStreamName, boolean failureStore) {
         GetDataStreamAction.Response response = safeGet(
             client().execute(
                 GetDataStreamAction.INSTANCE,
@@ -967,7 +974,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(response.getDataStreams().size(), equalTo(1));
         DataStream dataStream = response.getDataStreams().getFirst().getDataStream();
         assertThat(dataStream.getName(), equalTo(dataStreamName));
-        return dataStream.getDataStreamIndices(failureStore).getIndices().stream().map(Index::getName).toList();
+        return dataStream.getDataStreamIndices(failureStore).getIndices();
     }
 
     /**

@@ -308,3 +308,73 @@ teardown:
         namespace: apps
         service: guard_worker
   - match: { found: true }
+
+---
+"Test user-managed service account description":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "description": "Monitors the apps"
+          }
+  - match: { created: true }
+
+  - do:
+      security.get_service_accounts:
+        namespace: apps
+        service: worker_1
+  - match:
+      "apps/worker_1":
+        type: user_managed
+        roles: ["user_managed_monitor"]
+        enabled: true
+        description: "Monitors the apps"
+
+  # The description means nothing to Elasticsearch: authenticating as the account does not surface it.
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: worker_1
+        name: token-1
+  - set: { "token.value": described_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${described_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/worker_1" }
+  - match: { full_name: "User-managed service account - apps/worker_1" }
+  - is_false: metadata.description
+
+  # A write replaces the account wholesale, so writing it again without a description leaves it with none.
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"]
+          }
+  - match: { created: false }
+
+  - do:
+      security.get_service_accounts:
+        namespace: apps
+        service: worker_1
+  - match: { "apps/worker_1.roles": ["user_managed_monitor"] }
+  - is_false: "apps/worker_1.description"
+
+  - do:
+      catch: bad_request
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "description": ["not", "a", "string"]
+          }
+  - match: { error.type: x_content_parse_exception }

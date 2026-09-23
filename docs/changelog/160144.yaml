@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 159955
+pr: 160144
+summary: Return HTTP 400 for malformed `_resolve/index` request bodies
+type: bug

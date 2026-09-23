@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
+import org.elasticsearch.xpack.core.application.ColumnarFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.LogsDBFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.ProfilingUsage;
@@ -346,7 +347,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                     XPackFeatureUsage.class,
                     XPackField.GPU_VECTOR_INDEXING,
                     GpuVectorIndexingFeatureSetUsage::new
-                )
+                ),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.COLUMNAR, ColumnarFeatureSetUsage::new)
             ),
             getChunkingSettingsNamedWriteables().stream()
         ).filter(Objects::nonNull).toList();

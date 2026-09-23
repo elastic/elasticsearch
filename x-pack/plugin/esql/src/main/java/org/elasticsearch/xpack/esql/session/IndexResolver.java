@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -56,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -566,7 +568,7 @@ public class IndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            return textField(name, isAlias, timeSeriesFieldType, fcs);
+            return textField(name, fullName, isAlias, timeSeriesFieldType, fcs, fieldsInfo.caps);
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;
@@ -585,30 +587,52 @@ public class IndexResolver {
     }
 
     /**
-     * Keeps the index analyzer when every index agrees on the name and gap. A mix, or only withheld
-     * {@code index.analysis} names, is recorded on {@link TextEsField.UnknownAnalyzer}.
+     * Keeps the index analyzer when every index agrees on the name and gap. A mix records which indices use which
+     * analyzer as {@link TextEsField#analyzerGroups()}; only withheld {@code index.analysis} names are recorded on
+     * {@link TextEsField.UnknownAnalyzer}.
      */
     private static TextEsField textField(
         String name,
+        String fullName,
         boolean isAlias,
         EsField.TimeSeriesFieldType timeSeriesFieldType,
-        List<IndexFieldCapabilities> fcs
+        List<IndexFieldCapabilities> fcs,
+        FieldCapabilitiesResponse fieldCapsResponse
     ) {
         String analyzer = fcs.getFirst().indexAnalyzer();
         int gap = fcs.getFirst().indexAnalyzerPositionIncrementGap();
         boolean shared = analyzer != null
             && fcs.stream().allMatch(fc -> analyzer.equals(fc.indexAnalyzer()) && gap == fc.indexAnalyzerPositionIncrementGap());
         TextEsField.UnknownAnalyzer unknown;
+        List<IndexAnalyzerGroup> groups = null;
         if (shared) {
             unknown = TextEsField.UnknownAnalyzer.NONE;
         } else if (fcs.stream().anyMatch(fc -> fc.indexAnalyzer() != null)) {
             unknown = TextEsField.UnknownAnalyzer.CONFLICT;
+            groups = analyzerGroups(fullName, fieldCapsResponse);
         } else if (fcs.stream().anyMatch(IndexFieldCapabilities::indexLocalAnalyzer)) {
             unknown = TextEsField.UnknownAnalyzer.INDEX_LOCAL;
         } else {
             unknown = TextEsField.UnknownAnalyzer.NONE;
         }
-        return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType, shared ? analyzer : null, gap, unknown);
+        return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType, shared ? analyzer : null, gap, unknown, groups);
+    }
+
+    /** Like {@link #conflictingTypes}, walks every index response since {@code fcs} is deduplicated by mapping hash. */
+    private static List<IndexAnalyzerGroup> analyzerGroups(String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
+        Map<IndexAnalyzerGroup, Set<String>> indicesByAnalyzer = new LinkedHashMap<>();
+        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
+            IndexFieldCapabilities fc = ir.get().get(fullName);
+            if (fc != null) {
+                int gap = fc.indexAnalyzer() == null ? TextEsField.DEFAULT_POSITION_INCREMENT_GAP : fc.indexAnalyzerPositionIncrementGap();
+                indicesByAnalyzer.computeIfAbsent(new IndexAnalyzerGroup(fc.indexAnalyzer(), gap, Set.of()), k -> new TreeSet<>())
+                    .add(ir.getIndexName());
+            }
+        }
+        return indicesByAnalyzer.entrySet()
+            .stream()
+            .map(e -> new IndexAnalyzerGroup(e.getKey().analyzerName(), e.getKey().positionIncrementGap(), e.getValue()))
+            .toList();
     }
 
     // Visible for testing.

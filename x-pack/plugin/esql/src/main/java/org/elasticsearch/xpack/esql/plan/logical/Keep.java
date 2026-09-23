@@ -32,6 +32,11 @@ public class Keep extends Project implements TelemetryAware, Streaming, SortAgno
     }
 
     @Override
+    public Project withProjections(List<? extends NamedExpression> projections) {
+        return new Keep(source(), child(), projections);
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return super.expressionsResolved(); // TODO: is this method needed?
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -6748,6 +6750,111 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(((TextEsField) title.field()).analyzerName(), equalTo("english"));
         assertNull(highlight.options());
         assertWarnings(englishFallbackWarning("title"));
+    }
+
+    /**
+     * When the indices disagree on an ON field's analyzer, HIGHLIGHT gets a synthetic alias of each row's
+     * {@code _index}, carried through the projections below it, and no fallback warning. The alias stays out of the
+     * final output, and so does a user {@code _index} that was renamed away.
+     */
+    public void testHighlightPerIndexAnalyzerThreadsIndexKey() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | WHERE MATCH(title, "ring")
+            | KEEP title, book_no
+            | SORT book_no
+            | HIGHLIGHT
+            """);
+        Highlight highlight = soleHighlight(plan);
+        ReferenceAttribute key = as(highlight.indexKey(), ReferenceAttribute.class);
+        assertThat(key.name(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+        assertTrue(key.synthetic());
+        assertThat(highlight.child().outputSet(), hasItem(key));
+        assertThat(highlight.references(), hasItem(key));
+        assertThat(fieldNames(plan.output()), equalTo(List.of("title", "book_no", "highlight_title")));
+        // The KEEP below HIGHLIGHT carries the key, the alias sits right above the relation on a synthetic _index.
+        Project keep = highlight.child().collect(Project.class).getFirst();
+        assertThat(List.<NamedExpression>copyOf(keep.projections()), hasItem(key));
+        Eval alias = highlight.child().collect(Eval.class).getFirst();
+        MetadataAttribute index = as(as(alias.fields().getFirst(), Alias.class).child(), MetadataAttribute.class);
+        assertThat(index.name(), equalTo(MetadataAttribute.INDEX));
+        assertTrue(index.synthetic());
+        assertThat(as(alias.child(), EsRelation.class).output(), hasItem(index));
+
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books* METADATA _index
+            | RENAME _index AS idx
+            | HIGHLIGHT "ring" ON title
+            """);
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(fieldNames(plan.output()), equalTo(List.of("book_no", "title", "idx", "highlight_title")));
+        // No warning: every row is highlighted with its own index's analyzer.
+        assertWarnings();
+    }
+
+    /** Without a source index per row, or with WITH analyzer, or towards an older node, HIGHLIGHT keeps today's fallback. */
+    public void testHighlightPerIndexAnalyzerFallsBackWithoutIndexKey() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        for (String query : List.of(
+            "FROM books* | STATS c = COUNT(*) BY title | HIGHLIGHT \"ring\" ON title",
+            "ROW title = \"ring\" | HIGHLIGHT \"ring\" ON title"
+        )) {
+            assertNull(soleHighlight(booksWithConflictingTitleAnalyzer().query(query)).indexKey());
+        }
+        assertNull(
+            soleHighlight(
+                booksWithConflictingTitleAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
+                    .query("FROM books* | HIGHLIGHT \"ring\" ON title")
+            ).indexKey()
+        );
+        // Response headers keep one copy of a repeated warning.
+        assertWarnings(analyzerConflictFallbackWarning("title"));
+
+        assertNull(
+            soleHighlight(
+                booksWithConflictingTitleAnalyzer().query("FROM books* | HIGHLIGHT \"ring\" ON title WITH {\"analyzer\": \"keyword\"}")
+            ).indexKey()
+        );
+        assertWarnings();
+    }
+
+    private static String analyzerConflictFallbackWarning(String field) {
+        return "HIGHLIGHT on ["
+            + field
+            + "] falls back to [standard]: the queried indices disagree on the analyzer for this field. "
+            + "Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this.";
+    }
+
+    /** {@code books} analyzes {@code title} with {@code whitespace}, {@code books_english} with {@code stop}. */
+    private TestAnalyzer booksWithConflictingTitleAnalyzer() {
+        int gap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        TextEsField title = new TextEsField(
+            "title",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            null,
+            gap,
+            TextEsField.UnknownAnalyzer.CONFLICT,
+            List.of(
+                new IndexAnalyzerGroup("whitespace", gap, Set.of("books")),
+                new IndexAnalyzerGroup("stop", gap, Set.of("books_english"))
+            )
+        );
+        EsField bookNo = new KeywordEsField("book_no", Map.of(), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE);
+        Map<String, EsField> mapping = new LinkedHashMap<>();
+        mapping.put("title", title);
+        mapping.put("book_no", bookNo);
+        EsIndex index = new EsIndex(
+            "books*",
+            mapping,
+            Map.of("books", new IndexProperties(IndexMode.STANDARD, 1), "books_english", new IndexProperties(IndexMode.STANDARD, 1)),
+            Map.of(),
+            Map.of()
+        );
+        return supportsHighlight(analyzer().addIndex(index).stripErrorPrefix(true));
     }
 
     public void testHighlightImplicitQueryPassesDocPreservingCommands() {

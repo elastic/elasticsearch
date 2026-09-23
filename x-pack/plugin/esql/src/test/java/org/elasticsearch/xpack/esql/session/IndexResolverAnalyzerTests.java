@@ -13,6 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField.UnknownAnalyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -20,7 +21,9 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -59,10 +62,34 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
         assertAnalyzer(resolveTitle(indexLocal("idx-a"), index("idx-b", "english", 100)), null, UnknownAnalyzer.CONFLICT);
     }
 
+    /**
+     * A disagreement keeps which indices use which analyzer, so HIGHLIGHT can pick per row. Indices are found by
+     * walking every index response: the merge itself only sees one response per mapping hash, and here
+     * {@code idx-b} and {@code idx-c} share one. A withheld name is a group of its own.
+     */
+    public void testConflictKeepsAnalyzerGroups() {
+        TextEsField field = resolveTitle(
+            index("idx-a", "english", 0),
+            index("idx-b", "standard", 100),
+            index("idx-c", "standard", 100),
+            indexLocal("idx-d")
+        );
+        assertAnalyzer(field, null, UnknownAnalyzer.CONFLICT);
+        assertThat(
+            field.analyzerGroups(),
+            contains(
+                new IndexAnalyzerGroup("english", 0, Set.of("idx-a")),
+                new IndexAnalyzerGroup("standard", 100, Set.of("idx-b", "idx-c")),
+                new IndexAnalyzerGroup(null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, Set.of("idx-d"))
+            )
+        );
+    }
+
     private static void assertAnalyzer(TextEsField field, String analyzerName, UnknownAnalyzer unknownAnalyzer) {
         Matcher<String> nameMatcher = analyzerName == null ? nullValue(String.class) : equalTo(analyzerName);
         assertThat(field.analyzerName(), nameMatcher);
         assertThat(field.unknownAnalyzer(), equalTo(unknownAnalyzer));
+        assertThat(field.analyzerGroups() != null, equalTo(unknownAnalyzer == UnknownAnalyzer.CONFLICT));
     }
 
     private static TextEsField resolveTitle(String first, String second) {
@@ -86,11 +113,13 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
         return (TextEsField) esField;
     }
 
+    /** The mapping hash is derived from the analyzer, so indices that agree share one response in the merge. */
     private static FieldCapabilitiesIndexResponse index(String index, String analyzer, int positionIncrementGap) {
         var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer(analyzer)
             .indexAnalyzerPositionIncrementGap(positionIncrementGap)
             .build();
-        return new FieldCapabilitiesIndexResponse(index, index, Map.of("title", title), true, IndexMode.STANDARD);
+        String hash = analyzer + "/" + positionIncrementGap;
+        return new FieldCapabilitiesIndexResponse(index, hash, Map.of("title", title), true, IndexMode.STANDARD);
     }
 
     /** An index that analyzes {@code title} with an {@code index.analysis} name, so it reports no name at all. */

@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
@@ -25,6 +26,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomList;
+import static org.elasticsearch.test.ESTestCase.randomSet;
 
 /**
  * Utility class providing factory and random-instance methods for EsField subtype testing.
@@ -144,6 +146,7 @@ public class EsFieldTestUtils {
         String analyzerName = null;
         int positionIncrementGap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
         TextEsField.UnknownAnalyzer unknownAnalyzer = TextEsField.UnknownAnalyzer.NONE;
+        List<IndexAnalyzerGroup> analyzerGroups = null;
         if (supportedOn == null || supportedOn.supports(TextEsField.FIELD_CAPS_INDEX_ANALYZER)) {
             analyzerName = randomBoolean() ? null : randomAlphaOfLength(6);
             if (analyzerName != null) {
@@ -151,9 +154,35 @@ public class EsFieldTestUtils {
             } else {
                 // Only meaningful when the field has no shared analyzer name; the resolver never sets both.
                 unknownAnalyzer = randomFrom(TextEsField.UnknownAnalyzer.values());
+                if (unknownAnalyzer == TextEsField.UnknownAnalyzer.CONFLICT && randomBoolean()) {
+                    analyzerGroups = randomAnalyzerGroups();
+                }
             }
         }
-        return new TextEsField(name, properties, hasDocValues, isAlias, tsType, analyzerName, positionIncrementGap, unknownAnalyzer);
+        return new TextEsField(
+            name,
+            properties,
+            hasDocValues,
+            isAlias,
+            tsType,
+            analyzerName,
+            positionIncrementGap,
+            unknownAnalyzer,
+            analyzerGroups
+        );
+    }
+
+    /** Which indices use which analyzer when they disagree; at most one group has no name. */
+    public static List<IndexAnalyzerGroup> randomAnalyzerGroups() {
+        return randomList(
+            2,
+            4,
+            () -> new IndexAnalyzerGroup(
+                randomBoolean() ? null : randomAlphaOfLength(6),
+                between(0, 1000),
+                randomSet(1, 3, () -> randomAlphaOfLength(5))
+            )
+        );
     }
 
     public static PotentiallyUnmappedKeywordEsField randomPotentiallyUnmappedKeywordEsField(

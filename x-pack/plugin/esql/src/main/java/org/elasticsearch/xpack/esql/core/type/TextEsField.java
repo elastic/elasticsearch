@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -29,7 +30,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  */
 public class TextEsField extends EsField {
 
-    /** Same transport version as {@code IndexFieldCapabilities#indexAnalyzer}. */
+    /**
+     * Same transport version as {@code IndexFieldCapabilities#indexAnalyzer}. Also gates {@link #analyzerGroups}: the
+     * HIGHLIGHT analyzer stack ships under one version.
+     */
     public static final TransportVersion FIELD_CAPS_INDEX_ANALYZER = TransportVersion.fromName("field_caps_index_analyzer");
 
     /** {@link TextFieldMapper.Defaults#POSITION_INCREMENT_GAP}, used when {@link #analyzerName} is {@code null}. */
@@ -48,6 +52,8 @@ public class TextEsField extends EsField {
     private final @Nullable String analyzerName;
     private final int positionIncrementGap;
     private final UnknownAnalyzer unknownAnalyzer;
+    /** Which indices use which analyzer. Only set on a {@link UnknownAnalyzer#CONFLICT}. */
+    private final @Nullable List<IndexAnalyzerGroup> analyzerGroups;
 
     public TextEsField(
         String name,
@@ -69,11 +75,27 @@ public class TextEsField extends EsField {
         int positionIncrementGap,
         UnknownAnalyzer unknownAnalyzer
     ) {
+        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, analyzerName, positionIncrementGap, unknownAnalyzer, null);
+    }
+
+    public TextEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType,
+        @Nullable String analyzerName,
+        int positionIncrementGap,
+        UnknownAnalyzer unknownAnalyzer,
+        @Nullable List<IndexAnalyzerGroup> analyzerGroups
+    ) {
         super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
         assert analyzerName == null || unknownAnalyzer == UnknownAnalyzer.NONE;
+        assert analyzerGroups == null || unknownAnalyzer == UnknownAnalyzer.CONFLICT;
         this.analyzerName = analyzerName;
         this.positionIncrementGap = analyzerName == null ? DEFAULT_POSITION_INCREMENT_GAP : positionIncrementGap;
         this.unknownAnalyzer = unknownAnalyzer;
+        this.analyzerGroups = analyzerGroups;
     }
 
     protected TextEsField(StreamInput in) throws IOException {
@@ -85,7 +107,8 @@ public class TextEsField extends EsField {
             readTimeSeriesFieldType(in),
             in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readOptionalString() : null,
             in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readVInt() : DEFAULT_POSITION_INCREMENT_GAP,
-            in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readEnum(UnknownAnalyzer.class) : UnknownAnalyzer.NONE
+            in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readEnum(UnknownAnalyzer.class) : UnknownAnalyzer.NONE,
+            in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readOptionalCollectionAsList(IndexAnalyzerGroup::new) : null
         );
     }
 
@@ -99,7 +122,8 @@ public class TextEsField extends EsField {
             getTimeSeriesFieldType(),
             analyzerName,
             positionIncrementGap,
-            unknownAnalyzer
+            unknownAnalyzer,
+            analyzerGroups
         );
     }
 
@@ -115,6 +139,7 @@ public class TextEsField extends EsField {
             // Written even when the name is null; the reader always consumes this vint.
             out.writeVInt(positionIncrementGap);
             out.writeEnum(unknownAnalyzer);
+            out.writeOptionalCollection(analyzerGroups);
         }
     }
 
@@ -128,6 +153,11 @@ public class TextEsField extends EsField {
 
     public UnknownAnalyzer unknownAnalyzer() {
         return unknownAnalyzer;
+    }
+
+    /** Per-index analyzers when the indices disagree, otherwise {@code null}. */
+    public List<IndexAnalyzerGroup> analyzerGroups() {
+        return analyzerGroups;
     }
 
     public String getWriteableName(TransportVersion transportVersion) {
@@ -184,11 +214,12 @@ public class TextEsField extends EsField {
             && o instanceof TextEsField that
             && positionIncrementGap == that.positionIncrementGap
             && unknownAnalyzer == that.unknownAnalyzer
-            && Objects.equals(analyzerName, that.analyzerName);
+            && Objects.equals(analyzerName, that.analyzerName)
+            && Objects.equals(analyzerGroups, that.analyzerGroups);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), analyzerName, positionIncrementGap, unknownAnalyzer);
+        return Objects.hash(super.hashCode(), analyzerName, positionIncrementGap, unknownAnalyzer, analyzerGroups);
     }
 }

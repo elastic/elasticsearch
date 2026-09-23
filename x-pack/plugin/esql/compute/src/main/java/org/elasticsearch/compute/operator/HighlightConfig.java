@@ -12,6 +12,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -22,8 +23,8 @@ import java.util.stream.IntStream;
  * It contains two groups of values:
  * <ul>
  *     <li>user-facing highlight options resolved from {@code WITH { ... }}</li>
- *     <li>execution context (per-field {@link NamedAnalyzer}s, translated {@link Query}, and target field names)
- *     attached during planning via {@link #withExecutionContext(List, Query, List)}</li>
+ *     <li>execution context (per-field {@link NamedAnalyzer}s and translated {@link Query} per {@link Variant}, and
+ *     target field names) attached during planning via {@link #withExecutionContext(List, Map, List)}</li>
  * </ul>
  * Keeping this record in the compute module (rather than referencing the ES|QL planning-layer options type) keeps
  * operator wiring localized to the compute package.
@@ -44,9 +45,10 @@ import java.util.stream.IntStream;
  *                           its mapping analyzer, a TO_TEXT declaration, or {@code standard}.
  * @param maxAnalyzedOffset  per-field analysis bound; a negative value means "use the default index setting" in the
  *                           current coordinator-side operator.
- * @param fieldAnalyzers     the analyzer each ON field is analyzed and searched with, aligned by index with
- *                           {@code fieldNames}. Fields can use different analyzers.
- * @param query              translated Lucene query used for matching and snippet extraction.
+ * @param variants           analyzers and query per combination of analyzers some row needs. Rows use
+ *                           {@code variants.getFirst()} unless {@code variantByIndex} says otherwise.
+ * @param variantByIndex     {@code _index} value to the position in {@code variants} its rows use. Empty when every
+ *                           row shares the first variant.
  * @param fieldNames         highlighted field names, in the same order as field evaluators.
  */
 public record HighlightConfig(
@@ -62,13 +64,24 @@ public record HighlightConfig(
     boolean orderByScore,
     String analyzerName,
     int maxAnalyzedOffset,
-    List<NamedAnalyzer> fieldAnalyzers,
-    Query query,
+    List<Variant> variants,
+    Map<String, Integer> variantByIndex,
     List<String> fieldNames
 ) {
 
     /** Encoder name that escapes HTML markup in the highlighted text; any other value uses the default (no escaping). */
     public static final String HTML_ENCODER = "html";
+
+    /**
+     * The analyzer each ON field is analyzed and searched with, aligned by index with {@link #fieldNames}, and the
+     * Lucene query translated with those analyzers.
+     */
+    public record Variant(List<NamedAnalyzer> fieldAnalyzers, Query query) {
+        public Variant {
+            fieldAnalyzers = List.copyOf(fieldAnalyzers);
+            Objects.requireNonNull(query, "HIGHLIGHT query must be set in execution context");
+        }
+    }
 
     public HighlightConfig(
         String queryText,
@@ -98,17 +111,23 @@ public record HighlightConfig(
             analyzerName,
             maxAnalyzedOffset,
             List.of(),
-            null,
+            Map.of(),
             List.of()
         );
     }
 
     public HighlightConfig {
-        fieldAnalyzers = List.copyOf(fieldAnalyzers);
+        variants = List.copyOf(variants);
+        variantByIndex = Map.copyOf(variantByIndex);
         fieldNames = List.copyOf(fieldNames);
     }
 
+    /** Single-variant shorthand: every row uses {@code fieldAnalyzers} and {@code query}. */
     public HighlightConfig withExecutionContext(List<NamedAnalyzer> fieldAnalyzers, Query query, List<String> fieldNames) {
+        return withExecutionContext(List.of(new Variant(fieldAnalyzers, query)), Map.of(), fieldNames);
+    }
+
+    public HighlightConfig withExecutionContext(List<Variant> variants, Map<String, Integer> variantByIndex, List<String> fieldNames) {
         return new HighlightConfig(
             queryText,
             preTag,
@@ -122,21 +141,17 @@ public record HighlightConfig(
             orderByScore,
             analyzerName,
             maxAnalyzedOffset,
-            fieldAnalyzers,
-            query,
+            variants,
+            variantByIndex,
             fieldNames
         );
     }
 
-    public List<NamedAnalyzer> requiredFieldAnalyzers() {
-        if (fieldAnalyzers.isEmpty()) {
+    public List<Variant> requiredVariants() {
+        if (variants.isEmpty()) {
             throw new IllegalStateException("HIGHLIGHT field analyzers must be set in execution context");
         }
-        return fieldAnalyzers;
-    }
-
-    public Query requiredQuery() {
-        return Objects.requireNonNull(query, "HIGHLIGHT query must be set in execution context");
+        return variants;
     }
 
     public String describe() {
@@ -162,21 +177,44 @@ public record HighlightConfig(
             + orderByScore
             + ", analyzer="
             + describeAnalyzers()
+            + describePerIndexAnalyzers()
             + ", max_analyzed_offset="
             + maxAnalyzedOffset;
     }
 
-    /** One analyzer name, or {@code {field=analyzer, ...}} when fields differ. Uses {@link #analyzerName} when the list is empty. */
+    /** One analyzer name, or {@code {field=analyzer, ...}} when fields differ. Uses {@link #analyzerName} when no variant is set. */
     private String describeAnalyzers() {
-        if (fieldAnalyzers.isEmpty()) {
+        if (variants.isEmpty()) {
             return String.valueOf(analyzerName);
         }
+        List<NamedAnalyzer> fieldAnalyzers = variants.getFirst().fieldAnalyzers();
         if (fieldAnalyzers.stream().map(NamedAnalyzer::name).distinct().count() == 1) {
             return fieldAnalyzers.getFirst().name();
         }
         return IntStream.range(0, fieldNames.size())
             .mapToObj(i -> fieldNames.get(i) + "=" + fieldAnalyzers.get(i).name())
             .collect(Collectors.joining(", ", "{", "}"));
+    }
+
+    /** {@code {index=analyzer, ...}} for rows that use another variant than the first; empty when none do. */
+    private String describePerIndexAnalyzers() {
+        if (variantByIndex.isEmpty()) {
+            return "";
+        }
+        return variantByIndex.entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(
+                e -> e.getKey()
+                    + "="
+                    + variants.get(e.getValue())
+                        .fieldAnalyzers()
+                        .stream()
+                        .map(NamedAnalyzer::name)
+                        .distinct()
+                        .collect(Collectors.joining("/"))
+            )
+            .collect(Collectors.joining(", ", ", per_index_analyzer={", "}"));
     }
 
     @Override

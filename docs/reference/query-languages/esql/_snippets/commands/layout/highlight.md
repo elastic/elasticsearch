@@ -71,10 +71,10 @@ resolve to a literal are accepted; column references are not.
     but `HTML` is rejected. `boundary_scanner` and `order` are case-insensitive.
 
 `analyzer`
-:   (Optional) Analyzer used on both the query and field text. Defaults to the
-    `standard` analyzer. Only built-in and node-level plugin analyzers are
-    supported. If a full-text search function specifies its own `analyzer`, it
-    must match the analyzer specified here.
+:   (Optional) Analyzer used on the text of every `ON` field, instead of each
+    field's own analyzer described below. Only built-in and node-level plugin
+    analyzers are supported. A full-text search function in the query keeps its
+    own `analyzer` option for its query terms.
 
 `number_of_fragments`
 :   (Optional) Maximum number of snippets (fragments) to return per field. Set to `0` to return the entire
@@ -130,6 +130,12 @@ Because `HIGHLIGHT` re-analyzes text values at query time, you can highlight
 source fields from an index as well as computed columns created by earlier
 commands like `EVAL`, `DISSECT`, `GROK`, `STATS`, `ENRICH`, or `LOOKUP JOIN`.
 
+Each `text` field is analyzed with the analyzer from its index mapping, so
+highlights line up with what `MATCH` matched. When the queried indices disagree
+on a field's analyzer, each row uses the analyzer of the index it came from.
+Computed columns use the analyzer declared with `TO_TEXT`, or `standard`. The
+`analyzer` option applies one analyzer to every field instead.
+
 For multivalued fields, each value is highlighted independently:
 * Phrase queries and fragment boundaries do not cross values.
 * When a field produces multiple fragments, the output column contains a multivalued list of snippets.
@@ -141,8 +147,10 @@ Learn more about using [ES|QL for search use cases](docs-content://solutions/sea
 
 ## Limitations
 
-* `HIGHLIGHT` re-analyzes text with the `standard` analyzer by default, rather than the analyzer configured in the index mapping. If your field uses a custom or language analyzer, specify it with the `analyzer` option in the `WITH` clause.
-* The `analyzer` option only supports built-in and node-level plugin analyzers. Analyzers configured in index settings are not supported.
+* Analyzers defined in index settings (`index.analysis`) cannot be rebuilt at query time. A field that uses one is analyzed with `standard` and the query returns a warning; specify a built-in or plugin analyzer with the `analyzer` option to control this.
+* When the queried indices disagree on a field's analyzer, rows that have no single source index, such as the output of `STATS`, `FORK`, or `ROW`, are analyzed with `standard` and the query returns a warning.
+* A field copied or renamed with `EVAL` or `RENAME` loses its mapping analyzer and is analyzed with `standard`.
+* The `analyzer` option only supports built-in and node-level plugin analyzers.
 * On `keyword` fields, `HIGHLIGHT` tokenizes text and breaks it into snippets like a text field, rather than treating the value as a single term.
 * On `semantic_text` fields, `HIGHLIGHT` performs lexical matching against the underlying text. Semantic vector matches without literal keyword overlap are not highlighted.
 * Fields are analyzed up to a maximum of 1 million characters. Text beyond this limit is not analyzed or highlighted.
@@ -191,6 +199,13 @@ Use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions
 Use the `analyzer` option to apply language-specific stemming rules. In this example, the `english` analyzer stems `Rings` to `ring`:
 
 :::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/highlightAnalyzerEnglishStemsMatchForDocs.md
+:::
+
+### Highlight across indices with different analyzers
+
+Each row is highlighted with the analyzer of the index it came from. Here `books_english` maps `title` with the `english` analyzer, which stems `Rings`, while `books` uses the default analyzer and does not:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/highlight.csv-spec/highlightPerIndexAnalyzerForDocs.md
 :::
 
 ### Highlight multiple fields

@@ -29,7 +29,16 @@ public class HighlightExecSerializationTests extends AbstractPhysicalPlanSeriali
         PhysicalPlan child = randomChild(0);
         String prefix = randomPrefix();
         List<NamedExpression> fields = randomFields();
-        return new HighlightExec(source, child, prefix, randomQuery(), fields, randomNonNullOptions(), generatedFor(prefix, fields));
+        return new HighlightExec(
+            source,
+            child,
+            prefix,
+            randomQuery(),
+            fields,
+            randomNonNullOptions(),
+            generatedFor(prefix, fields),
+            randomIndexKey()
+        );
     }
 
     @Override
@@ -39,15 +48,22 @@ public class HighlightExecSerializationTests extends AbstractPhysicalPlanSeriali
         Expression query = instance.query();
         List<NamedExpression> fields = instance.fields();
         MapExpression options = instance.options();
+        Attribute indexKey = instance.indexKey();
 
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> prefix = randomValueOtherThan(prefix, HighlightExecSerializationTests::randomPrefix);
             case 2 -> query = randomValueOtherThan(query, HighlightExecSerializationTests::randomQuery);
             case 3 -> fields = randomValueOtherThan(fields, HighlightExecSerializationTests::randomFields);
             case 4 -> options = randomValueOtherThan(options, HighlightExecSerializationTests::randomOptions);
+            case 5 -> indexKey = randomValueOtherThan(indexKey, HighlightExecSerializationTests::randomIndexKey);
         }
-        return new HighlightExec(instance.source(), child, prefix, query, fields, options, generatedFor(prefix, fields));
+        return new HighlightExec(instance.source(), child, prefix, query, fields, options, generatedFor(prefix, fields), indexKey);
+    }
+
+    // Set only when the queried indices disagree on an analyzer, so cover both cases.
+    private static Attribute randomIndexKey() {
+        return randomBoolean() ? null : randomReferenceAttribute(false);
     }
 
     private static String randomPrefix() {

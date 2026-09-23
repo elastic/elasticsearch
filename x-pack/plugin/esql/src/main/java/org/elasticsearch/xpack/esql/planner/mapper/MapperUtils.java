@@ -204,7 +204,8 @@ public class MapperUtils {
                 highlight.query(),
                 highlight.fields(),
                 highlight.options(),
-                highlight.generatedAttributes()
+                highlight.generatedAttributes(),
+                highlight.indexKey()
             );
         }
 

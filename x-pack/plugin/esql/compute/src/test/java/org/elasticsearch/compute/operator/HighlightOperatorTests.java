@@ -51,9 +51,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -715,6 +717,46 @@ public class HighlightOperatorTests extends OperatorTestCase {
             assertThat(result.isNull(1), equalTo(true));
         } finally {
             result.close();
+        }
+    }
+
+    /**
+     * Each row is analyzed and searched the way its own index does: the english variant stems {@code Ring} and
+     * carries the query translated with that analyzer ({@code ring}), the standard one keeps {@code Ring} and queries
+     * {@code rings}. Rows with a null or unknown {@code _index} use the first variant.
+     */
+    public void testPerIndexVariants() {
+        HighlightConfig config = config("rings", 5, 0, 0).withExecutionContext(
+            List.of(
+                new HighlightConfig.Variant(namedAnalyzers(new StandardAnalyzer(), 1), contentTerm("rings")),
+                new HighlightConfig.Variant(namedAnalyzers(new EnglishAnalyzer(), 1), contentTerm("ring"))
+            ),
+            Map.of("books_english", 1),
+            CONTENT
+        );
+        assertThat(config.describe(), containsString("analyzer=StandardAnalyzer, per_index_analyzer={books_english=EnglishAnalyzer}"));
+        BytesRefBlock content = bytesRefs(
+            List.of(List.of("Lord of the Ring"), List.of("Lord of the Ring"), List.of("Lord of the Ring"), List.of("Lord of the Rings"))
+        );
+        BytesRefBlock index = bytesRefsOrNull(Arrays.asList("books", "books_english", null, "unknown"));
+        try (
+            HighlightOperator operator = new HighlightOperator(
+                blockFactory(),
+                config,
+                new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) },
+                new LoadFromPageEvaluator(1)
+            )
+        ) {
+            Page result = operator.process(new Page(content, index));
+            try {
+                BytesRefBlock highlighted = result.getBlock(2);
+                assertThat(highlighted.isNull(0), equalTo(true));
+                assertThat(value(highlighted, 1), equalTo("Lord of the <em>Ring</em>"));
+                assertThat(highlighted.isNull(2), equalTo(true));
+                assertThat(value(highlighted, 3), equalTo("Lord of the <em>Rings</em>"));
+            } finally {
+                result.releaseBlocks();
+            }
         }
     }
 

@@ -45,7 +45,8 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             derivedFields,
             fields,
             randomNonNullOptions(),
-            generatedFor(prefix, fields)
+            generatedFor(prefix, fields),
+            randomIndexKey()
         );
     }
 
@@ -58,8 +59,9 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
         boolean derivedFields = instance.derivedFields();
         List<NamedExpression> fields = instance.fields();
         MapExpression options = instance.options();
+        Attribute indexKey = instance.indexKey();
 
-        switch (between(0, 6)) {
+        switch (between(0, 7)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> prefix = randomValueOtherThan(prefix, HighlightSerializationTests::randomPrefix);
             case 2 -> query = randomValueOtherThan(query, HighlightSerializationTests::randomQuery);
@@ -67,6 +69,7 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             case 4 -> derivedFields = derivedFields == false;
             case 5 -> fields = randomValueOtherThan(fields, HighlightSerializationTests::randomFields);
             case 6 -> options = randomValueOtherThan(options, HighlightSerializationTests::randomOptions);
+            case 7 -> indexKey = randomValueOtherThan(indexKey, HighlightSerializationTests::randomIndexKey);
         }
         return new Highlight(
             instance.source(),
@@ -77,7 +80,8 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             derivedFields,
             fields,
             options,
-            generatedFor(prefix, fields)
+            generatedFor(prefix, fields),
+            indexKey
         );
     }
 
@@ -131,6 +135,11 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
 
     private static List<NamedExpression> randomFields() {
         return randomList(1, 5, () -> randomReferenceAttribute(false));
+    }
+
+    // Set only when the queried indices disagree on an analyzer, so cover both cases.
+    private static Attribute randomIndexKey() {
+        return randomBoolean() ? null : randomReferenceAttribute(false);
     }
 
     private static List<Attribute> generatedFor(String prefix, List<NamedExpression> fields) {

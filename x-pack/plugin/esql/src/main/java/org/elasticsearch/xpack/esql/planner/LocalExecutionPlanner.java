@@ -1635,19 +1635,26 @@ public class LocalExecutionPlanner {
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
         String analyzerName = options.analyzerName();
 
-        Map<String, NamedAnalyzer> fieldAnalyzers = HighlightAnalyzers.resolve(
+        HighlightAnalyzers.Resolved resolved = HighlightAnalyzers.resolve(
             highlight.fields(),
             analyzerName,
-            context.analysisRegistry()
+            context.analysisRegistry(),
+            highlight.indexKey() != null,
+            w -> {} // already emitted at verification
         );
-        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
-            queryExpr,
-            fieldAnalyzers,
-            context.analysisRegistry()
-        );
-        List<NamedAnalyzer> perField = fieldNames.stream().map(fieldAnalyzers::get).toList();
+        List<HighlightConfig.Variant> variants = new ArrayList<>(resolved.variants().size());
+        String queryText = null;
+        for (Map<String, NamedAnalyzer> fieldAnalyzers : resolved.variants()) {
+            HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
+                queryExpr,
+                fieldAnalyzers,
+                context.analysisRegistry()
+            );
+            queryText = translated.queryText();
+            variants.add(new HighlightConfig.Variant(fieldNames.stream().map(fieldAnalyzers::get).toList(), translated.query()));
+        }
         HighlightConfig config = new HighlightConfig(
-            translated.queryText(),
+            queryText,
             options.preTag(),
             options.postTag(),
             options.encoder(),
@@ -1659,12 +1666,15 @@ public class LocalExecutionPlanner {
             HighlightOptions.ORDER_SCORE.equals(options.order()),
             analyzerName,
             options.maxAnalyzedOffset()
-        ).withExecutionContext(perField, translated.query(), fieldNames);
+        ).withExecutionContext(variants, resolved.variantByIndex(), fieldNames);
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()
             .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
             .toList();
+        ExpressionEvaluator.Factory indexEvaluator = resolved.variantByIndex().isEmpty()
+            ? null
+            : EvalMapper.toEvaluator(context.foldCtx(), highlight.indexKey(), source.layout, context.analysisRegistry());
 
         Layout.Builder layoutBuilder = source.layout.builder();
         // Append one keyword column per highlighted field.
@@ -1672,7 +1682,7 @@ public class LocalExecutionPlanner {
         // so the operator's appended blocks line up with these layout channels.
         layoutBuilder.append(highlight.generatedFields());
 
-        return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
+        return source.with(new HighlightOperator.Factory(config, fieldEvaluators, indexEvaluator), layoutBuilder.build());
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {

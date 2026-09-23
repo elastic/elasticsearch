@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomAnalyzerGroups;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomTextEsField;
 
@@ -36,10 +38,14 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
         assertEquals(field, copyInstance(field, TextEsField.FIELD_CAPS_INDEX_ANALYZER));
     }
 
-    /** Why the analyzer is unknown rides the same transport version as the analyzer name; older peers do not see it. */
+    /**
+     * Why the analyzer is unknown, and on a conflict which indices use which analyzer, ride the same transport version
+     * as the analyzer name; older peers do not see them.
+     */
     public void testUnknownAnalyzerSerialization() throws IOException {
         var oldVersion = TransportVersionUtils.getPreviousVersion(TextEsField.FIELD_CAPS_INDEX_ANALYZER);
         for (var unknown : List.of(TextEsField.UnknownAnalyzer.CONFLICT, TextEsField.UnknownAnalyzer.INDEX_LOCAL)) {
+            var groups = unknown == TextEsField.UnknownAnalyzer.CONFLICT ? randomAnalyzerGroups() : null;
             var field = new TextEsField(
                 "title",
                 Map.of(),
@@ -48,11 +54,16 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
                 EsField.TimeSeriesFieldType.NONE,
                 null,
                 TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
-                unknown
+                unknown,
+                groups
             );
             assertEquals(unknown, field.unknownAnalyzer());
-            assertEquals(TextEsField.UnknownAnalyzer.NONE, copyInstance(field, oldVersion).unknownAnalyzer());
-            assertEquals(unknown, copyInstance(field, TextEsField.FIELD_CAPS_INDEX_ANALYZER).unknownAnalyzer());
+            var old = copyInstance(field, oldVersion);
+            assertEquals(TextEsField.UnknownAnalyzer.NONE, old.unknownAnalyzer());
+            assertNull(old.analyzerGroups());
+            var current = copyInstance(field, TextEsField.FIELD_CAPS_INDEX_ANALYZER);
+            assertEquals(unknown, current.unknownAnalyzer());
+            assertEquals(groups, current.analyzerGroups());
         }
     }
 
@@ -71,7 +82,8 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
         String analyzerName = instance.analyzerName();
         int positionIncrementGap = instance.positionIncrementGap();
         TextEsField.UnknownAnalyzer unknownAnalyzer = instance.unknownAnalyzer();
-        switch (between(0, 7)) {
+        List<IndexAnalyzerGroup> analyzerGroups = instance.analyzerGroups();
+        switch (between(0, 8)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> hasDocValues = false == hasDocValues;
@@ -79,12 +91,16 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
             case 4 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             case 5 -> {
                 analyzerName = randomValueOtherThan(analyzerName, () -> randomBoolean() ? null : randomAlphaOfLength(6));
-                // A known name leaves nothing unknown, so naming the analyzer clears the reason.
-                unknownAnalyzer = analyzerName == null ? unknownAnalyzer : TextEsField.UnknownAnalyzer.NONE;
+                // A known name leaves nothing unknown, so naming the analyzer clears the reason and the groups.
+                if (analyzerName != null) {
+                    unknownAnalyzer = TextEsField.UnknownAnalyzer.NONE;
+                    analyzerGroups = null;
+                }
             }
             case 6 -> {
                 analyzerName = analyzerName == null ? randomAlphaOfLength(6) : analyzerName;
                 unknownAnalyzer = TextEsField.UnknownAnalyzer.NONE;
+                analyzerGroups = null;
                 positionIncrementGap = randomValueOtherThan(positionIncrementGap, () -> randomIntBetween(0, 1000));
             }
             case 7 -> {
@@ -92,9 +108,27 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
                 analyzerName = null;
                 positionIncrementGap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
                 unknownAnalyzer = randomValueOtherThan(unknownAnalyzer, () -> randomFrom(TextEsField.UnknownAnalyzer.values()));
+                analyzerGroups = unknownAnalyzer == TextEsField.UnknownAnalyzer.CONFLICT ? analyzerGroups : null;
+            }
+            case 8 -> {
+                // Groups only accompany a conflict.
+                analyzerName = null;
+                positionIncrementGap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+                unknownAnalyzer = TextEsField.UnknownAnalyzer.CONFLICT;
+                analyzerGroups = randomValueOtherThan(analyzerGroups, () -> randomBoolean() ? null : randomAnalyzerGroups());
             }
             default -> throw new IllegalArgumentException();
         }
-        return new TextEsField(name, properties, hasDocValues, isAlias, tsType, analyzerName, positionIncrementGap, unknownAnalyzer);
+        return new TextEsField(
+            name,
+            properties,
+            hasDocValues,
+            isAlias,
+            tsType,
+            analyzerName,
+            positionIncrementGap,
+            unknownAnalyzer,
+            analyzerGroups
+        );
     }
 }

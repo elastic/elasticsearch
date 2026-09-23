@@ -15,19 +15,24 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers.Resolved;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_ANALYSIS_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -39,7 +44,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
      * its declaration, and anything else uses {@code standard}. Map order matches ON order.
      */
     public void testEachFieldPicksItsOwnAnalyzerInOnOrder() {
-        Map<String, NamedAnalyzer> resolved = HighlightAnalyzers.resolve(
+        Map<String, NamedAnalyzer> resolved = resolve(
             List.of(
                 textField("title", "whitespace", 0),
                 textField("body", null),
@@ -47,9 +52,8 @@ public class HighlightAnalyzersTests extends ESTestCase {
                 declaredField("other", null),
                 getFieldAttribute("tag", KEYWORD)
             ),
-            null,
-            TEST_ANALYSIS_REGISTRY
-        );
+            null
+        ).defaultAnalyzers();
         assertThat(List.copyOf(resolved.keySet()), contains("title", "body", "note", "other", "tag"));
         assertThat(
             resolved.values().stream().map(NamedAnalyzer::name).toList(),
@@ -59,12 +63,8 @@ public class HighlightAnalyzersTests extends ESTestCase {
     }
 
     public void testWithAnalyzerOverridesMappingAndDeclared() {
-        Map<String, NamedAnalyzer> resolved = HighlightAnalyzers.resolve(
-            List.of(textField("title", "whitespace"), declaredField("note", "simple")),
-            "keyword",
-            TEST_ANALYSIS_REGISTRY
-        );
-        assertThat(resolved.values().stream().map(NamedAnalyzer::name).toList(), contains("keyword", "keyword"));
+        Resolved resolved = resolve(List.of(textField("title", "whitespace"), declaredField("note", "simple")), "keyword");
+        assertThat(resolved.defaultAnalyzers().values().stream().map(NamedAnalyzer::name).toList(), contains("keyword", "keyword"));
     }
 
     // Mapping analyzer this node cannot build. Resolve returns standard instead of failing the query.
@@ -75,71 +75,125 @@ public class HighlightAnalyzersTests extends ESTestCase {
     // Same as above, but confirm a warning is emitted through the sink and names the field and analyzer.
     public void testUnknownMappingAnalyzerEmitsFallbackWarning() {
         List<String> warnings = new ArrayList<>();
-        HighlightAnalyzers.resolve(List.of(textField("title", "my_index_analyzer")), null, TEST_ANALYSIS_REGISTRY, warnings::add);
+        resolve(List.of(textField("title", "my_index_analyzer")), null, false, warnings);
         assertThat(warnings, hasSize(1));
         assertThat(warnings.get(0), containsString("HIGHLIGHT on [title] falls back to [standard]"));
         assertThat(warnings.get(0), containsString("analyzer [my_index_analyzer]"));
         assertThat(warnings.get(0), containsString("WITH {\"analyzer\": <registered analyzer>}"));
     }
 
-    // Two indices disagree on the analyzer. TextEsField.unknownAnalyzer is CONFLICT and HighlightAnalyzers warns.
+    // Two indices disagree on the analyzer and the row's index is not available: standard and a warning.
     public void testMultiIndexAnalyzerConflictFallsBackAndWarns() {
         List<String> warnings = new ArrayList<>();
-        Map<String, NamedAnalyzer> resolved = HighlightAnalyzers.resolve(
-            List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.CONFLICT)),
-            null,
-            TEST_ANALYSIS_REGISTRY,
-            warnings::add
-        );
-        assertThat(resolved.get("title").name(), equalTo("standard"));
+        Resolved resolved = resolve(List.of(conflictingField("title")), null, false, warnings);
+        assertThat(resolved.variants(), hasSize(1));
+        assertThat(resolved.defaultAnalyzers().get("title").name(), equalTo("standard"));
         assertThat(warnings, hasItem(containsString("indices disagree on the analyzer")));
+    }
+
+    /**
+     * With the row's index available, each index gets its own analyzer and no warning. {@code body} agrees everywhere,
+     * so the two {@code title} groups yield two variants besides the default, which keeps {@code standard} for rows
+     * from an index outside the groups.
+     */
+    public void testMultiIndexAnalyzerConflictResolvesPerIndex() {
+        List<String> warnings = new ArrayList<>();
+        Resolved resolved = resolve(List.of(conflictingField("title"), textField("body", "simple")), null, true, warnings);
+        assertThat(warnings, empty());
+        assertThat(resolved.variantByIndex(), equalTo(Map.of("books", 1, "books_english", 2, "books_english_2", 2)));
+        assertThat(names(resolved.variants().get(0)), contains("standard", "simple"));
+        assertThat(names(resolved.variants().get(1)), contains("whitespace", "simple"));
+        assertThat(names(resolved.variants().get(2)), contains("stop", "simple"));
+        assertThat(resolved.variants().get(1).get("title").getPositionIncrementGap("title"), equalTo(0));
+    }
+
+    // Groups with the same analyzer name but a different gap are distinct variants: NamedAnalyzer#equals ignores the gap.
+    public void testSameAnalyzerDifferentGapKeepsSeparateVariants() {
+        FieldAttribute field = textFieldWithGroups(
+            "title",
+            new IndexAnalyzerGroup("whitespace", 0, Set.of("a")),
+            new IndexAnalyzerGroup("whitespace", 50, Set.of("b"))
+        );
+        Resolved resolved = resolve(List.of(field), null, true, new ArrayList<>());
+        assertThat(resolved.variantByIndex(), equalTo(Map.of("a", 1, "b", 2)));
+        assertThat(resolved.variants().get(1).get("title").getPositionIncrementGap("title"), equalTo(0));
+        assertThat(resolved.variants().get(2).get("title").getPositionIncrementGap("title"), equalTo(50));
+    }
+
+    // Indices whose analyzer was withheld or is not registered here use standard and are named in one warning per group.
+    public void testUnresolvableGroupUsesStandardAndNamesIndices() {
+        List<String> warnings = new ArrayList<>();
+        FieldAttribute field = textFieldWithGroups(
+            "title",
+            new IndexAnalyzerGroup("stop", DEFAULT_POSITION_INCREMENT_GAP, Set.of("books_english")),
+            new IndexAnalyzerGroup(null, DEFAULT_POSITION_INCREMENT_GAP, Set.of("custom_a", "custom_b")),
+            new IndexAnalyzerGroup("my_plugin_analyzer", DEFAULT_POSITION_INCREMENT_GAP, Set.of("plugin"))
+        );
+        Resolved resolved = resolve(List.of(field), null, true, warnings);
+        assertThat(resolved.variantByIndex(), equalTo(Map.of("books_english", 1, "custom_a", 0, "custom_b", 0, "plugin", 0)));
+        assertThat(warnings, hasSize(2));
+        assertThat(
+            warnings.get(0),
+            containsString("HIGHLIGHT on [title] uses [standard] for indices [custom_a, custom_b]: its analyzer is defined in the index")
+        );
+        assertThat(warnings.get(1), containsString("for indices [plugin]: analyzer [my_plugin_analyzer] is not registered"));
     }
 
     // The shard withheld an index.analysis name, so resolve falls back to standard and warns.
     public void testIndexLocalAnalyzerFallsBackAndWarns() {
         List<String> warnings = new ArrayList<>();
-        Map<String, NamedAnalyzer> resolved = HighlightAnalyzers.resolve(
-            List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL)),
-            null,
-            TEST_ANALYSIS_REGISTRY,
-            warnings::add
-        );
-        assertThat(resolved.get("title").name(), equalTo("standard"));
+        Resolved resolved = resolve(List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL)), null, true, warnings);
+        assertThat(resolved.defaultAnalyzers().get("title").name(), equalTo("standard"));
         assertThat(warnings, hasItem(containsString("its analyzer is defined in the index settings")));
     }
 
     // WITH takes precedence; a mapping analyzer HIGHLIGHT cannot use must not warn once the user has set WITH.
     public void testWithAnalyzerSuppressesUnknownAnalyzerWarning() {
-        for (var unknown : List.of(TextEsField.UnknownAnalyzer.CONFLICT, TextEsField.UnknownAnalyzer.INDEX_LOCAL)) {
+        for (var field : List.of(unknownAnalyzerField(TextEsField.UnknownAnalyzer.INDEX_LOCAL), conflictingField("title"))) {
             List<String> warnings = new ArrayList<>();
-            HighlightAnalyzers.resolve(List.of(unknownAnalyzerField(unknown)), "keyword", TEST_ANALYSIS_REGISTRY, warnings::add);
+            Resolved resolved = resolve(List.of(field), "keyword", randomBoolean(), warnings);
             assertThat(warnings, hasSize(0));
+            assertThat(resolved.variants(), hasSize(1));
         }
     }
 
     /** A {@code title} field whose analyzer name never reached the coordinator, for the given reason. */
     private static FieldAttribute unknownAnalyzerField(TextEsField.UnknownAnalyzer unknown) {
-        return textField("title", null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, unknown);
+        return textField("title", null, DEFAULT_POSITION_INCREMENT_GAP, unknown);
+    }
+
+    /** {@code books} uses {@code whitespace} with no gap, the two english indices share {@code stop} (prebuilt; {@code english} needs a plugin). */
+    private static FieldAttribute conflictingField(String name) {
+        return textFieldWithGroups(
+            name,
+            new IndexAnalyzerGroup("whitespace", 0, Set.of("books")),
+            new IndexAnalyzerGroup("stop", DEFAULT_POSITION_INCREMENT_GAP, Set.of("books_english", "books_english_2"))
+        );
     }
 
     public void testUnknownCommandAndDeclaredAnalyzersThrow() {
-        expectThrows(
-            InvalidArgumentException.class,
-            () -> HighlightAnalyzers.resolve(List.of(textField("title", "whitespace")), "nope", TEST_ANALYSIS_REGISTRY)
-        );
+        expectThrows(InvalidArgumentException.class, () -> resolve(List.of(textField("title", "whitespace")), "nope"));
         expectThrows(InvalidArgumentException.class, () -> names(declaredField("note", "nope")));
     }
 
+    private static Resolved resolve(List<? extends NamedExpression> fields, String withAnalyzer) {
+        return resolve(fields, withAnalyzer, false, new ArrayList<>());
+    }
+
+    private static Resolved resolve(List<? extends NamedExpression> fields, String withAnalyzer, boolean perIndex, List<String> warnings) {
+        return HighlightAnalyzers.resolve(fields, withAnalyzer, TEST_ANALYSIS_REGISTRY, perIndex, warnings::add);
+    }
+
     private static List<String> names(NamedExpression... onFields) {
-        return HighlightAnalyzers.resolve(List.of(onFields), null, TEST_ANALYSIS_REGISTRY)
-            .values()
-            .stream()
-            .map(NamedAnalyzer::name)
-            .toList();
+        return names(resolve(List.of(onFields), null).defaultAnalyzers());
+    }
+
+    private static List<String> names(Map<String, NamedAnalyzer> fieldAnalyzers) {
+        return fieldAnalyzers.values().stream().map(NamedAnalyzer::name).toList();
     }
 
     private static FieldAttribute textField(String name, String analyzerName) {
-        return textField(name, analyzerName, TextEsField.DEFAULT_POSITION_INCREMENT_GAP);
+        return textField(name, analyzerName, DEFAULT_POSITION_INCREMENT_GAP);
     }
 
     private static FieldAttribute textField(String name, String analyzerName, int positionIncrementGap) {
@@ -151,6 +205,24 @@ public class HighlightAnalyzersTests extends ESTestCase {
             EMPTY,
             name,
             new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName, gap, unknown)
+        );
+    }
+
+    private static FieldAttribute textFieldWithGroups(String name, IndexAnalyzerGroup... groups) {
+        return new FieldAttribute(
+            EMPTY,
+            name,
+            new TextEsField(
+                name,
+                Map.of(),
+                false,
+                false,
+                EsField.TimeSeriesFieldType.NONE,
+                null,
+                DEFAULT_POSITION_INCREMENT_GAP,
+                TextEsField.UnknownAnalyzer.CONFLICT,
+                List.of(groups)
+            )
         );
     }
 

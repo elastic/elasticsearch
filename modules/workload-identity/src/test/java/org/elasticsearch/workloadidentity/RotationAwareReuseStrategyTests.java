@@ -149,10 +149,14 @@ public class RotationAwareReuseStrategyTests extends ESTestCase {
 
         final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, allowingFallback());
 
-        assertFalse("connection from before rotation must be retired", strategy.keepAlive(
-            mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(oldSession)));
-        assertTrue("connection from after rotation must be kept alive", strategy.keepAlive(
-            mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(newSession)));
+        assertFalse(
+            "connection from before rotation must be retired",
+            strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(oldSession))
+        );
+        assertTrue(
+            "connection from after rotation must be kept alive",
+            strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(newSession))
+        );
     }
 
     public void testNoSSLSessionVerification() {

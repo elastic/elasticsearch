@@ -26,99 +26,76 @@ import java.time.temporal.TemporalUnit;
 import java.util.Locale;
 
 /**
- * Built-in {@code @allocates} estimators for the {@code java.time} allowlists. These live apart from
- * {@link AllocationEstimators} because the date and time allowlists hold several hundred members that all fall into a
- * handful of size tiers, and keeping them here leaves the shared file readable.
+ * {@code @allocates} estimators for the {@code java.time} allowlists. They live in their own class because there are a lot
+ * of them and they all use a few fixed sizes.
  *
- * <p>The rules are the same as in the shared file. Every estimator is {@code public static long}, matches the annotated
- * member's full Java signature with the receiver first for instance methods, runs before the real call, and must not throw
- * or consume its arguments. Results are normalized by {@link AllocationGuard#sanitizeEstimate(long)}.
+ * <p>Same rules as {@link AllocationEstimators}: {@code public static long}, same parameters as the annotated method with
+ * the receiver first, run before the real call, never throw.
  *
- * <p>Three tiers cover nearly everything. A flat value holds only primitive fields. A composite holds references to other
- * value objects and allocates that whole chain. Text members build a string or a parse context, so they are sized from the
- * text. Over-charging is deliberate: a member that happens to return a cached constant, such as {@code Instant.EPOCH} for
- * zero, is still charged its full tier, because which calls hit the cache is not knowable before the call.
+ * <p>Three sizes cover almost everything. A flat value is one object with only primitive fields. A composite is an object
+ * that points at other new values, so the whole chain is charged. Text members are sized from the text. A call that
+ * returns a cached object, like {@code Instant.EPOCH}, is still charged in full, because we cannot know that before the call.
  */
 public final class TimeAllocationEstimators {
 
     private TimeAllocationEstimators() {}
 
-    /** Heap cost of an object whose only state is {@code references} references to other objects. */
+    /** Size of an object that holds only {@code references} references. */
     private static long shellBytes(int references) {
         return AllocSizes.pad8(AllocSizes.OBJECT_HEADER + (long) references * AllocSizes.REFERENCE_SIZE);
     }
 
     /**
-     * Heap cost of a flat {@code java.time} value, one object holding only primitive fields. The widest such layout is an
-     * object header plus a {@code long} and an {@code int}, which pads to 24 bytes. That covers {@link Instant} (long
-     * seconds, int nanos), {@link java.time.Duration} (long seconds, int nanos), {@link LocalDate} (int year, byte month,
-     * byte day), {@link LocalTime} (byte hour, byte minute, byte second, int nano), {@link java.time.Period} (three ints)
-     * and {@link java.time.MonthDay} (two ints).
+     * A flat value: one object with only primitive fields. The biggest is a {@code long} plus an {@code int}, which pads to
+     * 24 bytes. Covers {@link Instant}, {@link java.time.Duration}, {@link LocalDate}, {@link LocalTime},
+     * {@link java.time.Period} and {@link java.time.MonthDay}.
      */
     public static final long FLAT_VALUE_BYTES = AllocSizes.pad8(AllocSizes.OBJECT_HEADER + Long.BYTES + Integer.BYTES);
 
-    /**
-     * Heap cost of a {@link LocalDateTime} and everything it points at. Its own object holds a {@code LocalDate} and a
-     * {@code LocalTime} reference, so a header plus two references pads to 32 bytes, and both referenced values are fresh
-     * flat values at 24 bytes each. That is 80 bytes for the chain.
-     */
+    /** A {@link LocalDateTime}: its own object with two references, plus a new {@code LocalDate} and {@code LocalTime}. 80 bytes. */
     public static final long LOCAL_DATE_TIME_BYTES = shellBytes(2) + 2L * FLAT_VALUE_BYTES;
 
     /**
-     * Heap cost of an {@link java.time.OffsetDateTime} chain. Its own object holds a {@code LocalDateTime} and a {@code ZoneOffset}
-     * reference, so a header plus two references pads to 32 bytes, on top of the 80 byte local date-time chain. Offsets are
-     * served from a static cache, so the offset itself costs nothing. That is 112 bytes.
+     * An {@link java.time.OffsetDateTime}: its own object with two references, plus the local date-time chain. Offsets are
+     * cached. 112 bytes.
      */
     public static final long OFFSET_DATE_TIME_BYTES = shellBytes(2) + LOCAL_DATE_TIME_BYTES;
 
     /**
-     * Heap cost of a {@link ZonedDateTime} chain. Its own object holds a {@code LocalDateTime}, a {@code ZoneOffset} and a
-     * {@code ZoneId} reference, so a header plus three references pads to 40 bytes, on top of the 80 byte local date-time
-     * chain. Both the offset and the zone come from caches and cost nothing. That is 120 bytes.
+     * A {@link ZonedDateTime}: its own object with three references, plus the local date-time chain. Offset and zone are
+     * cached. 120 bytes.
      */
     public static final long ZONED_DATE_TIME_BYTES = shellBytes(3) + LOCAL_DATE_TIME_BYTES;
 
     /**
-     * Characters allowed for one {@code DateTimeFormatter.format} result. The real driver is the formatter's pattern, but a
-     * formatter does not expose its pattern length without building a string of its own, which an estimator may not do. So
-     * this is a flat allowance rather than a measurement. 128 characters is several times the longest localized date-time
-     * pattern the JDK ships.
+     * Characters allowed for one {@code DateTimeFormatter.format} result. A formatter does not expose its pattern length, so
+     * this is a fixed allowance. 128 is several times the longest pattern the JDK ships.
      */
     private static final long FORMAT_CHARACTERS = 128;
 
-    /**
-     * Flat allowance for the parse context a formatter builds: a {@code Parsed} holding a field map, a chronology, a zone
-     * and the resolver state. None of that is reachable before the call, so this is an allowance rather than a measurement,
-     * set high enough to cover a parse that resolves every date and time field.
-     */
+    /** Fixed allowance for the parse state a formatter builds: a field map, a chronology, a zone and the resolver. */
     private static final long PARSE_CONTEXT_BYTES = 512;
 
-    /** Bytes charged per character of parsed text, covering any copy the parser makes of its input. */
+    /** Bytes charged per character of parsed text, in case the parser copies its input. */
     private static final long PARSE_BYTES_PER_CHARACTER = 2;
 
-    /**
-     * Base cost of building a formatter from a pattern: the builder, its element list, and the finished formatter that the
-     * builder is converted into.
-     */
+    /** Base cost of building a formatter from a pattern: the builder, its element list, and the formatter. */
     private static final long PATTERN_BASE_BYTES = 256;
 
-    /**
-     * Bytes charged per pattern character. Each pattern letter can add a printer-parser object plus a slot in the builder's
-     * element list, so the cost grows with the pattern instead of being fixed.
-     */
+    /** Bytes charged per pattern character. Each letter can add a printer-parser object and a list slot. */
     private static final long PATTERN_BYTES_PER_CHARACTER = 64;
 
-    /** Heap cost of a new {@link String} of {@code chars} UTF-16 characters: the object plus its backing array. */
+    /** A new {@link String} of {@code chars} characters: the object plus its array. */
     private static long newStringBytes(long chars) {
         return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.mulSat(2L, Math.max(0L, chars));
     }
 
-    /** Length of {@code text}, treating a {@code null} the real call would reject as empty. */
+    /** Length of {@code text}. A {@code null} counts as empty; the real call rejects it. */
     private static long textLength(CharSequence text) {
         return text == null ? 0 : text.length();
     }
 
-    // ---- Flat value tier: one object of primitive fields, 24 bytes. ----
+    // ---- Flat values, 24 bytes. ----
 
     /** {@code Instant.from(TemporalAccessor)}. */
     public static long flatValueBytes(TemporalAccessor temporal) {
@@ -165,9 +142,9 @@ public final class TimeAllocationEstimators {
         return FLAT_VALUE_BYTES;
     }
 
-    // ---- Composite tiers: the returned object plus the whole value chain under it. ----
+    // ---- Composites: the returned object plus every new value under it. ----
 
-    /** {@code Instant.atOffset(ZoneOffset)}, which builds the local date, the local time and the offset date-time. */
+    /** {@code Instant.atOffset(ZoneOffset)}: builds the whole offset date-time chain. */
     public static long offsetDateTimeBytes(Instant receiver, ZoneOffset offset) {
         return OFFSET_DATE_TIME_BYTES;
     }
@@ -182,7 +159,7 @@ public final class TimeAllocationEstimators {
         return ZONED_DATE_TIME_BYTES;
     }
 
-    /** {@code Instant.atZone(ZoneId)} and {@code ZonedDateTime.ofInstant(Instant, ZoneId)}, which build the whole chain. */
+    /** {@code Instant.atZone(ZoneId)} and {@code ZonedDateTime.ofInstant(Instant, ZoneId)}: build the whole chain. */
     public static long zonedDateTimeBytes(Instant instant, ZoneId zone) {
         return ZONED_DATE_TIME_BYTES;
     }
@@ -222,9 +199,8 @@ public final class TimeAllocationEstimators {
     }
 
     /**
-     * {@code ZonedDateTime.withEarlierOffsetAtOverlap()}, {@code withLaterOffsetAtOverlap()} and
-     * {@code withFixedOffsetZone()}. These return the receiver unless the zone rules say otherwise, and the full tier is
-     * charged either way.
+     * {@code ZonedDateTime.withEarlierOffsetAtOverlap()}, {@code withLaterOffsetAtOverlap()} and {@code withFixedOffsetZone()}.
+     * These often return the receiver, but the full size is charged either way.
      */
     public static long zonedDateTimeBytes(ZonedDateTime receiver) {
         return ZONED_DATE_TIME_BYTES;
@@ -241,8 +217,8 @@ public final class TimeAllocationEstimators {
     }
 
     /**
-     * {@code ZonedDateTime.plusYears} through {@code plusNanos} and their {@code minus} counterparts. Unlike the flat
-     * values, these never short-circuit on a zero amount, so a new chain is always built.
+     * {@code ZonedDateTime.plusYears} through {@code plusNanos} and the {@code minus} forms. These always build a new chain,
+     * even for zero.
      */
     public static long zonedDateTimeBytes(ZonedDateTime receiver, long amount) {
         return ZONED_DATE_TIME_BYTES;
@@ -273,14 +249,14 @@ public final class TimeAllocationEstimators {
         return ZONED_DATE_TIME_BYTES;
     }
 
-    // ---- Text tier: parse context and produced strings, sized from the text where the text is an argument. ----
+    // ---- Text: parse state and new strings, sized from the text when we have it. ----
 
-    /** {@code Instant.parse(CharSequence)}: the parse context plus the flat value it resolves to. */
+    /** {@code Instant.parse(CharSequence)}: the parse state plus the flat value. */
     public static long parseFlatValueBytes(CharSequence text) {
         return AllocSizes.addSat(parseTextBytes(text), FLAT_VALUE_BYTES);
     }
 
-    /** {@code ZonedDateTime.parse(CharSequence)}: the parse context plus the whole zoned chain. */
+    /** {@code ZonedDateTime.parse(CharSequence)}: the parse state plus the zoned chain. */
     public static long parseZonedDateTimeBytes(CharSequence text) {
         return AllocSizes.addSat(parseTextBytes(text), ZONED_DATE_TIME_BYTES);
     }
@@ -290,30 +266,27 @@ public final class TimeAllocationEstimators {
         return parseZonedDateTimeBytes(text);
     }
 
-    /** {@code DateTimeFormatter.parse(CharSequence)}: the parse context, with no resolved value handed back. */
+    /** {@code DateTimeFormatter.parse(CharSequence)}: the parse state only. */
     public static long formatterParseBytes(DateTimeFormatter receiver, CharSequence text) {
         return parseTextBytes(text);
     }
 
-    /**
-     * {@code DateTimeFormatter.parse(CharSequence, TemporalQuery)}: the parse context plus whatever the query builds from
-     * it. The query is opaque here, so the widest chain is charged for the result.
-     */
+    /** {@code DateTimeFormatter.parse(CharSequence, TemporalQuery)}: the parse state plus the biggest chain the query could build. */
     public static long formatterParseBytes(DateTimeFormatter receiver, CharSequence text, TemporalQuery<?> query) {
         return AllocSizes.addSat(parseTextBytes(text), ZONED_DATE_TIME_BYTES);
     }
 
-    /** Parse context plus a per-character allowance for any copy the parser makes of {@code text}. */
+    /** Parse state plus a per-character allowance for {@code text}. */
     private static long parseTextBytes(CharSequence text) {
         return AllocSizes.addSat(PARSE_CONTEXT_BYTES, AllocSizes.mulSat(PARSE_BYTES_PER_CHARACTER, textLength(text)));
     }
 
-    /** {@code DateTimeFormatter.format(TemporalAccessor)}: a new string, bounded by {@link #FORMAT_CHARACTERS}. */
+    /** {@code DateTimeFormatter.format(TemporalAccessor)}: a new string of {@link #FORMAT_CHARACTERS}. */
     public static long formatBytes(DateTimeFormatter receiver, TemporalAccessor temporal) {
         return newStringBytes(FORMAT_CHARACTERS);
     }
 
-    /** {@code DateTimeFormatter.ofPattern(String)}: a base cost plus an allowance for every character of the pattern. */
+    /** {@code DateTimeFormatter.ofPattern(String)}: a base cost plus a cost per pattern character. */
     public static long ofPatternBytes(String pattern) {
         long patternCost = AllocSizes.mulSat(PATTERN_BYTES_PER_CHARACTER, textLength(pattern));
         return AllocSizes.addSat(PATTERN_BASE_BYTES, patternCost);

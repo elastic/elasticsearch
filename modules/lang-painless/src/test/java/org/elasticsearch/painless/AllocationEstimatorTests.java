@@ -152,14 +152,14 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>());
     }
 
-    // ---- java.time tiers: flat value, composite chain, and the text-sized formatter members. ----
+    // ---- java.time: flat values, composite chains, and text-sized formatter members. ----
 
     public void testFlatTimeValueCharged() {
         assertEquals(TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes("Instant.ofEpochMilli(0); return 'x';"));
     }
 
     public void testFlatTimeValueChargedPerCall() {
-        // Two flat allocations, one per call, even though the second one only shifts the value.
+        // One flat value per call.
         assertEquals(
             2 * TimeAllocationEstimators.FLAT_VALUE_BYTES,
             allocatedBytes("Instant i = Instant.ofEpochMilli(0); i.plusSeconds(1); return 'x';")
@@ -171,7 +171,7 @@ public class AllocationEstimatorTests extends AllocationTestCase {
     }
 
     public void testAtZoneChargesTheWholeChain() {
-        // The flat Instant plus the zoned date-time chain it builds: the outer object, a LocalDateTime, a LocalDate and a LocalTime.
+        // The Instant plus the whole zoned chain: ZonedDateTime, LocalDateTime, LocalDate and LocalTime.
         assertEquals(
             TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
             allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')); return 'x';")
@@ -236,7 +236,7 @@ public class AllocationEstimatorTests extends AllocationTestCase {
     }
 
     public void testDeclinedTimeMembersChargeNothing() {
-        // Fields and accessors that hand back an existing object carry no annotation, so they cost nothing.
+        // Fields and getters that return an existing object are not annotated, so they cost nothing.
         assertEquals(0L, allocatedBytes("ZoneOffset z = ZoneOffset.UTC; Instant e = Instant.EPOCH; return 'x';"));
         assertEquals(
             TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
@@ -245,7 +245,7 @@ public class AllocationEstimatorTests extends AllocationTestCase {
     }
 
     public void testTimeEstimatorChargedThroughDefDispatch() {
-        // def resolution uses the same estimator index as a statically typed call, so the charge must match.
+        // A def call must charge the same as a typed call.
         assertEquals(
             TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
             allocatedBytes("def i = Instant.ofEpochMilli(0); i.atZone(ZoneId.of('UTC')); return 'x';")

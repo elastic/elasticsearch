@@ -489,6 +489,7 @@ public class SearchContextStats implements SearchStats {
         return count;
     }
 
+    @FunctionalInterface
     private interface FieldLeafReaderTester {
         /**
          * Returns true if iteration should continue, false to stop early. The field type is the one

@@ -16,6 +16,9 @@ import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
+import org.elasticsearch.inference.completion.ReasoningDetail.TextReasoningDetail;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
@@ -35,13 +38,22 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
     private static final String USER_ROLE = "user";
     private static final String ASSISTANT_ROLE = "assistant";
+    private static final String TOOL_ROLE = "tool";
     private static final ThinkingConfig thinkingConfig = new ThinkingConfig(256);
     private static final ThinkingConfig emptyThinkingConfig = new ThinkingConfig();
+
+    private static final String FUNCTION_NAME = "get_delivery_date";
+    private static final String FUNCTION_ARGUMENTS = "{\"order_id\": \"order_12345\"}";
+    private static final String GOOGLE_TOOL_CALL_ID = "call_299965";
+    private static final String THOUGHT_SIGNATURE = "El4KXAERTTIPHPmb/yri/Qyy9cz7xqWoMPh394Dk3bIAt2jgXMJoP2cOWRyqxOs";
+    private static final String REASONING_FORMAT = "google-vertex-ai-v1";
+    private static final String TOOL_RESULT_JSON = "{\"delivery_date\": \"2025-03-27\"}";
 
     public void testBasicSerialization_SingleMessage() throws IOException {
         Message message = new Message(new ContentString("Hello, Vertex AI!"), USER_ROLE, null, null);
@@ -659,12 +671,14 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             }
             """;
 
+        // A message carrying tool calls is an assistant turn; a tool-role message carries the result of one and is
+        // covered by the functionResponse tests.
         var request = new UnifiedCompletionRequestBody(
             List.of(
                 new Message(
                     null,
-                    "tool",
-                    "100",
+                    ASSISTANT_ROLE,
+                    null,
                     List.of(
                         new ToolCall(
                             "call_62136354",
@@ -1109,5 +1123,319 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
         String jsonString = Strings.toString(builder);
         assertJsonEquals(jsonString, requestJson);
+    }
+
+    public void testSerialization_ReasoningEffortMapsToThinkingLevel() throws IOException {
+        assertThinkingLevel(ReasoningEffort.MINIMAL, "MINIMAL");
+        assertThinkingLevel(ReasoningEffort.LOW, "LOW");
+        assertThinkingLevel(ReasoningEffort.MEDIUM, "MEDIUM");
+        assertThinkingLevel(ReasoningEffort.HIGH, "HIGH");
+    }
+
+    private void assertThinkingLevel(ReasoningEffort effort, String expectedThinkingLevel) throws IOException {
+        var request = requestWithReasoning(new Reasoning(effort, null, null, null));
+
+        assertJsonEquals(serialize(request, emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [ { "role": "user", "parts": [ { "text": "Hello, Vertex AI!" } ] } ],
+                "generationConfig": {
+                    "thinkingConfig": { "thinkingLevel": "%s", "includeThoughts": true }
+                }
+            }
+            """, expectedThinkingLevel));
+    }
+
+    public void testSerialization_ReasoningEffortXHigh_ThrowsBadRequest() {
+        var request = requestWithReasoning(new Reasoning(ReasoningEffort.XHIGH, null, null, null));
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> serialize(request, emptyThinkingConfig));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("Reasoning effort [xhigh] not supported"));
+        assertThat(exception.getMessage(), containsString("minimal, low, medium, high"));
+    }
+
+    public void testSerialization_ReasoningEffortNone_ThrowsBadRequest() {
+        // [enabled: false] requires an effort, so [none] is how a caller asks for thinking to be turned off.
+        var request = requestWithReasoning(new Reasoning(ReasoningEffort.NONE, null, null, false));
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> serialize(request, emptyThinkingConfig));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("Reasoning effort [none] not supported"));
+    }
+
+    public void testSerialization_RequestReasoningSuppressesTaskSettingsThinkingBudget() throws IOException {
+        // Google rejects a request carrying both thinkingLevel and thinkingBudget, so the endpoint-level budget is
+        // dropped when the request asks for reasoning of its own.
+        var request = requestWithReasoning(new Reasoning(ReasoningEffort.LOW, null, null, null));
+
+        assertJsonEquals(serialize(request, thinkingConfig), """
+            {
+                "contents": [ { "role": "user", "parts": [ { "text": "Hello, Vertex AI!" } ] } ],
+                "generationConfig": {
+                    "thinkingConfig": { "thinkingLevel": "LOW", "includeThoughts": true }
+                }
+            }
+            """);
+    }
+
+    public void testSerialization_ReasoningExcludeSetsIncludeThoughtsToFalse() throws IOException {
+        var request = requestWithReasoning(new Reasoning(ReasoningEffort.HIGH, null, true, null));
+
+        assertJsonEquals(serialize(request, emptyThinkingConfig), """
+            {
+                "contents": [ { "role": "user", "parts": [ { "text": "Hello, Vertex AI!" } ] } ],
+                "generationConfig": {
+                    "thinkingConfig": { "thinkingLevel": "HIGH", "includeThoughts": false }
+                }
+            }
+            """);
+    }
+
+    public void testSerialization_ReasoningWithoutEffortStillRequestsThoughts() throws IOException {
+        // Google has no equivalent of the summary granularity, so a request that only asks for a summary leaves the
+        // thinking level to the model and just turns thought summaries on.
+        var request = requestWithReasoning(new Reasoning(null, Reasoning.ReasoningSummary.DETAILED, null, true));
+
+        assertJsonEquals(serialize(request, emptyThinkingConfig), """
+            {
+                "contents": [ { "role": "user", "parts": [ { "text": "Hello, Vertex AI!" } ] } ],
+                "generationConfig": {
+                    "thinkingConfig": { "includeThoughts": true }
+                }
+            }
+            """);
+    }
+
+    public void testSerialization_ThoughtSignatureIsAttachedToMatchingFunctionCall() throws IOException {
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, GOOGLE_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": %s },
+                                "thoughtSignature": "%s"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, FUNCTION_ARGUMENTS, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_ThoughtSummaryIsWrittenAsThoughtPartBeforeContent() throws IOException {
+        var message = new Message(
+            new ContentString("The delivery date is March 27."),
+            ASSISTANT_ROLE,
+            null,
+            null,
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, null, 0L, "Let me look up the order.", THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "text": "Let me look up the order.", "thought": true, "thoughtSignature": "%s" },
+                            { "text": "The delivery date is March 27." }
+                        ]
+                    }
+                ]
+            }
+            """, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_SignatureWithoutTextOrIdAttachesToLastTextPart() throws IOException {
+        var message = new Message(
+            new ContentString("The delivery date is March 27."),
+            ASSISTANT_ROLE,
+            null,
+            null,
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, null, 0L, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "text": "The delivery date is March 27.", "thoughtSignature": "%s" }
+                        ]
+                    }
+                ]
+            }
+            """, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_ToolMessageBecomesFunctionResponseWithEchoedId() throws IOException {
+        var messages = List.of(assistantToolCall(GOOGLE_TOOL_CALL_ID), toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [ { "functionCall": { "name": "%s", "args": { "order_id": "order_12345" } } } ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "id": "%s",
+                                    "response": %s
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
+    }
+
+    public void testSerialization_ToolMessageOmitsIdWhenItWasSynthesizedFromTheFunctionName() throws IOException {
+        // Responses that carry no function call id fall back to the name, so there is no real id to echo back.
+        var messages = List.of(assistantToolCall(FUNCTION_NAME), toolResult(FUNCTION_NAME, TOOL_RESULT_JSON));
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [ { "functionCall": { "name": "%s", "args": { "order_id": "order_12345" } } } ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "response": %s
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, FUNCTION_NAME, TOOL_RESULT_JSON));
+    }
+
+    public void testSerialization_NonJsonToolResultIsWrappedUnderOutput() throws IOException {
+        var deliveredOutput = "delivered";
+        var messages = List.of(assistantToolCall(GOOGLE_TOOL_CALL_ID), toolResult(GOOGLE_TOOL_CALL_ID, deliveredOutput));
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [ { "functionCall": { "name": "%s", "args": { "order_id": "order_12345" } } } ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "id": "%s",
+                                    "response": { "output": "%s" }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, deliveredOutput));
+    }
+
+    public void testError_ToolMessageWithoutToolCallId() {
+        var messages = List.of(new Message(new ContentString(TOOL_RESULT_JSON), TOOL_ROLE, null, null));
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> serialize(requestOf(messages), emptyThinkingConfig));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("Tool messages require a [tool_call_id]"));
+    }
+
+    public void testSerialization_EmptyContentObjectDoesNotDropTheRemainingParts() throws IOException {
+        List<ContentObject> contentObjects = List.of(
+            new ContentObjectText("First part. "),
+            new ContentObjectText(""),
+            new ContentObjectText("Third part.")
+        );
+        var message = new Message(new ContentObjects(contentObjects), USER_ROLE, null, null);
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), """
+            {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            { "text": "First part. " },
+                            { "text": "Third part." }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    private static Message assistantToolCall(String toolCallId) {
+        return new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(toolCallId, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function"))
+        );
+    }
+
+    private static Message toolResult(String toolCallId, String result) {
+        return new Message(new ContentString(result), TOOL_ROLE, toolCallId, null);
+    }
+
+    private static UnifiedCompletionRequestBody requestWithReasoning(Reasoning reasoning) {
+        return new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("Hello, Vertex AI!"), USER_ROLE, null, null)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            reasoning,
+            null,
+            null
+        );
+    }
+
+    private static UnifiedCompletionRequestBody requestOf(Message message) {
+        return requestOf(List.of(message));
+    }
+
+    private static UnifiedCompletionRequestBody requestOf(List<Message> messages) {
+        return new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null);
+    }
+
+    private static String serialize(UnifiedCompletionRequestBody request, ThinkingConfig config) throws IOException {
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), config);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return Strings.toString(builder);
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -53,25 +54,40 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     private static final String ROLE_FIELD = "role";
     private static final String PARTS_FIELD = "parts";
     private static final String TEXT_FIELD = "text";
+    private static final String THOUGHT_FIELD = "thought";
+    private static final String THOUGHT_SIGNATURE_FIELD = "thoughtSignature";
     private static final String FINISH_REASON_FIELD = "finishReason";
     private static final String INDEX_FIELD = "index";
     private static final String USAGE_METADATA_FIELD = "usageMetadata";
     private static final String PROMPT_TOKEN_COUNT_FIELD = "promptTokenCount";
     private static final String CANDIDATES_TOKEN_COUNT_FIELD = "candidatesTokenCount";
     private static final String TOTAL_TOKEN_COUNT_FIELD = "totalTokenCount";
+    private static final String THOUGHTS_TOKEN_COUNT_FIELD = "thoughtsTokenCount";
     private static final String MODEL_VERSION_FIELD = "modelVersion";
     private static final String RESPONSE_ID_FIELD = "responseId";
     private static final String FUNCTION_CALL_FIELD = "functionCall";
     private static final String FUNCTION_NAME_FIELD = "name";
     private static final String FUNCTION_ARGS_FIELD = "args";
+    private static final String FUNCTION_ID_FIELD = "id";
 
     private static final String CHAT_COMPLETION_CHUNK = "chat.completion.chunk";
     private static final String FUNCTION_TYPE = "function";
 
+    /**
+     * Identifies reasoning details as having come from this provider, so a client knows how to echo them back.
+     */
+    static final String GOOGLE_VERTEX_AI_FORMAT = "google-vertex-ai-v1";
+
     private final BiFunction<String, Exception, Exception> errorParser;
+    private final GoogleVertexAiChatCompletionChunkParser chunkParser;
 
     public GoogleVertexAiUnifiedStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
+        this(errorParser, false);
+    }
+
+    public GoogleVertexAiUnifiedStreamingProcessor(BiFunction<String, Exception, Exception> errorParser, boolean excludeReasoning) {
         this.errorParser = errorParser;
+        this.chunkParser = new GoogleVertexAiChatCompletionChunkParser(excludeReasoning);
     }
 
     @Override
@@ -99,20 +115,43 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     }
 
     Iterator<ChatCompletionChunkResponse> parse(XContentParserConfiguration parserConfig, String event) throws IOException {
-        return parseObjects(parserConfig, event, p -> Stream.of(GoogleVertexAiChatCompletionChunkParser.parse(p))).iterator();
+        return parseObjects(parserConfig, event, p -> Stream.of(chunkParser.parseChunk(p))).iterator();
     }
 
+    /**
+     * Converts Google's {@code generateContent} chunks into unified chat completion chunks.
+     * <p>
+     * Stateful: one instance handles exactly one response stream. Thought summaries are numbered with a
+     * monotonically increasing index that has to keep counting across the chunks of a stream, so that a client can
+     * accumulate the fragments of a single reasoning block by index.
+     */
     public static class GoogleVertexAiChatCompletionChunkParser {
+
+        private final boolean excludeReasoning;
+        private long reasoningIndex;
+
+        public GoogleVertexAiChatCompletionChunkParser(boolean excludeReasoning) {
+            this.excludeReasoning = excludeReasoning;
+        }
+
         private static @Nullable ChatCompletionUsageResponse usageMetadataToChunk(@Nullable UsageMetadata usage) {
             if (usage == null) {
                 return null;
             }
-            return new ChatCompletionUsageResponse(usage.candidatesTokenCount(), usage.promptTokenCount(), usage.totalTokenCount());
+            return new ChatCompletionUsageResponse(
+                usage.candidatesTokenCount(),
+                usage.promptTokenCount(),
+                usage.totalTokenCount(),
+                null,
+                ChatCompletionUsageResponse.CompletionTokenDetails.ofNullable(usage.thoughtsTokenCount())
+            );
         }
 
-        private static ChatCompletionChoiceResponse candidateToChoice(Candidate candidate) {
+        private ChatCompletionChoiceResponse candidateToChoice(Candidate candidate) {
             var contentTextBuilder = new StringBuilder();
+            var reasoningTextBuilder = new StringBuilder();
             List<ChatCompletionToolCallResponse> toolCalls = new ArrayList<>();
+            List<ReasoningDetail> reasoningDetails = new ArrayList<>();
 
             String role = null;
 
@@ -123,18 +162,69 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             if (contentAndPartsAreNotEmpty) {
                 role = candidate.content().role(); // Role is at the content level
                 for (Part part : candidate.content().parts()) {
-                    if (part.text() != null) {
-                        contentTextBuilder.append(part.text());
-                    }
                     if (part.functionCall() != null) {
                         var fc = part.functionCall();
                         var function = new ChatCompletionToolCallResponse.Function(fc.args(), fc.name());
+                        // Gemini 3 returns an id for each function call. Older models and older responses do not, in
+                        // which case the name is the only stable identifier available.
+                        var toolCallId = fc.id() != null ? fc.id() : fc.name();
                         toolCalls.add(
                             new ChatCompletionToolCallResponse(
-                                0, // No explicit ID from VertexAI so we use 0
-                                function.name(), // VertexAI does not provide an id for the function call so we use the name
+                                0, // No explicit index from VertexAI so we use 0
+                                toolCallId,
                                 function,
                                 FUNCTION_TYPE
+                            )
+                        );
+
+                        if (excludeReasoning == false && part.thoughtSignature() != null) {
+                            // Binding the signature to the tool call id lets a subsequent turn re-attach it to the
+                            // same function call part, which Gemini 3 rejects the request without.
+                            reasoningDetails.add(
+                                new ReasoningDetail.TextReasoningDetail(
+                                    GOOGLE_VERTEX_AI_FORMAT,
+                                    toolCallId,
+                                    null,
+                                    null,
+                                    part.thoughtSignature()
+                                )
+                            );
+                        }
+                        continue;
+                    }
+
+                    if (Boolean.TRUE.equals(part.thought())) {
+                        // A thought summary is reasoning rather than user-visible content, so it is kept out of the
+                        // content string even when reasoning is excluded.
+                        if (excludeReasoning || (part.text() == null && part.thoughtSignature() == null)) {
+                            continue;
+                        }
+                        if (part.text() != null) {
+                            reasoningTextBuilder.append(part.text());
+                        }
+                        reasoningDetails.add(
+                            new ReasoningDetail.TextReasoningDetail(
+                                GOOGLE_VERTEX_AI_FORMAT,
+                                null,
+                                reasoningIndex++,
+                                part.text(),
+                                part.thoughtSignature()
+                            )
+                        );
+                        continue;
+                    }
+
+                    if (part.text() != null) {
+                        contentTextBuilder.append(part.text());
+                    }
+                    if (excludeReasoning == false && part.thoughtSignature() != null) {
+                        reasoningDetails.add(
+                            new ReasoningDetail.TextReasoningDetail(
+                                GOOGLE_VERTEX_AI_FORMAT,
+                                null,
+                                reasoningIndex++,
+                                null,
+                                part.thoughtSignature()
                             )
                         );
                     }
@@ -142,40 +232,25 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             }
 
             List<ChatCompletionToolCallResponse> finalToolCalls = toolCalls.isEmpty() ? null : toolCalls;
+            List<ReasoningDetail> finalReasoningDetails = reasoningDetails.isEmpty() ? null : reasoningDetails;
 
             var message = new ChatCompletionMessageResponse(
                 contentTextBuilder.isEmpty() ? null : contentTextBuilder.toString(),
                 null,
                 role,
-                finalToolCalls
+                finalToolCalls,
+                reasoningTextBuilder.isEmpty() ? null : reasoningTextBuilder.toString(),
+                finalReasoningDetails
             );
 
             return new ChatCompletionChoiceResponse(message, candidate.finishReason(), candidate.index());
         }
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ChatCompletionChunkResponse, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<ParsedChunk, Void> PARSER = new ConstructingObjectParser<>(
             "google_vertexai_chat_completion_chunk",
             true,
-            args -> {
-                List<Candidate> candidates = (List<Candidate>) args[0];
-                var usage = (UsageMetadata) args[1];
-                var modelversion = (String) args[2];
-                var responseId = (String) args[3];
-
-                var candidatesIsEmpty = candidates == null || candidates.isEmpty();
-                List<ChatCompletionChoiceResponse> choices = candidatesIsEmpty
-                    ? Collections.emptyList()
-                    : candidates.stream().map(GoogleVertexAiChatCompletionChunkParser::candidateToChoice).toList();
-
-                return new ChatCompletionChunkResponse(
-                    responseId,
-                    choices,
-                    modelversion,
-                    CHAT_COMPLETION_CHUNK,
-                    usageMetadataToChunk(usage)
-                );
-            }
+            args -> new ParsedChunk((List<Candidate>) args[0], (UsageMetadata) args[1], (String) args[2], (String) args[3])
         );
 
         static {
@@ -193,12 +268,36 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(RESPONSE_ID_FIELD));
         }
 
+        /**
+         * Parses a single chunk in isolation. Used by the non-streaming completion path, which sees one response and
+         * therefore needs no reasoning state carried between chunks.
+         */
         public static ChatCompletionChunkResponse parse(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
+            return new GoogleVertexAiChatCompletionChunkParser(false).parseChunk(parser);
+        }
+
+        public ChatCompletionChunkResponse parseChunk(XContentParser parser) throws IOException {
+            var parsedChunk = PARSER.parse(parser, null);
+            var candidates = parsedChunk.candidates();
+
+            var candidatesIsEmpty = candidates == null || candidates.isEmpty();
+            List<ChatCompletionChoiceResponse> choices = candidatesIsEmpty
+                ? Collections.emptyList()
+                : candidates.stream().map(this::candidateToChoice).toList();
+
+            return new ChatCompletionChunkResponse(
+                parsedChunk.responseId(),
+                choices,
+                parsedChunk.modelVersion(),
+                CHAT_COMPLETION_CHUNK,
+                usageMetadataToChunk(parsedChunk.usage())
+            );
         }
     }
 
     // --- Nested Parsers for Google Vertex AI structure ---
+
+    private record ParsedChunk(List<Candidate> candidates, UsageMetadata usage, String modelVersion, String responseId) {}
 
     private record Candidate(Content content, String finishReason, int index) {}
 
@@ -249,13 +348,22 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    private record Part(@Nullable String text, @Nullable FunctionCall functionCall) {}
+    /**
+     * {@code thought} and {@code thoughtSignature} are siblings of the part's data rather than a kind of data, so a
+     * part can be a signed thought summary ({@code text} plus {@code thought}) or a signed function call.
+     */
+    private record Part(
+        @Nullable String text,
+        @Nullable FunctionCall functionCall,
+        @Nullable Boolean thought,
+        @Nullable String thoughtSignature
+    ) {}
 
     private static class PartParser {
         private static final ConstructingObjectParser<Part, Void> PARSER = new ConstructingObjectParser<>(
             "part",
             true,
-            args -> new Part((String) args[0], (FunctionCall) args[1])
+            args -> new Part((String) args[0], (FunctionCall) args[1], (Boolean) args[2], (String) args[3])
         );
 
         static {
@@ -265,6 +373,8 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 (p, c) -> FunctionCallParser.parse(p),
                 new ParseField(FUNCTION_CALL_FIELD)
             );
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField(THOUGHT_FIELD));
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(THOUGHT_SIGNATURE_FIELD));
         }
 
         public static Part parse(XContentParser parser) throws IOException {
@@ -272,7 +382,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    private record FunctionCall(String name, String args) {}
+    private record FunctionCall(String name, String args, @Nullable String id) {}
 
     private static class FunctionCallParser {
         private static final ConstructingObjectParser<FunctionCall, Void> PARSER = new ConstructingObjectParser<>(
@@ -280,19 +390,20 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             true,
             args -> {
                 var name = (String) args[0];
+                var id = (String) args[2];
 
                 @SuppressWarnings("unchecked")
                 var argsMap = (Map<String, String>) args[1];
                 if (argsMap == null) {
-                    return new FunctionCall(name, null);
+                    return new FunctionCall(name, null, id);
                 }
                 try {
                     var builder = XContentFactory.jsonBuilder().map(argsMap);
                     var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
-                    return new FunctionCall(name, json);
+                    return new FunctionCall(name, json, id);
                 } catch (IOException e) {
                     logger.warn("Failed to parse and convert VertexAI function args to json", e);
-                    return new FunctionCall(name, null);
+                    return new FunctionCall(name, null, id);
                 }
             }
         );
@@ -300,6 +411,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(FUNCTION_NAME_FIELD));
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), new ParseField(FUNCTION_ARGS_FIELD));
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(FUNCTION_ID_FIELD));
         }
 
         public static FunctionCall parse(XContentParser parser) throws IOException {
@@ -307,20 +419,26 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    private record UsageMetadata(int promptTokenCount, int candidatesTokenCount, int totalTokenCount) {}
+    private record UsageMetadata(
+        int promptTokenCount,
+        int candidatesTokenCount,
+        int totalTokenCount,
+        @Nullable Integer thoughtsTokenCount
+    ) {}
 
     private static class UsageMetadataParser {
         private static final ConstructingObjectParser<UsageMetadata, Void> PARSER = new ConstructingObjectParser<>(
             USAGE_METADATA_FIELD,
             true,
             args -> {
-                if (Objects.isNull(args[0]) && Objects.isNull(args[1]) && Objects.isNull(args[2])) {
+                if (Objects.isNull(args[0]) && Objects.isNull(args[1]) && Objects.isNull(args[2]) && Objects.isNull(args[3])) {
                     return null;
                 }
                 return new UsageMetadata(
                     args[0] == null ? 0 : (int) args[0],
                     args[1] == null ? 0 : (int) args[1],
-                    args[2] == null ? 0 : (int) args[2]
+                    args[2] == null ? 0 : (int) args[2],
+                    (Integer) args[3]
                 );
             }
         );
@@ -329,6 +447,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(PROMPT_TOKEN_COUNT_FIELD));
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CANDIDATES_TOKEN_COUNT_FIELD));
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(TOTAL_TOKEN_COUNT_FIELD));
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(THOUGHTS_TOKEN_COUNT_FIELD));
         }
 
         public static UsageMetadata parse(XContentParser parser) throws IOException {

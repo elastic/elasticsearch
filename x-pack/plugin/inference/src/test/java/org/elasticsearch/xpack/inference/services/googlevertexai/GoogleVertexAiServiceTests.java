@@ -35,7 +35,12 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
@@ -82,6 +87,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
@@ -1299,6 +1305,75 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         taskSettings.put(GoogleVertexAiRerankTaskSettings.TOP_N, topN);
 
         return taskSettings;
+    }
+
+    public void testUnifiedCompletionInfer_RejectsReasoningForNonGoogleProviders() throws Exception {
+        var model = GoogleVertexAiChatCompletionModelTests.createGoogleModelGardenChatCompletionModel(
+            API_KEY_VALUE,
+            null,
+            null,
+            GoogleModelGardenProvider.ANTHROPIC,
+            new URI(getUrl(webServer)),
+            new URI(getUrl(webServer)),
+            123
+        );
+
+        try (var inferenceService = createInferenceService()) {
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            inferenceService.unifiedCompletionInfer(model, reasoningCompletionRequest(), TEST_REQUEST_TIMEOUT, listener);
+
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), is("The googlevertexai service does not support unified completion with reasoning inputs"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testSupportsChatCompletionReasoning() throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            assertTrue(((GoogleVertexAiService) inferenceService).supportsChatCompletionReasoning());
+        }
+    }
+
+    public void testUnifiedCompletionInfer_AcceptsReasoningForTheGoogleProvider() throws Exception {
+        var model = GoogleVertexAiChatCompletionModelTests.createGoogleModelGardenChatCompletionModel(
+            API_KEY_VALUE,
+            null,
+            null,
+            GoogleModelGardenProvider.GOOGLE,
+            new URI(getUrl(webServer)),
+            new URI(getUrl(webServer)),
+            123
+        );
+
+        try (var inferenceService = createInferenceService()) {
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            inferenceService.unifiedCompletionInfer(model, reasoningCompletionRequest(), TEST_REQUEST_TIMEOUT, listener);
+
+            // The request is not rejected up front; it gets as far as building the outbound call and only then fails
+            // on the placeholder service account credentials. The unsupported-reasoning gate throws
+            // UnsupportedOperationException, so its absence is what distinguishes the two.
+            var exception = expectThrows(Exception.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception, not(instanceOf(UnsupportedOperationException.class)));
+        }
+    }
+
+    private static UnifiedCompletionRequest reasoningCompletionRequest() {
+        return new UnifiedCompletionRequest(
+            new UnifiedCompletionRequestBody(
+                List.of(new Message(new ContentString("Hello"), "user", null, null)),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new Reasoning(Reasoning.ReasoningEffort.HIGH, null, null, null),
+                null,
+                null
+            ),
+            true
+        );
     }
 
     public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {

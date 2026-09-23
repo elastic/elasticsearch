@@ -160,18 +160,18 @@ public class ESVectorUtil {
     }
 
     /**
-     * L2-normalizes the floats in {@code v[offset:offsetBytes + lengthBytes)} in place. A zero prefix is a no-op.
+     * L2-normalizes the floats in {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
      * @return the squared normalization factor
      */
-    public static float l2NormalizeFloat(MemorySegment v, int offsetBytes, int lengthBytes) {
-        Objects.checkFromIndexSize(offsetBytes, lengthBytes, v.byteSize());
-        if ((lengthBytes & 0x3) != 0) {
-            throw new IllegalArgumentException("lengthBytes needs to be a multiply of 4");
+    public static float l2NormalizeFloat(MemorySegment v, int offset, int length) {
+        if ((v.byteSize() & 0x3) != 0) {
+            throw new IllegalArgumentException("MemorySegment size needs to be a multiple of Float.BYTES");
         }
-        if (lengthBytes <= 0) {
+        Objects.checkFromIndexSize(offset, length, v.byteSize() / Float.BYTES);
+        if (length <= 0) {
             return 0;
         }
-        return IMPL.l2NormalizeFloat(v, offsetBytes, lengthBytes);
+        return IMPL.l2NormalizeFloat(v, offset, length);
     }
 
     /**
@@ -1109,6 +1109,38 @@ public class ESVectorUtil {
     }
 
     /**
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @param result output matrix in row-major order, length cols*rows
+     */
+    public static void transposeMatrix(float[] m, int rows, int cols, MemorySegment result) {
+        if (result.byteSize() != (long) cols * rows * Float.BYTES) {
+            throw new IllegalArgumentException("Invalid segment size [" + result.byteSize() + "] for matrix transposition");
+        }
+
+        // work in tiles of 16x16 floats, rather than whole rows at a time
+        // A 16-wide row is 64 bytes, which is 1 cache line, x16 rows.
+        // both read & write tiles fit in L1 at once.
+        final int transposeBlock = 16;
+
+        for (int ii = 0; ii < rows; ii += transposeBlock) {
+            int iMax = Math.min(ii + transposeBlock, rows);
+            for (int jj = 0; jj < cols; jj += transposeBlock) {
+                int jMax = Math.min(jj + transposeBlock, cols);
+                for (int i = ii; i < iMax; i++) {
+                    int mBase = i * cols;
+                    for (int j = jj; j < jMax; j++) {
+                        result.setAtIndex(ValueLayout.JAVA_FLOAT, (long) j * rows + i, m[mBase + j]);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Transposes a row-major matrix of floats from (rows x cols) to (cols x rows) as a float[].
      *
      * @param m    input matrix in row-major order, length rows*cols*4
@@ -1116,9 +1148,7 @@ public class ESVectorUtil {
      * @param cols number of columns in the input
      * @return     output matrix in row-major order, length cols*rows
      */
-    public static float[] transposeFloatMatrix(MemorySegment m, int rows, int cols) {
-        float[] result = new float[rows * cols];
-
+    public static float[] transposeFloatMatrix(MemorySegment m, int rows, int cols, float[] result) {
         // work in tiles of 16x16 floats, rather than whole rows at a time
         // A 16-wide row is 64 bytes, which is 1 cache line, x16 rows.
         // both read & write tiles fit in L1 at once.
@@ -1149,7 +1179,7 @@ public class ESVectorUtil {
      * @param result output matrix in row-major order, length cols*rows*4
      */
     public static void transposeFloatMatrix(MemorySegment m, int rows, int cols, MemorySegment result) {
-        if (result.byteSize() != (long) cols * rows * Float.SIZE) {
+        if (result.byteSize() != (long) cols * rows * Float.BYTES) {
             throw new IllegalArgumentException("Invalid segment size [" + result.byteSize() + "] for matrix transposition");
         }
 
@@ -1163,7 +1193,7 @@ public class ESVectorUtil {
             for (int jj = 0; jj < cols; jj += transposeBlock) {
                 long jMax = Math.min(jj + transposeBlock, cols);
                 for (int i = ii; i < iMax; i++) {
-                    long mBase = (long)i * cols;
+                    long mBase = (long) i * cols;
                     for (long j = jj; j < jMax; j++) {
                         result.setAtIndex(ValueLayout.JAVA_FLOAT, j * rows + i, m.getAtIndex(ValueLayout.JAVA_FLOAT, mBase + j));
                     }
@@ -1177,13 +1207,21 @@ public class ESVectorUtil {
      * Result C is (m x n).
      */
     public static void matrixMultiplyFloat(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result) {
-        if (a.byteSize() != (long)m * k * Float.BYTES) {
+        /*
+         * only native segments can be used here - using a mapped segment pins the GC,
+         * and matrix multiply can run for several hundred ms
+         */
+        assert a.isNative();
+        assert b.isNative();
+        assert result.isNative();
+
+        if (a.byteSize() != (long) m * k * Float.BYTES) {
             throw new IllegalArgumentException("Invalid a array size [" + a.byteSize() + "] for matrix multiplication");
         }
-        if (b.byteSize() != (long)k * n * Float.BYTES) {
+        if (b.byteSize() != (long) k * n * Float.BYTES) {
             throw new IllegalArgumentException("Invalid b array size [" + b.byteSize() + "] for matrix multiplication");
         }
-        if (result.byteSize() != (long)m * n * Float.BYTES) {
+        if (result.byteSize() != (long) m * n * Float.BYTES) {
             throw new IllegalArgumentException("Invalid result array size [" + result.byteSize() + "] for matrix multiplication");
         }
         IMPL.matrixMultiplyFloat(a, b, m, k, n, result);

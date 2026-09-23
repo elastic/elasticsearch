@@ -20,9 +20,7 @@ import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 
@@ -97,19 +95,19 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float l2NormalizeFloat(MemorySegment v, int offsetBytes, int lengthBytes) {
+    public float l2NormalizeFloat(MemorySegment v, int offset, int length) {
         double normSq = 0;
-        int end = offsetBytes + lengthBytes;
-        for (int j = offsetBytes; j < end; j += Float.BYTES) {
-            double t = v.get(JAVA_FLOAT, j);
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            double t = v.getAtIndex(JAVA_FLOAT, j);
             normSq += t * t;
         }
         if (normSq == 0) {
             return 0;
         }
         double invNorm = 1.0 / Math.sqrt(normSq);
-        for (int j = offsetBytes; j < end; j += Float.BYTES) {
-            v.set(JAVA_FLOAT, j, (float) (v.get(JAVA_FLOAT, j) * invNorm));
+        for (int j = offset; j < end; j++) {
+            v.setAtIndex(JAVA_FLOAT, j, (float) (v.getAtIndex(JAVA_FLOAT, j) * invNorm));
         }
         return (float) normSq;
     }

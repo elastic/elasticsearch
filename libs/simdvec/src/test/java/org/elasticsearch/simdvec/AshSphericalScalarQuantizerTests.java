@@ -13,10 +13,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.List;
 import java.util.function.IntFunction;
 
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -27,6 +32,18 @@ import static org.hamcrest.Matchers.oneOf;
  * Tests for {@link AshSphericalScalarQuantizer}.
  */
 public class AshSphericalScalarQuantizerTests extends ESTestCase {
+
+    private static Arena arena;
+
+    @BeforeClass
+    public static void setup() {
+        arena = Arena.ofConfined();
+    }
+
+    @AfterClass
+    public static void teardown() {
+        arena.close();
+    }
 
     private final IntFunction<AshSphericalScalarQuantizer> quantizerFactory;
 
@@ -121,25 +138,30 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         int n = randomIntBetween(2, 5);
         float[] batchInput = randomGaussianVector(n * d);
 
-        AshSphericalScalarQuantizer.QuantizeResult batch = new AshSphericalScalarQuantizer.QuantizeResult(n, d);
-        ssq.encode(batchInput, n, d, batch);
-        assertEquals(n * d, batch.centeredCodes().length);
+        AshSphericalScalarQuantizer.QuantizeResult batch = new AshSphericalScalarQuantizer.QuantizeResult(arena, n, d);
+        ssq.encode(MemorySegment.ofArray(batchInput), n, d, batch);
+        assertEquals(n * d * Float.BYTES, batch.centeredCodes().byteSize());
         assertEquals(n, batch.codeNorms().length);
 
         for (int i = 0; i < n; i++) {
             int rowIdx = i * d;
             float[] row = ArrayUtil.copyOfSubArray(batchInput, rowIdx, rowIdx + d);
             AshSphericalScalarQuantizer.SingleQuantizeResult single = ssq.encodeOne(row);
-            assertArrayEquals("row " + i, single.centeredCode(), ArrayUtil.copyOfSubArray(batch.centeredCodes(), rowIdx, rowIdx + d), 0f);
+            assertArrayEquals(
+                "row " + i,
+                single.centeredCode(),
+                batch.centeredCodes().asSlice((long) rowIdx * Float.BYTES, (long) (rowIdx + d) * Float.BYTES).toArray(JAVA_FLOAT),
+                0f
+            );
             assertEquals("row " + i, single.codeNorm(), batch.codeNorms()[i], 0f);
         }
     }
 
     public void testEmptyInput() {
         AshSphericalScalarQuantizer ssq = quantizerFactory.apply(2);
-        AshSphericalScalarQuantizer.QuantizeResult result = new AshSphericalScalarQuantizer.QuantizeResult(0, 16);
-        ssq.encode(new float[0], 0, 16, result);
-        assertEquals(0, result.centeredCodes().length);
+        AshSphericalScalarQuantizer.QuantizeResult result = new AshSphericalScalarQuantizer.QuantizeResult(arena, 0, 16);
+        ssq.encode(MemorySegment.NULL, 0, 16, result);
+        assertEquals(0, result.centeredCodes().byteSize());
         assertEquals(0, result.codeNorms().length);
     }
 

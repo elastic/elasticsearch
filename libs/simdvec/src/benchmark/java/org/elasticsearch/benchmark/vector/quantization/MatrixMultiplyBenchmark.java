@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.vector.quantization;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.benchmark.vector.VectorizationInfo;
+import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
@@ -29,7 +30,9 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.util.Arrays;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -60,35 +63,35 @@ public class MatrixMultiplyBenchmark {
     @Param({ "96", "241", "384", "512" })
     int n;
 
+    // keeping this Arena alive keeps the MemorySegments accessible
+    private Arena arena;
     private ESVectorUtilSupport impl;
     /** A is (m x k). */
-    private float[] a;
+    private MemorySegment a;
     /** B for matrixMultiply: (k x n). */
-    private float[] bMul;
-    private float[] result;
+    private MemorySegment bMul;
+    private MemorySegment result;
 
     @Setup(Level.Trial)
     public void init() {
+        arena = Arena.ofAuto();
         impl = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false).getVectorUtilSupport();
             case PANAMA -> ESVectorizationProvider.lookup(true, false).getVectorUtilSupport();
             default -> throw new AssertionError(implementation);
         };
         Random random = new Random();
-        a = VectorTestUtils.randomFloatVector(random, m * k);
-        bMul = VectorTestUtils.randomFloatVector(random, k * n);
-        result = new float[m * n];
-    }
-
-    @Setup(Level.Iteration)
-    public void reset() {
-        Arrays.fill(result, 0);
+        a = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, m * k);
+        MemorySegment.copy(VectorTestUtils.randomFloatVector(random, m * k), 0, a, ValueLayout.JAVA_FLOAT, 0, m * k);
+        bMul = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, k * n);
+        MemorySegment.copy(VectorTestUtils.randomFloatVector(random, k * n), 0, bMul, ValueLayout.JAVA_FLOAT, 0, k * n);
+        result = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, m * n);
     }
 
     /** C = A @ B, A is (m x k), B is (k x n), C is (m x n). */
     @Benchmark
     public void matrixMultiply(Blackhole bh) {
-        impl.matrixMultiply(a, bMul, m, k, n, result);
+        impl.matrixMultiplyFloat(a, bMul, m, k, n, result);
         bh.consume(result);
     }
 }

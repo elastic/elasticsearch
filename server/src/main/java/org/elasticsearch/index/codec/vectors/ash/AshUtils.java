@@ -9,10 +9,15 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
 import java.util.Random;
+
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 
 final class AshUtils {
 
@@ -41,7 +46,7 @@ final class AshUtils {
      * @param k the matrix dimension
      * @param r the output matrix in row-major order, length k*k
      */
-    public static void procrustes(float[] m, int k, float[] r) {
+    public static void procrustes(float[] m, int k, MemorySegment r) {
         // Scale M so that all singular values are in (0, sqrt(3)) for Newton-Schulz convergence.
         float spectralNorm = estimateSpectralNorm(m, k, 50);
         double scale = 1.0 / Math.max(spectralNorm, 1e-10);
@@ -124,7 +129,7 @@ final class AshUtils {
 
         // Convert back to float
         for (int i = 0; i < k * k; i++) {
-            r[i] = (float) x[i];
+            r.setAtIndex(JAVA_FLOAT, i, (float) x[i]);
         }
     }
 
@@ -171,40 +176,54 @@ final class AshUtils {
      * @param n   number of columns
      * @param k   number of top singular vectors to extract
      * @param seed random seed for initialization
-     * @return top-k right singular vectors as columns, row-major (n x k)
+     * @param result top-k right singular vectors as columns, row-major (n x k)
      */
-    public static float[] topKRightSingularVectors(float[] a, int m, int n, int k, long seed) {
+    public static void topKRightSingularVectors(MemorySegment a, int m, int n, int k, long seed, MemorySegment result) {
         // Compute C = A^T A (n x n) -- this is symmetric positive semi-definite
         // For m >> n this is cheaper than full SVD
         // For m < n, we use A A^T (m x m) and transform back
         if (m >= n) {
-            return topKEigenvectorsGram(a, m, n, k, seed);
+            topKEigenvectorsGram(a, m, n, k, seed, result);
         } else {
             // Compute A A^T (m x m), find eigenvectors, transform back to right singular vectors
-            return topKEigenvectorsGramTranspose(a, m, n, k, seed);
+            topKEigenvectorsGramTranspose(a, m, n, k, seed, result);
         }
     }
 
-    private static float[] topKEigenvectorsGram(float[] a, int m, int n, int k, long seed) {
-        // Eigenvectors of A^T A are the right singular vectors, so iterate with X = A. A^T is
-        // materialized so that the A^T @ W product reads sequentially.
-        float[] vT = blockPowerIteration(a, ESVectorUtil.transposeMatrix(a, m, n), m, n, k, seed);
-        return ESVectorUtil.transposeMatrix(vT, k, n);
+    private static void topKEigenvectorsGram(MemorySegment a, int m, int n, int k, long seed, MemorySegment result) {
+        try (Arena arena = Arena.ofConfined()) {
+            // Eigenvectors of A^T A are the right singular vectors, so iterate with X = A. A^T is
+            // materialized so that the A^T @ W product reads sequentially.
+            MemorySegment aT = ArenaAdapter.allocate(arena, JAVA_FLOAT, m * n);
+
+            ESVectorUtil.transposeFloatMatrix(a, m, n, aT);
+            float[] vT = blockPowerIteration(a, aT, m, n, k, seed);
+            ESVectorUtil.transposeMatrix(vT, k, n, result);
+        }
     }
 
-    private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
-        // A is (m x n) with m < n, so A A^T (m x m) is the smaller Gram matrix: iterate with
-        // X = A^T to get the left singular vectors U, then recover the right singular vectors.
-        float[] uT = blockPowerIteration(ESVectorUtil.transposeMatrix(a, m, n), a, n, m, k, seed);
+    private static void topKEigenvectorsGramTranspose(MemorySegment a, int m, int n, int k, long seed, MemorySegment result) {
+        try (Arena arena = Arena.ofConfined()) {
+            // A is (m x n) with m < n, so A A^T (m x m) is the smaller Gram matrix: iterate with
+            // X = A^T to get the left singular vectors U, then recover the right singular vectors.
+            MemorySegment aT = ArenaAdapter.allocate(arena, JAVA_FLOAT, m * n);
 
-        // V = A^T U, computed transposed as V^T = U^T A (k x n) so that each vector occupies a
-        // row and the normalization runs over contiguous data.
-        float[] vT = new float[k * n];
-        ESVectorUtil.matrixMultiplyFloat(uT, a, k, m, n, vT);
-        for (int j = 0; j < k; j++) {
-            ESVectorUtil.l2Normalize(vT, j * n, n);
+            ESVectorUtil.transposeFloatMatrix(a, m, n, aT);
+            float[] uT = blockPowerIteration(aT, a, n, m, k, seed);
+
+            // copy uT to a native segment so we're not pinning uT
+            MemorySegment uTSegment = ArenaAdapter.allocate(arena, JAVA_FLOAT, uT.length);
+            MemorySegment.copy(uT, 0, uTSegment, JAVA_FLOAT, 0, uT.length);
+
+            // V = A^T U, computed transposed as V^T = U^T A (k x n) so that each vector occupies a
+            // row and the normalization runs over contiguous data.
+            MemorySegment vT = ArenaAdapter.allocate(arena, JAVA_FLOAT, k * n);
+            ESVectorUtil.matrixMultiplyFloat(uTSegment, a, k, m, n, vT);
+            for (int j = 0; j < k; j++) {
+                ESVectorUtil.l2NormalizeFloat(vT, j * n, n);
+            }
+            ESVectorUtil.transposeFloatMatrix(vT, k, n, result);
         }
-        return ESVectorUtil.transposeMatrix(vT, k, n);
     }
 
     /**
@@ -226,21 +245,26 @@ final class AshUtils {
      * @param seed random seed for initialization
      * @return the converged block transposed, row-major (k x q), one orthonormal vector per row
      */
-    private static float[] blockPowerIteration(float[] x, float[] xT, int p, int q, int k, long seed) {
+    private static float[] blockPowerIteration(MemorySegment x, MemorySegment xT, int p, int q, int k, long seed) {
         int iters = 20; // sufficient for PCA init that gets refined by Procrustes
 
+        // use a standard array here - for the common case it gets transposed into a MemorySegment anyway
+        // using MemorySegment requires converting qrOrthogonalize from arrays
         float[] bT = randomGaussians(new Random(seed), q * k);
         qrOrthogonalize(bT, q, k);
 
-        float[] b = new float[q * k];
-        float[] w = new float[p * k];
-        for (int iter = 0; iter < iters; iter++) {
-            ESVectorUtil.transposeMatrix(bT, k, q, b);       // B (q x k)
-            ESVectorUtil.matrixMultiplyFloat(x, b, p, q, k, w);   // W = X @ B (p x k)
-            ESVectorUtil.matrixMultiplyFloat(xT, w, q, p, k, b);  // B <- X^T @ W (q x k)
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment b = ArenaAdapter.allocate(arena, JAVA_FLOAT, q * k);
+            MemorySegment w = ArenaAdapter.allocate(arena, JAVA_FLOAT, p * k);
 
-            ESVectorUtil.transposeMatrix(b, q, k, bT);
-            qrOrthogonalize(bT, q, k);
+            for (int iter = 0; iter < iters; iter++) {
+                ESVectorUtil.transposeMatrix(bT, k, q, b);       // B (q x k)
+                ESVectorUtil.matrixMultiplyFloat(x, b, p, q, k, w);   // W = X @ B (p x k)
+                ESVectorUtil.matrixMultiplyFloat(xT, w, q, p, k, b);  // B <- X^T @ W (q x k)
+
+                ESVectorUtil.transposeFloatMatrix(b, q, k, bT);
+                qrOrthogonalize(bT, q, k);
+            }
         }
 
         return bT;

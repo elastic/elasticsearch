@@ -11,12 +11,15 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
@@ -486,10 +489,9 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] expected = randomFloatVector(vectorSize);
         float[] panama = expected.clone();
         float[] util = expected.clone();
-        defaultedProvider.getVectorUtilSupport()
-            .l2NormalizeFloat(MemorySegment.ofArray(expected), offset * Float.BYTES, length * Float.BYTES);
-        panamaProvider.getVectorUtilSupport().l2NormalizeFloat(MemorySegment.ofArray(panama), offset * Float.BYTES, length * Float.BYTES);
-        ESVectorUtil.l2NormalizeFloat(MemorySegment.ofArray(util), offset * Float.BYTES, length * Float.BYTES);
+        defaultedProvider.getVectorUtilSupport().l2NormalizeFloat(MemorySegment.ofArray(expected), offset, length);
+        panamaProvider.getVectorUtilSupport().l2NormalizeFloat(MemorySegment.ofArray(panama), offset, length);
+        ESVectorUtil.l2NormalizeFloat(MemorySegment.ofArray(util), offset, length);
         assertArrayEquals(expected, panama, 1e-5f);
         assertArrayEquals(expected, util, 1e-5f);
     }
@@ -1384,17 +1386,23 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int k = randomIntBetween(2, 1024);
         int n = randomIntBetween(2, 1024);
 
-        float[] a = VectorTestUtils.randomFloatVector(m * k);
-        float[] b = VectorTestUtils.randomFloatVector(k * n);
+        try (Arena arena = Arena.ofConfined()) {
+            float[] a = VectorTestUtils.randomFloatVector(m * k);
+            MemorySegment aSegment = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, a.length);
+            MemorySegment.copy(a, 0, aSegment, ValueLayout.JAVA_FLOAT, 0, a.length);
 
-        float[] expected = basicMatrixMultiply(a, b, m, k, n);
+            float[] b = VectorTestUtils.randomFloatVector(k * n);
+            MemorySegment bSegment = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, b.length);
+            MemorySegment.copy(b, 0, bSegment, ValueLayout.JAVA_FLOAT, 0, b.length);
 
-        float[] scalar = new float[m * n];
-        defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar);
-        assertArrayEquals(expected, scalar, 1e-3f);
-        float[] panama = new float[m * n];
-        panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama);
-        assertArrayEquals(expected, panama, 1e-3f);
+            float[] expected = basicMatrixMultiply(a, b, m, k, n);
+
+            MemorySegment results = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, m * n);
+            defaultedProvider.getVectorUtilSupport().matrixMultiplyFloat(aSegment, bSegment, m, k, n, results);
+            assertArrayEquals(expected, results.toArray(ValueLayout.JAVA_FLOAT), 1e-3f);
+            panamaProvider.getVectorUtilSupport().matrixMultiplyFloat(aSegment, bSegment, m, k, n, results);
+            assertArrayEquals(expected, results.toArray(ValueLayout.JAVA_FLOAT), 1e-3f);
+        }
     }
 
     private static float[] basicMatrixMultiply(float[] a, float[] b, int m, int k, int n) {

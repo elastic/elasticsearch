@@ -268,21 +268,21 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public float l2NormalizeFloat(MemorySegment v, int offsetBytes, int lengthBytes) {
+    public float l2NormalizeFloat(MemorySegment v, int offset, int length) {
         // compute dot product of v with itself
-        int vectorEnd = offsetBytes + FLOAT_SPECIES.loopBound(lengthBytes / Float.BYTES);
-        int end = offsetBytes + lengthBytes;
+        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        int end = offset + length;
 
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
-        int i = offsetBytes;
-        for (; i < vectorEnd; i += FLOAT_SPECIES.vectorByteSize()) {
-            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, v, i, ByteOrder.nativeOrder());
+        long i = offset;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, v, i * Float.BYTES, ByteOrder.nativeOrder());
             acc = fma(vec, vec, acc);
         }
 
         float normSq = acc.reduceLanes(ADD);
-        for (; i < end; i += Float.BYTES) {
-            float val = v.get(JAVA_FLOAT, i);
+        for (; i < end; i++) {
+            float val = v.getAtIndex(JAVA_FLOAT, i);
             normSq = fma(val, val, normSq);
         }
 
@@ -294,13 +294,13 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         float scale = (float) (1.0 / Math.sqrt(normSq));
         FloatVector scaleVec = FloatVector.broadcast(FLOAT_SPECIES, scale);
 
-        i = offsetBytes;
-        for (; i < vectorEnd; i += FLOAT_SPECIES.vectorByteSize()) {
-            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, v, i, ByteOrder.nativeOrder());
-            vec.mul(scaleVec).intoMemorySegment(v, i, ByteOrder.nativeOrder());
+        i = offset;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, v, i * Float.BYTES, ByteOrder.nativeOrder());
+            vec.mul(scaleVec).intoMemorySegment(v, i * Float.BYTES, ByteOrder.nativeOrder());
         }
-        for (; i < end; i += Float.BYTES) {
-            v.set(JAVA_FLOAT, i, v.get(JAVA_FLOAT, i) * scale);
+        for (; i < end; i++) {
+            v.setAtIndex(JAVA_FLOAT, i, v.getAtIndex(JAVA_FLOAT, i) * scale);
         }
         return normSq;
     }

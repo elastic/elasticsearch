@@ -43,10 +43,10 @@ public interface ESVectorUtilSupport {
     float l2Normalize(float[] v, int offset, int length);
 
     /**
-     * L2-normalizes the floats in {@code v[offset:offsetBytes + lengthBytes)} in place. A zero prefix is a no-op.
+     * L2-normalizes the floats in {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
      * @return the squared normalization factor
      */
-    float l2NormalizeFloat(MemorySegment v, int offsetBytes, int lengthBytes);
+    float l2NormalizeFloat(MemorySegment v, int offset, int length);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);

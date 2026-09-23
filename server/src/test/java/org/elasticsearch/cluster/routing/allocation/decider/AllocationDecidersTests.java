@@ -294,6 +294,24 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         assertThat(result.deciderName(), equalTo(FirstNotPreferredDecider.class.getSimpleName()));
     }
 
+    public void testCanRemainWithDeciderNameThrottleDecision() {
+        // THROTTLE from canRemain (e.g. HasFrozenCacheAllocationDecider when cache state is still fetching)
+        // is not tracked as the responsible decider; deciderName is null even though decision is THROTTLE
+        var result = doCanRemainWithDeciderName(new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.THROTTLE))));
+        assertThat(result.decision().type(), equalTo(Decision.Type.THROTTLE));
+        assertThat(result.deciderName(), nullValue());
+    }
+
+    public void testCanRemainWithDeciderNameThrottleOverridesNotPreferred() {
+        // When NOT_PREFERRED is followed by THROTTLE, THROTTLE wins overall (it is more negative).
+        // The NOT_PREFERRED decider must not be reported as the responsible decider for the THROTTLE result.
+        var result = doCanRemainWithDeciderName(
+            new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new TestAllocationDecider(() -> Decision.THROTTLE)))
+        );
+        assertThat(result.decision().type(), equalTo(Decision.Type.THROTTLE));
+        assertThat(result.deciderName(), nullValue());
+    }
+
     public void testCanRemainWithDeciderNameIgnoredShard() {
         // When the shard is ignored for the node, the NO decision comes from the ignored-shard check
         // (no individual decider callback fires), so deciderName is null even though the result is NO

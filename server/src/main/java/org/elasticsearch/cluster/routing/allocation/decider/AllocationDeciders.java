@@ -120,21 +120,20 @@ public class AllocationDeciders {
      * Equivalent to {@link #canRemain(ShardRouting, RoutingNode, RoutingAllocation)} but also returns the
      * {@link Class#getSimpleName()} of the first {@link AllocationDecider} that produced the most-negative result
      * (either {@link Decision.Type#NO} or {@link Decision.Type#NOT_PREFERRED}), or {@code null} when the overall
-     * decision is {@link Decision.Type#YES}.
+     * decision is {@link Decision.Type#YES} or {@link Decision.Type#THROTTLE}.
      */
     public CanRemainWithDeciderName canRemainWithDeciderName(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         final String[] deciderNameHolder = { null };
         final Decision.Type[] worstSeen = { Decision.Type.YES };
         final var canRemainDecision = canRemain(shardRouting, node, allocation, (decider, decision) -> {
-            assert decision.type() != Decision.Type.THROTTLE : "We don't expect to see THROTTLE returned from canRemain";
             if ((decision.type() == Decision.Type.NOT_PREFERRED || decision.type() == Decision.Type.NO)
                 && worstSeen[0].compareToBetweenDecisions(decision.type()) > 0) {
                 worstSeen[0] = decision.type();
                 deciderNameHolder[0] = decider.getClass().getSimpleName();
             }
         });
-
-        return new CanRemainWithDeciderName(canRemainDecision, deciderNameHolder[0]);
+        final boolean relevant = canRemainDecision.type() == Decision.Type.NO || canRemainDecision.type() == Decision.Type.NOT_PREFERRED;
+        return new CanRemainWithDeciderName(canRemainDecision, relevant ? deciderNameHolder[0] : null);
     }
 
     /**

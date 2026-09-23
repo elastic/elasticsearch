@@ -59,6 +59,9 @@ public final class StringBinaryPayload {
      * buffer the slots elsewhere or shuffle them along afterwards, the builder leaves a vint's worth of room
      * ahead of them and writes the count so that it ends exactly where the first slot begins. That is why
      * {@link #build} hands back a {@link BytesRef} whose offset is not zero.
+     *
+     * <p>The buffer is allocated by the first {@link #appendSlot}, sized for that room and that slot together, so a
+     * caller appending straight into a fresh builder pays one allocation rather than a small one grown at once.
      */
     public static final class Builder {
 
@@ -69,10 +72,6 @@ public final class StringBinaryPayload {
         private final BytesRef payload = new BytesRef();
         private int pos = COUNT_RESERVE;
         private int slotCount;
-
-        public Builder() {
-            blob.grow(COUNT_RESERVE);
-        }
 
         /**
          * Encodes {@code slots} in document order, a {@code null} element denoting a null slot, discarding whatever this builder
@@ -102,11 +101,21 @@ public final class StringBinaryPayload {
             slotCount++;
         }
 
+        /** How many slots have been appended for the document under construction. */
+        public int slotCount() {
+            return slotCount;
+        }
+
         /**
          * The finished payload, count and all. Points into this builder's own buffer, so it is valid until the
          * next {@link #reset}; a caller that needs to keep it must copy it out.
          */
         public BytesRef build() {
+            if (slotCount == 0) {
+                // No slot was appended, so no buffer was ever grown to write a count back into. A document of no
+                // slots is the shared count of zero either way.
+                return EMPTY;
+            }
             final int start = COUNT_RESERVE - ByteArrayInts.vIntLength(slotCount);
             ByteArrayInts.writeVInt(slotCount, blob.bytes(), start);
             payload.bytes = blob.bytes();

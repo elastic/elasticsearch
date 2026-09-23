@@ -103,6 +103,39 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
         assertSlots(doc, List.of(value));
     }
 
+    /** A lone null slot takes the single-slot shape too: a count of one with nothing under it. */
+    public void testALoneNullSlot() throws IOException {
+        final LuceneDocument doc = new LuceneDocument();
+        ColumnarBinaryDocValuesField.recordNull(doc, FIELD);
+        final List<BytesRef> slots = new ArrayList<>();
+        slots.add(null);
+        assertSlots(doc, slots);
+        assertNoCounts(doc);
+    }
+
+    /**
+     * An unsorted field appends slots into its payload as they arrive, while a sorted one collects them first. Both arms have to land
+     * the order their ordering calls for: one that appended regardless would record arrival order for every ordering, and would drop
+     * sorted-unique's deduplication with it.
+     */
+    public void testEachOrderingLandsItsOwnOrder() throws IOException {
+        assertRecordedSlots(MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED, List.of(new BytesRef("b"), new BytesRef("a")));
+        assertRecordedSlots(MultiValuedBinaryDocValuesField.ValueOrdering.SORTED, List.of(new BytesRef("a"), new BytesRef("b")));
+        assertRecordedSlots(MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE, List.of(new BytesRef("a"), new BytesRef("b")));
+    }
+
+    /** The count is answered from whichever arm holds the slots. */
+    public void testCountAcrossBothArms() {
+        for (MultiValuedBinaryDocValuesField.ValueOrdering ordering : MultiValuedBinaryDocValuesField.ValueOrdering.values()) {
+            final ColumnarBinaryDocValuesField field = new ColumnarBinaryDocValuesField(FIELD, ordering);
+            assertEquals(ordering + ": no slots", 0, field.count());
+            field.add(new BytesRef("a"));
+            assertEquals(ordering + ": one slot", 1, field.count());
+            field.add(new BytesRef("b"));
+            assertEquals(ordering + ": two slots", 2, field.count());
+        }
+    }
+
     /** Sorted-unique collection still applies; the payload just records however many survived it. */
     public void testSortedUniqueOrderingDeduplicates() throws IOException {
         final LuceneDocument doc = new LuceneDocument();
@@ -124,6 +157,15 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
     public void testFieldTypeIsTheOrdinaryBinaryDocValuesType() {
         final var field = new ColumnarBinaryDocValuesField(FIELD, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
         assertSame(CustomDocValuesField.TYPE, field.fieldType());
+    }
+
+    /** Two slots recorded out of order, decoded back as {@code ordering} leaves them. */
+    private static void assertRecordedSlots(MultiValuedBinaryDocValuesField.ValueOrdering ordering, List<BytesRef> expected)
+        throws IOException {
+        final LuceneDocument doc = new LuceneDocument();
+        ColumnarBinaryDocValuesField.recordValue(doc, FIELD, new BytesRef("b"), ordering);
+        ColumnarBinaryDocValuesField.recordValue(doc, FIELD, new BytesRef("a"), ordering);
+        assertSlots(doc, expected);
     }
 
     /** The blob decodes back to exactly the slots that went in, in order. */

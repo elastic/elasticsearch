@@ -1,6 +1,7 @@
 products:
 - product: cloud-serverless
   target: 2026-09-22
+  lifecycle: ga
   repo: elasticsearch
   owner: elastic
 release-date: 2026-09-22
@@ -9,9 +10,9 @@ hide-features:
 entries:
 - file:
     name: 159245.yaml
-    checksum: db858ce6b52e3540fe835ddb22e850b85ca49750
+    checksum: 4eaf9276bc1b36c6ce88212e152a570a9c33761c
   type: bug-fix
-  title: Guard filterBlock call site for LIST columns
+  title: Fix circuit breaker leaks for LIST columns in Parquet scans
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -21,9 +22,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159245
 - file:
     name: 158415.yaml
-    checksum: 6f099104f57f97bdf4f12b70d17139b00e95d4b2
+    checksum: 8474e6c1f3ddeed61111f827f7d3707d7958a533
   type: enhancement
-  title: Charge input-scaled String allocations
+  title: Charge circuit breaker memory for scaled Painless string allocations
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -33,9 +34,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158415
 - file:
     name: 157888.yaml
-    checksum: 16bd3bbcea4328b5c2c13a2d006049c33fb37ac9
+    checksum: 51fa75f815ab5989d52ff8a5bcda3aa234191972
   type: enhancement
-  title: 'Truncate ES|QL geogrid `geo_shape` results and warn instead of returning null'
+  title: Truncate ES|QL geogrid `geo_shape` results instead of returning null
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -45,9 +46,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/157888
 - file:
     name: 159269.yaml
-    checksum: 442cd062aed7d94aa0f83e46557c3854644cf2d8
+    checksum: 957126934b364c7c5d9c7b031b9441b08e756b82
   type: bug-fix
-  title: 'ESQL: fix incorrect TO_TEXT pushdown'
+  title: Fix incorrect `TO_TEXT` pushdown
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -59,9 +60,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/159265
 - file:
     name: 159639.yaml
-    checksum: a4b3e53e4c2f496090c616a9f4c5518cf54a04d3
+    checksum: 93fae806c5c09a6b41fa7e542d055230d0b9220d
   type: bug-fix
-  title: 'ES|QL|DS: Fix S3 cross-region redirect IllegalStateException'
+  title: Fix ES|QL S3 queries that fail after a cross-region redirect
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -70,13 +71,13 @@ entries:
   prs:
   - https://github.com/elastic/elasticsearch/pull/159639
   issues:
-  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1979'
+  - https://github.com/elastic/esql-planning/issues/1979
   - https://github.com/elastic/elasticsearch/issues/159499
 - file:
     name: 159526.yaml
-    checksum: dbdde1923cd1d52ff3d1162cab9425b07c4211ad
+    checksum: 0c8d5cae3959d69819df61403a790ae673582aa9
   type: bug-fix
-  title: Handle refresh exceptions in ensureShardSearchActive
+  title: Fix uncaught refresh errors on search-idle shards
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -84,9 +85,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159526
 - file:
     name: 159199.yaml
-    checksum: 6b215971fc74e487d6bcfb33e247d884f5f1c8fe
+    checksum: d15bacb1a0e878fa69316a844ee00d31a1ea9e11
   type: bug-fix
-  title: Fix PromQL canonical expression ordering'
+  title: Fix inconsistent PromQL canonical expression ordering
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -98,9 +99,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/157912
 - file:
     name: 158858.yaml
-    checksum: 9cbd6436c35a292a7c8c02721112d5af08a2d946
+    checksum: 7cf9c597b3d93b25600a1e1a84a999244b379356
   type: bug-fix
-  title: 'ES|QL: first_file_wins warm COUNT/MIN/MAX must match the scan'
+  title: Fix `COUNT`, `MIN`, and `MAX` on first-file-wins Parquet scans
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -109,7 +110,7 @@ entries:
   prs:
   - https://github.com/elastic/elasticsearch/pull/158858
   issues:
-  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1933'
+  - https://github.com/elastic/esql-planning/issues/1933
 - file:
     name: 152829.yaml
     checksum: 303eef7a62b985f95076a554734672733da63c34
@@ -124,9 +125,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/152829
 - file:
     name: 159336.yaml
-    checksum: b96b02ff7016480e5eed75661e3b6e402afe72c9
+    checksum: b518d04f4665424176223a69e221f961143ddeec
   type: bug-fix
-  title: 'ESQL:DS: uncharge Parquet GET before CBE'
+  title: Fix circuit breaker HTTP 429 after Parquet footer reads
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -138,9 +139,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/158809
 - file:
     name: 158474.yaml
-    checksum: 41eda0a2191de848825513661ae371427a0f9458
+    checksum: fa17c1d69120778e636c61579fef2bec848b23c2
   type: other
-  title: Upgrade Apache HttpClient to v5 in security plugin
+  title: Upgrade Apache HttpClient to version 5 in the security plugin
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -150,9 +151,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158474
 - file:
     name: 158988.yaml
-    checksum: 764ff390a94c44168775bd01eeb7e1a653be5aae
+    checksum: 13ff113d4fa69fb5614b7b9aff994a14b5841eff
   type: enhancement
-  title: 'ES|QL|DS: dataset metadata stops inventing values, and _class/_name name the relation'
+  title: Stop synthesizing ES|QL dataset `_id`, `_version`, and `_source` values
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -162,9 +163,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158988
 - file:
     name: 154987.yaml
-    checksum: a3cdee670f44b7d9d15718f69ee06edd81286982
+    checksum: 8b5afc73380a31f32e3bb5a15c2b8c37eada658b
   type: feature
-  title: 'ESQL: make wildcard discovery of datasets opt-in'
+  title: Add opt-in wildcard discovery of ES|QL datasets
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -176,9 +177,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/158472
 - file:
     name: 159659.yaml
-    checksum: 0d282514f2b5b79674cba11f84bcdfe24fccab28
+    checksum: a824b0feaee84fe6bea2168013188930ae52f683
   type: bug-fix
-  title: Circuitbreak Base64 and MvConcat/Zip
+  title: Fix unbounded memory in `TO_BASE64`, `FROM_BASE64`, `MV_CONCAT`, and `MV_ZIP`
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -188,9 +189,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159659
 - file:
     name: 159638.yaml
-    checksum: aafd3420ec1a2774528e86dba0bee191d08d1bd2
+    checksum: 6e4cf972f86cb88891ebf03da3c5f62464b18908
   type: bug-fix
-  title: Bound the connector description length
+  title: Fix heap exhaustion from oversized connector descriptions
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -200,9 +201,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159638
 - file:
     name: 159157.yaml
-    checksum: 603eb58806af317f2967afa649726fb81f566223
+    checksum: 7f5738935e56fde5aa18483301c8d54b47d28519
   type: enhancement
-  title: Add _user_managed_service_account token grant
+  title: Add `_user_managed_service_account` token grant
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -212,9 +213,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159157
 - file:
     name: 157348.yaml
-    checksum: d62276f97fc64fef6ccf523899be423092d7a3dc
+    checksum: 41b2460cec0152493a729b0b8be12e95ea04cd09
   type: other
-  title: Netty upgrade 4.1.137.Final
+  title: Upgrade Netty to 4.1.137.Final
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -222,7 +223,7 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/157348
 - file:
     name: 159189.yaml
-    checksum: d99cdfc8881011276b230a560b08b81083d33b85
+    checksum: 19d8f4e561d98088df280ec5cf2c7107f6772471
   type: bug-fix
   title: Fix ES|QL aggregate functions that treat extra fields as parameters
   products:
@@ -236,9 +237,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/158821
 - file:
     name: 159561.yaml
-    checksum: 5573ebe0c0b8417154e4d0387612364a1c6fa0ee
+    checksum: 7155c6e9540bc8f95df223e78f3dff769eaf7386
   type: other
-  title: Netty upgrade 4.1.138.Final
+  title: Upgrade Netty to 4.1.138.Final
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -246,9 +247,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159561
 - file:
     name: 158409.yaml
-    checksum: e490f663ce0ea017f8b207cf63a8605c4fa16dd6
+    checksum: e1c7c50004777861f5e17a5b80182337e3a705ad
   type: enhancement
-  title: Charge the iterator a for-each loop allocates
+  title: Charge circuit breaker memory for Painless for-each iterators
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -258,9 +259,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158409
 - file:
     name: 158464.yaml
-    checksum: 6de54c8a1e99d53b192c3102711b9b9936659125
+    checksum: 6e65c6d6345dffd8bf5bb9994419d89d8521e3df
   type: bug-fix
-  title: 'ESQL: prune listings of ** globs by partition'
+  title: Prune ES|QL listings of `**` globs by partition
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -270,9 +271,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158464
 - file:
     name: 158999.yaml
-    checksum: 7419b600f8fe72ddf6917b51781829edec647088
+    checksum: 597bd7bc88c7e06b5945f1f78624211cbfa4ee1b
   type: enhancement
-  title: Default omit schema_resolution to first_file_wins
+  title: Set default `schema_resolution` to `first_file_wins` for Parquet datasets
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -281,12 +282,12 @@ entries:
   prs:
   - https://github.com/elastic/elasticsearch/pull/158999
   issues:
-  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1846'
+  - https://github.com/elastic/esql-planning/issues/1846
 - file:
     name: 159691.yaml
-    checksum: af24afd49582e88b2f35bd8d81905adb6d78d9cf
+    checksum: 4658d8a9a4cd41442702838d1c543068891caa1a
   type: bug-fix
-  title: Consistency improvements for shard-level requests
+  title: Fix inconsistent shard-level requests against current cluster state
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -296,9 +297,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159691
 - file:
     name: 159805.yaml
-    checksum: bdcca0e31c43fefd9a3b50ff13a83b56a71bf79b
+    checksum: e9d3db60005715018019dcdb8a6ed9278c2484e9
   type: bug-fix
-  title: Fix duplicated/dropped buffers in Azure uploads
+  title: Fix duplicated and dropped buffers in Azure snapshot uploads
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -306,9 +307,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159805
 - file:
     name: 159254.yaml
-    checksum: ea575a5b3a0ea72546f8863f4dd9c78a2e80218e
+    checksum: c73e7922f2b12a8fd8cdcd02dfb68c669927ee25
   type: bug-fix
-  title: 'ESQL:DS: Pool Parquet heap buffers across files'
+  title: Fix circuit breaker trips on high-file-count Parquet scans
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -317,12 +318,12 @@ entries:
   prs:
   - https://github.com/elastic/elasticsearch/pull/159254
   issues:
-  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1843'
+  - https://github.com/elastic/esql-planning/issues/1843
 - file:
     name: 159716.yaml
-    checksum: 045068a02d47bcc8259442c01834930f2b35ec60
+    checksum: 2d020bd70a7dabb02a90f51ba83a54f214ae101c
   type: bug-fix
-  title: Type HTTP 200 truncated reads like 206/S3
+  title: Fix truncated HTTP 200 object-store reads reported as generic failures
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -332,9 +333,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159716
 - file:
     name: 133058.yaml
-    checksum: e1a5dd2bc8ed7406e69dfe30f600109e91bebc52
+    checksum: 506ed541fe646e63759f56db1d27720f721d5808
   type: enhancement
-  title: Map unmapped fields in ES monitoring template
+  title: Map unmapped fields in the Elasticsearch monitoring template
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -342,9 +343,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/133058
 - file:
     name: 159624.yaml
-    checksum: 85324230b92a47ca939cf9cc457cd785d8038a10
+    checksum: a7d90d0d5c3cd666e3b4b2f32d535323e76ed776
   type: bug-fix
-  title: 'ES|QL: Fix type-conversion push-down past aggregate in UnionAll'
+  title: Fix type-conversion push-down past aggregate in `UnionAll`
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -354,9 +355,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159624
 - file:
     name: 159331.yaml
-    checksum: 15a518b5125e369c58e731dc3af44f0cab7ba0f6
+    checksum: 63397f7e3ab16bf6cb5f16f72824d6908a7543b3
   type: enhancement
-  title: bound slow external object reads
+  title: Bound slow external object reads in ES|QL dataset scans
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -366,19 +367,20 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159331
 - file:
     name: 159689.yaml
-    checksum: 0acd16091ab5041682da3f86df15787bf679e7cf
+    checksum: c6acf9d1589b998d810c94889c199ef2b771a0c2
   type: bug-fix
-  title: Revert "Ensure flush during internal refresh is only performed on stateless realtime get path"
+  title: Fix elevated write latency from flush during internal refresh
   products:
   - product: cloud-serverless
   - product: elasticsearch
+  description: Fixes elevated p90 write-pool latency in serverless caused by flushing during internal refresh.
   prs:
   - https://github.com/elastic/elasticsearch/pull/159689
 - file:
     name: 159220.yaml
-    checksum: 4a69114fa92fdc40125bf818e55e9fc3a9aa1e63
+    checksum: c84d416837de9d024a605aaff4fb2af2b5e48607
   type: bug-fix
-  title: 'bug(promql): add promql parser guard against oversized expressions'
+  title: Fix PromQL failures on oversized expressions
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -400,9 +402,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159406
 - file:
     name: 157766.yaml
-    checksum: eec3f2251593741ea65eb26cfbc535399659333f
+    checksum: f70901ba29081cb67fbdde7c2e5ff07276818576
   type: bug-fix
-  title: Remove explainUnassignedShardAllocation side effects
+  title: Fix race conditions when explaining unassigned shard allocation
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -410,9 +412,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/157766
 - file:
     name: 159410.yaml
-    checksum: 18cd8e018096a93546b2db5fea31dd780790c10f
+    checksum: 97e9e810c42d23a5cbbc8d439787119300abe406
   type: enhancement
-  title: 'ES|QL: rotate multi-dataset Adaptive placement across nodes'
+  title: Spread multi-dataset ES|QL queries across nodes
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -421,12 +423,12 @@ entries:
   prs:
   - https://github.com/elastic/elasticsearch/pull/159410
   issues:
-  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1921'
+  - https://github.com/elastic/esql-planning/issues/1921
 - file:
     name: 158578.yaml
-    checksum: 79a645c66c130f166b9ada4f3bcd525e3c96c4b8
+    checksum: 2d71742725a97ee7c45d92645ffca40f8926aad0
   type: bug-fix
-  title: Do not allow full text function after UnionAll if there is TopN in branch
+  title: Fix crashes from full-text functions after `UNION ALL` with `SORT` and `LIMIT`
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -436,9 +438,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158578
 - file:
     name: 159596.yaml
-    checksum: 679f2439d648934b48c4dbfef077b86fb8bea812
+    checksum: 2a11597972268c2313448b78e6559994039c5941
   type: enhancement
-  title: Fold DATE_EXTRACT for Hive listing
+  title: Fold `DATE_EXTRACT` and `DATE_TRUNC` in Hive partition filters
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -448,9 +450,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159596
 - file:
     name: 159200.yaml
-    checksum: 047e9c8efc41c7ccf42f57463d264fb2589a6591
+    checksum: 87c85da1256fa94a85e528736d66fb0c85eb64fb
   type: bug-fix
-  title: 'Allow full-text functions in `HIGHLIGHT` queries on time-series indices'
+  title: Fix `HIGHLIGHT` with full-text functions on time-series indices
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -460,9 +462,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159200
 - file:
     name: 159256.yaml
-    checksum: 6b60e76e2298c0d78aed3da66c8b928ca834e9b7
+    checksum: ad1cda96ae698ba5dda3250f67500210ea10623d
   type: bug-fix
-  title: 'SQL: Fix internal server error on an aggregate over an aggregate alias'
+  title: Fix SQL internal server error on an aggregate over an aggregate alias
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -474,9 +476,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/159250
 - file:
     name: 159606.yaml
-    checksum: 3c4795d675deb873e2a7fd05bf9cf84f15f08a66
+    checksum: aa1b5f4660fc3fb4ad3d9cf62ce5845be8942fd1
   type: enhancement
-  title: Skip tiny-file GETs after footer
+  title: Avoid extra object-store GETs for tiny Parquet files
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -486,9 +488,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159606
 - file:
     name: 159368.yaml
-    checksum: e55b4e9f4c7390c2d2a377ce88867ea0244dda1e
+    checksum: 79d79fba182f9bb626dba05f078bdc7e73bce997
   type: other
-  title: Bump bundled JDK to 27
+  title: Upgrade the bundled JDK to 27
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -498,9 +500,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159368
 - file:
     name: 158611.yaml
-    checksum: d6f335af91d9adefc4c6ef99a6bab7432c5af828
+    checksum: da909dc7f54469c7bb5adeba6a32a035e21f666b
   type: enhancement
-  title: 'ESQL: lift position limits on runtime search'
+  title: Allow runtime full-text search after `LIMIT` and `STATS` in ES|QL
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -510,9 +512,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158611
 - file:
     name: 159348.yaml
-    checksum: 176f55f4be667423ddf3114a638440d67a7ce2ef
+    checksum: 9fd7d6cc35b0c213b894963386bba19f859a22e9
   type: feature
-  title: Add JSON_STRING function
+  title: Add `JSON_STRING` function
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -522,9 +524,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159348
 - file:
     name: 159416.yaml
-    checksum: e62bd5d885a2df85ed97c7b34e350fd67e3d2643
+    checksum: 53b3636e0f55190ac022417d4a0b3d7929e80923
   type: bug-fix
-  title: 'ES|QL: fix errant pushdown for `TO_STRING`'
+  title: Fix errant pushdown for `TO_STRING`
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -536,9 +538,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/159395
 - file:
     name: 159590.yaml
-    checksum: 028fee7efbc1742c7e85065fec37d9e16f8e1b84
+    checksum: ea6d5d42feeff8349ed495abc71c4c8a4330fc31
   type: enhancement
-  title: Add remote fetch profiling
+  title: Add profiling metrics for ES|QL remote fetch
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -548,9 +550,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159590
 - file:
     name: 159586.yaml
-    checksum: dbcdfda96cb9b77d6f8d3fd6f9e5174e1fa92440
+    checksum: 4bb9a1061b9f1f631b3f321dfdaa6dbf192779bb
   type: bug-fix
-  title: sparkline fixes
+  title: Fix `SPARKLINE` null pointer exceptions and empty aggregations
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -562,9 +564,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/159503
 - file:
     name: 159569.yaml
-    checksum: 515d58c4c2fb5b811d6ac9e1fe40627fe5eb72c2
+    checksum: 602b514b7316fd24169d289b6c565fef17e39ee9
   type: enhancement
-  title: Split glob walk cap from kept files
+  title: Limit object-store listing cost for unmatched ES|QL globs
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -574,9 +576,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159569
 - file:
     name: 159621.yaml
-    checksum: b32b2c51ba357d8d3a9a5299004f14c21e43dfde
+    checksum: d048de61f7a71bab767f35270e75de74eb8208d1
   type: other
-  title: Bump zstd-jni to 1.5.7-16
+  title: Upgrade zstd-jni to 1.5.7-16
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -585,12 +587,12 @@ entries:
   prs:
   - https://github.com/elastic/elasticsearch/pull/159621
   issues:
-  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1980'
+  - https://github.com/elastic/esql-planning/issues/1980
 - file:
     name: 158362.yaml
-    checksum: 32e34a654d15c29643bc6b6b2c535f1592b710d3
+    checksum: 05ba2de5fbfac15ae0aef9abbae3584d68ff99d1
   type: enhancement
-  title: Add specialised tail merge settings for TSDB
+  title: Add specialized tail merge settings for TSDB
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -615,9 +617,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/156333
 - file:
     name: 159319.yaml
-    checksum: 126e4bb575d6fb9e5696d3dc0e61f09857b4718c
+    checksum: bb2d125e9ace1148d2fa7cbd5c456fb9c278bed2
   type: enhancement
-  title: Type HTTP 206 length mismatch as EUE
+  title: Treat HTTP 206 length mismatches as retryable store faults
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -627,9 +629,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159319
 - file:
     name: 159335.yaml
-    checksum: 626a992369bdd571ddab0b6ea569966b05f2b42d
+    checksum: ee00a76d5f5e895a7e565fcf91827b6af0d5c95b
   type: bug-fix
-  title: Skip vanished dirs in fingerprint census
+  title: Fix fingerprint census failures when build directories disappear
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -641,9 +643,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/157937
 - file:
     name: 159323.yaml
-    checksum: 959bdbebe45e7b60b6c0a87f1f664bcc8f203b87
+    checksum: 60c639aa7d50de3271bf1b428018f8c8e941ad22
   type: bug-fix
-  title: Fix remote fetch authorization
+  title: Fix authorization for ES|QL remote fetch
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -654,9 +656,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159323
 - file:
     name: 159616.yaml
-    checksum: 8ab2c6b710b61be63e78a595a4d84f5bbeeac749
+    checksum: e54cd235ae19cf720c600e716658e2b8be4c8d2d
   type: enhancement
-  title: Invert date-fn comparisons to ranges
+  title: Push date function comparisons to range queries in ES|QL
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -666,9 +668,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159616
 - file:
     name: 158115.yaml
-    checksum: 9d86587f2a235dbffd40ceae4188c5a09da93a06
+    checksum: 11fcca16cee7b172757f0048de831e89aeb3c36a
   type: bug-fix
-  title: Fix synonyms_set reload in multiplexer filter
+  title: Fix `synonyms_set` reload in multiplexer filter
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -680,9 +682,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/158114
 - file:
     name: 159600.yaml
-    checksum: 09608ad6a8748a354cb6ec56e24a827c7d2cadeb
+    checksum: 5ef3a120024d11030a4f3a6ea0fa4ea3ec48cb6d
   type: enhancement
-  title: 'ESQL:DS: Report Parquet VARIANT columns as unsupported'
+  title: Report Parquet `VARIANT` columns as unsupported in ES|QL
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -691,12 +693,12 @@ entries:
   prs:
   - https://github.com/elastic/elasticsearch/pull/159600
   issues:
-  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1970'
+  - https://github.com/elastic/esql-planning/issues/1970
 - file:
     name: 158768.yaml
-    checksum: b76ecb6541e23f5e3586f28bc3ded070a7bc5ac5
+    checksum: e83af9c1ac97d96c87935a0e8f7482d7bd26aa7e
   type: bug-fix
-  title: Fix NPE when folding regex
+  title: Fix null pointer exception when folding regex
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -708,9 +710,9 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/158748
 - file:
     name: 159339.yaml
-    checksum: b6cbdb5f08d3bc598688be1090bed3c6801c2496
+    checksum: a5b934ad5175e5856b3d30e537ab4c5a1d948501
   type: bug-fix
-  title: Fix S3 managed-identity auth IT flake
+  title: Fix S3 managed-identity authentication when localhost is dual-stack
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -734,9 +736,9 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/159397
 - file:
     name: 159051.yaml
-    checksum: 7d9fd93056ffdeeee42d038a6386951dc2ca77e3
+    checksum: b65eb18e922067e246a8439cafad41cd40c36d59
   type: enhancement
-  title: 'ES|QL|DS: apply the request DSL filter to external datasets'
+  title: Apply the request `filter` to external datasets, dropping untranslatable clauses with a warning
   products:
   - product: cloud-serverless
   - product: elasticsearch

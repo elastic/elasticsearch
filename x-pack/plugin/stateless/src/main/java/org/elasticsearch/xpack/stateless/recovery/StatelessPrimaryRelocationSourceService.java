@@ -667,8 +667,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         private final RelocationRunner runner;
         private final ByteSizeValue maxHeap;
 
-        private int maxConcurrentRelocations;
-        private double maxConcurrentRelocationsPerHeapGb;
+        private int maxConcurrentRelocations = Integer.MAX_VALUE;
+        private double maxConcurrentRelocationsPerHeapGb = Double.MAX_VALUE;
         private int activeRelocationCount = 0;
 
         private final Queue<PendingRelocation> pendingRelocations = new ArrayDeque<>();
@@ -778,10 +778,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             synchronized (this) {
                 oldMax = maxConcurrentRelocations;
                 maxConcurrentRelocations = newMax;
-                if (oldMax == 0.0) { // skip startRelocationsUpToLimit on first setting initialization
-                    assert pendingRelocations.isEmpty();
-                    return;
-                }
             }
             if (oldMax < newMax) {
                 // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
@@ -796,12 +792,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             synchronized (this) {
                 oldRatio = maxConcurrentRelocationsPerHeapGb;
                 maxConcurrentRelocationsPerHeapGb = newRatio;
-                if (oldRatio == 0.0) { // skip startRelocationsUpToLimit on first setting initialization
-                    assert pendingRelocations.isEmpty();
-                    return;
-                }
             }
-            if (oldRatio < newRatio && oldRatio != 0.0) {
+            if (oldRatio < newRatio) {
                 executor.execute(this::startRelocationsUpToLimit);
             }
         }

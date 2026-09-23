@@ -1,32 +1,28 @@
-# Forward compatibility: run the backwards compatibility tests of every branch ahead of the PR's
-# target branch, against a snapshot built from the PR itself. Catches a change that is green on its
-# own branch but breaks the bwc tests of a later branch.
-#
-# Unrelated to the `fwcTest` tasks and the periodic-fwc pipeline, which pair released patches of the
-# current minor against the previous minor's snapshot.
+# Run the backwards compatibility tests of every branch ahead of the PR's target branch, against a
+# snapshot built from the PR itself. Catches a change that is green on its own branch but breaks the
+# bwc tests of a later branch.
 config:
-  trigger-phrase: '.*run\W+elasticsearch-ci/fwc.*'
   # main: nothing is ahead of it, so there is nothing to test.
   # 8.19: maintenance branch. It has three branches ahead of it and backports to this branch are
-  # limited in scope making the problem of forward breakages exceedingly rare
+  # limited in scope making the problem of later-branch breakages exceedingly rare
   skip-target-branches:
     - "main"
     - "8.19"
   skip-labels:
     - ">test-mute"
 steps:
-  - group: fwc-snapshots
+  - group: later-branch-bwc
     steps:
-      - label: "{{matrix.LATER_BRANCH}} / Part {{matrix.PART}} / fwc-snapshots"
-        key: "fwc-snapshots"
-        command: .buildkite/scripts/fwc-snapshots.sh
+      - label: "{{matrix.LATER_BRANCH}} / Part {{matrix.PART}} / later-branch-bwc"
+        key: "later-branch-bwc"
+        command: .buildkite/scripts/later-branch-bwc.sh
         timeout_in_minutes: 300
         env:
-          FWC_LATER_BRANCH: "{{matrix.LATER_BRANCH}}"
-          FWC_PART: "{{matrix.PART}}"
+          LATER_BRANCH: "{{matrix.LATER_BRANCH}}"
+          BWC_PART: "{{matrix.PART}}"
         matrix:
           setup:
-            LATER_BRANCH: $FWC_LATER_BRANCHES
+            LATER_BRANCH: $LATER_BRANCHES
             PART: ["1", "2", "3", "4", "5", "6"]
         agents:
           provider: gcp

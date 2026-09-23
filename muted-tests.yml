@@ -717,3 +717,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
   method: testSnapshotWarningEmittedWhenEncryptedDataPresent
   issue: https://github.com/elastic/elasticsearch/issues/160057
+- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
+  method: testNoSnapshotWarningWhenIncludeGlobalStateFalse
+  issue: https://github.com/elastic/elasticsearch/issues/160058

@@ -393,6 +393,20 @@ public class QueryRewriteContext {
         return failIfFieldMappingNotFound(name, fieldType(name));
     }
 
+    @Nullable
+    public MappedFieldType getVisibleFieldType(String name) {
+        if (isFieldVisible(name) == false) {
+            return null;
+        }
+
+        var fieldType = getFieldType(name);
+        if (fieldType == null || isFieldVisible(fieldType.name()) == false) {
+            return null;
+        }
+
+        return fieldType;
+    }
+
     protected MappedFieldType fieldType(String name) {
         // If the field is not allowed, behave as if it is not mapped
         if (allowedFields != null && false == allowedFields.test(name)) {

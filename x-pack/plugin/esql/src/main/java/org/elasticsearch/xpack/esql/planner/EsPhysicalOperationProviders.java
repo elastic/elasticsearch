@@ -860,10 +860,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return ctx.getMappingLookup();
         }
 
-        public boolean isFieldVisible(String name) {
-            return ctx.isFieldVisible(name);
-        }
-
         @Override
         public BlockLoader blockLoader(
             String name,
@@ -874,14 +870,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
-            if (asUnsupportedSource || isFieldVisible(name) == false) {
+            if (asUnsupportedSource) {
                 return ConstantNull.INSTANCE;
             }
             // Resolve the field type in a single pass. fieldType() (via the search execution context) applies field-level
             // security, resolves slice aliases (e.g. _slice -> _routing) and query-time runtime fields, and returns null for
             // fields absent from this context.
             MappedFieldType fieldType = fieldType(name);
-            if (fieldType == null || isFieldVisible(fieldType.name()) == false) {
+            if (fieldType == null) {
                 // the field does not exist in this context
                 return ConstantNull.INSTANCE;
             }
@@ -916,7 +912,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
-            return ctx.getFieldType(name);
+            return ctx.getVisibleFieldType(name);
         }
 
         @Override

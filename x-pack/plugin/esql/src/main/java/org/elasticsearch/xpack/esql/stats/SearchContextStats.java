@@ -109,8 +109,8 @@ public class SearchContextStats implements SearchStats {
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            if (isMappedAndVisible(context, field)) {
-                MappedFieldType type = context.getFieldType(field);
+            MappedFieldType type = context.getVisibleFieldType(field);
+            if (type != null) {
                 if (fieldType == null) {
                     fieldType = type;
                 } else if (mixedFieldType == false && fieldType.typeName().equals(type.typeName()) == false) {
@@ -139,7 +139,7 @@ public class SearchContextStats implements SearchStats {
 
     private boolean fastNoCacheFieldExists(String field) {
         for (SearchExecutionContext context : contexts) {
-            if (isMappedAndVisible(context, field)) {
+            if (context.getVisibleFieldType(field) != null) {
                 return true;
             }
         }
@@ -172,10 +172,7 @@ public class SearchContextStats implements SearchStats {
             throw new UnsupportedOperationException("config must be provided");
         }
         for (SearchExecutionContext context : contexts) {
-            if (isMappedAndVisible(context, name.string()) == false) {
-                return false;
-            }
-            MappedFieldType ft = context.getFieldType(name.string());
+            MappedFieldType ft = context.getVisibleFieldType(name.string());
             if (ft == null) {
                 /*
                  * Missing fields are always null no matter what we try to push so they
@@ -220,7 +217,7 @@ public class SearchContextStats implements SearchStats {
             // than an explicitly mapped field; those shards store the field's terms in Lucene
             // even though it is absent from the mapping, so counting without this guard
             // inflates the result.
-            if (isMappedAndVisible(context, field.string()) == false) {
+            if (context.getVisibleFieldType(field.string()) == null) {
                 continue;
             }
             for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
@@ -247,7 +244,7 @@ public class SearchContextStats implements SearchStats {
 
         try {
             for (SearchExecutionContext context : contexts) {
-                if (isMappedAndVisible(context, field.string()) == false) {
+                if (context.getVisibleFieldType(field.string()) == null) {
                     continue;
                 }
                 for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
@@ -277,10 +274,10 @@ public class SearchContextStats implements SearchStats {
             Long result = null;
             try {
                 for (final SearchExecutionContext context : contexts) {
-                    if (isMappedAndVisible(context, field.string()) == false) {
+                    final MappedFieldType ctxFieldType = context.getVisibleFieldType(field.string());
+                    if (ctxFieldType == null) {
                         continue;
                     }
-                    final MappedFieldType ctxFieldType = context.getFieldType(field.string());
                     boolean ctxHasSkipper = ctxFieldType.indexType().hasDocValuesSkipper();
                     for (final LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
                         final Long minValue = ctxHasSkipper
@@ -308,10 +305,10 @@ public class SearchContextStats implements SearchStats {
             Long result = null;
             try {
                 for (final SearchExecutionContext context : contexts) {
-                    if (isMappedAndVisible(context, field.string()) == false) {
+                    final MappedFieldType ctxFieldType = context.getVisibleFieldType(field.string());
+                    if (ctxFieldType == null) {
                         continue;
                     }
-                    final MappedFieldType ctxFieldType = context.getFieldType(field.string());
                     boolean ctxHasSkipper = ctxFieldType.indexType().hasDocValuesSkipper();
                     for (final LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
                         final Long maxValue = ctxHasSkipper
@@ -338,10 +335,6 @@ public class SearchContextStats implements SearchStats {
         if (a == null) return b;
         if (b == null) return a;
         return Math.max(a, b);
-    }
-
-    private static boolean isMappedAndVisible(SearchExecutionContext context, String field) {
-        return context.isMappedField(field) && context.isFieldVisible(field);
     }
 
     // TODO: replace these helpers with a unified Lucene min/max API once https://github.com/apache/lucene/issues/15740 is resolved
@@ -378,7 +371,7 @@ public class SearchContextStats implements SearchStats {
                 var sv = new boolean[] { false };
                 try {
                     for (SearchExecutionContext context : contexts) {
-                        MappedFieldType mappedType = isMappedAndVisible(context, fieldName) ? context.getFieldType(fieldName) : null;
+                        MappedFieldType mappedType = context.getVisibleFieldType(fieldName);
                         if (mappedType == null) {
                             continue;
                         }
@@ -474,10 +467,7 @@ public class SearchContextStats implements SearchStats {
     @Override
     public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
         for (SearchExecutionContext ctx : contexts) {
-            if (isMappedAndVisible(ctx, name.string()) == false) {
-                return false;
-            }
-            MappedFieldType type = ctx.getFieldType(name.string());
+            MappedFieldType type = ctx.getVisibleFieldType(name.string());
             if (type == null) {
                 return false;
             }
@@ -496,10 +486,7 @@ public class SearchContextStats implements SearchStats {
     public String constantValue(FieldAttribute.FieldName name) {
         String val = null;
         for (SearchExecutionContext ctx : contexts) {
-            if (ctx.isFieldVisible(name.string()) == false) {
-                return null;
-            }
-            MappedFieldType f = ctx.getFieldType(name.string());
+            MappedFieldType f = ctx.getVisibleFieldType(name.string());
             if (f == null) {
                 return null;
             }

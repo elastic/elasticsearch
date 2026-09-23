@@ -365,10 +365,10 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertThat(result.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));
     }
 
-    public void testFieldHiddenByFlsReturnsNull() throws IOException {
+    public void testFieldHiddenByFlsIsTreatedAsUnmapped() throws IOException {
         var result = mappedKeywordLoader(false);
 
-        assertThat(result.loader(), equalTo(ConstantNull.INSTANCE));
+        assertThat(result.loader(), instanceOf(UnmappedKeywordBlockLoader.class));
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {

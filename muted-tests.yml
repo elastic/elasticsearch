@@ -453,3 +453,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/151923
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
   issue: https://github.com/elastic/elasticsearch/issues/160051
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
+  issue: https://github.com/elastic/elasticsearch/issues/160055

@@ -138,12 +138,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -2164,7 +2166,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 .mapToObj(i -> findIndexShard(index, i).indexingStats().getTotal().getIndexCount())
                 .toList();
             var ingestLatch = new CountDownLatch(ingestingThreads);
+            final var ingestSeed = randomLong();
+            final var allDocsIds = List.copyOf(docsIds);
+            final var ingestFutures = new ArrayList<Future<?>>(ingestingThreads);
             for (int i = 0; i < ingestingThreads; i++) {
+                final int threadIdx = i;
                 Runnable ingestRunnable = switch (ingestionType) {
                     // Index docs
                     case Index -> () -> {
@@ -2176,13 +2182,21 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     };
                     // Update doc or Upsert new doc
                     case Update -> () -> {
+                        // better shuffling, since we execute it in multiple threads
+                        final var threadRandom = new Random(ingestSeed + threadIdx);
+                        final var threadDocsIds = IntStream.range(0, allDocsIds.size())
+                            .filter(idx -> idx % ingestingThreads == threadIdx)
+                            .mapToObj(allDocsIds::get)
+                            .toList();
                         try {
-                            for (int j = 0; j < Math.min(docsIds.size(), 128); j++) { // need enough updates to be sure to hollow every
-                                                                                      // shard
-                                final var upsertOrUpdate = randomBoolean();
-                                var docId = upsertOrUpdate ? docIdSupplier.get() : randomFrom(docsIds);
+                            for (int j = 0; j < Math.min(allDocsIds.size(), 96); j++) { // need enough updates to be sure to hollow
+                                                                                        // every shard
+                                final var upsertOrUpdate = threadRandom.nextBoolean();
+                                var docId = upsertOrUpdate
+                                    ? docIdSupplier.get()
+                                    : threadDocsIds.get(threadRandom.nextInt(threadDocsIds.size()));
                                 var response = client().prepareUpdate(indexName, docId)
-                                    .setDoc(frequently() ? "field" : "field_" + docId, randomUnicodeOfLength(10))
+                                    .setDoc(frequently() ? "field" : "field_" + threadIdx + "_" + docId, randomUnicodeOfLength(10))
                                     .setDocAsUpsert(upsertOrUpdate)
                                     .get();
                                 assertThat(
@@ -2212,7 +2226,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     };
                     default -> throw new AssertionError("Unexpected value");
                 };
-                ingestExecutor.submit(ingestRunnable);
+                ingestFutures.add(ingestExecutor.submit(ingestRunnable));
             }
             // If an ingesting thread blocks (most likely on a shard's unhollow-on-first-ingestion), the latch never reaches
             // zero. Rather than mask that by simply extending the timeout, capture diagnostics on the (rare, CI-only) timeout:
@@ -2249,6 +2263,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 );
                 fail("ingestLatch did not reach zero within 30s; see still-hollow shards and hot threads logged above");
             }
+            // if ingest threads haven't succeeded, we cannot be sure about the results
+            assertIngestThreadsSucceeded(ingestFutures);
             for (int i = 0; i < numberOfShards; i++) {
                 // Should unhollow only once
                 assertThat(
@@ -2293,6 +2309,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             var deleteResponse = safeGet(client().prepareDelete(indexName, id).execute());
             assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
             assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+        }
+    }
+
+    private static void assertIngestThreadsSucceeded(List<Future<?>> ingestFutures) {
+        for (var ingestFuture : ingestFutures) {
+            safeGet(ingestFuture);
         }
     }
 
@@ -2438,16 +2460,16 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
     /// un-hollowing scenario:
     ///
     /// - A single-shard index holding N documents is built on index node A and relocated to index node B as a
-    ///   hollow shard (the shard's data lives in the object store; B keeps only a stub that still reports N docs).
+    /// hollow shard (the shard's data lives in the object store; B keeps only a stub that still reports N docs).
     /// - N further documents are indexed directly into B. This forces B to un-hollow: it pulls its N original
-    ///   documents back and applies the N new ones, so the shard is expected to hold 2N documents. B's upload of
-    ///   the resulting un-hollow commit is stalled, and B is then isolated from the cluster and dropped.
+    /// documents back and applies the N new ones, so the shard is expected to hold 2N documents. B's upload of
+    /// the resulting un-hollow commit is stalled, and B is then isolated from the cluster and dropped.
     /// - Because B left before publishing its un-hollow commit, the shard is re-assigned to A, which recovers
-    ///   from the newest commit visible on the object store (still the hollow one) and becomes the new primary.
-    ///   The isolated B is then allowed to finish un-hollowing and to upload its newer commits (the un-hollow
-    ///   commit and the commit carrying the new documents) to the object store.
+    /// from the newest commit visible on the object store (still the hollow one) and becomes the new primary.
+    /// The isolated B is then allowed to finish un-hollowing and to upload its newer commits (the un-hollow
+    /// commit and the commit carrying the new documents) to the object store.
     /// - A search shard is added for the index. During its recovery it registers the newest commit it finds on
-    ///   the object store - the one uploaded by B - which is newer than the commit A is serving.
+    /// the object store - the one uploaded by B - which is newer than the commit A is serving.
     ///
     /// The test asserts that this registration causes A's primary to be failed and to reload the newer un-hollow
     /// commit from the object store: A ends up un-hollow, at a primary term greater than that of B's un-hollow

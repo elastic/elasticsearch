@@ -402,7 +402,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 :   Read-only access to index and data stream metadata (aliases, exists, field capabilities, field mappings, get index, get data stream, ilm explain, mappings, search shards, settings, validate query). This privilege is available for use primarily by {{kib}} users.
 
 `write`
-:   Privilege to perform all write operations to documents, which includes the permission to index, update, and delete documents as well as performing bulk operations.
+:   Privilege to perform all write operations to documents, which includes the permission to index, update, and delete documents as well as performing bulk operations, while also allowing to dynamically update the index mapping.
 
     :::{important}
     Don't use this privilege to update index mappings.

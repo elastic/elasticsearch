@@ -144,6 +144,28 @@ public class MonotonicTableTests extends ESTestCase {
         }
     }
 
+    /**
+     * A table that went backwards would read back as wrong offsets rather than as a failure, so the writer
+     * refuses the entry. Checked within a block and across one, since a block is flushed and reused.
+     */
+    public void testRejectsEntriesOutOfOrder() throws IOException {
+        try (Directory dir = newDirectory(); IndexOutput out = dir.createOutput("table.bin", IOContext.DEFAULT)) {
+            final MonotonicWriter writer = new MonotonicWriter(out);
+            writer.add(10);
+            writer.add(20);
+            final IllegalArgumentException within = expectThrows(IllegalArgumentException.class, () -> writer.add(19));
+            assertTrue(within.getMessage(), within.getMessage().contains("[20], [19]"));
+
+            final MonotonicWriter spanning = new MonotonicWriter(out);
+            final int blockSize = 1 << MonotonicWriter.BLOCK_SHIFT;
+            for (int i = 0; i < blockSize; i++) {
+                spanning.add(i);
+            }
+            final IllegalArgumentException across = expectThrows(IllegalArgumentException.class, () -> spanning.add(blockSize - 2));
+            assertTrue(across.getMessage(), across.getMessage().contains("[" + (blockSize - 1) + "], [" + (blockSize - 2) + "]"));
+        }
+    }
+
     private void assertRoundTrip(long[] values) throws IOException {
         final String label = "entries=" + values.length + " last=" + values[values.length - 1];
         try (Directory dir = newDirectory()) {

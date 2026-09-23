@@ -27,7 +27,7 @@ public final class MonotonicWriter {
      * Block shift of every table this class writes. It is frozen: {@link MonotonicReader} decodes with the
      * same value, and a table written with a different one would decode to wrong offsets.
      */
-    public static final int BLOCK_SHIFT = 16;
+    static final int BLOCK_SHIFT = 16;
 
     private static final int BLOCK_SIZE = 1 << BLOCK_SHIFT;
 
@@ -42,6 +42,7 @@ public final class MonotonicWriter {
     /** The entries of the block being filled, grown as they arrive and never past one block. */
     private long[] buffer = new long[0];
     private int buffered;
+    private long previous = Long.MIN_VALUE;
     private boolean finished;
 
     public MonotonicWriter(IndexOutput out) {
@@ -49,8 +50,17 @@ public final class MonotonicWriter {
         this.start = out.getFilePointer();
     }
 
+    /**
+     * Adds the next entry, which has to be no smaller than the one before it: readers of a
+     * {@code DirectMonotonic} table search it, so entries out of order would read back as wrong offsets.
+     */
     public void add(long value) throws IOException {
         assert finished == false : "already finished";
+        // Checked rather than asserted: a table is on the wire, and whoever reads it next trusts its order.
+        if (value < previous) {
+            throw new IllegalArgumentException("values do not come in order: [" + previous + "], [" + value + "]");
+        }
+        previous = value;
         if (buffered == buffer.length) {
             buffer = ArrayUtil.growExact(buffer, Math.min(BLOCK_SIZE, ArrayUtil.oversize(buffered + 1, Long.BYTES)));
         }

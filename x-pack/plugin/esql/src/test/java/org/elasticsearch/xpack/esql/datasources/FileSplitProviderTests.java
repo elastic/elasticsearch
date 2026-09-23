@@ -603,6 +603,40 @@ public class FileSplitProviderTests extends ESTestCase {
         }
     }
 
+    public void testSignedZeroInIsUnknownRatherThanContradictingTheEngine() {
+        // The engine's IN tells the zeros apart with Double.compare where == does not. A confident answer for an
+        // opposite-sign pair prunes matching files under IN or under NOT IN, so the split layer answers neither.
+        Attribute d = new FieldAttribute(SRC, "d", new EsField("d", DataType.DOUBLE, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        Literal seven = new Literal(SRC, 7.0, DataType.DOUBLE);
+        for (double partition : new double[] { -0.0, 0.0 }) {
+            for (double zero : new double[] { 0.0, -0.0 }) {
+                Expression in = new In(SRC, d, List.of(new Literal(SRC, zero, DataType.DOUBLE), seven));
+                for (Expression filter : List.of(in, new Not(SRC, in))) {
+                    Boolean split = FileSplitProvider.evaluateFilter(filter, Map.of("d", partition));
+                    String description = filter.nodeString() + " on d=" + partition;
+                    if (Double.compare(partition, zero) == 0) {
+                        Object engine = filter.transformUp(Attribute.class, a -> Literal.of(a, partition)).fold(FoldContext.small());
+                        assertEquals("same-sign zeros are decided as the engine decides them: " + description, engine, split);
+                    } else {
+                        assertNull("opposite-sign zeros must stay unknown: " + description, split);
+                    }
+                }
+            }
+        }
+        // An exact match elsewhere in the list still decides it, and a non-zero value is still a confident miss.
+        Literal minusZero = new Literal(SRC, -0.0, DataType.DOUBLE);
+        Literal zero = new Literal(SRC, 0.0, DataType.DOUBLE);
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new In(SRC, d, List.of(zero, minusZero)), Map.of("d", -0.0)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new In(SRC, d, List.of(zero, seven)), Map.of("d", 1.5)));
+        // A LONG _file.size of 0 is a positive zero, so a -0.0 candidate is the same opposite-sign pair.
+        Attribute size = new ExternalMetadataAttribute(SRC, FileMetadataColumns.SIZE, DataType.LONG);
+        assertNull(FileSplitProvider.evaluateFilter(new In(SRC, size, List.of(minusZero, seven)), Map.of(FileMetadataColumns.SIZE, 0L)));
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(new In(SRC, size, List.of(zero, seven)), Map.of(FileMetadataColumns.SIZE, 0L))
+        );
+    }
+
     /** The six binary comparisons, each with the literal on the right and on the left. */
     private static List<Expression> signedZeroComparisons(Attribute column, Literal literal) {
         return List.of(

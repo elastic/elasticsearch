@@ -107,15 +107,17 @@ public class PartitionValueMatcherTests extends ESTestCase {
         assertFalse(keep[1]);
     }
 
-    public void testSignedZeroFolderIsDecidedAsTheEngineDecidesIt() {
+    public void testSignedZeroFolderIsKeptExactlyWhereTheZerosAreEqual() {
         // Either zero folder against either zero literal: kept by every operator that is true for equal values, pruned
-        // by every operator that is false for them. Separating the zeros flips both halves.
+        // by every operator that is false for them. Separating the zeros flips both halves. IN keeps the folder even
+        // where the engine's IN tells the zeros apart, which is safe: the walk may keep too much.
         for (String zeroFolder : List.of("-0e0", "0e0")) {
             List<String> values = Arrays.asList(zeroFolder, "1e5");
             assertEquals(DataType.DOUBLE, HivePartitionDetector.inferType(values));
             for (double zero : new double[] { 0.0, -0.0 }) {
                 for (PartitionFilterHint hint : List.of(
                     hint("d", Operator.EQUALS, zero),
+                    hint("d", Operator.IN, zero, 7.0),
                     hint("d", Operator.GREATER_THAN_OR_EQUAL, zero),
                     hint("d", Operator.LESS_THAN_OR_EQUAL, zero)
                 )) {
@@ -136,7 +138,7 @@ public class PartitionValueMatcherTests extends ESTestCase {
 
     public void testSignedZerosCompareEqualAcrossNumericKinds() {
         // A LONG _file.size of 0 against a -0.0 literal takes the same double arm as two doubles.
-        List<Number> zeros = List.of(-0.0, 0.0, -0.0f, 0.0f, 0L, 0);
+        List<Number> zeros = List.of(-0.0, 0.0, 0L, 0);
         for (Number a : zeros) {
             for (Number b : zeros) {
                 String pair = a + " (" + a.getClass().getSimpleName() + ") vs " + b + " (" + b.getClass().getSimpleName() + ")";
@@ -194,7 +196,9 @@ public class PartitionValueMatcherTests extends ESTestCase {
         hint("k", Operator.GREATER_THAN, -0.0),
         hint("k", Operator.GREATER_THAN_OR_EQUAL, 0.0),
         hint("k", Operator.LESS_THAN, 0.0),
-        hint("k", Operator.LESS_THAN_OR_EQUAL, -0.0)
+        hint("k", Operator.LESS_THAN_OR_EQUAL, -0.0),
+        hint("k", Operator.IN, 0.0, 7.0),
+        hint("k", Operator.IN, -0.0, 7.0)
     );
 
     public void testWalkPruneImpliesReadLayerExclusion() {

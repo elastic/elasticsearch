@@ -3309,7 +3309,9 @@ public class FileSplitProvider implements SplitProvider {
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
                     if (listItem instanceof Literal lit) {
-                        if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
+                        if (zerosOfOppositeSign(partitionValue, lit.value())) {
+                            found = null;
+                        } else if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
                             found = true;
                             break;
                         }
@@ -3367,6 +3369,20 @@ public class FileSplitProvider implements SplitProvider {
             case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
             default -> null;
         };
+    }
+
+    /**
+     * The engine's {@code IN} orders doubles with {@code Double.compare}, so unlike {@code ==} it tells {@code -0.0}
+     * from {@code 0.0}, and the matcher does not. For such a pair {@code IN} is left unknown rather than copying either
+     * answer: a confident one prunes matching files under {@code IN} or under {@code NOT IN}, depending on which way
+     * the engine leans.
+     */
+    private static boolean zerosOfOppositeSign(Object a, Object b) {
+        return a instanceof Number na
+            && b instanceof Number nb
+            && na.doubleValue() == 0.0
+            && nb.doubleValue() == 0.0
+            && Double.compare(na.doubleValue(), nb.doubleValue()) != 0;
     }
 
     private static Boolean nullableAnd(Boolean a, Boolean b) {

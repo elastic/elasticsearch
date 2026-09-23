@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXContent;
@@ -672,8 +673,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     }
 
     /**
-     * Every comparison operator, against both zero literals, on the read layer's split pruning. {@code IN} is not here:
-     * the engine's own {@code IN} orders doubles with {@code Double.compare} and separates the zeros, unlike {@code ==}.
+     * Every comparison operator against both zero literals. The {@code **} glob leads the listing walk, so both pruning
+     * layers decide here. {@code IN} has its own test, {@link #testCsvSignedZeroInAnswersAsAnUnprunableQueryDoes}.
      */
     public void testCsvSignedZeroPartitionAcrossComparisonOperators() throws Exception {
         String dataset = registerSignedZeroTree("csv_signed_zero_ops", "csv", false);
@@ -690,7 +691,10 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         }
     }
 
-    /** The same equality through the listing walk: a glob naming {@code d=*} lets the hint decide which folders exist. */
+    /**
+     * A glob naming {@code d=*} takes the textual rewrite instead of the walk. The rewrite spells {@code d == 0.0} as
+     * {@code d=0.0}, which matches no folder here, so it must fall back to the full listing rather than an empty one.
+     */
     public void testCsvKeyedGlobKeepsTheNegativeZeroFolder() throws Exception {
         String dataset = registerSignedZeroTree("csv_signed_zero_keyed", "csv", true);
         for (String zero : List.of("0.0", "-0.0")) {
@@ -707,6 +711,36 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
             assertPruneFilter(dataset, QueryBuilders.termQuery("d", zero), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
             assertPruneFilter(dataset, QueryBuilders.termsQuery("d", new double[] { zero, 7.0 }), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
             assertPruneFilter(dataset, QueryBuilders.rangeQuery("d").gte(zero).lte(zero), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+        }
+    }
+
+    /**
+     * The engine's {@code IN} orders doubles with {@code Double.compare}, so unlike {@code ==} it tells the zeros apart.
+     * Pruning must not change its answer either way: each query must return what the same predicate over
+     * {@code d * 1.0} returns, which no layer can prune. {@code NOT IN} is the case that lost the {@code d=-0e0} row.
+     */
+    public void testCsvSignedZeroInAnswersAsAnUnprunableQueryDoes() throws Exception {
+        assertSignedZeroInMatchesUnprunable(registerSignedZeroTree("csv_signed_zero_in", "csv", false));
+    }
+
+    public void testParquetSignedZeroInAnswersAsAnUnprunableQueryDoes() throws Exception {
+        assertSignedZeroInMatchesUnprunable(registerSignedZeroTree("pq_signed_zero_in", "parquet", false));
+    }
+
+    private void assertSignedZeroInMatchesUnprunable(String dataset) {
+        for (String zero : List.of("0.0", "-0.0")) {
+            for (String predicate : List.of(
+                "%s IN (" + zero + ", 7.0)",
+                "NOT %s IN (" + zero + ", 7.0)",
+                "%s NOT IN (" + zero + ", 7.0)"
+            )) {
+                String unprunable = "WHERE " + String.format(Locale.ROOT, predicate, "(d * 1.0)");
+                List<List<Object>> rows = runPruned(dataset, unprunable + " | KEEP id | SORT id ASC", SIGNED_ZERO_FILES, SIGNED_ZERO_FILES);
+                List<Long> expected = rows.stream().map(row -> ((Number) row.get(0)).longValue()).toList();
+                assertThat("[" + unprunable + "] the oracle must select something", expected, not(empty()));
+                // The opposite-sign zero folder is unknown and kept, the equal one is decided, d=1e5 is decided.
+                assertPrune(dataset, "WHERE " + String.format(Locale.ROOT, predicate, "d"), SIGNED_ZERO_FILES, 2, expected);
+            }
         }
     }
 

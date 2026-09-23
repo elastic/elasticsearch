@@ -647,6 +647,18 @@ public class TransportKnnEvalActionTests extends ESTestCase {
         assertTrue(client.pointInTimeClosed);
     }
 
+    /** The stub answers on the calling thread, so a full-size sweep must not become one deep chain of nested callbacks. */
+    public void testFullSizeSweepDoesNotGrowTheStack() {
+        float[] candidates = new float[KnnEvalSpec.MAX_KNN_SETTINGS];
+        for (int i = 0; i < candidates.length; i++) {
+            candidates[i] = i + 1;
+        }
+        KnnEvalResponse response = safeGet(execute(new RecordingClient(), KnnEvalSpec.MAX_QUERIES, null, candidates));
+        assertEquals(KnnEvalSpec.MAX_KNN_SETTINGS, response.getResults().size());
+        assertEquals(0, response.getFailures().size());
+        assertEquals(KnnEvalSpec.MAX_QUERIES, response.getResults().getLast().includedQueries());
+    }
+
     private double runAndGetScore(int numQueries) {
         KnnEvalResponse response = run(new RecordingClient(), numQueries, 5.0f);
         assertEquals(1, response.getResults().size());

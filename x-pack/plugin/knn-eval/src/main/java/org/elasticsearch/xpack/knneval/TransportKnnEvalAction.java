@@ -31,6 +31,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
@@ -42,6 +43,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -302,6 +304,9 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
     }
 
     private final class EvaluationRunner {
+
+        /** Set once the task is seen cancelled; the listener has been failed, so no further pass or search may start. */
+        private volatile boolean cancelled;
         private final Task task;
         private final KnnEvalState state;
         private final BytesReference pointInTimeId;
@@ -319,7 +324,7 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
         }
 
         private void run() {
-            runQueries(state.queries, state.spec.getBaseline(), 0, state::addBaseline, () -> runCandidatePass(0));
+            runQueries(state.queries, state.spec.getBaseline(), state::addBaseline, () -> runCandidatePass(0));
         }
 
         private void runCandidatePass(int candidateIndex) {
@@ -330,38 +335,50 @@ public class TransportKnnEvalAction extends HandledTransportAction<KnnEvalReques
             runQueries(
                 state.evaluableQueries(),
                 state.spec.getKnnSettings().get(candidateIndex),
-                0,
                 (query, response) -> state.addCandidate(candidateIndex, query, response),
                 () -> runCandidatePass(candidateIndex + 1)
             );
         }
 
-        /** Searches run one at a time so each reported took is one search's shard time rather than contention with its siblings. */
+        /**
+         * Searches run one at a time so each reported took is one search's shard time rather than contention with its siblings.
+         * ThrottledIterator loops rather than recurses when a search answers on the calling thread, so a full sweep cannot overflow
+         * the stack.
+         */
         private void runQueries(
             List<KnnEvalQuery> queries,
             KnnEvalSettings knnSettings,
-            int index,
             BiConsumer<KnnEvalQuery, SearchResponse> consumer,
             Runnable onComplete
         ) {
-            if (checkCancelled(task, listener)) {
-                return;
-            }
-            if (index >= queries.size()) {
-                onComplete.run();
-                return;
-            }
-            KnnEvalQuery query = queries.get(index);
-            SearchRequest request = KnnEvalSearches.buildSearch(state.spec, query, knnSettings, state.searchSize, pointInTimeId);
-            Runnable next = () -> runQueries(queries, knnSettings, index + 1, consumer, onComplete);
-            client.search(request, ActionListener.wrap(response -> {
-                consumer.accept(query, response);
-                next.run();
-            }, e -> {
-                // one query's search failing is reported against that query; the rest of the sweep still has to run
-                state.addFailure(query, e);
-                next.run();
-            }));
+            Iterator<KnnEvalQuery> remaining = queries.iterator();
+            Iterator<KnnEvalQuery> untilCancelled = new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return cancelled == false && remaining.hasNext();
+                }
+
+                @Override
+                public KnnEvalQuery next() {
+                    return remaining.next();
+                }
+            };
+            ThrottledIterator.run(untilCancelled, (ref, query) -> {
+                if (checkCancelled(task, listener)) {
+                    cancelled = true;
+                    ref.close();
+                    return;
+                }
+                SearchRequest request = KnnEvalSearches.buildSearch(state.spec, query, knnSettings, state.searchSize, pointInTimeId);
+                client.search(request, ActionListener.releaseAfter(ActionListener.wrap(response -> consumer.accept(query, response), e -> {
+                    // one query's search failing is reported against that query; the rest of the sweep still has to run
+                    state.addFailure(query, e);
+                }), ref));
+            }, 1, () -> {
+                if (cancelled == false) {
+                    onComplete.run();
+                }
+            });
         }
     }
 

@@ -49,6 +49,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -949,30 +950,37 @@ public class KnnIndexTester {
                     vr = pfr.getFieldReader(KnnIndexer.VECTOR_FIELD);
                 }
                 if (vr instanceof CalibrationAwareReader car) {
-                    QuantEncoding enc = car.getQuantEncoding(fi);
-                    float oversample = car.getOversampleFactor(fi);
-                    boolean precondition = car.shouldPrecondition(fi);
-                    String encName = enc != null ? enc.name() : "n/a";
-                    String oversampleStr = Float.isFinite(oversample) ? String.format(Locale.ROOT, "%.2f", oversample) : "n/a";
-                    sb.append(
-                        String.format(
-                            Locale.ROOT,
-                            "  %4d  %7d  %-22s  %10s  %12b%n",
-                            ctx.ord,
-                            lr.numDocs(),
-                            encName,
-                            oversampleStr,
-                            precondition
-                        )
-                    );
-                    encodingCounts.merge(encName, 1, Integer::sum);
-                    if (Float.isFinite(oversample)) {
-                        oversamples.add((double) oversample);
+                    SegmentCalibrationParameters calibrationParameters = car.getCalibrationParameters(fi);
+                    switch (calibrationParameters) {
+                        case SegmentCalibrationParameters.Osq osq -> {
+                            boolean precondition = osq.precondition();
+                            String encName = osq.encoding().name();
+                            float oversample = osq.oversample();
+
+                            encodingCounts.merge(encName, 1, Integer::sum);
+                            if (Float.isFinite(oversample)) {
+                                oversamples.add((double) oversample);
+                            }
+                            if (precondition) {
+                                preconditionTrue++;
+                            }
+                            calibrated++;
+
+                            sb.append(
+                                String.format(
+                                    Locale.ROOT,
+                                    "  %4d  %7d  %-22s  %10s  %12b%n",
+                                    ctx.ord,
+                                    lr.numDocs(),
+                                    encName,
+                                    String.format(Locale.ROOT, "%.2f", osq.oversample()),
+                                    precondition
+                                )
+                            );
+                        }
+
+                        case null -> throw new IllegalArgumentException("No calibration parameters returned");
                     }
-                    if (precondition) {
-                        preconditionTrue++;
-                    }
-                    calibrated++;
                 } else {
                     sb.append(String.format(Locale.ROOT, "  %4d  %7d  (no calibration data)%n", ctx.ord, lr.numDocs()));
                 }

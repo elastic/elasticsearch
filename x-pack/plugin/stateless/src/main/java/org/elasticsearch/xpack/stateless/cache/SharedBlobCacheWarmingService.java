@@ -105,32 +105,28 @@ import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.bccSize
 public class SharedBlobCacheWarmingService {
 
     public enum Type {
-        INDEXING_EARLY(true, Priority.NORMAL),
-        INDEXING(true, Priority.NORMAL),
-        INDEXING_MERGE(false, Priority.LOW),
+        INDEXING_EARLY(true, 1),
+        INDEXING(true, 1),
+        INDEXING_MERGE(false, 0),
         // search shard recovery doesn't guarantee that all of region 0 has been cached, because header reads served from
         // index shards are served at page rather than region granularity.
-        SEARCH(false, Priority.NORMAL),
-        HOLLOWING(true, Priority.NORMAL),
-        UNHOLLOWING(true, Priority.NORMAL),
-        INDEXING_BCC_HEADER_PREWARM(false, Priority.HIGH);
+        SEARCH(false, 1),
+        HOLLOWING(true, 1),
+        UNHOLLOWING(true, 1),
+        INDEXING_BCC_HEADER_PREWARM(false, 2);
 
         final boolean skipsWarmingForRegion0Locations;
 
         /// Priority of a warming task where a task with higher priority is warmed before a task with lower priority
         /// (see [AbstractWarmingTask#compareTo] and [PrioritizedThrottledAsyncTaskRunner]).
-        /// All types have NORMAL priority except [Type#INDEXING_BCC_HEADER_PREWARM] and [Type#INDEXING_MERGE] that have HIGH and LOW
-        /// priority respectively. Region-0 warming (i.e., INDEXING_BCC_HEADER_PREWARM) has the highest priority across all the types
+        /// A higher priority number corresponds to higher priority and vice versa.
+        /// All types have the same priority except [Type#INDEXING_BCC_HEADER_PREWARM] that has the highest priority and
+        /// [Type#INDEXING_MERGE] that has the lowest priority.
+        /// Note that Region-0 warming (i.e., INDEXING_BCC_HEADER_PREWARM) has the highest priority across all the types
         /// because it is in the hot path for relocations.
-        enum Priority {
-            LOW,
-            NORMAL,
-            HIGH
-        }
+        final int priority;
 
-        final Priority priority;
-
-        Type(boolean skipsWarmingForRegion0Locations, Priority priority) {
+        Type(boolean skipsWarmingForRegion0Locations, int priority) {
             this.skipsWarmingForRegion0Locations = skipsWarmingForRegion0Locations;
             this.priority = priority;
         }
@@ -2245,7 +2241,7 @@ public class SharedBlobCacheWarmingService {
         @Override
         public int compareTo(AbstractWarmingTask that) {
             // Higher priority comes first, so we compare `that` against `this`.
-            int cmp = that.type.priority.compareTo(type.priority);
+            int cmp = Integer.compare(that.type.priority, type.priority);
             if (cmp == 0) {
                 // Tasks with the same priority will be executed in FIFO order using provided task position.
                 // `position` can technically overflow but that would only result in a small amount of tasks having

@@ -133,7 +133,6 @@ import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.Federation;
-import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -232,7 +231,6 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -2254,33 +2252,22 @@ public class LocalExecutionPlanner {
                 instanceCount = Math.min(splitCount, maxParallelism);
             }
         }
-        // Carries every name VirtualColumnIterator should materialise: Hive-style partition columns
-        // plus the _file.* metadata columns the user actually requested (these reach the relation
-        // output only via METADATA, or the temporary EXTERNAL shim — they are no longer auto-attached
-        // to every external schema). Passed through SourceOperatorContext.partitionColumnNames
-        // (legacy method name kept to avoid an SPI rename on this PR).
-        // Partition column names come from the serialized PARTITION_COLUMNS_KEY stamp via the node-safe
-        // accessor, NOT the fileList: on a data node the resolved FileList is not serialized (see the
-        // slice-queue note above), so reading it there yields nothing, whereas the stamp travels with the
-        // relation. VirtualColumnIterator materialises each as a constant block even when ONLY a partition
-        // column is projected (e.g. COUNT(p) that safe-missed to a scan): otherwise the operator treats it as
-        // a data column, the reader emits a 0-block page, and the downstream aggregator reads a non-existent
-        // block. The assert checks — rather than trusts — that on the coordinator (where the fileList IS
-        // resolved) the stamp already covers every fileList partition name, so dropping the fileList read
-        // here is a strict no-op.
-        Set<String> virtualColumnNames = new LinkedHashSet<>(externalSource.partitionColumnNames());
+        // Hive-style partition column names from the serialized PARTITION_COLUMNS_KEY stamp via the
+        // node-safe accessor, not the fileList: on a data node the resolved FileList is not serialized
+        // (see the slice-queue note above), so reading it there yields nothing, whereas the stamp
+        // travels with the relation. VirtualColumnIterator materialises each as a constant block even
+        // when only a partition column is projected (e.g., COUNT(p) that safe-missed to a scan):
+        // otherwise the operator treats it as a data column, the reader emits a 0-block page, and the
+        // downstream aggregator reads a non-existent block. The assert checks that on the coordinator
+        // (where the fileList is resolved) the stamp already covers every fileList partition name.
+        Set<String> partitionColumnNames = externalSource.partitionColumnNames();
         assert fileList == null
             || fileList.partitionMetadata() == null
-            || virtualColumnNames.containsAll(fileList.partitionMetadata().partitionColumns().keySet())
+            || partitionColumnNames.containsAll(fileList.partitionMetadata().partitionColumns().keySet())
             : "partition stamp "
-                + virtualColumnNames
+                + partitionColumnNames
                 + " is missing resolved fileList partition columns "
                 + fileList.partitionMetadata().partitionColumns().keySet();
-        for (Attribute attr : externalSource.output()) {
-            if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
-                virtualColumnNames.add(attr.name());
-            }
-        }
 
         SourceOperatorContext operatorContext = SourceOperatorContext.builder()
             .sourceType(externalSource.sourceType())
@@ -2302,7 +2289,7 @@ public class LocalExecutionPlanner {
             .pushedExpressions(externalSource.pushedExpressions())
             .fileList(fileList)
             .schemaMap(externalSource.schemaMap())
-            .partitionColumnNames(virtualColumnNames)
+            .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())

@@ -57,7 +57,6 @@ import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
-import org.elasticsearch.escf.LuceneEmptyPostingsColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -91,7 +90,6 @@ import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.DocValuesFieldFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.EmptyPostingsField;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -1141,8 +1139,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final IndexSettings indexSettings;
     // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
     private final String offsetsFieldName;
-    // The type an all-null array's empty postings field takes; see EmptyPostingsField.
-    private final FieldType emptyPostingsFieldType;
+    // The type the doc-values payload reports for a document that holds no value; see ColumnarBinaryDocValuesField#fieldType.
+    private final FieldType payloadTypeWhenValueless;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
@@ -1168,7 +1166,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.indexed = builder.indexed.get();
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = builder.offsetsFieldName;
-        this.emptyPostingsFieldType = this.indexed ? EmptyPostingsField.typeFor(this.fieldType) : null;
+        this.payloadTypeWhenValueless = this.indexed ? ColumnarBinaryDocValuesField.typeWhenValueless(this.fieldType) : null;
     }
 
     @Override
@@ -1184,21 +1182,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     @Override
     public void recordEmptyArrayInOrder(LuceneDocument doc) {
         if (fieldType().usesColumnarPayload()) {
-            ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name());
+            ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name(), payloadTypeWhenValueless);
         } else {
             super.recordEmptyArrayInOrder(doc);
-        }
-    }
-
-    @Override
-    public void recordArrayWithoutIndexedValue(LuceneDocument doc) {
-        if (emptyPostingsFieldType == null || fieldType().usesColumnarPayload() == false) {
-            return;
-        }
-        // The payload is what the array left behind, so it settles both questions: an array the mapper wrote nothing for leaves no
-        // payload and so no field to give index options to, and one whose slots hold a value indexed a term and already has them.
-        if (doc.getByKey(fieldType().name()) instanceof ColumnarBinaryDocValuesField payload && payload.hasValue() == false) {
-            doc.add(new EmptyPostingsField(fieldType().name(), emptyPostingsFieldType));
         }
     }
 
@@ -1307,8 +1293,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             int lastValueLength = 0;
             // True when the current doc has at least one non-null slot; gates binary dv blob emission.
             boolean hasNonNull = false;
-            // The documents that carry the field but indexed nothing under it, and so need its index options stated separately.
-            final FixedBitSet emptyPostings = columnar && emitTerms && emptyPostingsFieldType != null ? new FixedBitSet(docCount) : null;
+            // The documents that carry the field but indexed nothing under it, whose payload therefore states its index options.
+            final FixedBitSet valuelessDocs = columnar && payloadTypeWhenValueless != null ? new FixedBitSet(docCount) : null;
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
@@ -1327,10 +1313,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                                 final BytesRef blob = payload.build();
                                 binaryDvs.setString(currentDoc, blob.bytes, blob.offset, blob.length);
                                 payload.reset();
-                                // Only a document that indexed nothing needs the field's index options stated separately; one that
-                                // indexed a value alongside its nulls already has them. Mirrors recordArrayWithoutIndexedValue.
-                                if (hasNonNull == false && emptyPostings != null) {
-                                    emptyPostings.set(currentDoc);
+                                // A document that indexed nothing states the field's index options through its payload, the same
+                                // way the row path has ColumnarBinaryDocValuesField report them.
+                                if (hasNonNull == false && valuelessDocs != null) {
+                                    valuelessDocs.set(currentDoc);
                                 }
                             }
                         } else {
@@ -1391,22 +1377,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
                 final EscfColumnData binaryDvData = binaryDvs.finish(docCount);
-                ctx.addColumn(LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE), binaryDvData);
+                LuceneBinaryColumn column = LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE);
+                if (valuelessDocs != null) {
+                    column = column.withTypeWhenValueless(valuelessDocs, payloadTypeWhenValueless);
+                }
+                ctx.addColumn(column, binaryDvData);
             }
             if (dvCounts != null && dvCounts.isEmpty() == false) {
                 final EscfColumnData dvCountData = dvCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(dvCountData, fieldType().name()), dvCountData);
-            }
-            if (emptyPostings != null) {
-                final LuceneEmptyPostingsColumn column = new LuceneEmptyPostingsColumn(
-                    fieldType().name(),
-                    emptyPostingsFieldType,
-                    emptyPostings,
-                    docCount
-                );
-                if (column.isEmpty() == false) {
-                    ctx.addColumn(column);
-                }
             }
         }
     }
@@ -1474,13 +1453,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
             if (fieldType().usesColumnarPayload()) {
-                // A bare null is dropped outright. The payload joins the document as soon as it exists, so recording a slot for a
-                // null that stands on its own would carry the field as doc values alone, disagreeing with the index options a
-                // document holding a value gives it. Inside an array the slot has to be kept for synthetic source to put the null
-                // back where it was; whether the field then needs its index options stated is settled once the array is done, in
-                // recordArrayWithoutIndexedValue.
+                // A bare null is dropped outright: it has no array position to keep, and recording a slot for it would carry the
+                // field on a document that indexed nothing. Inside an array the slot is kept so synthetic source can put the null
+                // back where it was; if the document turns out to hold no value at all, the payload says so itself by reporting
+                // payloadTypeWhenValueless.
                 if (context.isPartOfArray()) {
-                    ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
+                    ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name(), payloadTypeWhenValueless);
                 }
             } else if (fieldType().usesArrayOrderBinaryDocValues()) {
                 MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());

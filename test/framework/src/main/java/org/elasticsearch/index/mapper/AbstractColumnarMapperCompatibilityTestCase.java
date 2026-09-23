@@ -19,7 +19,6 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -33,6 +32,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.sourcebatch.MappedColumns;
@@ -289,7 +289,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 populateColumnBatchDescriptors(mc, descsPerDoc);
                 for (int i = 0; i < docCount; i++) {
                     assertFieldSetsEqual(
-                        withoutInvertedIndexOnlyFields(xcDescsPerDoc.get(i)),
+                        xcDescsPerDoc.get(i),
                         descsPerDoc.get(i),
                         "Batch ["
                             + scenario.name()
@@ -318,14 +318,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     }
 
     /**
-     * Drops the fields that carry only an inverted-index aspect and no value, such as {@link EmptyPostingsField}. The column-batch
-     * side puts those in a {@code TokenStreamColumn}, which has no value to render into a descriptor, so the row side is held to the
-     * same standard here. The row-cursor comparison above compares them in full.
+     * The type {@code column} gives {@code doc}. A doc-values payload carrying a document that indexed nothing reports the field's
+     * index options itself, so the type is not the column's for every document it covers.
      */
-    private static List<FieldDescriptor> withoutInvertedIndexOnlyFields(List<FieldDescriptor> descriptors) {
-        return descriptors.stream()
-            .filter(d -> d.longValue() != null || d.bytesValue() != null || d.fieldType().indexOptions() == IndexOptions.NONE)
-            .toList();
+    private static FieldType typeFor(Column column, int doc) {
+        final FieldType type = new FieldType(column instanceof LuceneBinaryColumn binary ? binary.fieldTypeFor(doc) : column.fieldType());
+        type.freeze();
+        return type;
     }
 
     private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {
@@ -364,12 +363,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 if (isSparse || randomBoolean()) {
                     final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
                     for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.value())));
+                        perDoc.get(doc).add(new FieldDescriptor(name, typeFor(column, doc), null, BytesRef.deepCopyOf(cursor.value())));
                     }
                 } else {
                     final BytesRefValuesCursor cursor = binaryColumn.values();
                     for (int doc = 0; doc < cursor.size(); doc++) {
-                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.nextValue())));
+                        perDoc.get(doc).add(new FieldDescriptor(name, typeFor(column, doc), null, BytesRef.deepCopyOf(cursor.nextValue())));
                     }
                 }
             } else if (column instanceof TokenStreamColumn) {

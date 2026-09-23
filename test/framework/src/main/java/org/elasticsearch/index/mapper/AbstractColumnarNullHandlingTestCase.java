@@ -9,13 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.document.column.ObjectTupleCursor;
-import org.apache.lucene.document.column.TokenStreamColumn;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -56,6 +54,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Shared coverage for how the string mappers record a {@code null} under the ColumNAR codec, where a field's doc values are a payload
@@ -70,8 +69,8 @@ import static org.hamcrest.Matchers.empty;
  *   <li>a bare {@code null} is dropped outright: it reaches neither the postings nor the doc values, so the document does not carry
  *       the field at all;</li>
  *   <li>a null inside an array keeps its slot in the doc values, so synthetic source can put the null back in its original position,
- *       and an indexed field contributes an empty postings field so that its index options match a document that holds a value. The
- *       empty field writes no term, so it adds nothing a query can match.</li>
+ *       and if the document ends up holding no value the payload reports the field's index options itself, inverting into nothing so
+ *       that it adds no term a query could match.</li>
  * </ul>
  *
  * <p>This applies only under the codec. The layouts a strictly columnar index uses without it keep a document's slot count in a
@@ -159,16 +158,18 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         indexAlongsideValue(codecMapperService(), b -> b.nullField(FIELD));
     }
 
-    public void testNullInArrayKeepsSlotAndAddsEmptyPostings() throws IOException {
+    /** The payload is the whole of what an all-null array leaves behind, and it states the field's index options itself. */
+    public void testNullInArrayKeepsSlotAndStatesIndexOptions() throws IOException {
         MapperService mapperService = codecMapperService();
         List<IndexableField> fields = fieldsFor(mapperService, b -> b.startArray(FIELD).nullValue().endArray());
+        assertEquals("the field is carried once", 1, fields.size());
         assertEquals("the null slot is kept in the doc values", 1, docValues(fields).size());
-        assertEquals("an indexed field contributes an empty postings field", 1, postings(fields).size());
+        assertEquals("and the same field states the index options", 1, postings(fields).size());
     }
 
     /**
-     * A document that indexed a value alongside its nulls already has the field's index options, so it gets no empty postings field:
-     * a second indexed field for the same name would be dead weight on every document with a null in an array.
+     * A document that indexed a value alongside its nulls already has the field's index options from the value, so its payload
+     * reports the plain doc-values type and adds nothing.
      */
     public void testArrayWithValueAndNullGetsNoEmptyPostings() throws IOException {
         MapperService mapperService = codecMapperService();
@@ -180,9 +181,8 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     /**
-     * A mapper with a {@code null_value} puts a value in a null's place, so the array did index something after all and needs no
-     * empty postings field. {@code DocumentParser} counts only value tokens, so it reports such an array as having produced nothing;
-     * the field itself has to be the one to notice. Skipped for the types that have no {@code null_value} parameter.
+     * A mapper with a {@code null_value} puts a value in a null's place, so the array did index something after all and the payload
+     * holds a real slot. Skipped for the types that have no {@code null_value} parameter.
      */
     public void testNullValueSubstitutionGetsNoEmptyPostings() throws IOException {
         assumeTrue(fieldTypeName() + " has no null_value parameter", supportsNullValue());
@@ -234,7 +234,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         }
     }
 
-    /** A field written as two valueless arrays is still handed back to its mapper once, so it gets one empty postings field. */
+    /** A field written as two valueless arrays shares one payload, so it still carries the field once. */
     public void testObjectArrayWritesFieldTwiceWithNoValue() throws IOException {
         MapperService mapperService = createMapperService(
             codecSettings(),
@@ -250,13 +250,12 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
                 fields.add(field);
             }
         }
-        assertEquals("one empty postings field, not one per array", 1, postings(fields).size());
+        assertEquals("the field is carried once, not once per array", 1, postings(fields).size());
     }
 
     /**
-     * A nested object yields a Lucene document per array element, so the field an all-null array leaves behind belongs to the element's
-     * document, not the root. The empty postings field has to land on that same document, or the one holding it is still the odd one
-     * out. Guards the capture of the current document at parse time, which resolving against the root would quietly undo.
+     * A nested object yields a Lucene document per array element, so the payload an all-null array leaves behind belongs to the
+     * element's document, not the root, and states its index options there.
      */
     public void testNestedDocumentsEachGetTheirOwn() throws IOException {
         MapperService mapperService = createMapperService(codecSettings(), mapping(b -> {
@@ -473,21 +472,17 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     /**
-     * The batch itself settles the field's index options on the column carrying its values, so the row-path-only empty postings
-     * column must stay out of it: Lucene rejects two columns claiming inversion for one field.
+     * A batch settles the field's index options on the column carrying its values, and Lucene rejects a second column claiming the
+     * same for one field. The doc-values column varies its type per document only on the row path, never here.
      */
-    public void testBatchDoesNotCarryEmptyPostingsColumn() throws IOException {
+    public void testBatchClaimsInversionOnce() throws IOException {
         MapperService mapperService = codecMapperService();
         withMappedColumns(
             mapperService,
             List.of("{\"" + FIELD + "\":\"" + sampleValue() + "\"}", "{\"" + FIELD + "\":[null]}"),
             columns -> {
-                for (Column column : fieldColumns(columns)) {
-                    assertFalse(
-                        "the empty postings column must not reach the column batch",
-                        column instanceof TokenStreamColumn && docsIn(column).isEmpty() == false
-                    );
-                }
+                long inverted = fieldColumns(columns).stream().filter(c -> c.fieldType().indexOptions() != IndexOptions.NONE).count();
+                assertThat("at most one column may claim inversion for a field", inverted, lessThanOrEqualTo(1L));
             }
         );
     }
@@ -495,12 +490,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     /** The batch-local doc ids a column has an entry for. */
     private static List<Integer> docsIn(Column column) {
         final List<Integer> docs = new ArrayList<>();
-        if (column instanceof TokenStreamColumn tokenStreamColumn) {
-            final ObjectTupleCursor<TokenStream> cursor = tokenStreamColumn.tuples();
-            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                docs.add(doc);
-            }
-        } else if (column instanceof BinaryColumn binaryColumn) {
+        if (column instanceof BinaryColumn binaryColumn) {
             final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
                 docs.add(doc);
@@ -510,9 +500,10 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     /**
-     * The empty postings field must not make the all-null document findable: it registers the field's index options and nothing else.
+     * Stating the index options must not make the all-null document findable: the payload inverts into nothing, so the bytes it
+     * carries never become a term.
      */
-    public void testEmptyPostingsAddsNoTerm() throws IOException {
+    public void testValuelessPayloadAddsNoTerm() throws IOException {
         MapperService mapperService = codecMapperService();
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(FIELD, sampleValue()))).rootDoc());

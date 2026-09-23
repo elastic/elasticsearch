@@ -385,11 +385,4 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(doc, fullPath());
     }
 
-    /**
-     * Called once for an array that produced no value to index — an empty array, or one holding nothing but nulls. A mapper that
-     * writes something for such an array anyway, as a field whose doc values the ColumNAR codec stores does for its null slots,
-     * overrides this to give the field the index options a document holding a value would have given it. Documents that did index a
-     * value need nothing: they already have them.
-     */
-    public void recordArrayWithoutIndexedValue(LuceneDocument doc) {}
 }

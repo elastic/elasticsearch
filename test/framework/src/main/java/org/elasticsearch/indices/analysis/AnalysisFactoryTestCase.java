@@ -332,37 +332,14 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         assertTrue("new tokenfilters found, please update KNOWN_TOKENFILTERS: " + missing, missing.isEmpty());
     }
 
-    // ------------------------------------------------------------------------------------------------
-    // Analyzer-sharing settings contract.
+    // Analyzer-sharing contract. Indices with identical analysis recipes share one cached
+    // NamedAnalyzer, which is only safe if every factory folds all behavior-affecting settings into
+    // its sharingKey(). Each subclass declares, per factory it registers, which settings distinguish
+    // that key; the base checks those declarations against real index builds, and fails if a
+    // registered factory is left unclassified.
     //
-    // Indices with identical analysis recipes share a single cached NamedAnalyzer (see
-    // AnalysisRegistry). That is only safe if every factory folds all behavior-affecting settings
-    // into its sharingKey(): if a factory reads a setting but omits it from the key, two indices
-    // differing only in that setting collapse onto one shared analyzer and silently tokenize one
-    // index's data with the other's recipe.
-    //
-    // Rather than rely on whether a random input happens to surface a behavioral difference, each
-    // subclass declares, per factory it registers, the settings that distinguish the sharing key.
-    // The base then verifies deterministically:
-    // - two builds from identical settings share one instance (the dedup precondition);
-    // - each declared distinguishing setting lands on a DIFFERENT instance (the key changed);
-    // - each setting declared non-distinguishing lands on the SAME instance (the key did not change);
-    // - identity-keyed factories are classified but not probed.
-    // A completeness gate fails the build if a registered factory is neither declared, exempted, nor
-    // explicitly pending, so a newly added factory must be classified. Because this lives on the base
-    // every plugin's factory test already extends, the obligation travels with code people touch.
-    //
-    // Scope note: the factories probed here are the ones the plugin under test registers, i.e.
-    // AnalysisPlugin#getTokenFilters and friends. Core's own factories are registered by
-    // AnalysisModule rather than by a plugin, so CoreAnalysisFactoryTests (which passes an empty
-    // plugin) has nothing to probe; their keys are covered directly by FactorySharingKeyTests.
-    //
-    // The failure paths below — a key that omits a declared setting, a setting declared ignored that
-    // does not, an unclassified factory — are not reachable from a subclass carrying correct
-    // declarations, so nothing here observes them firing. Whichever module first declares its
-    // factories should add a deliberately mis-keyed probe factory alongside, so that weakening an
-    // assertion in runSettingsContract turns a test red instead of silently disarming the gate.
-    // ------------------------------------------------------------------------------------------------
+    // Only the plugin under test is probed. Core's factories come from AnalysisModule rather than a
+    // plugin, so CoreAnalysisFactoryTests has nothing here; FactorySharingKeyTests covers those keys.
 
     /** Component slot a factory occupies, used to wire it into a single-component analyzer chain. */
     public enum ComponentKind {
@@ -373,20 +350,28 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     }
 
     /**
-     * Declares the settings a factory supports and whether each one propagates to the created
-     * instance. Build it with {@link #alwaysShares()} (no setting changes the instance) or
-     * {@link #settings()} and then describe each setting with {@link FactorySettings#affects}
-     * (changing it must produce a distinct instance) or {@link FactorySettings#ignored} (it is read
-     * but must NOT change the instance — e.g. a stop-word case flag on an analyzer that lower-cases
-     * first). The test builds a reference instance from the base settings and, for each declared
-     * setting, rebuilds with that setting changed and asserts the created instance was / was not a
-     * distinct one.
-     *
-     * <p>Propagation is observed through the node-level analyzer cache: a setting that the factory
-     * folds into its {@code sharingKey()} yields a separate cached instance, one that does not yields
-     * the same shared instance. {@code base} carries any settings required just to build the factory;
-     * setting values are scalars or {@code List<String>} and are merged on top of {@code base}.
+     * A registered factory. Keyed by slot as well as name because one name may be registered in
+     * several slots — {@code icu_normalizer} is both a char filter and a token filter.
      */
+    public record FactoryRef(ComponentKind kind, String name) {}
+
+    protected static FactoryRef tokenFilter(String name) {
+        return new FactoryRef(ComponentKind.TOKEN_FILTER, name);
+    }
+
+    protected static FactoryRef tokenizer(String name) {
+        return new FactoryRef(ComponentKind.TOKENIZER, name);
+    }
+
+    protected static FactoryRef charFilter(String name) {
+        return new FactoryRef(ComponentKind.CHAR_FILTER, name);
+    }
+
+    protected static FactoryRef analyzer(String name) {
+        return new FactoryRef(ComponentKind.ANALYZER, name);
+    }
+
+    /** Which settings a factory's sharing key must distinguish. */
     public static final class FactorySettings {
         final boolean neverShares;
         final Map<String, Object> base;
@@ -397,54 +382,47 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             this.base = base;
         }
 
-        /** A setting whose change MUST produce a distinct instance; each value is tested against the base. */
+        /** Changing this setting MUST produce a distinct instance. Each value is probed against the base. */
         public FactorySettings affects(String name, Object... values) {
             settings.add(new SettingCase(name, true, List.of(values)));
             return this;
         }
 
-        /** A setting that is read but MUST NOT change the created instance (it does not propagate to identity). */
+        /** This setting is read but MUST NOT change the instance. Each value is probed against the base. */
         public FactorySettings ignored(String name, Object... values) {
             settings.add(new SettingCase(name, false, List.of(values)));
             return this;
         }
     }
 
-    /** One configuration setting and whether changing it should produce a distinct instance. */
+    /** One setting to probe, and whether changing it should produce a distinct instance. */
     public record SettingCase(String name, boolean affectsInstance, List<Object> values) {}
 
     /**
-     * A factory that reads no setting affecting the instance it creates, so all of its instances are
-     * interchangeable and any two recipes naming it may share. Its key is a constant, typically
-     * {@code getClass()}. Note this only asserts that identical configurations share; to also prove a
-     * particular setting is genuinely disregarded, declare it with {@link FactorySettings#ignored}.
+     * No setting changes the created instance, so all instances are interchangeable and the key is a
+     * constant. Asserts only that identical configurations share; to prove a specific setting is
+     * disregarded, use {@link #settings()} with {@link FactorySettings#ignored}.
      */
     protected static FactorySettings alwaysShares() {
         return new FactorySettings(false, Map.of());
     }
 
-    /**
-     * A factory that never shares because its key is identity / by-name (e.g. it wraps an opaque
-     * Lucene object with no structural equality, or references other filters by name). No setting
-     * propagation is meaningful; the identity mechanism itself is tested generically in
-     * {@code FactorySharingKeyTests}. This is purely a per-kind classification so the completeness
-     * gate passes — the factory is not built or asserted here.
-     */
+    /** Key is identity or by-name, so the factory never shares. */
     protected static FactorySettings neverShares() {
         return new FactorySettings(true, Map.of());
     }
 
-    /** A factory whose settings are described via {@link FactorySettings#affects}/{@code ignored}. */
+    /** Settings follow via {@link FactorySettings#affects} / {@link FactorySettings#ignored}. */
     protected static FactorySettings settings() {
         return new FactorySettings(false, Map.of());
     }
 
-    /** As {@link #settings()} but with the base settings the factory needs in order to build. */
+    /** As {@link #settings()}, with the settings the factory needs in order to build at all. */
     protected static FactorySettings settings(Map<String, Object> base) {
         return new FactorySettings(false, base);
     }
 
-    /** Per-kind settings declarations. Override in each plugin's factory test to cover its factories. */
+    /** Per-kind declarations, by registered name. Override in each plugin's factory test. */
     protected Map<String, FactorySettings> tokenFilterSettings() {
         return Map.of();
     }
@@ -462,26 +440,20 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     }
 
     /**
-     * Factories permanently not exercised by the settings contract here. Two kinds belong here, with
-     * a comment saying which: (1) factories whose key is identity / by-name so no setting propagates
-     * to a distinct instance — the identity mechanism itself is tested generically in
-     * {@code FactorySharingKeyTests}, so it need not be re-tested per factory; (2) factories needing
-     * resources this lightweight harness cannot supply (a hunspell dictionary, a hyphenation file) or
-     * covered by a dedicated test (synonyms). Listed by registered name; the completeness gate accepts
-     * these as classified.
+     * Factories permanently outside the contract: identity-keyed ones (covered generically by
+     * {@code FactorySharingKeyTests}), ones needing resources this harness cannot supply, and ones
+     * with a dedicated test. Give each entry a reason.
      */
-    protected Set<String> factorySettingsExemptions() {
+    protected Set<FactoryRef> factorySettingsExemptions() {
         return Set.of();
     }
 
     /**
-     * Factories whose declaration is still to be written, as a temporary migration allowlist — not a
-     * judgement that the factory needs no coverage, which is what {@link #factorySettingsExemptions()}
-     * records. It exists so a module too large to convert in one change can keep the completeness gate
-     * live over the part already declared while the rest lands: entries are deleted as declarations
-     * arrive, and the method itself is removed once empty.
+     * Declarations still to be written — a shrinking migration list, not a judgement that coverage is
+     * unnecessary (that is {@link #factorySettingsExemptions()}). Lets a module too large to convert
+     * at once keep the gate live over the part already declared. Removed once empty.
      */
-    protected Set<String> factorySettingsPending() {
+    protected Set<FactoryRef> factorySettingsPending() {
         return Set.of();
     }
 
@@ -510,9 +482,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         if (registered.isEmpty()) {
             return;
         }
-        // Interim: a subclass that has not started declaring settings for this kind is skipped with a
-        // notice rather than failed, so plugin factory tests stay green until filled in. The moment a
-        // single declaration is added, the completeness gate enforces full coverage.
+        // A subclass that has not started declaring this kind is skipped with a notice rather than
+        // failed. Adding one declaration arms the gate for all of them.
         if (declarations.isEmpty()) {
             logger.warn(
                 "{}: no factory settings declared in {} for {} registered factories — coverage PENDING",
@@ -522,12 +493,11 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             );
             return;
         }
-        // Completeness: every registered factory must be declared, exempted, or explicitly pending.
-        // Runs regardless of the feature flag so the classification obligation is always enforced.
+        // Enforced regardless of the feature flag, so classifying a new factory is always required.
         Set<String> unclassified = new TreeSet<>(registered.keySet());
         unclassified.removeAll(declarations.keySet());
-        unclassified.removeAll(factorySettingsExemptions());
-        unclassified.removeAll(factorySettingsPending());
+        unclassified.removeAll(namesIn(kind, factorySettingsExemptions()));
+        unclassified.removeAll(namesIn(kind, factorySettingsPending()));
         assertTrue(
             kind
                 + " factories missing a settings declaration (declare them in "
@@ -545,59 +515,34 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         AnalysisRegistry registry = buildSharingRegistry();
         List<IndexAnalyzers> tracked = new ArrayList<>();
         try {
-            for (Map.Entry<String, ? extends AnalysisProvider<?>> e : registered.entrySet()) {
-                String type = e.getKey();
+            for (String type : registered.keySet()) {
                 FactorySettings decl = declarations.get(type);
                 if (decl == null) {
-                    // Exempted or pending: accepted by the gate above, nothing to probe here.
-                    continue;
+                    continue; // exempted or pending
                 }
-                if (decl.neverShares) {
-                    // Identity / by-name key: never shares, no setting propagation to assert. The
-                    // mechanism is covered once in FactorySharingKeyTests; here it is just classified.
-                    continue;
-                }
-                // Sharing deduplicates the underlying analyzer instance; the per-index NamedAnalyzer
-                // wrapper is allocated per build and carries that index's local name, so compare the
-                // wrapped (shared) analyzer rather than wrapper identity.
+                // The per-index NamedAnalyzer wrapper is allocated per build and carries that index's
+                // local name, so compare the wrapped analyzer rather than wrapper identity.
                 Analyzer reference = build(registry, chainSettings(kind, type, decl.base), tracked).get("a").analyzer();
-                Analyzer referenceAgain = build(registry, chainSettings(kind, type, decl.base), tracked).get("a").analyzer();
-                assertSame(
-                    kind + " [" + type + "] two identical configurations must produce the same shared instance",
-                    reference,
-                    referenceAgain
-                );
+                Analyzer again = build(registry, chainSettings(kind, type, decl.base), tracked).get("a").analyzer();
+                if (decl.neverShares) {
+                    assertNotSame(kind + " [" + type + "] is declared neverShares but two identical builds shared", reference, again);
+                    continue;
+                }
+                assertSame(kind + " [" + type + "] two identical configurations must produce the same shared instance", reference, again);
                 for (SettingCase setting : decl.settings) {
                     for (Object value : setting.values()) {
                         Map<String, Object> varied = new LinkedHashMap<>(decl.base);
                         varied.put(setting.name(), value);
                         Analyzer other = build(registry, chainSettings(kind, type, varied), tracked).get("a").analyzer();
+                        String where = kind + " [" + type + "] setting [" + setting.name() + "]=" + value;
                         if (setting.affectsInstance()) {
                             assertNotSame(
-                                kind
-                                    + " ["
-                                    + type
-                                    + "] setting ["
-                                    + setting.name()
-                                    + "]="
-                                    + value
-                                    + " must produce a distinct instance but did not — the factory does not propagate it to sharingKey()",
+                                where + " must produce a distinct instance; it is not folded into sharingKey()",
                                 reference,
                                 other
                             );
                         } else {
-                            assertSame(
-                                kind
-                                    + " ["
-                                    + type
-                                    + "] setting ["
-                                    + setting.name()
-                                    + "]="
-                                    + value
-                                    + " is declared ignored and must NOT change the instance, but it did",
-                                reference,
-                                other
-                            );
+                            assertSame(where + " is declared ignored and must not change the instance, but it did", reference, other);
                         }
                     }
                 }
@@ -609,6 +554,10 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         }
     }
 
+    private static Set<String> namesIn(ComponentKind kind, Set<FactoryRef> refs) {
+        return refs.stream().filter(ref -> ref.kind() == kind).map(FactoryRef::name).collect(Collectors.toSet());
+    }
+
     private AnalysisRegistry buildSharingRegistry() throws IOException {
         Settings node = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         return new AnalysisModule(TestEnvironment.newEnvironment(node), List.of(plugin), new StablePluginsRegistry()).getAnalysisRegistry();
@@ -617,7 +566,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     private static IndexAnalyzers build(AnalysisRegistry registry, Settings analysis, List<IndexAnalyzers> tracked) throws IOException {
         Settings s = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            // Allow the larger gram/shingle spans some distinguishing probes use.
+            // Room for the larger gram/shingle spans some probes use.
             .put("index.max_ngram_diff", 10)
             .put("index.max_shingle_diff", 10)
             .put(analysis)
@@ -627,7 +576,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         return ia;
     }
 
-    /** Wire a single component into an analyzer named {@code a}; token-filter/char-filter chains use the standard tokenizer. */
+    /** Wires one component into an analyzer named {@code a}; filter chains use the standard tokenizer. */
     private static Settings chainSettings(ComponentKind kind, String type, Map<String, Object> componentSettings) {
         Settings.Builder b = Settings.builder();
         switch (kind) {

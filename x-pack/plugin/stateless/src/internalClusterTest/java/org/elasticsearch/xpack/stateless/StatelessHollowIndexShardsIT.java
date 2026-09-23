@@ -138,7 +138,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -2166,11 +2165,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 .mapToObj(i -> findIndexShard(index, i).indexingStats().getTotal().getIndexCount())
                 .toList();
             var ingestLatch = new CountDownLatch(ingestingThreads);
-            final var ingestSeed = randomLong();
-            final var allDocsIds = List.copyOf(docsIds);
+            final var shuffledDocIds = shuffledList(docsIds.toArray(String[]::new));
             final var ingestFutures = new ArrayList<Future<?>>(ingestingThreads);
+            final var nextDocIndex = new AtomicInteger();
             for (int i = 0; i < ingestingThreads; i++) {
-                final int threadIdx = i;
                 Runnable ingestRunnable = switch (ingestionType) {
                     // Index docs
                     case Index -> () -> {
@@ -2182,21 +2180,13 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     };
                     // Update doc or Upsert new doc
                     case Update -> () -> {
-                        // better shuffling, since we execute it in multiple threads
-                        final var threadRandom = new Random(ingestSeed + threadIdx);
-                        final var threadDocsIds = IntStream.range(0, allDocsIds.size())
-                            .filter(idx -> idx % ingestingThreads == threadIdx)
-                            .mapToObj(allDocsIds::get)
-                            .toList();
                         try {
-                            for (int j = 0; j < Math.min(allDocsIds.size(), 96); j++) { // need enough updates to be sure to hollow
-                                                                                        // every shard
-                                final var upsertOrUpdate = threadRandom.nextBoolean();
-                                var docId = upsertOrUpdate
-                                    ? docIdSupplier.get()
-                                    : threadDocsIds.get(threadRandom.nextInt(threadDocsIds.size()));
-                                var response = client().prepareUpdate(indexName, docId)
-                                    .setDoc(frequently() ? "field" : "field_" + threadIdx + "_" + docId, randomUnicodeOfLength(10))
+                            int docIndex;
+                            while ((docIndex = nextDocIndex.getAndIncrement()) < 100) {
+                                final var upsertOrUpdate = randomBoolean();
+                                final var docId = upsertOrUpdate ? docIdSupplier.get() : shuffledDocIds.get(docIndex);
+                                final var response = client().prepareUpdate(indexName, docId)
+                                    .setDoc(frequently() ? "field" : "field_" + docId, randomUnicodeOfLength(10))
                                     .setDocAsUpsert(upsertOrUpdate)
                                     .get();
                                 assertThat(

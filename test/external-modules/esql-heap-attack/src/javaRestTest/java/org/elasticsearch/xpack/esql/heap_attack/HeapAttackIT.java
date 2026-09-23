@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -1123,6 +1124,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testStreamingApiAvoidsCircuitBreak() throws IOException {
+        assumeTrue("ES|QL streaming is not available in release builds yet", Build.current().isSnapshot());
         int docs = 256;
         String esqlQuery = "FROM bigtext | KEEP f";
         initGiantTextField(docs, false, 1);

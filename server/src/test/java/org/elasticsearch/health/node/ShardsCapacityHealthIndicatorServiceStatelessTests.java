@@ -162,12 +162,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
     public void testSkippingFieldsWhenVerboseIsFalse() {
         int primariesPerProject = randomValidMaxShards();
         int maxShardsPerNode = primariesPerProject * projectIds.size() + 4;
-        createClusterService(
-            maxShardsPerNode,
-            1,
-            1,
-            () -> new IndexMetadata.Builder[] { createIndex(primariesPerProject) }
-        );
+        createClusterService(maxShardsPerNode, 1, 1, () -> new IndexMetadata.Builder[] { createIndex(primariesPerProject) });
         var indicatorResult = newIndicatorService().calculate(false, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(RED, indicatorResult.status());
@@ -282,12 +277,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
 
         {
             // Only index nodes do not have enough space
-            createClusterService(
-                maxShardsPerNode,
-                1,
-                2,
-                () -> new IndexMetadata.Builder[] { createIndex(indexNumShards) }
-            );
+            createClusterService(maxShardsPerNode, 1, 2, () -> new IndexMetadata.Builder[] { createIndex(indexNumShards) });
             var indicatorResult = newIndicatorService().calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(status, indicatorResult.status());
@@ -312,12 +302,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         }
         {
             // Only search nodes do not have enough space
-            createClusterService(
-                maxShardsPerNode,
-                2,
-                1,
-                () -> new IndexMetadata.Builder[] { createIndex(indexNumShards) }
-            );
+            createClusterService(maxShardsPerNode, 2, 1, () -> new IndexMetadata.Builder[] { createIndex(indexNumShards) });
             var indicatorResult = newIndicatorService().calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(status, indicatorResult.status());
@@ -342,12 +327,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         }
         {
             // Both index and search nodes do not have enough space
-            createClusterService(
-                maxShardsPerNode,
-                1,
-                1,
-                () -> new IndexMetadata.Builder[] { createIndex(indexNumShards) }
-            );
+            createClusterService(maxShardsPerNode, 1, 1, () -> new IndexMetadata.Builder[] { createIndex(indexNumShards) });
             var indicatorResult = newIndicatorService().calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(status, indicatorResult.status());

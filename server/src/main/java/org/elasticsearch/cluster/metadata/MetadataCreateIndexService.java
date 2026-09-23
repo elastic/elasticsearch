@@ -592,6 +592,7 @@ public class MetadataCreateIndexService {
                 new IllegalArgumentException("no such project [" + request.projectId() + "]")
             );
         }
+        currentState.projectState(request.projectId()).ensureProjectNotUnderDeletion();
 
         validate(request, projectMetadata, routingTable);
 

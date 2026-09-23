@@ -13,6 +13,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -75,6 +76,18 @@ public class ColumnarStringIngestBenchmark {
     private Path mergePath;
     private Directory mergeDirectory;
 
+    /** Doc values bytes on disk after writing or merging; reported by JMH as a secondary metric. */
+    @AuxCounters(AuxCounters.Type.EVENTS)
+    @State(Scope.Thread)
+    public static class Bytes {
+        public double bytesOnDisk;
+
+        @Setup(Level.Iteration)
+        public void reset() {
+            bytesOnDisk = 0;
+        }
+    }
+
     @Setup(Level.Trial)
     public void generate() {
         values = data.generate(docCount, new Random(7));
@@ -82,9 +95,9 @@ public class ColumnarStringIngestBenchmark {
 
     /** One segment per {@code segmentSize} documents, with no merge. */
     @Benchmark
-    public void write(Blackhole bh) throws IOException {
+    public void write(Bytes bytes) throws IOException {
         try (Directory directory = open()) {
-            bh.consume(format.writeSegments(directory, values, segmentSize, false));
+            bytes.bytesOnDisk = format.writeSegments(directory, values, segmentSize, false);
         } finally {
             clean();
         }
@@ -92,9 +105,9 @@ public class ColumnarStringIngestBenchmark {
 
     /** The same, then merged down to one segment; the difference is what the merge costs. */
     @Benchmark
-    public void writeAndMerge(Blackhole bh) throws IOException {
+    public void writeAndMerge(Bytes bytes) throws IOException {
         try (Directory directory = open()) {
-            bh.consume(format.writeSegments(directory, values, segmentSize, true));
+            bytes.bytesOnDisk = format.writeSegments(directory, values, segmentSize, true);
         } finally {
             clean();
         }
@@ -105,8 +118,9 @@ public class ColumnarStringIngestBenchmark {
      * asked repeatedly, and writing the segments alongside it hides the answer inside a much larger number.
      */
     @Benchmark
-    public void merge(Blackhole bh) throws IOException {
-        bh.consume(format.mergeSegments(mergeDirectory));
+    public void merge(Bytes bytes, Blackhole bh) throws IOException {
+        bytes.bytesOnDisk = format.mergeSegments(mergeDirectory);
+        bh.consume(bytes.bytesOnDisk);
     }
 
     /** Fresh segments for every measured merge, since merging them consumes them. */

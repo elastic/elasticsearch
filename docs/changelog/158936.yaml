@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 158936
+summary: Fix interrupt deadlock in `CancellableRateLimitedFluxIterator`
+type: bug

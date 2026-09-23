@@ -1,0 +1,5 @@
+pr: 159638
+summary: Limit the connector description length
+area: Extract&Transform
+type: bug
+issues: []

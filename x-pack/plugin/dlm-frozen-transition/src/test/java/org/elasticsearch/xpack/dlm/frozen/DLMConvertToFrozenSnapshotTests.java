@@ -79,6 +79,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     private ProjectId projectId;
     private String indexName;
+    private Index index;
     private XPackLicenseState licenseState;
     private ThreadPool threadPool;
     private ClusterService clusterService;
@@ -107,6 +108,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
         projectId = randomProjectIdOrDefault();
         indexName = randomAlphaOfLength(10);
+        index = new Index(indexName, randomUUID());
         licenseState = new XPackLicenseState(
             System::currentTimeMillis,
             new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null)
@@ -181,7 +183,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     }
 
     private DLMConvertToFrozen createConverter() {
-        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, () -> licenseState, clock);
+        return new DLMConvertToFrozen(index, projectId, createMockClient(), clusterService, () -> licenseState, clock);
     }
 
     private CreateSnapshotResponse createSuccessfulSnapshotResponse() {
@@ -216,9 +218,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 0))
                     .putCustom(
                         DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                         Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
@@ -746,7 +746,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
 
         DLMConvertToFrozen converter = new TestDLMConvertToFrozenWithTimeout(
-            indexName,
+            index,
             projectId,
             createMockClient(),
             clusterService,
@@ -765,14 +765,14 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     public static class TestDLMConvertToFrozenWithTimeout extends DLMConvertToFrozen {
 
         TestDLMConvertToFrozenWithTimeout(
-            String indexName,
+            Index index,
             ProjectId projectId,
             Client client,
             ClusterService clusterService,
             Supplier<XPackLicenseState> licenseStateSupplier,
             Clock clock
         ) {
-            super(indexName, projectId, client, clusterService, licenseStateSupplier, clock);
+            super(index, projectId, client, clusterService, licenseStateSupplier, clock);
         }
 
         @Override

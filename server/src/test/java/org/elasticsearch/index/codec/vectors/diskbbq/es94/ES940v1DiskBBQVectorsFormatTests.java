@@ -18,9 +18,8 @@ import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -30,11 +29,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVec
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ES940v1DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public class ES940v1DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCase {
 
     private KnnVectorsFormat format;
 

@@ -12,11 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -401,13 +401,8 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
-        for (Attribute attr : exec.output()) {
-            if (attr instanceof MetadataAttribute == false) {
-                queryDataAttributes.add(attr);
-            }
-        }
-        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
+        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
 
         // Bind filter hints to the relation's output by NameId, not by name. A downstream EVAL/DISSECT/GROK/ENRICH can
         // introduce an attribute that SHARES A NAME with a partition column (e.g. `EVAL year = ...`) whose filter
@@ -418,7 +413,15 @@ public final class SplitDiscoveryPhase {
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
-            null,
+            new SimpleSourceMetadata(
+                querySchema.attributes(),
+                exec.sourceType(),
+                exec.sourcePath(),
+                null,
+                null,
+                exec.sourceMetadata(),
+                exec.config()
+            ),
             fileList != null ? fileList : FileList.UNRESOLVED,
             exec.schemaMap(),
             exec.config(),
@@ -428,7 +431,8 @@ public final class SplitDiscoveryPhase {
             exec.unifiedSchema(),
             maxRecordBytes,
             isCancelled,
-            exec.declaredReadSpec()
+            exec.declaredReadSpec(),
+            ExternalMetadataColumns.metadataNames(exec.output())
         );
 
         SplitDiscoveryResult result;
@@ -456,17 +460,20 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
-        for (Attribute attr : exec.output()) {
-            if (attr instanceof MetadataAttribute == false) {
-                queryDataAttributes.add(attr);
-            }
-        }
-        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
+        // Partition columns must survive: buildFileTasks strips them separately via stripPartitionColumns.
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
-            null,
+            new SimpleSourceMetadata(
+                querySchema.attributes(),
+                exec.sourceType(),
+                exec.sourcePath(),
+                null,
+                null,
+                exec.sourceMetadata(),
+                exec.config()
+            ),
             fileList != null ? fileList : FileList.UNRESOLVED,
             exec.schemaMap(),
             exec.config(),
@@ -476,7 +483,8 @@ public final class SplitDiscoveryPhase {
             exec.unifiedSchema(),
             maxRecordBytes,
             isCancelled,
-            exec.declaredReadSpec()
+            exec.declaredReadSpec(),
+            ExternalMetadataColumns.metadataNames(exec.output())
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

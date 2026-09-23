@@ -123,17 +123,56 @@ public class IvfAutoCalibration {
         return Arrays.stream(RERANK_DEPTHS).mapToObj(d -> (float) d).collect(Collectors.toUnmodifiableSet());
     }
 
+    /** For testing: the doc-bits weight used in the calibration cost model. */
+    static double docBitsWeight() {
+        return DOC_BITS_WEIGHT;
+    }
+
+    /** For testing: the rerank-depth weight used in the calibration cost model. */
+    static double rerankCostWeight() {
+        return RERANK_COST_WEIGHT;
+    }
+
     /**
-     * Weight of rerank depth in the calibration cost model ({@code dbits + RERANK_COST_WEIGHT * rerankDepth}).
-     * A value greater than 1 penalizes rerank depth more than an extra doc bit, reflecting that
-     * oversampling raises query-time DRAM pressure across <em>all</em> candidate vectors while an
-     * extra doc bit only raises storage cost. The coefficient 1.3 was chosen empirically to prefer
-     * low-bit encodings over aggressive reranking when both achieve similar recall.
+     * For testing: each cost-ordered sweep entry as {@code {dbits, qbits, rerankDepth}} in the order
+     * they are evaluated during calibration.
+     */
+    static double[][] costOrderedSweepEntries() {
+        double[][] entries = new double[COST_ORDERED_SWEEPS.length][3];
+        for (int i = 0; i < COST_ORDERED_SWEEPS.length; i++) {
+            CalibrationSweep s = COST_ORDERED_SWEEPS[i];
+            entries[i][0] = s.candidate().dbits();
+            entries[i][1] = s.candidate().qbits();
+            entries[i][2] = s.rerankDepth();
+        }
+        return entries;
+    }
+
+    /**
+     * Weight applied to doc bits in the calibration cost model
+     * ({@code DOC_BITS_WEIGHT * dbits + RERANK_COST_WEIGHT * rerankDepth}).
+     * Doc bits represent a permanent per-segment storage and memory cost, so they are weighted
+     * more heavily than rerank depth (a per-query compute cost). The value must satisfy
+     * {@code DOC_BITS_WEIGHT > RERANK_COST_WEIGHT * (maxRerankDepth - minRerankDepth)} to guarantee
+     * that no entry with higher doc bits ever sorts before an entry with lower doc bits — i.e. the
+     * cost ordering naturally tiers by doc-bit level without any explicit phase logic.
+     * With {@link #RERANK_COST_WEIGHT} = 1.3 and rerank depths in [1.25, 3.0] the minimum is
+     * {@code 1.3 * 1.75 ≈ 2.28}; 3.0 provides a comfortable margin.
+     */
+    private static final double DOC_BITS_WEIGHT = 3.0;
+
+    /**
+     * Weight of rerank depth in the calibration cost model. A value greater than 1 penalizes
+     * oversampling more than a raw rerankDepth increase, reflecting that it raises query-time DRAM
+     * pressure across all candidate vectors.
      */
     private static final double RERANK_COST_WEIGHT = 1.3;
 
     /**
-     * Sweeps (encoding, rerank ratio) in ascending estimated cost so the first config meeting target recall is cheap.
+     * All (encoding, rerank ratio) combinations sorted by ascending estimated cost so that the first
+     * configuration meeting target recall is always the cheapest available. {@link #DOC_BITS_WEIGHT}
+     * is large enough to guarantee that all entries at a given doc-bit level sort before any entry at
+     * a higher doc-bit level, so cheaper encodings are exhausted naturally without explicit phase logic.
      */
     private static final CalibrationSweep[] COST_ORDERED_SWEEPS = buildCostOrderedSweeps();
 
@@ -532,7 +571,7 @@ public class IvfAutoCalibration {
     }
 
     private static double calibrationCost(int dbits, double rerankDepth) {
-        return dbits + RERANK_COST_WEIGHT * rerankDepth;
+        return DOC_BITS_WEIGHT * dbits + RERANK_COST_WEIGHT * rerankDepth;
     }
 
     private SweepOutcome sweepQuantizationCandidates(
@@ -563,10 +602,15 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Sweeps every {@code (precondition, encoding, rerank-depth)} candidate in cost order and returns the first
-     * configuration whose predicted recall meets {@link #targetRecall}, or the best-effort configuration if none
-     * does. The two calibration paths differ only in how the quantization error std is obtained, which is supplied
-     * by {@code errorStdProvider}.
+     * Sweeps every {@code (encoding, rerank-depth, precondition)} triple in ascending cost order and returns the
+     * first configuration whose predicted recall meets {@link #targetRecall}, or the best-effort configuration if
+     * none does. The two calibration paths differ only in how the quantization error std is obtained, which is
+     * supplied by {@code errorStdProvider}.
+     * <p>
+     * The cost model ({@link #DOC_BITS_WEIGHT} × dbits + {@link #RERANK_COST_WEIGHT} × rerankDepth) guarantees
+     * that all entries for a given doc-bit level are exhausted before any entry at a higher doc-bit level is
+     * reached. Preconditioning is the inner loop so both values are tried for each {@code (encoding, rerank)}
+     * pair before advancing to a more expensive combination.
      */
     private SweepOutcome sweepCandidates(
         VectorSimilarityFunction similarityFunction,
@@ -582,12 +626,13 @@ public class IvfAutoCalibration {
 
         boolean[] preconditionValues = new boolean[] { false, true };
 
-        for (boolean precondition : preconditionValues) {
-            for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
-                CandidateEncoding candidate = sweep.candidate();
+        for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
+            CandidateEncoding candidate = sweep.candidate();
+            int rerankVal = ExpectedRecall.rerankN(k, sweep.rerankDepth());
+            float oversample = (float) sweep.rerankDepth();
+
+            for (boolean precondition : preconditionValues) {
                 double errorStd = errorStdProvider.errorStd(candidate, precondition);
-                int rerankVal = ExpectedRecall.rerankN(k, sweep.rerankDepth());
-                float oversample = (float) sweep.rerankDepth();
                 double expected = ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, alpha, invDim, errorStd, k, rerankVal);
 
                 logger.debug(

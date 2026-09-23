@@ -558,6 +558,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
                     return decoder.termEqualTwoPhase(entry.numCompressedBlocks, term, maxDoc);
                 }
+
+                @Override
+                RawBinaryBlock rawSingleValueBlock(int minUncompressedLength) throws IOException {
+                    return decoder.rawSingleValueBlock(doc, entry.numCompressedBlocks, entry.compression, minUncompressedLength);
+                }
             };
         } else {
             // sparse
@@ -593,6 +598,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 int getLength() throws IOException {
                     return decoder.decodeLength(disi.index(), entry.numCompressedBlocks);
+                }
+
+                @Override
+                RawBinaryBlock rawSingleValueBlock(int minUncompressedLength) throws IOException {
+                    // Sparse readers index by ordinal (disi.index()), not by doc id.
+                    return decoder.rawSingleValueBlock(disi.index(), entry.numCompressedBlocks, entry.compression, minUncompressedLength);
                 }
             };
         }
@@ -974,12 +985,96 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             }
             return requiredBufferSize;
         }
+
+        // Probe state for raw-block handoff during merge, deliberately separate from the decode
+        // cursor. INVARIANT: rawSingleValueBlock() mutates only these fields and reads only through
+        // rawBlockInput. It never touches lastBlockId, startDocNumForBlock, limitDocNumForBlock,
+        // uncompressedDocStarts, uncompressedBlock, or compressedData, so callers may safely
+        // interleave it with decode() in ascending doc order.
+        //
+        // Do NOT route this through findAndUpdateBlock: that method advances startDocNumForBlock /
+        // limitDocNumForBlock to block B while leaving lastBlockId pointing at block A. The fast
+        // path in findAndUpdateBlock (docNumber < limitDocNumForBlock && lastBlockId >= 0) would
+        // then hand block A back to a subsequent decode() call for a doc in B — silently returning
+        // the wrong bytes, without triggering any assertion because idxInBlock is computed from the
+        // updated start/limit. Setting lastBlockId = -1 as a workaround instead would force
+        // binarySearch from 0 on every subsequent doc. A private probe cursor avoids the problem
+        // entirely and costs one binary search per block transition, the same frequency as decode's.
+        private IndexInput rawBlockInput; // lazily cloned on first handoff; disjoint from compressedData and readAhead
+        private final int[] rawOffsets = new int[2];
+        private long probeBlockId = -1;
+        private int probeStartDoc = -1;
+        private int probeLimitDoc = -1;
+
+        /**
+         * Returns a {@link RawBinaryBlock} for the block containing {@code docNumber}, if that
+         * block holds exactly one document and its uncompressed length meets the minimum, or
+         * {@code null} otherwise. Driven in ascending doc order by the merge loop.
+         *
+         * <p>Uses a dedicated clone of {@code compressedData} ({@code rawBlockInput}) so the
+         * read does not disturb {@code compressedData}'s position, which must stay immediately
+         * after the most recently decoded block's offsets for {@link #decompressValues} to work.
+         * Similarly, {@code readAhead} is left untouched because it is
+         * {@link #computeMultipleBlockBufferSize}'s scratch and the payload is consumed by the
+         * caller after this method returns.
+         */
+        RawBinaryBlock rawSingleValueBlock(int docNumber, int numBlocks, BinaryDVCompressionMode compression, int minUncompressedLength)
+            throws IOException {
+            if (probeBlockId < 0 || docNumber >= probeLimitDoc) {
+                probeBlockId = findBlock(docNumber, numBlocks, Math.max(probeBlockId, 0));
+                probeStartDoc = (int) docOffsets.get(probeBlockId);
+                probeLimitDoc = (int) docOffsets.get(probeBlockId + 1);
+            }
+            assert docNumber >= probeStartDoc : "rawSingleValueBlock probe must be driven in ascending doc order";
+            if (probeLimitDoc - probeStartDoc != 1) {
+                // Block is shared with other documents; the payload is not copyable alone.
+                return null;
+            }
+            if (rawBlockInput == null) {
+                // Lazily clone a dedicated input disjoint from compressedData (whose position is a
+                // precondition of decompressValues) and from readAhead (bulk-sizing scratch).
+                rawBlockInput = compressedData.clone();
+            }
+            rawBlockInput.seek(addresses.get(probeBlockId));
+            var header = BinaryDVCompressionMode.BlockHeader.fromByte(rawBlockInput.readByte());
+            int uncompressedLength = rawBlockInput.readVInt();
+            if (uncompressedLength == 0 || uncompressedLength < minUncompressedLength) {
+                // Zero-length: compress() writes nothing and decompress() never reads the payload,
+                // so the bytes after the vInt here are the (unread) offsets — the payloadLength
+                // formula below would be wrong. Too-small: let the writer repack for better ratio.
+                return null;
+            }
+            // Step past the encoded offsets so rawBlockInput is positioned at the payload start.
+            // rawOffsets[0] stays 0 (encode's delta-loop starts from index 1).
+            docOffsetsDecoder.decode(rawOffsets, 1, rawBlockInput);
+            assert rawOffsets[1] == uncompressedLength : "decoded offset mismatch";
+            long payloadLength = addresses.get(probeBlockId + 1) - rawBlockInput.getFilePointer();
+            assert payloadLength > 0;
+            assert header.isCompressed() || payloadLength == uncompressedLength : "uncompressed block payload length mismatch";
+            return new RawBinaryBlock(compression, header.isCompressed(), uncompressedLength, rawBlockInput, payloadLength);
+        }
+
     }
 
     public abstract static class TSDBBinaryDocValues extends BinaryDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.OptionalLengthReader {}
+            BlockLoader.OptionalLengthReader {
+
+        /**
+         * Returns the raw compressed block backing the value this iterator is currently positioned
+         * on, if that block holds exactly this one doc and its uncompressed length is at least
+         * {@code minUncompressedLength} bytes — so it can be copied verbatim into the merge target
+         * without decompressing it. Returns {@code null} when the value must be decoded (multi-doc
+         * block, too small, or this reader does not support raw handoff).
+         *
+         * <p>Contract: this call does not disturb the reader's decode state. Callers may interleave
+         * it freely with {@link #binaryValue()} on the same instance, in ascending doc order.
+         */
+        RawBinaryBlock rawSingleValueBlock(int minUncompressedLength) throws IOException {
+            return null;
+        }
+    }
 
     abstract static class DenseBinaryDocValues extends TSDBBinaryDocValues {
 

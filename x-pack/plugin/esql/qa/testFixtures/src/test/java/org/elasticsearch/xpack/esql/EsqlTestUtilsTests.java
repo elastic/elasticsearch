@@ -8,12 +8,132 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.PathAndName;
 
+import java.io.IOException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlTestUtilsTests extends ESTestCase {
+
+    public void testClasspathResourcesFromExplodedRootAndNestedDirectory() throws Exception {
+        Path root = createTempDir();
+        writeResource(root, "root-b.csv-spec");
+        writeResource(root, "root-a.csv-spec");
+        writeResource(root, "ignored.txt");
+        writeResource(root.resolve("datasources"), "nested-b.csv-spec");
+        writeResource(root.resolve("datasources"), "nested-a.csv-spec");
+        writeResource(root.resolve("datasources/deeper"), "not-immediate.csv-spec");
+
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/*.csv-spec"), List.of(root))),
+            equalTo(List.of("root-a.csv-spec", "root-b.csv-spec"))
+        );
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(root))),
+            equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
+        );
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/nested-b.csv-spec"), List.of(root))),
+            equalTo(List.of("nested-b.csv-spec"))
+        );
+        assertThat(EsqlTestUtils.classpathResources(List.of("/missing/*.csv-spec"), List.of(root)), empty());
+        assertThat(EsqlTestUtils.classpathResources(List.of("/datasources/no-match*.csv-spec"), List.of(root)), empty());
+        assertThat(
+            resourceNames(
+                EsqlTestUtils.classpathResources(List.of("/datasources/*-a.csv-spec", "/datasources/*-b.csv-spec"), List.of(root))
+            ),
+            equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
+        );
+
+        expectThrows(
+            IllegalStateException.class,
+            anyOf(
+                containsString("Duplicate classpath resource [datasources/nested-a.csv-spec]"),
+                containsString("Duplicate classpath resource [datasources/nested-b.csv-spec]")
+            ),
+            () -> resourceNames(
+                EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec", "/datasources/nested-*"), List.of(root))
+            )
+        );
+    }
+
+    public void testClasspathResourcesFromJarAreSortedAndNonRecursive() throws Exception {
+        Path jar = createTempFile("resources", ".jar");
+        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
+            writeJarEntry(output, "datasources/nested-b.csv-spec");
+            writeJarEntry(output, "datasources/deeper/not-immediate.csv-spec");
+            writeJarEntry(output, "datasources/nested-a.csv-spec");
+            writeJarEntry(output, "root.csv-spec");
+        }
+
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(jar))),
+            equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
+        );
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/datasources/nested-a.csv-spec"), List.of(jar))),
+            equalTo(List.of("nested-a.csv-spec"))
+        );
+        assertThat(
+            resourceNames(EsqlTestUtils.classpathResources(List.of("/*.csv-spec"), List.of(jar))),
+            equalTo(List.of("root.csv-spec"))
+        );
+        expectThrows(
+            IllegalStateException.class,
+            anyOf(
+                containsString("Duplicate classpath resource [datasources/nested-a.csv-spec]"),
+                containsString("Duplicate classpath resource [datasources/nested-b.csv-spec]")
+            ),
+            () -> resourceNames(
+                EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec", "/datasources/nested-*"), List.of(jar, jar))
+            )
+        );
+    }
+
+    public void testClasspathResourcesRejectDuplicateLogicalPathsWithBothOrigins() throws Exception {
+        Path first = createTempDir();
+        Path second = createTempDir();
+        writeResource(first.resolve("datasources"), "duplicate.csv-spec");
+        writeResource(second.resolve("datasources"), "duplicate.csv-spec");
+
+        expectThrows(
+            IllegalStateException.class,
+            containsString("Duplicate classpath resource [datasources/duplicate.csv-spec]"),
+            () -> EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(first, second))
+        );
+    }
+
+    public void testPathAndNameSplitsAtDirectoryBoundary() {
+        assertThat(PathAndName.from("datasources/file.csv-spec"), equalTo(new PathAndName("datasources", "file.csv-spec")));
+        assertThat(PathAndName.from("file.csv-spec"), equalTo(new PathAndName("", "file.csv-spec")));
+    }
+
+    private static void writeResource(Path directory, String name) throws IOException {
+        Files.createDirectories(directory);
+        Files.writeString(directory.resolve(name), "// test\n", StandardCharsets.UTF_8);
+    }
+
+    private static void writeJarEntry(JarOutputStream output, String name) throws IOException {
+        output.putNextEntry(new JarEntry(name));
+        output.write("// test\n".getBytes(StandardCharsets.UTF_8));
+        output.closeEntry();
+    }
+
+    private static List<String> resourceNames(List<URL> resources) {
+        return resources.stream().map(url -> EsqlTestUtils.PathAndName.from(url.getPath()).name()).toList();
+    }
 
     public void testPromQL() {
         assertThat(

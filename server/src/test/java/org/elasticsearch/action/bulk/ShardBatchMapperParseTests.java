@@ -558,8 +558,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         }
     }
 
-    /** A sub-field whose mapper has no columnar support disqualifies the batch, which falls back to the row path. */
-    public void testUnsupportedMultiFieldSubMapperFallsBack() throws IOException {
+    public void testTextMultiFieldSubFieldIsMappedFromTheParentColumn() throws IOException {
         final String mapping = """
             {
               "dynamic": "strict",
@@ -573,9 +572,52 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
         IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
         try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")), new BulkItemRequest(1, indexRequest("doc2")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "hello"), doc("f", "world")), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("expected columnar path to succeed for a keyword+text multi-field mapping", result);
+
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                mc.setSeqNo(0, 10L);
+                mc.setSeqNo(1, 11L);
+                mc.setVersion(0, 1L);
+                mc.setVersion(1, 1L);
+
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                cursor.advance();
+                List<IndexableField> fields = cursor.fields();
+                assertTrue("parent keyword field f should be present", fields.stream().anyMatch(f -> "f".equals(f.name())));
+                assertTrue("text sub-field f.txt should be present", fields.stream().anyMatch(f -> "f.txt".equals(f.name())));
+
+                cursor.advance();
+                fields = cursor.fields();
+                assertTrue("parent keyword field f should be present for doc2", fields.stream().anyMatch(f -> "f".equals(f.name())));
+                assertTrue("text sub-field f.txt should be present for doc2", fields.stream().anyMatch(f -> "f.txt".equals(f.name())));
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /** A sub-field whose mapper has no columnar support disqualifies the batch, which falls back to the row path. */
+    public void testUnsupportedMultiFieldSubMapperFallsBack() throws IOException {
+        final String mapping = """
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": {
+                  "type": "keyword",
+                  "fields": { "geo": { "type": "geo_point" } }
+                }
+              }
+            }""";
+
+        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
+        try {
             final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
             try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "hello")), XContentType.JSON)) {
-                assertNull("a text sub-field must force a fallback", mapBatch(shard, items, batch));
+                assertNull("a geo_point sub-field must force a fallback", mapBatch(shard, items, batch));
             }
         } finally {
             closeShards(shard);

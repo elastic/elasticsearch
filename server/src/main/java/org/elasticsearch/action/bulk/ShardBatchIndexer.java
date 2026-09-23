@@ -109,7 +109,7 @@ public final class ShardBatchIndexer {
         // batch-indexing support matrix this returns null, and we fall back to the sequential
         // path (same contract as a later parseMappings returning null).
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            batch.schema(),
+            batch,
             primary.mapperService().mappingLookup(),
             primary.indexSettings()
         );
@@ -156,7 +156,7 @@ public final class ShardBatchIndexer {
      */
     ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, SourceBatch batch, IndexShard replica) throws Exception {
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
-            batch.schema(),
+            batch,
             replica.mapperService().mappingLookup(),
             replica.indexSettings()
         );

@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import io.netty.channel.ChannelException;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.retries.api.BackoffStrategy;
+import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -27,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.reactivestreams.Subscriber;
@@ -49,6 +54,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class S3StorageObjectReadFailureTests extends ESTestCase {
@@ -58,6 +66,16 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
     private static final String BUCKET = "test-bucket";
     private static final String KEY = "data/file.parquet";
     private static final StoragePath PATH = StoragePath.of("s3://" + BUCKET + "/" + KEY);
+
+    /**
+     * AWS Standard retry semantics (same classification and attempt budget as production) but with
+     * immediate backoff so failure-mapping tests do not sleep while the strategy spends its budget.
+     */
+    private static final RetryStrategy RETRY_STRATEGY = AwsRetryStrategy.standardRetryStrategy()
+        .toBuilder()
+        .backoffStrategy(BackoffStrategy.retryImmediately())
+        .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
+        .build();
 
     public void testBareIllegalStateExceptionIsUnavailable503() {
         S3Client mockS3 = mock(S3Client.class);
@@ -186,6 +204,79 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
     }
 
+    public void testExpiredTokenOnGetObjectIsTyped400() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception expired = s3Error(400, "ExpiredToken");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(expired);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, obj::newStream);
+        assertSame(expired, thrown.getCause());
+        assertThat(thrown.getMessage(), containsString("expired or invalid"));
+        assertThat(thrown.getMessage(), containsString("Refresh the data source credentials"));
+        assertThat(thrown.getMessage(), containsString("reading [" + PATH + "]"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));
+        assertSame(thrown, ExternalFailures.classify(thrown));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    public void testTokenRefreshRequiredOnGetObjectIsTyped400() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception expired = s3Error(400, "TokenRefreshRequired");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(expired);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, obj::newStream);
+        assertSame(expired, thrown.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    public void testExpiredTokenOnLengthSkipsMetadataFallbacks() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception expired = s3Error(400, "ExpiredToken");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(expired);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, obj::length);
+        assertSame(expired, thrown.getCause());
+        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+        verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
+    }
+
+    public void testExpiredTokenOn403MetadataDoesNotRangeGetFallback() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception expired = s3Error(403, "ExpiredToken");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(expired);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, obj::length);
+        assertSame(expired, thrown.getCause());
+        verify(mockS3, times(1)).getObject(any(GetObjectRequest.class));
+        verify(mockS3, never()).headObject(any(HeadObjectRequest.class));
+    }
+
+    public void testGenericHttp400IsNotCredentialsExpiry() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception badRequest = (S3Exception) S3Exception.builder().statusCode(400).message("Bad Request").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(badRequest);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertNull(ExceptionsHelper.unwrap(thrown, ExternalCredentialsExpiredException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    public void testAuthorizationHeaderMalformedIsNotCredentialsExpiry() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception malformed = s3Error(400, "AuthorizationHeaderMalformed");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(malformed);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertNull(ExceptionsHelper.unwrap(thrown, ExternalCredentialsExpiredException.class));
+        assertSame(malformed, thrown.getCause());
+    }
+
     public void testNoSuchKeyStaysIoException() {
         S3Client mockS3 = mock(S3Client.class);
         NoSuchKeyException missing = NoSuchKeyException.builder().statusCode(404).message("Not Found").build();
@@ -312,9 +403,17 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         return mockAsyncS3;
     }
 
+    private static S3Exception s3Error(int status, String errorCode) {
+        return (S3Exception) S3Exception.builder()
+            .statusCode(status)
+            .message(errorCode)
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build())
+            .build();
+    }
+
     /** Reads {@code length} bytes through the native async path and returns the failure handed to the listener. */
     private static Throwable readAsyncFailure(S3AsyncClient mockAsyncS3, int length) throws InterruptedException {
-        S3StorageObject obj = new S3StorageObject(mock(S3Client.class), mockAsyncS3, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mock(S3Client.class), mockAsyncS3, RETRY_STRATEGY, BUCKET, KEY, PATH);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Throwable> outcome = new AtomicReference<>();
 

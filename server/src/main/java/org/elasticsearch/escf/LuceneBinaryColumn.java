@@ -20,7 +20,6 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 
 import java.util.List;
@@ -37,55 +36,20 @@ import static org.elasticsearch.escf.EscfColumn.windowValidity;
  * underlying data's density, and only documents whose bit is set in the filter appear in
  * {@link #tuples()}, {@link #rowFieldCursor()}, and {@link #values()}.
  */
-public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColumn {
+public class LuceneBinaryColumn extends BinaryColumn implements LuceneColumn {
 
-    private final EscfColumn data;
-    private final FixedBitSet filter;
-    private final FixedBitSet valuelessDocs;
-    private final IndexableFieldType typeWhenValueless;
+    protected final EscfColumn data;
+    protected final FixedBitSet filter;
 
-    private LuceneBinaryColumn(EscfColumn data, String name, IndexableFieldType fieldType, Density density, FixedBitSet filter) {
-        this(data, name, fieldType, density, filter, null, null);
-    }
-
-    private LuceneBinaryColumn(
-        EscfColumn data,
-        String name,
-        IndexableFieldType fieldType,
-        Density density,
-        FixedBitSet filter,
-        FixedBitSet valuelessDocs,
-        IndexableFieldType typeWhenValueless
-    ) {
+    protected LuceneBinaryColumn(EscfColumn data, String name, IndexableFieldType fieldType, Density density, FixedBitSet filter) {
         super(name, fieldType, filter != null ? Density.SPARSE : density);
         this.data = data;
         this.filter = filter;
-        this.valuelessDocs = valuelessDocs;
-        this.typeWhenValueless = typeWhenValueless;
     }
 
-    /**
-     * Returns a copy of this column whose {@link #rowFieldCursor() row cursor} gives the documents in {@code valuelessDocs} the type
-     * {@code typeWhenValueless} instead of the column's own.
-     *
-     * <p>For the doc-values payload of a field whose values are indexed: a document that holds no value has to state the field's
-     * index options itself, since nothing else in it does. The row path gets this from
-     * {@code ColumnarBinaryDocValuesField#fieldType}, which reads the payload it is holding; a column has one type for every
-     * document it covers, so the documents that need the other one are named here instead.
-     *
-     * <p>{@link #toLuceneColumn()} is unaffected: a batch settles a field's index options on the column carrying the values, so
-     * there is nothing for a document to state on its own there.
-     */
-    public LuceneBinaryColumn withTypeWhenValueless(FixedBitSet valuelessDocs, IndexableFieldType typeWhenValueless) {
-        return new LuceneBinaryColumn(data, name(), fieldType(), density(), filter, valuelessDocs, typeWhenValueless);
-    }
-
-    /**
-     * The type this column's {@link #rowFieldCursor() row cursor} gives {@code doc}, which is {@link #fieldType()} for all but the
-     * documents named by {@link #withTypeWhenValueless}.
-     */
-    public IndexableFieldType fieldTypeFor(int doc) {
-        return valuelessDocs != null && valuelessDocs.get(doc) ? typeWhenValueless : fieldType();
+    /** The density a column over {@code data} takes, before any filter is applied. */
+    protected static Density densityOf(EscfColumn data) {
+        return (data instanceof EscfArrayColumn || data.validity != null) ? Density.SPARSE : Density.DENSE;
     }
 
     /** Creates a dense ({@link Density#DENSE}) column from a STRING or BINARY {@link EscfColumnData}. */
@@ -124,31 +88,13 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
      */
     public LuceneBinaryColumn withFilter(FixedBitSet filter) {
         assert filter == null || filter.length() == data.docCount;
-        Density density = (data instanceof EscfArrayColumn || data.validity != null) ? Density.SPARSE : Density.DENSE;
-        return new LuceneBinaryColumn(
-            data,
-            name(),
-            fieldType(),
-            density,
-            LuceneColumn.singleFilter(this.filter, filter),
-            valuelessDocs,
-            typeWhenValueless
-        );
+        return new LuceneBinaryColumn(data, name(), fieldType(), densityOf(data), LuceneColumn.singleFilter(this.filter, filter));
     }
 
     @Override
     public LuceneBinaryColumn slice(int from, int count) {
         EscfColumn sliced = data.sliceInternal(from, count);
-        Density density = (sliced instanceof EscfArrayColumn || sliced.validity != null) ? Density.SPARSE : Density.DENSE;
-        return new LuceneBinaryColumn(
-            sliced,
-            name(),
-            fieldType(),
-            density,
-            windowValidity(filter, from, count),
-            windowValidity(valuelessDocs, from, count),
-            typeWhenValueless
-        );
+        return new LuceneBinaryColumn(sliced, name(), fieldType(), densityOf(sliced), windowValidity(filter, from, count));
     }
 
     @Override
@@ -161,7 +107,7 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         // retainValues=true: see appendCurrentFields below — the emitted Fields outlive the cursor position.
         final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor(true);
         return new LuceneColumn.RowFieldCursor() {
-            // The row appendCurrentFields is describing, which decides whether it takes the valueless type.
+            // The row appendCurrentFields is describing, which fieldFor is free to take account of.
             private int doc = DocIdSetIterator.NO_MORE_DOCS;
 
             @Override
@@ -180,28 +126,26 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
 
             @Override
             public void appendCurrentFields(List<? super IndexableField> out) {
-                // A document holding no value states the field's index options itself, which a plain Field cannot do over a
-                // BytesRef: the type is tokenized, and that constructor rejects it. The payload field carries both, and is what the
-                // row path emits for the same document.
-                if (valuelessDocs != null && valuelessDocs.get(doc)) {
-                    out.add(ColumnarBinaryDocValuesField.encoded(name(), cursor.value(), false, typeWhenValueless));
-                    return;
-                }
-                // A distinct Field per element: for multi-valued (array) rows appendCurrentFields is
-                // called more than once for the same document and every emitted field is retained in
-                // the caller's list, so a single reused field object would collapse all values to the
-                // last one. cursor.value() already returns a fresh BytesRef per element.
-                //
-                // Lucene's Field(String, BytesRef, FieldType) constructor rejects tokenized+indexed
-                // field types ("cannot set a BytesRef value on a tokenized field"). Indexed tokenized
-                // fields require a String so Lucene can run an analyzer over them.
-                if (fieldType().tokenized() && fieldType().indexOptions() != IndexOptions.NONE) {
-                    out.add(new Field(name(), cursor.value().utf8ToString(), fieldType()));
-                } else {
-                    out.add(new Field(name(), cursor.value(), fieldType()));
-                }
+                out.add(fieldFor(doc, cursor.value()));
             }
         };
+    }
+
+    /**
+     * The field the {@link #rowFieldCursor() row cursor} emits for one of {@code doc}'s values. Subclasses override this to emit a
+     * field of their own for some documents; see {@code ColumnarPayloadColumn}.
+     *
+     * <p>A distinct field per element: for multi-valued (array) rows this is called more than once for the same document and every
+     * field is retained in the caller's list, so a single reused object would collapse all values to the last one. {@code value} is
+     * already a fresh {@link BytesRef} per element.
+     */
+    protected IndexableField fieldFor(int doc, BytesRef value) {
+        // Lucene's Field(String, BytesRef, FieldType) constructor rejects tokenized+indexed field types ("cannot set a BytesRef
+        // value on a tokenized field"). Indexed tokenized fields require a String so Lucene can run an analyzer over them.
+        if (fieldType().tokenized() && fieldType().indexOptions() != IndexOptions.NONE) {
+            return new Field(name(), value.utf8ToString(), fieldType());
+        }
+        return new Field(name(), value, fieldType());
     }
 
     @Override

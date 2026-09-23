@@ -50,6 +50,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
@@ -1377,11 +1378,18 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
                 final EscfColumnData binaryDvData = binaryDvs.finish(docCount);
-                LuceneBinaryColumn column = LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE);
-                if (valuelessDocs != null) {
-                    column = column.withTypeWhenValueless(valuelessDocs, payloadTypeWhenValueless);
-                }
-                ctx.addColumn(column, binaryDvData);
+                ctx.addColumn(
+                    valuelessDocs == null
+                        ? LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE)
+                        : ColumnarPayloadColumn.of(
+                            binaryDvData,
+                            fieldType().name(),
+                            CustomDocValuesField.TYPE,
+                            valuelessDocs,
+                            payloadTypeWhenValueless
+                        ),
+                    binaryDvData
+                );
             }
             if (dvCounts != null && dvCounts.isEmpty() == false) {
                 final EscfColumnData dvCountData = dvCounts.finish(docCount);

@@ -69,6 +69,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
@@ -2037,11 +2038,18 @@ public final class TextFieldMapper extends FieldMapper {
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
                 final EscfColumnData binaryDvsData = binaryDvs.finish(docCount);
-                LuceneBinaryColumn column = LuceneBinaryColumn.of(binaryDvsData, fieldType().name(), CustomDocValuesField.TYPE);
-                if (valuelessDocs != null) {
-                    column = column.withTypeWhenValueless(valuelessDocs, payloadTypeWhenValueless);
-                }
-                ctx.addColumn(column, binaryDvsData);
+                ctx.addColumn(
+                    valuelessDocs == null
+                        ? LuceneBinaryColumn.of(binaryDvsData, fieldType().name(), CustomDocValuesField.TYPE)
+                        : ColumnarPayloadColumn.of(
+                            binaryDvsData,
+                            fieldType().name(),
+                            CustomDocValuesField.TYPE,
+                            valuelessDocs,
+                            payloadTypeWhenValueless
+                        ),
+                    binaryDvsData
+                );
             }
             if (dvCounts != null && dvCounts.isEmpty() == false) {
                 final EscfColumnData dvCountsData = dvCounts.finish(docCount);

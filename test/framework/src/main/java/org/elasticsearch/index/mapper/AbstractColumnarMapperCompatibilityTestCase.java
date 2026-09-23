@@ -29,10 +29,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
-import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.sourcebatch.MappedColumns;
@@ -322,7 +322,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * index options itself, so the type is not the column's for every document it covers.
      */
     private static FieldType typeFor(Column column, int doc) {
-        final FieldType type = new FieldType(column instanceof LuceneBinaryColumn binary ? binary.fieldTypeFor(doc) : column.fieldType());
+        final FieldType type = new FieldType(
+            column instanceof ColumnarPayloadColumn payload ? payload.fieldTypeFor(doc) : column.fieldType()
+        );
         type.freeze();
         return type;
     }

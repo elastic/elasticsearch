@@ -55,6 +55,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.GroupedReleasables;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
@@ -1938,11 +1939,18 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
                 final EscfColumnData binaryDvData = binaryDvs.finish(docCount);
-                LuceneBinaryColumn column = LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE);
-                if (valuelessDocs != null) {
-                    column = column.withTypeWhenValueless(valuelessDocs, payloadTypeWhenValueless);
-                }
-                ctx.addColumn(column, binaryDvData);
+                ctx.addColumn(
+                    valuelessDocs == null
+                        ? LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE)
+                        : ColumnarPayloadColumn.of(
+                            binaryDvData,
+                            fieldType().name(),
+                            CustomDocValuesField.TYPE,
+                            valuelessDocs,
+                            payloadTypeWhenValueless
+                        ),
+                    binaryDvData
+                );
             }
             // A columnar field's payload carries its own count, so it emits no companion column at all.
             if (columnar == false && dvCounts != null && dvCounts.isEmpty() == false) {

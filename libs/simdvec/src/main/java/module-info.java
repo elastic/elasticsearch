@@ -24,5 +24,7 @@ module org.elasticsearch.simdvec {
     requires org.elasticsearch.lucene.store;
     requires org.apache.lucene.core;
 
-    exports org.elasticsearch.simdvec to org.elasticsearch.server, org.elasticsearch.columnar;
+    // Plain (unqualified) export: x-pack/plugin/esql is a classpath (unnamed-module) consumer of
+    // ESVectorUtil, and qualified exports can't target the unnamed module -- see JEP 261.
+    exports org.elasticsearch.simdvec;
 }

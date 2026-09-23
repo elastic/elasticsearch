@@ -43,6 +43,7 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -314,6 +315,186 @@ public class ReplaceStaticTests extends ESTestCase {
 
         // Starts with prefix but doesn't fully match — must be returned unchanged (regex falls through).
         assertThat(processConstantRegex("httpbin", regex, newStr), equalTo("httpbin"));
+    }
+
+    // --- CaptureUntilDelimiterIdiom: detection (white-box) ---
+
+    public void testCaptureUntilDelimiterIdiomDetectsMotivatingPattern() {
+        // ClickBench's `REPLACE(Referer, "^https?://(?:www\.)?([^/]+)/.*$", "$1")` -- extract URL host.
+        var idiom = ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^https?://(?:www\\.)?([^/]+)/.*$"), new BytesRef("$1"));
+        assertNotNull(idiom);
+        assertThat(idiom.delimiter(), equalTo((byte) '/'));
+    }
+
+    public void testCaptureUntilDelimiterIdiomAcceptsBareTrailingWildcard() {
+        // No `$` anchor: `.*` always succeeds trivially, so no per-row DOTALL/newline safety net is needed.
+        assertNotNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+)/.*"), new BytesRef("$1")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomAcceptsLiteralAroundGroup() {
+        assertNotNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^,]+),.*$"), new BytesRef("name=$1!")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomBailsWithoutAnchor() {
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("([^/]+)/.*$"), new BytesRef("$1")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomBailsOnMultipleGroups() {
+        // `$1` would be ambiguous / not necessarily "the" extracted segment once other groups exist.
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^(a)([^/]+)/.*$"), new BytesRef("$2")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomBailsOnDisqualifyingFlags() {
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+)/.*$", Pattern.CASE_INSENSITIVE), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+)/.*$", Pattern.MULTILINE), new BytesRef("$1")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomBailsOnNonAsciiDelimiter() {
+        // The byte scan only supports a single-UTF-8-byte delimiter.
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^\u00e9]+)\u00e9.*$"), new BytesRef("$1")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomBailsOnDelimiterMismatch() {
+        // `[^/]+` followed by a DIFFERENT literal (",") -- the unique-split-point guarantee doesn't hold.
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+),.*$"), new BytesRef("$1")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomBailsOnAmbiguousReplacement() {
+        Pattern p = Pattern.compile("^([^/]+)/.*$");
+        assertNull(ReplaceCaptureUntilDelimiter.extract(p, new BytesRef("$10"))); // could be group 10
+        assertNull(ReplaceCaptureUntilDelimiter.extract(p, new BytesRef("$1$1"))); // more than one ref
+        assertNull(ReplaceCaptureUntilDelimiter.extract(p, new BytesRef("\\$1"))); // backslash escape
+        assertNull(ReplaceCaptureUntilDelimiter.extract(p, new BytesRef("no group ref")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomBailsOnUnsupportedPrefixQuantifiers() {
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^a*([^/]+)/.*$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^a+([^/]+)/.*$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^a{1,2}([^/]+)/.*$"), new BytesRef("$1")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomBailsOnTrailingContent() {
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+)/.*x$"), new BytesRef("$1")));
+    }
+
+    public void testCaptureUntilDelimiterIdiomBailsOnTooManyOptionalSegments() {
+        // 5 independent optional segments exceeds MAX_OPTIONAL_PREFIX_PARTS (4).
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^a?b?c?d?e?([^/]+)/.*$"), new BytesRef("$1")));
+    }
+
+    // --- CaptureUntilDelimiterIdiom: end-to-end (evaluator selection + byte-scan correctness) ---
+
+    public void testEndToEndCaptureUntilDelimiterIdiomExtractsHost() {
+        String regex = "^https?://(?:www\\.)?([^/]+)/.*$";
+        String newStr = "$1";
+        assertEvaluatorToStringContains(regex, newStr, "ReplaceCaptureUntilDelimiterEvaluator");
+
+        assertThat(processConstantRegexAndNewStr("http://example.com/a", regex, newStr), equalTo("example.com"));
+        assertThat(processConstantRegexAndNewStr("https://www.example.com/x/y", regex, newStr), equalTo("example.com"));
+        assertThat(processConstantRegexAndNewStr("https://example.com/", regex, newStr), equalTo("example.com"));
+
+        // No match cases -- REPLACE returns the input unchanged, exactly like the regex path.
+        assertThat(processConstantRegexAndNewStr("ftp://example.com/a", regex, newStr), equalTo("ftp://example.com/a"));
+        assertThat(processConstantRegexAndNewStr("http://example.com", regex, newStr), equalTo("http://example.com"));
+        assertThat(processConstantRegexAndNewStr("http:///x", regex, newStr), equalTo("http:///x"));
+        assertThat(processConstantRegexAndNewStr("", regex, newStr), equalTo(""));
+    }
+
+    public void testEndToEndCaptureUntilDelimiterIdiomBacktracksOptionalPrefix() {
+        // Regression case: greedily consuming the optional "www." would leave an empty capture
+        // ("www./x" -> host starts right at the delimiter). Real regex backtracks to NOT taking the
+        // optional group, capturing "www." itself (up to the next '/'); the byte scan must match.
+        String regex = "^(?:www\\.)?([^/]+)/.*$";
+        String newStr = "$1";
+        assertThat(processConstantRegexAndNewStr("www./x", regex, newStr), equalTo("www."));
+        assertThat(processConstantRegexAndNewStr("www.example.com/x", regex, newStr), equalTo("example.com"));
+    }
+
+    public void testEndToEndCaptureUntilDelimiterIdiomWithLiteralAroundGroup() {
+        String regex = "^([^,]+),.*$";
+        assertThat(processConstantRegexAndNewStr("alice,30,nyc", regex, "name=$1!"), equalTo("name=alice!"));
+        assertThat(processConstantRegexAndNewStr("no-comma-here", regex, "name=$1!"), equalTo("no-comma-here"));
+    }
+
+    public void testEndToEndCaptureUntilDelimiterIdiomMatchesUnicodeCapturedContent() {
+        // Only the literal prefix/delimiter must be ASCII -- the captured segment itself can be
+        // arbitrary UTF-8 (including multi-byte and surrogate-pair code points).
+        String regex = "^([^/]+)/.*$";
+        assertThat(processConstantRegexAndNewStr("caf\u00e9/x", regex, "$1"), equalTo("caf\u00e9"));
+        assertThat(processConstantRegexAndNewStr("a\ud83d\udc05b/x", regex, "$1"), equalTo("a\ud83d\udc05b"));
+    }
+
+    public void testEndToEndCaptureUntilDelimiterIdiomFallsBackOnEmbeddedNewline() {
+        // `.*$` (no DOTALL) can't cross an embedded, non-trailing newline -- the byte scan must defer to
+        // the real regex engine for that specific row rather than risk an incorrect result. Compare
+        // directly against Java's own regex behavior for the same input.
+        String regex = "^([^/]+)/.*$";
+        assertEvaluatorToStringContains(regex, "$1", "ReplaceCaptureUntilDelimiterEvaluator");
+        String withEmbeddedNewline = "host/pa\nth-tail";
+        assertThat(processConstantRegexAndNewStr(withEmbeddedNewline, regex, "$1"), equalTo(withEmbeddedNewline.replaceAll(regex, "$1")));
+    }
+
+    public void testEndToEndCaptureUntilDelimiterIdiomLineTerminatorScanWordBoundaries() {
+        // Regression coverage for hasNonTrailingLineTerminator's SWAR word-at-a-time scan: exercise every
+        // alignment of a line terminator (single- and multi-byte) relative to an 8-byte scan word --
+        // including terminators that straddle a word boundary -- and cross-check against Java's own regex
+        // rather than hand-computing the expected result.
+        String regex = "^([^/]+)/.*$";
+        String newStr = "$1";
+        String[] terminators = { "\n", "\r", "\u0085", "\u2028", "\u2029" };
+        for (String term : terminators) {
+            for (int tailLen = 1; tailLen <= 20; tailLen++) {
+                for (int pos = 0; pos < tailLen; pos++) {
+                    StringBuilder tail = new StringBuilder();
+                    for (int i = 0; i < tailLen; i++) {
+                        tail.append(i == pos ? term : "x");
+                    }
+                    String input = "host/" + tail;
+                    String expected = input.replaceAll(regex, newStr);
+                    assertThat(
+                        "term=U+" + Integer.toHexString(term.codePointAt(0)) + " tailLen=" + tailLen + " pos=" + pos,
+                        processConstantRegexAndNewStr(input, regex, newStr),
+                        equalTo(expected)
+                    );
+                }
+            }
+        }
+        // No terminator at all, across word-boundary-relevant lengths -- must not false-positive.
+        for (int tailLen = 0; tailLen <= 20; tailLen++) {
+            String input = "host/" + "x".repeat(tailLen);
+            assertThat("tailLen=" + tailLen, processConstantRegexAndNewStr(input, regex, newStr), equalTo("host"));
+        }
+    }
+
+    public void testCaptureUntilDelimiterEvaluatorNotUsedWhenIdiomDoesNotMatch() {
+        // Multiple capturing groups -- must fall back to the existing dictionary/ordinal evaluator.
+        assertEvaluatorToStringContains("^(a)([^/]+)/.*$", "$2", "ReplaceConstantOrdinalEvaluator");
+    }
+
+    private void assertEvaluatorToStringContains(String regex, String newStr, String expectedSubstring) {
+        try (var eval = constantRegexAndNewStrEvaluator(regex, newStr).get(driverContext())) {
+            assertThat(eval.toString(), containsString(expectedSubstring));
+        }
+    }
+
+    private String processConstantRegexAndNewStr(String text, String regex, String newStr) {
+        try (
+            var eval = constantRegexAndNewStrEvaluator(regex, newStr).get(driverContext());
+            Block block = eval.eval(row(List.of(new BytesRef(text))))
+        ) {
+            return block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();
+        }
+    }
+
+    private ExpressionEvaluator.Factory constantRegexAndNewStrEvaluator(String regex, String newStr) {
+        return AbstractScalarFunctionTestCase.evaluator(
+            new Replace(
+                Source.EMPTY,
+                field("text", DataType.KEYWORD),
+                new Literal(Source.EMPTY, new BytesRef(regex), DataType.KEYWORD),
+                new Literal(Source.EMPTY, new BytesRef(newStr), DataType.KEYWORD)
+            )
+        );
     }
 
     private String processConstantRegex(String text, String regex, String newStr) {

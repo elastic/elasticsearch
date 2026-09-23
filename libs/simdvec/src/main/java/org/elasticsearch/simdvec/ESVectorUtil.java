@@ -853,6 +853,28 @@ public class ESVectorUtil {
     }
 
     /**
+     * Searches for the first occurrence of any of four marker bytes in the specified range of the
+     * array.
+     *
+     * <p>The search starts at {@code offset} and examines at most {@code length} bytes. The return
+     * value is the relative index of the first occurrence of any of {@code b0}, {@code b1},
+     * {@code b2}, {@code b3} within this slice, or {@code -1} if none of them is found.
+     *
+     * @param bytes  the byte array to search
+     * @param offset the starting index within the array
+     * @param length the number of bytes to examine
+     * @param b0     a byte to search for
+     * @param b1     a byte to search for
+     * @param b2     a byte to search for
+     * @param b3     a byte to search for
+     * @return the relative index (0..length-1) of the first match, or {@code -1} if not found
+     */
+    public static int indexOfAny(byte[] bytes, int offset, int length, byte b0, byte b1, byte b2, byte b3) {
+        Objects.checkFromIndexSize(offset, length, bytes.length);
+        return IMPL.indexOfAny(bytes, offset, length, b0, b1, b2, b3);
+    }
+
+    /**
      * Checks whether the byte sequence {@code term} appears as a contiguous subsequence
      * within {@code value}.
      *

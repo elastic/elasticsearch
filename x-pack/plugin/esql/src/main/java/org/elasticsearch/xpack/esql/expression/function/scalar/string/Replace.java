@@ -333,7 +333,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         return prefix.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private static boolean isEscapedLiteral(char c) {
+    static boolean isEscapedLiteral(char c) {
         // Characters that, when preceded by `\`, denote themselves as a literal in Java regex syntax.
         // We deliberately exclude letters/digits because those introduce special meaning
         // (\d, \w, \s, \b, \A, \z, \Z, \n, \t, \r, \1, etc.).
@@ -344,7 +344,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         };
     }
 
-    private static boolean isRegexMeta(char c) {
+    static boolean isRegexMeta(char c) {
         return switch (c) {
             case '.', '(', ')', '[', ']', '{', '}', '|', '$', '^', '?', '*', '+', '\\' -> true;
             default -> false;
@@ -361,7 +361,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
      * Hex / unicode / control / octal escapes in Java regex always produce a literal character (never an
      * unescaped meta), so they cannot smuggle in a hidden alternation.
      */
-    private static boolean containsUnquotedAlternation(String regex, int from) {
+    static boolean containsUnquotedAlternation(String regex, int from) {
         int n = regex.length();
         for (int i = from; i < n; i++) {
             char c = regex.charAt(i);
@@ -387,7 +387,7 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
     /**
      * Executes a Replace without surpassing the memory limit.
      */
-    private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
+    static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
         try {
             return doReplace(strBytesRef, regex, newStrBytesRef);
         } catch (StackOverflowError e) {
@@ -465,6 +465,12 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
                         // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
                         BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
                         if (constantNewStr != null) {
+                            ReplaceCaptureUntilDelimiter.Idiom idiom = ReplaceCaptureUntilDelimiter.extract(regexPattern, constantNewStr);
+                            if (idiom != null) {
+                                // Idiom-matched: a hand-written byte scan replaces the regex engine entirely
+                                // (no UTF-8 decode, no codepoint counting) -- see ReplaceCaptureUntilDelimiter.
+                                return new ReplaceCaptureUntilDelimiterEvaluator.Factory(source(), strEval, idiom);
+                            }
                             return new ReplaceConstantOrdinalEvaluator.Factory(
                                 source(),
                                 strEval,

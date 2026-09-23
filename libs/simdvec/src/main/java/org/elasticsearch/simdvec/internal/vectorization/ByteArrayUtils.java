@@ -50,6 +50,47 @@ final class ByteArrayUtils {
         return -1;
     }
 
+    /**
+     * Implementation of {@link ESVectorUtilSupport#indexOfAny(byte[], int, int, byte, byte, byte, byte)}
+     * using a SWAR (SIMD Within A Register) word scan for all four markers at once: reject a whole
+     * 8-byte word in one go via the classic "has a zero byte" trick, and only fall to a per-byte scan
+     * within that word (to pin down the exact offset) on the rare word that contains a match.
+     */
+    static int indexOfAny(final byte[] bytes, final int offset, final int len, final byte b0, final byte b1, final byte b2, final byte b3) {
+        final int end = offset + len;
+        int i = offset;
+        final long p0 = compilePattern(b0);
+        final long p1 = compilePattern(b1);
+        final long p2 = compilePattern(b2);
+        final long p3 = compilePattern(b3);
+        final int longCount = len >>> 3;
+        for (int j = 0; j < longCount; j++) {
+            long word = readLongLE(bytes, i);
+            if (hasZeroByte(word ^ p0) || hasZeroByte(word ^ p1) || hasZeroByte(word ^ p2) || hasZeroByte(word ^ p3)) {
+                for (int k = 0; k < Long.BYTES; k++) {
+                    byte c = bytes[i + k];
+                    if (c == b0 || c == b1 || c == b2 || c == b3) {
+                        return i + k - offset;
+                    }
+                }
+            }
+            i += Long.BYTES;
+        }
+        for (; i < end; i++) {
+            byte c = bytes[i];
+            if (c == b0 || c == b1 || c == b2 || c == b3) {
+                return i - offset;
+            }
+        }
+        return -1;
+    }
+
+    /** Classic "has a zero byte" trick: true iff any byte lane of {@code v} is exactly {@code 0x00}. */
+    private static boolean hasZeroByte(long v) {
+        long tmp = (v & 0x7F7F7F7F7F7F7F7FL) + 0x7F7F7F7F7F7F7F7FL;
+        return (~(tmp | v | 0x7F7F7F7F7F7F7F7FL)) != 0;
+    }
+
     static int codePointCount(byte[] bytes, int offset, int length) {
         int pos = offset;
         int limit = offset + length;

@@ -1087,6 +1087,92 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    // -- indexOfAny
+
+    public void testIndexOfAnyBounds() {
+        int iterations = atLeast(50);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(2, 5000);
+            var bytes = new byte[size];
+            byte b0 = (byte) 0x0A, b1 = (byte) 0x0D, b2 = (byte) 0xC2, b3 = (byte) 0xE2;
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfAny(bytes, 0, bytes.length + 1, b0, b1, b2, b3));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfAny(bytes, 1, bytes.length, b0, b1, b2, b3));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfAny(bytes, bytes.length, 1, b0, b1, b2, b3));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfAny(bytes, bytes.length - 1, 2, b0, b1, b2, b3));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOfAny(bytes, randomIntBetween(2, size), bytes.length, b0, b1, b2, b3));
+        }
+    }
+
+    public void testIndexOfAnySimple() {
+        byte b0 = (byte) 0x0A, b1 = (byte) 0x0D, b2 = (byte) 0xC2, b3 = (byte) 0xE2;
+        int iterations = atLeast(50);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(2, 5000);
+            // each of the 4 markers, one at a time, at a random position
+            for (byte marker : new byte[] { b0, b1, b2, b3 }) {
+                var bytes = new byte[size];
+                int markerIdx = randomIntBetween(0, bytes.length - 1);
+                bytes[markerIdx] = marker;
+
+                assertEquals(markerIdx, ESVectorUtil.indexOfAny(bytes, 0, bytes.length, b0, b1, b2, b3));
+                assertEquals(markerIdx, defaultedProvider.getVectorUtilSupport().indexOfAny(bytes, 0, bytes.length, b0, b1, b2, b3));
+                assertEquals(markerIdx, panamaProvider.getVectorUtilSupport().indexOfAny(bytes, 0, bytes.length, b0, b1, b2, b3));
+            }
+
+            // none present
+            var bytes = new byte[size];
+            assertEquals(-1, ESVectorUtil.indexOfAny(bytes, 0, bytes.length, b0, b1, b2, b3));
+            assertEquals(-1, defaultedProvider.getVectorUtilSupport().indexOfAny(bytes, 0, bytes.length, b0, b1, b2, b3));
+            assertEquals(-1, panamaProvider.getVectorUtilSupport().indexOfAny(bytes, 0, bytes.length, b0, b1, b2, b3));
+
+            // present, but outside [offset, offset+length)
+            bytes = new byte[size];
+            bytes[0] = b0;
+            assertEquals(-1, ESVectorUtil.indexOfAny(bytes, 1, bytes.length - 1, b0, b1, b2, b3));
+            assertEquals(-1, defaultedProvider.getVectorUtilSupport().indexOfAny(bytes, 1, bytes.length - 1, b0, b1, b2, b3));
+            assertEquals(-1, panamaProvider.getVectorUtilSupport().indexOfAny(bytes, 1, bytes.length - 1, b0, b1, b2, b3));
+
+            // first match wins when more than one marker is present
+            bytes = new byte[size];
+            bytes[bytes.length - 1] = b3;
+            bytes[bytes.length - 2] = b0;
+            assertEquals(bytes.length - 2, ESVectorUtil.indexOfAny(bytes, 0, bytes.length, b0, b1, b2, b3));
+            assertEquals(bytes.length - 2, defaultedProvider.getVectorUtilSupport().indexOfAny(bytes, 0, bytes.length, b0, b1, b2, b3));
+            assertEquals(bytes.length - 2, panamaProvider.getVectorUtilSupport().indexOfAny(bytes, 0, bytes.length, b0, b1, b2, b3));
+        }
+    }
+
+    public void testIndexOfAnyRandom() {
+        byte b0 = (byte) 0x0A, b1 = (byte) 0x0D, b2 = (byte) 0xC2, b3 = (byte) 0xE2;
+        int iterations = atLeast(50);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(2, 5000);
+            var bytes = new byte[size];
+            random().nextBytes(bytes);
+            byte marker = randomFrom(b0, b1, b2, b3);
+            int markerIdx = randomIntBetween(0, bytes.length - 1);
+            bytes[markerIdx] = marker;
+
+            final int offset = randomIntBetween(0, bytes.length - 2);
+            final int length = randomIntBetween(0, bytes.length - offset);
+            final int expectedIdx = scalarIndexOfAny(bytes, offset, length, b0, b1, b2, b3);
+            assertEquals(expectedIdx, ESVectorUtil.indexOfAny(bytes, offset, length, b0, b1, b2, b3));
+            assertEquals(expectedIdx, defaultedProvider.getVectorUtilSupport().indexOfAny(bytes, offset, length, b0, b1, b2, b3));
+            assertEquals(expectedIdx, panamaProvider.getVectorUtilSupport().indexOfAny(bytes, offset, length, b0, b1, b2, b3));
+        }
+    }
+
+    static int scalarIndexOfAny(byte[] bytes, final int offset, final int length, byte b0, byte b1, byte b2, byte b3) {
+        final int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            byte c = bytes[i];
+            if (c == b0 || c == b1 || c == b2 || c == b3) {
+                return i - offset;
+            }
+        }
+        return -1;
+    }
+
     public void testCodePointCountSimple() {
         assertCodePoint(new BytesRef(""), 0);
         assertCodePoint(new BytesRef("a"), 1); // 1 byte

@@ -4709,9 +4709,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             Holder<Boolean> same = new Holder<>(false);
             branch.forEachDown(Eval.class, eval -> {
+                if (same.get()) {
+                    return;
+                }
                 for (Alias alias : eval.fields()) {
                     if (alias.id().equals(existing.id()) && isConversionOf(alias.child(), convert, inputName)) {
                         same.set(true);
+                        break;
                     }
                 }
             });

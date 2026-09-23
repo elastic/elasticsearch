@@ -73,10 +73,6 @@ CXX_ARM     = $(CLANG_CXX) --target=aarch64-linux-gnu $(LINUX_CXXFLAGS_ARM)
 CXX_X64     = $(CLANG_CXX) --target=x86_64-linux-gnu $(LINUX_CXXFLAGS_X64)
 CXX_WIN     = x86_64-w64-mingw32-clang++
 
-# Windows cross-compilation via llvm-mingw (baked into the toolchain image at
-# /opt/llvm-mingw, prepended to PATH)
-CXX_WIN     = x86_64-w64-mingw32-clang++
-
 # Strip and debug-info commands per target platform
 DARWIN_STRIP    = llvm-strip$(LLVM_SUFFIX) --strip-debug
 LINUX_STRIP     = llvm-strip$(LLVM_SUFFIX) --strip-unneeded

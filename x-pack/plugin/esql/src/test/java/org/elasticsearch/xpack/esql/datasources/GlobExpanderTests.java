@@ -807,6 +807,426 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/year=*/*.parquet", rewritten);
     }
 
+    /**
+     * A closed integral range does not become a brace. The brace is the integer literals, so {@code rating >= 1 AND
+     * rating <= 3} would drop {@code rating=2.5}. The glob stays, and the listing drops folders afterwards.
+     */
+    public void testClosedRangeDoesNotRewriteTheGlob() {
+        String day = "s3://bucket/year=*/month=*/day=*/*.parquet";
+        assertEquals(
+            day,
+            GlobExpander.rewriteGlobWithHints(
+                day,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 15)
+                )
+            )
+        );
+        String month = "s3://bucket/month=*/*.parquet";
+        assertEquals(
+            month,
+            GlobExpander.rewriteGlobWithHints(
+                month,
+                List.of(
+                    hint("month", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 6),
+                    hint("month", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 8)
+                )
+            )
+        );
+        String wide = "s3://bucket/day=*/*.parquet";
+        assertEquals(
+            wide,
+            GlobExpander.rewriteGlobWithHints(
+                wide,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN, 12),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN, 16),
+                    hint("day", PartitionFilterHintExtractor.Operator.NOT_EQUALS, 14)
+                )
+            )
+        );
+        PartitionConfig template = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}");
+        String templated = "s3://bucket/*/*.parquet";
+        assertEquals(
+            templated,
+            GlobExpander.rewriteGlobWithHints(
+                templated,
+                List.of(
+                    hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024),
+                    hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+                ),
+                template
+            )
+        );
+    }
+
+    /**
+     * Point, one-sided, contradictory, and non-integral bounds stay wildcards. They also do not filter the listing,
+     * except a point range ({@code low == high}), which is a real inclusive span.
+     */
+    public void testRewriteGlobWithClosedRangeRefused() {
+        String day = "s3://bucket/day=*/*.parquet";
+        String year = "s3://bucket/year=*/*.parquet";
+        assertEquals(
+            year,
+            GlobExpander.rewriteGlobWithHints(
+                year,
+                List.of(
+                    hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2026),
+                    hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+                )
+            )
+        );
+        assertEquals(
+            day,
+            GlobExpander.rewriteGlobWithHints(day, List.of(hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13)))
+        );
+        assertEquals(
+            day,
+            GlobExpander.rewriteGlobWithHints(day, List.of(hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN, 10)))
+        );
+        assertEquals(
+            day,
+            GlobExpander.rewriteGlobWithHints(
+                day,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 15),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 10)
+                )
+            )
+        );
+        assertEquals(
+            day,
+            GlobExpander.rewriteGlobWithHints(
+                day,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13.0),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 15.0)
+                )
+            )
+        );
+        assertEquals(
+            "s3://bucket/region=*/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/region=*/*.parquet",
+                List.of(
+                    hint("region", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, "M"),
+                    hint("region", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, "P")
+                )
+            )
+        );
+        assertEquals(
+            "s3://bucket/flag=*/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/flag=*/*.parquet",
+                List.of(
+                    hint("flag", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, false),
+                    hint("flag", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, true)
+                )
+            )
+        );
+    }
+
+    /** An existing {@code EQUALS} or {@code IN} hint wins; the range is not intersected into it. */
+    public void testRewriteGlobClosedRangeYieldsToEqualsOrIn() {
+        String pattern = "s3://bucket/year=*/*.parquet";
+        var equalsAndRange = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2030),
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2019)
+        );
+        assertEquals("s3://bucket/year=2019/*.parquet", GlobExpander.rewriteGlobWithHints(pattern, equalsAndRange));
+
+        var inAndRange = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026),
+            hint("year", PartitionFilterHintExtractor.Operator.IN, 2018, 2019)
+        );
+        assertEquals("s3://bucket/year={2018,2019}/*.parquet", GlobExpander.rewriteGlobWithHints(pattern, inAndRange));
+    }
+
+    /**
+     * One list of the same prefix. Folders whose numeric value is outside the span are dropped; a dotted hive segment
+     * ({@code rating=2.5}) is not a partition value, so it stays. Dropping it would type the column integer.
+     */
+    public void testClosedRangeKeepsDecimalHiveFolder() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/rating=1/a.parquet", 100),
+                    entry("s3://bucket/data/rating=2/b.parquet", 100),
+                    entry("s3://bucket/data/rating=2.5/c.parquet", 100),
+                    entry("s3://bucket/data/rating=3/d.parquet", 100),
+                    entry("s3://bucket/data/rating=4/e.parquet", 100)
+                )
+            )
+        );
+        var hints = List.of(
+            hint("rating", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 1),
+            hint("rating", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 3)
+        );
+
+        FileList result = GlobExpander.expand("s3://bucket/data/rating=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(
+            List.of(
+                "s3://bucket/data/rating=1/a.parquet",
+                "s3://bucket/data/rating=2/b.parquet",
+                "s3://bucket/data/rating=2.5/c.parquet",
+                "s3://bucket/data/rating=3/d.parquet"
+            ),
+            paths(result)
+        );
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
+        assertNull("a dotted segment is not a hive partition, so detection bails for the batch", result.partitionMetadata());
+    }
+
+    /** Zero-padded spellings parse as the same integer. A span past 31 values still filters; there is no brace cap. */
+    public void testClosedRangeKeepsPaddedSpellingsAndWideSpans() throws IOException {
+        PrefixAwareStubProvider months = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/month=5/a.parquet", 100),
+                    entry("s3://bucket/data/month=6/b.parquet", 100),
+                    entry("s3://bucket/data/month=06/c.parquet", 100),
+                    entry("s3://bucket/data/month=006/d.parquet", 100),
+                    entry("s3://bucket/data/month=9/e.parquet", 100)
+                )
+            )
+        );
+        var monthHints = List.of(
+            hint("month", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 6),
+            hint("month", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 8)
+        );
+        FileList monthResult = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", months, monthHints, HIVE_ON, MAX, MAX);
+        assertEquals(
+            List.of("s3://bucket/data/month=6/b.parquet", "s3://bucket/data/month=06/c.parquet", "s3://bucket/data/month=006/d.parquet"),
+            paths(monthResult)
+        );
+        assertEquals(DataType.INTEGER, monthResult.partitionMetadata().partitionColumns().get("month"));
+
+        PrefixAwareStubProvider days = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/day=1/a.parquet", 100),
+                    entry("s3://bucket/data/day=32/b.parquet", 100),
+                    entry("s3://bucket/data/day=40/c.parquet", 100)
+                )
+            )
+        );
+        var dayHints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 1),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 32)
+        );
+        FileList dayResult = GlobExpander.expand("s3://bucket/data/day=*/*.parquet", days, dayHints, HIVE_ON, MAX, MAX);
+        assertEquals(List.of("s3://bucket/data/day=1/a.parquet", "s3://bucket/data/day=32/b.parquet"), paths(dayResult));
+    }
+
+    /** {@code low == high} filters. {@code !=} stays in the row filter and does not punch a hole in the listing. */
+    public void testClosedRangePointSpanAndNotEquals() throws IOException {
+        PrefixAwareStubProvider years = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/year=2025/a.parquet", 100),
+                    entry("s3://bucket/data/year=2026/b.parquet", 100),
+                    entry("s3://bucket/data/year=02026/c.parquet", 100)
+                )
+            )
+        );
+        var point = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2026),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+        );
+        FileList pointResult = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", years, point, HIVE_ON, MAX, MAX);
+        assertEquals(List.of("s3://bucket/data/year=2026/b.parquet", "s3://bucket/data/year=02026/c.parquet"), paths(pointResult));
+
+        PrefixAwareStubProvider days = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/day=13/a.parquet", 100),
+                    entry("s3://bucket/data/day=14/b.parquet", 100),
+                    entry("s3://bucket/data/day=15/c.parquet", 100)
+                )
+            )
+        );
+        var withNotEquals = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 15),
+            hint("day", PartitionFilterHintExtractor.Operator.NOT_EQUALS, 14)
+        );
+        FileList kept = GlobExpander.expand("s3://bucket/data/day=*/*.parquet", days, withNotEquals, HIVE_ON, MAX, MAX);
+        assertEquals(
+            List.of("s3://bucket/data/day=13/a.parquet", "s3://bucket/data/day=14/b.parquet", "s3://bucket/data/day=15/c.parquet"),
+            paths(kept)
+        );
+    }
+
+    /**
+     * A keyword sibling widens the level, and a kind mismatch is not an exclusion. One-sided, contradictory, and
+     * non-integral bounds do not filter. Detection off does not filter.
+     */
+    public void testClosedRangeDoesNotFilterUndecidableOrDisabled() throws IOException {
+        PrefixAwareStubProvider mixed = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/rating=1/a.parquet", 100),
+                    entry("s3://bucket/data/rating=9/b.parquet", 100),
+                    entry("s3://bucket/data/rating=abc/c.parquet", 100)
+                )
+            )
+        );
+        var range = List.of(
+            hint("rating", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 1),
+            hint("rating", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 3)
+        );
+        FileList mixedResult = GlobExpander.expand("s3://bucket/data/rating=*/*.parquet", mixed, range, HIVE_ON, MAX, MAX);
+        assertEquals(3, mixedResult.fileCount());
+
+        PrefixAwareStubProvider days = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(entry("s3://bucket/data/day=1/a.parquet", 100), entry("s3://bucket/data/day=99/b.parquet", 100))
+            )
+        );
+        String pattern = "s3://bucket/data/day=*/*.parquet";
+        assertEquals(
+            2,
+            GlobExpander.expand(
+                pattern,
+                days,
+                List.of(hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13)),
+                HIVE_ON,
+                MAX,
+                MAX
+            ).fileCount()
+        );
+        assertEquals(
+            2,
+            GlobExpander.expand(
+                pattern,
+                days,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 15),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 10)
+                ),
+                HIVE_ON,
+                MAX,
+                MAX
+            ).fileCount()
+        );
+        assertEquals(
+            2,
+            GlobExpander.expand(
+                pattern,
+                days,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13.0),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 15.0)
+                ),
+                HIVE_ON,
+                MAX,
+                MAX
+            ).fileCount()
+        );
+        assertEquals(
+            2,
+            GlobExpander.expand(
+                pattern,
+                days,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 1),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 3)
+                ),
+                HIVE_OFF,
+                MAX,
+                MAX
+            ).fileCount()
+        );
+    }
+
+    /** {@code EQUALS} outside the range still lists that key. The range must not drop it afterwards. */
+    public void testClosedRangeYieldsToEqualsInTheListing() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/year=2019/", List.of(entry("s3://bucket/data/year=2019/a.parquet", 100)))
+        );
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2030),
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2019)
+        );
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+        assertEquals(List.of("s3://bucket/data/year=2019/a.parquet"), paths(result));
+    }
+
+    /**
+     * A template year can be {@code 2024.5}. That file stays, types the column double, and {@code 2023} is dropped.
+     * The glob is not rewritten, so the list is still one prefix.
+     */
+    public void testClosedRangeOnTemplateKeepsDecimalYear() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/logs/",
+                List.of(
+                    entry("s3://bucket/logs/2023/a.parquet", 100),
+                    entry("s3://bucket/logs/2024/b.parquet", 100),
+                    entry("s3://bucket/logs/2024.5/c.parquet", 100),
+                    entry("s3://bucket/logs/2026/d.parquet", 100)
+                )
+            )
+        );
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+        );
+        Map<String, Object> templateSettings = Map.of(
+            PartitionConfig.CONFIG_PARTITIONING_DETECTION,
+            "template",
+            PartitionConfig.CONFIG_PARTITIONING_PATH,
+            "{year}"
+        );
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, templateSettings, MAX, MAX);
+
+        assertEquals(
+            List.of("s3://bucket/logs/2024/b.parquet", "s3://bucket/logs/2024.5/c.parquet", "s3://bucket/logs/2026/d.parquet"),
+            paths(result)
+        );
+        assertEquals(List.of("s3://bucket/logs/"), provider.listedPrefixes);
+        assertEquals(DataType.DOUBLE, result.partitionMetadata().partitionColumns().get("year"));
+    }
+
+    /**
+     * The glob is unchanged, so the closed range has to ride the listing identity or a filtered query poisons the
+     * unfiltered cache. A one-sided bound does not filter and shares the unhinted key.
+     */
+    public void testListingCacheDiscriminatorReflectsClosedIntegralRange() {
+        String pattern = "s3://bucket/year=*/*.parquet";
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON);
+        var closed = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+        );
+        String closedKey = GlobExpander.listingCacheDiscriminator(pattern, closed, HIVE_ON);
+        assertNotEquals(unhinted, closedKey);
+        assertThat(closedKey, containsString("year=*"));
+        assertThat(closedKey, not(containsString("year={2024,2025,2026}")));
+        assertThat(closedKey, containsString("GREATER_THAN_OR_EQUAL"));
+
+        var open = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024));
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, open, HIVE_ON));
+        assertEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_OFF),
+            GlobExpander.listingCacheDiscriminator(pattern, closed, HIVE_OFF)
+        );
+    }
+
     public void testRewriteGlobMultipleHints() {
         var hints = List.of(
             hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024),
@@ -890,7 +1310,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testRewriteGlobWithTemplateRangeHintsNoRewrite() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
-        // Range hints are not rewritable, so pattern should be unchanged
+        // A one-sided range is not a closed span, so the template slot stays a wildcard.
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         assertEquals("s3://bucket/*/*/*.parquet", rewritten);
     }
@@ -1617,7 +2037,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * The property the listing cache key rests on: equal discriminators must mean equal listings. Hints reach the
-     * listing through the glob rewrite and the {@code _file.*} filters, and nothing else. This catches a new listing
+     * listing through the glob rewrite, the {@code _file.*} filters, and a closed numeric range. This catches a new listing
      * channel added to the expansion but not the discriminator — <b>only for the hint shapes and configs below</b>,
      * so extend {@code hintSets} and {@code configs} whenever a new channel or hint kind is introduced, or it can
      * slip through.
@@ -1639,6 +2059,10 @@ public class GlobExpanderTests extends ESTestCase {
             List.of(),
             List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024)),
             List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            List.of(
+                hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2025),
+                hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2025)
+            ),
             List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us")),
             List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet")),
             List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 150))
@@ -2068,6 +2492,7 @@ public class GlobExpanderTests extends ESTestCase {
         }
 
         private final Map<String, List<StorageEntry>> listingsByPrefix;
+        final List<String> listedPrefixes = new ArrayList<>();
         boolean throwOnUnknownPrefix = false;
         int listCallCount = 0;
 
@@ -2093,6 +2518,7 @@ public class GlobExpanderTests extends ESTestCase {
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
             listCallCount++;
+            listedPrefixes.add(prefix.toString());
             List<StorageEntry> entries = listingsByPrefix.get(prefix.toString());
             if (entries == null) {
                 if (throwOnUnknownPrefix) {

@@ -167,7 +167,7 @@ public final class EsqlQueryLog {
                         : "TimeSpanMarker [" + timeSpanMarker.name() + "] was started but not stopped before query logging";
                     continue;
                 }
-                String namePrefix = ELASTICSEARCH_QUERYLOG_PREFIX + timeSpanMarker.name();
+                String namePrefix = ELASTICSEARCH_QUERYLOG_PREFIX + "." + timeSpanMarker.name();
                 fieldMap.put(namePrefix + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX, timeTook.nanos());
                 fieldMap.put(namePrefix + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX, timeTook.millis());
             }

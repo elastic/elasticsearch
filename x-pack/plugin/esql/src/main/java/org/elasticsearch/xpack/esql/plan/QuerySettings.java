@@ -30,6 +30,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -299,6 +300,48 @@ public final class QuerySettings {
     @Nullable
     public static QuerySettingDef<?> lookup(String name) {
         return BY_NAME.get(name);
+    }
+
+    /**
+     * One setting as the user supplied it, for diagnostics. {@code value} is the parsed value when the
+     * setting came from the request body and the unresolved value {@link Expression} when it came from
+     * in-query {@code SET} — the two surfaces are captured before resolution merges them.
+     */
+    public record SuppliedSetting(String name, Object value, boolean fromRequestBody) {}
+
+    /**
+     * Every setting the user supplied, across both surfaces — the request body and in-query {@code SET}.
+     * A setting supplied on both surfaces is listed twice on purpose: this feeds diagnostics, where seeing
+     * both is more informative than implying a precedence. Ordered by name so that two log lines for the
+     * same query are comparable.
+     */
+    public static List<SuppliedSetting> supplied(
+        Map<QuerySettingDef<?>, Object> requestSettings,
+        @Nullable List<QuerySetting> statementSettings
+    ) {
+        List<SuppliedSetting> out = new ArrayList<>();
+        for (Map.Entry<QuerySettingDef<?>, Object> entry : requestSettings.entrySet()) {
+            out.add(new SuppliedSetting(entry.getKey().name(), entry.getValue(), true));
+        }
+        if (statementSettings != null) {
+            for (QuerySetting setting : statementSettings) {
+                out.add(new SuppliedSetting(setting.name(), setting.value(), false));
+            }
+        }
+        out.sort(Comparator.comparing(SuppliedSetting::name).thenComparing(SuppliedSetting::fromRequestBody));
+        return out;
+    }
+
+    /**
+     * Whether this setting's values come from a closed domain that cannot carry user data — an enum
+     * constant, a boolean, a number — and may therefore appear verbatim in an anonymized diagnostic.
+     * Derived from the declared default so that a newly added setting is classified without a separate
+     * declaration to forget. A setting with no declared default, or with a free-form one such as a zone
+     * id or a routing pattern, is treated as user-supplied text, which is the safe answer.
+     */
+    public static boolean hasClosedValueDomain(QuerySettingDef<?> def) {
+        Object declaredDefault = def.defaultValue();
+        return declaredDefault instanceof Enum<?> || declaredDefault instanceof Boolean || declaredDefault instanceof Number;
     }
 
     private QuerySettings() {}

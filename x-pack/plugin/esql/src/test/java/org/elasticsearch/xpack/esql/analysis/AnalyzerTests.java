@@ -122,6 +122,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -6878,8 +6879,9 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * FORK outputs reference attributes, which carry no mapping analyzer, so a HIGHLIGHT after it neither asks for a key
-     * nor warns. Inside a branch the key is threaded, and the branch's alignment projection keeps it out of FORK's output.
+     * FORK outputs reference attributes, which carry no mapping, so a HIGHLIGHT after it gets the mapping the branches
+     * agree on, and the key is threaded into every branch. Inside a branch the key is threaded too, and the branch's
+     * alignment projection keeps it out of FORK's output. UNION ALL is threaded the same way.
      */
     public void testHighlightPerIndexAnalyzerAndFork() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
@@ -6888,13 +6890,63 @@ public class AnalyzerTests extends AnalyzerTestCase {
             | FORK (WHERE book_no == "1") (WHERE book_no == "2")
             | HIGHLIGHT "ring" ON title
             """);
-        assertNull(soleHighlight(plan).indexKey());
+        Highlight highlight = soleHighlight(plan);
+        assertThat(as(highlight.fields().getFirst(), ReferenceAttribute.class).name(), equalTo("title"));
+        assertThat(highlight.fieldMappings().get("title").analyzerGroups(), hasSize(2));
+        Attribute key = highlight.indexKey();
+        assertNotNull(key);
+        assertTrue(key.synthetic());
+        Fork fork = plan.collect(Fork.class).getFirst();
+        assertThat(fork.output(), hasItem(key));
+        for (LogicalPlan branch : fork.children()) {
+            assertThat(fieldNames(branch.output()).getLast(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+        }
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
 
         plan = booksWithConflictingTitleAnalyzer().query("FROM books* | FORK (HIGHLIGHT \"ring\" ON title) (WHERE book_no == \"2\")");
         assertNotNull(soleHighlight(plan).indexKey());
         assertThat(fieldNames(plan.collect(Fork.class).getFirst().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
         assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
         assertWarnings();
+
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM (FROM books* | WHERE book_no == "1"), (FROM books* | WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON title
+            """);
+        highlight = soleHighlight(plan);
+        assertNotNull(highlight.indexKey());
+        assertThat(plan.collect(UnionAll.class).getFirst().output(), hasItem(highlight.indexKey()));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /**
+     * A branch that computes the column leaves no one mapping to carry, so HIGHLIGHT falls back and says the branches
+     * disagree. A branch with STATS agrees on the mapping but has no source index per row, so the key is not threaded.
+     */
+    public void testHighlightAfterForkFallsBack() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (WHERE book_no == "1") (EVAL title = title)
+            | HIGHLIGHT "ring" ON title
+            """);
+        Highlight highlight = soleHighlight(plan);
+        assertThat(highlight.fieldMappings().get("title").unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.BRANCH_CONFLICT));
+        assertNull(highlight.indexKey());
+        assertWarnings(highlightFallbackWarning("title", "the FORK or UNION ALL branches disagree on the analyzer for this column"));
+
+        plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (WHERE book_no == "1") (STATS c = COUNT(*) BY title)
+            | HIGHLIGHT "ring" ON title
+            """);
+        highlight = soleHighlight(plan);
+        assertThat(highlight.fieldMappings().get("title").unknownAnalyzer(), equalTo(TextEsField.UnknownAnalyzer.CONFLICT));
+        assertNull(highlight.indexKey());
+        assertThat(fieldNames(plan.collect(Fork.class).getFirst().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings(analyzerConflictFallbackWarning("title"));
     }
 
     private static String analyzerConflictFallbackWarning(String field) {

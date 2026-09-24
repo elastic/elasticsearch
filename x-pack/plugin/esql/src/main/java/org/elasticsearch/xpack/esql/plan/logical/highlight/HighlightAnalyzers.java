@@ -34,9 +34,10 @@ import static org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders.DEFAUL
 
 /**
  * Analyzer used to tokenize each HIGHLIGHT ON field.
- * WITH {@code analyzer} applies to every field. Otherwise a mapped text field uses {@link TextEsField#analyzerName},
- * a TO_TEXT column uses its declared analyzer, and anything else uses {@code standard}. When the queried indices
- * disagree on a field's analyzer and the row's {@code _index} is available, each index uses its own analyzer.
+ * WITH {@code analyzer} applies to every field. Otherwise a mapped text field, or a FORK or UNION ALL column merged
+ * from mapped fields, uses {@link TextEsField#analyzerName}, a TO_TEXT column uses its declared analyzer, and anything
+ * else uses {@code standard}. When the queried indices disagree on a field's analyzer and the row's {@code _index} is
+ * available, each index uses its own analyzer.
  */
 public final class HighlightAnalyzers {
 
@@ -58,11 +59,13 @@ public final class HighlightAnalyzers {
      * A mapping analyzer that fails to resolve on this node falls back to {@code standard} and emits a warning
      * through {@code warnings}. Names typed by the user ({@code WITH}, {@code TO_TEXT}) still throw.
      *
+     * @param fieldMappings the mapping of each ON column that FORK or UNION ALL merged from mapped fields, by name
      * @param perIndex whether the operator will know each row's index, so disagreeing indices can each use their own
      *                 analyzer instead of falling back to {@code standard}
      */
     public static Resolved resolve(
         List<? extends NamedExpression> onFields,
+        Map<String, TextEsField> fieldMappings,
         @Nullable String commandAnalyzerName,
         @Nullable AnalysisRegistry analysisRegistry,
         boolean perIndex,
@@ -73,7 +76,7 @@ public final class HighlightAnalyzers {
         Map<String, Map<String, NamedAnalyzer>> overridesByIndex = new TreeMap<>();
         for (NamedExpression field : onFields) {
             String name = field.name();
-            List<IndexAnalyzerGroup> groups = perIndex ? analyzerGroups(field) : null;
+            List<IndexAnalyzerGroup> groups = perIndex ? analyzerGroups(field, fieldMappings) : null;
             if (commandAnalyzer != null) {
                 defaults.put(name, commandAnalyzer);
             } else if (groups != null) {
@@ -92,7 +95,7 @@ public final class HighlightAnalyzers {
                         .forEach(index -> overridesByIndex.computeIfAbsent(index, k -> new LinkedHashMap<>()).put(name, analyzer));
                 }
             } else {
-                defaults.put(name, analyzerOf(field, analysisRegistry, warnings));
+                defaults.put(name, analyzerOf(field, fieldMappings, analysisRegistry, warnings));
             }
         }
         // Unlike an IndexAnalyzerGroup, which covers one field, indices share an analysis group only when they end up
@@ -127,23 +130,39 @@ public final class HighlightAnalyzers {
     }
 
     /** Which indices use which analyzer when the queried indices disagree on a mapped text field, otherwise {@code null}. */
-    public static @Nullable List<IndexAnalyzerGroup> analyzerGroups(NamedExpression field) {
-        EsField esField = field instanceof FieldAttribute fa ? fa.field() : null;
+    public static @Nullable List<IndexAnalyzerGroup> analyzerGroups(NamedExpression field, Map<String, TextEsField> fieldMappings) {
+        TextEsField text = mappingOf(field, fieldMappings);
+        return text == null ? null : text.analyzerGroups();
+    }
+
+    /**
+     * The text mapping {@code field} is analyzed with: a mapped field's own, or the one {@code fieldMappings} carries for
+     * a column FORK or UNION ALL merged from mapped fields. {@code null} for any other column.
+     */
+    public static @Nullable TextEsField mappingOf(NamedExpression field, Map<String, TextEsField> fieldMappings) {
+        EsField esField = field instanceof FieldAttribute fa ? fa.field() : fieldMappings.get(field.name());
         // Partially unmapped fields stay wrapped until UnionTypesCleanup.
         if (esField instanceof PotentiallyUnmappedSingleTypeEsField punk) {
             esField = punk.mappedField();
         }
-        return esField instanceof TextEsField text ? text.analyzerGroups() : null;
+        return esField instanceof TextEsField text ? text : null;
     }
 
-    private static NamedAnalyzer analyzerOf(NamedExpression field, @Nullable AnalysisRegistry analysisRegistry, Consumer<String> warnings) {
-        // Only a FieldAttribute still carries the mapping analyzer. RENAME and EVAL produce a ReferenceAttribute,
-        // which keeps a TO_TEXT analyzer but not a mapping one, so a renamed mapped field falls back to standard.
-        if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text) {
+    private static NamedAnalyzer analyzerOf(
+        NamedExpression field,
+        Map<String, TextEsField> fieldMappings,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Consumer<String> warnings
+    ) {
+        // RENAME and EVAL produce a ReferenceAttribute, which keeps a TO_TEXT analyzer but not a mapping one, so a
+        // renamed mapped field falls back to standard.
+        TextEsField text = mappingOf(field, fieldMappings);
+        if (text != null) {
             String fallbackReason = switch (text.unknownAnalyzer()) {
                 case NONE -> null;
                 case CONFLICT -> "the queried indices disagree on the analyzer for this field";
                 case INDEX_LOCAL -> INDEX_LOCAL_REASON;
+                case BRANCH_CONFLICT -> "the FORK or UNION ALL branches disagree on the analyzer for this column";
             };
             return mappingAnalyzer(
                 field.name(),

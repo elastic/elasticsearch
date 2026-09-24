@@ -169,6 +169,43 @@ public class HighlightAnalyzersTests extends ESTestCase {
         }
     }
 
+    /**
+     * A FORK or UNION ALL column is a {@link ReferenceAttribute}, so its mapping comes from the carried map, by name. A
+     * carried conflict resolves per index just like a mapped field's.
+     */
+    public void testMergedColumnUsesCarriedMapping() {
+        ReferenceAttribute title = declaredField("title", null);
+        List<String> warnings = new ArrayList<>();
+        Map<String, TextEsField> whitespace = Map.of("title", textMapping("title", "whitespace", 0, TextEsField.UnknownAnalyzer.NONE));
+        Resolved resolved = resolve(List.of(title), whitespace, null, false, warnings);
+        assertThat(names(resolved.analysisGroups().getFirst()), contains("whitespace"));
+        assertThat(resolved.analysisGroups().getFirst().get("title").getPositionIncrementGap("title"), equalTo(0));
+
+        Map<String, TextEsField> conflicting = Map.of("title", (TextEsField) conflictingField("title").field());
+        resolved = resolve(List.of(title), conflicting, null, true, warnings);
+        assertThat(resolved.groupByIndex(), equalTo(Map.of("books", 1, "books_english", 2, "books_english_2", 2)));
+        assertThat(warnings, empty());
+    }
+
+    // Branches that disagree on the column's mapping, or where one computes it, fall back to standard and say why.
+    public void testMergedColumnBranchConflictFallsBackAndWarns() {
+        List<String> warnings = new ArrayList<>();
+        Map<String, TextEsField> mappings = Map.of(
+            "title",
+            textMapping("title", null, DEFAULT_POSITION_INCREMENT_GAP, TextEsField.UnknownAnalyzer.BRANCH_CONFLICT)
+        );
+        Resolved resolved = resolve(List.of(declaredField("title", null)), mappings, null, randomBoolean(), warnings);
+        assertThat(names(resolved.analysisGroups().getFirst()), contains("standard"));
+        assertThat(
+            warnings,
+            contains(
+                containsString(
+                    "HIGHLIGHT on [title] falls back to [standard]: the FORK or UNION ALL branches disagree on the analyzer for this column"
+                )
+            )
+        );
+    }
+
     /** A {@code title} field whose analyzer name never reached the coordinator, for the given reason. */
     private static FieldAttribute unknownAnalyzerField(TextEsField.UnknownAnalyzer unknown) {
         return textField("title", null, DEFAULT_POSITION_INCREMENT_GAP, unknown);
@@ -193,7 +230,17 @@ public class HighlightAnalyzersTests extends ESTestCase {
     }
 
     private static Resolved resolve(List<? extends NamedExpression> fields, String withAnalyzer, boolean perIndex, List<String> warnings) {
-        return HighlightAnalyzers.resolve(fields, withAnalyzer, TEST_ANALYSIS_REGISTRY, perIndex, warnings::add);
+        return resolve(fields, Map.of(), withAnalyzer, perIndex, warnings);
+    }
+
+    private static Resolved resolve(
+        List<? extends NamedExpression> fields,
+        Map<String, TextEsField> fieldMappings,
+        String withAnalyzer,
+        boolean perIndex,
+        List<String> warnings
+    ) {
+        return HighlightAnalyzers.resolve(fields, fieldMappings, withAnalyzer, TEST_ANALYSIS_REGISTRY, perIndex, warnings::add);
     }
 
     private static List<String> names(NamedExpression... onFields) {
@@ -213,11 +260,11 @@ public class HighlightAnalyzersTests extends ESTestCase {
     }
 
     private static FieldAttribute textField(String name, String analyzerName, int gap, TextEsField.UnknownAnalyzer unknown) {
-        return new FieldAttribute(
-            EMPTY,
-            name,
-            new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName, gap, unknown, null)
-        );
+        return new FieldAttribute(EMPTY, name, textMapping(name, analyzerName, gap, unknown));
+    }
+
+    private static TextEsField textMapping(String name, String analyzerName, int gap, TextEsField.UnknownAnalyzer unknown) {
+        return new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName, gap, unknown, null);
     }
 
     private static FieldAttribute textFieldWithGroups(String name, IndexAnalyzerGroup... groups) {

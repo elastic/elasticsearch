@@ -19,11 +19,14 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
@@ -46,6 +49,8 @@ public class HighlightExec extends UnaryExec {
     private final List<Attribute> generatedFields;
     /** See {@link org.elasticsearch.xpack.esql.plan.logical.Highlight#indexKey()}. */
     private final @Nullable Attribute indexKey;
+    /** See {@link org.elasticsearch.xpack.esql.plan.logical.Highlight#fieldMappings()}. */
+    private final Map<String, TextEsField> fieldMappings;
 
     public HighlightExec(
         Source source,
@@ -55,7 +60,8 @@ public class HighlightExec extends UnaryExec {
         List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields,
-        @Nullable Attribute indexKey
+        @Nullable Attribute indexKey,
+        Map<String, TextEsField> fieldMappings
     ) {
         super(source, child);
         this.prefix = prefix;
@@ -64,6 +70,7 @@ public class HighlightExec extends UnaryExec {
         this.options = options;
         this.generatedFields = generatedFields;
         this.indexKey = indexKey;
+        this.fieldMappings = fieldMappings;
     }
 
     private HighlightExec(StreamInput in) throws IOException {
@@ -78,7 +85,8 @@ public class HighlightExec extends UnaryExec {
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)
                 ? in.readOptionalNamedWriteable(Attribute.class)
-                : null
+                : null,
+            in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readImmutableMap(EsField::readFrom) : Map.of()
         );
     }
 
@@ -92,8 +100,9 @@ public class HighlightExec extends UnaryExec {
         out.writeOptionalNamedWriteable(options);
         out.writeNamedWriteableCollection(generatedFields);
         if (out.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)) {
-            // The analyzer only sets the key when every node supports this version.
+            // The analyzer only sets the key and the mappings when every node supports this version.
             out.writeOptionalNamedWriteable(indexKey);
+            out.writeMap(fieldMappings, (o, mapping) -> mapping.writeTo(o));
         }
     }
 
@@ -126,6 +135,10 @@ public class HighlightExec extends UnaryExec {
         return indexKey;
     }
 
+    public Map<String, TextEsField> fieldMappings() {
+        return fieldMappings;
+    }
+
     @Override
     public List<Attribute> output() {
         return mergeOutputAttributes(generatedFields, child().output());
@@ -139,17 +152,17 @@ public class HighlightExec extends UnaryExec {
 
     @Override
     public HighlightExec replaceChild(PhysicalPlan newChild) {
-        return new HighlightExec(source(), newChild, prefix, query, fields, options, generatedFields, indexKey);
+        return new HighlightExec(source(), newChild, prefix, query, fields, options, generatedFields, indexKey, fieldMappings);
     }
 
     @Override
     protected NodeInfo<HighlightExec> info() {
-        return NodeInfo.create(this, HighlightExec::new, child(), prefix, query, fields, options, generatedFields, indexKey);
+        return NodeInfo.create(this, HighlightExec::new, child(), prefix, query, fields, options, generatedFields, indexKey, fieldMappings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), prefix, query, fields, options, generatedFields, indexKey);
+        return Objects.hash(super.hashCode(), prefix, query, fields, options, generatedFields, indexKey, fieldMappings);
     }
 
     @Override
@@ -163,6 +176,7 @@ public class HighlightExec extends UnaryExec {
             && Objects.equals(fields, other.fields)
             && Objects.equals(options, other.options)
             && Objects.equals(generatedFields, other.generatedFields)
-            && Objects.equals(indexKey, other.indexKey);
+            && Objects.equals(indexKey, other.indexKey)
+            && Objects.equals(fieldMappings, other.fieldMappings);
     }
 }

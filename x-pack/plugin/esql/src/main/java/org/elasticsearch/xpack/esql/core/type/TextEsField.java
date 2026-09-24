@@ -46,7 +46,12 @@ public class TextEsField extends EsField {
         /** Indices disagree on the name or {@code position_increment_gap}. */
         CONFLICT,
         /** Every reported name was withheld because it is defined under {@code index.analysis}. */
-        INDEX_LOCAL
+        INDEX_LOCAL,
+        /**
+         * FORK or UNION ALL branches disagree on the mapping of a column they merge, or one computes it. Only set on the
+         * mappings HIGHLIGHT carries across a merge, never by field caps.
+         */
+        BRANCH_CONFLICT
     }
 
     private final @Nullable String analyzerName;

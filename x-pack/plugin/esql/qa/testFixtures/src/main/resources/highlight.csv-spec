@@ -2160,6 +2160,49 @@ Return of the King Being the Third Part of The Lord of the Rings | Return of the
 ;
 
 
+# FORK's merged title carries no mapping of its own, so HIGHLIGHT uses the mapping analyzer both branches agree on:
+# english stems "Rings", so "ring" matches it.
+highlightMappingAnalyzerAfterFork
+required_capability: highlight_per_index_analyzer
+required_capability: fork_v9
+
+FROM books_english
+| WHERE book_no == "2714" OR book_no == "2936"
+| FORK (WHERE book_no == "2714")
+       (WHERE book_no == "2936")
+| HIGHLIGHT "ring" ON title
+| KEEP _fork, book_no, highlight_title
+| SORT _fork
+;
+
+_fork:keyword | book_no:keyword | highlight_title:keyword
+fork1         | 2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# After FORK over indices that disagree on title's analyzer, each branch still knows its rows' index, so every row is
+# highlighted with its own: the books_english rows match "Rings", the books row does not. No warning.
+highlightPerIndexAnalyzerAfterFork
+required_capability: highlight_per_index_analyzer
+required_capability: fork_v9
+
+FROM books,books_english
+| WHERE book_no == "2714"
+| FORK (WHERE MATCH(title, "ring"))
+       (WHERE MATCH(title, "return"))
+| HIGHLIGHT "ring" ON title
+| KEEP _fork, highlight_title
+| SORT _fork, highlight_title
+;
+
+_fork:keyword | highlight_title:keyword
+fork1         | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | null
+;
+
+
 # After STATS a row has no single source index, so HIGHLIGHT uses standard and emits a warning.
 # "ring" matches "Ring", not "Rings".
 highlightPerIndexAnalyzerAfterStatsFallsBackToStandard

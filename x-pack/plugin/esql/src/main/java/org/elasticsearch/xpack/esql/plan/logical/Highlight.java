@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
@@ -119,6 +121,11 @@ public class Highlight extends UnaryPlan
      * analyzer so each row can be highlighted with its own index's analyzer. {@code null} otherwise.
      */
     private final @Nullable Attribute indexKey;
+    /**
+     * The mapping of each ON column that FORK or UNION ALL merged from mapped text fields, by name: the merged column is a
+     * {@link ReferenceAttribute}, which does not carry it. Set by the analyzer, empty otherwise.
+     */
+    private final Map<String, TextEsField> fieldMappings;
 
     public Highlight(
         Source source,
@@ -130,7 +137,8 @@ public class Highlight extends UnaryPlan
         List<NamedExpression> fields,
         MapExpression options,
         List<Attribute> generatedFields,
-        @Nullable Attribute indexKey
+        @Nullable Attribute indexKey,
+        Map<String, TextEsField> fieldMappings
     ) {
         super(source, child);
         this.prefix = prefix;
@@ -141,6 +149,7 @@ public class Highlight extends UnaryPlan
         this.options = options;
         this.generatedFields = generatedFields;
         this.indexKey = indexKey;
+        this.fieldMappings = fieldMappings;
     }
 
     private Highlight(StreamInput in) throws IOException {
@@ -157,7 +166,8 @@ public class Highlight extends UnaryPlan
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)
                 ? in.readOptionalNamedWriteable(Attribute.class)
-                : null
+                : null,
+            in.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS) ? in.readImmutableMap(EsField::readFrom) : Map.of()
         );
     }
 
@@ -184,8 +194,9 @@ public class Highlight extends UnaryPlan
         out.writeOptionalNamedWriteable(options);
         out.writeNamedWriteableCollection(generatedFields);
         if (out.getTransportVersion().supports(ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)) {
-            // The analyzer only sets the key when every node supports this version.
+            // The analyzer only sets the key and the mappings when every node supports this version.
             out.writeOptionalNamedWriteable(indexKey);
+            out.writeMap(fieldMappings, (o, mapping) -> mapping.writeTo(o));
         }
     }
 
@@ -222,6 +233,10 @@ public class Highlight extends UnaryPlan
         return indexKey;
     }
 
+    public Map<String, TextEsField> fieldMappings() {
+        return fieldMappings;
+    }
+
     /** Whether WITH sets {@code analyzer}, which then applies to every row instead of each field's mapping analyzer. */
     public boolean hasAnalyzerOption() {
         return options != null && options.get(ANALYZER) != null;
@@ -248,7 +263,19 @@ public class Highlight extends UnaryPlan
         MapExpression options,
         List<Attribute> generatedFields
     ) {
-        return new Highlight(source(), child, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields, indexKey);
+        return new Highlight(
+            source(),
+            child,
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            fields,
+            options,
+            generatedFields,
+            indexKey,
+            fieldMappings
+        );
     }
 
     public Highlight withOptions(MapExpression newOptions) {
@@ -258,10 +285,22 @@ public class Highlight extends UnaryPlan
         return copy(child(), query, fields, newOptions, generatedFields);
     }
 
-    /** The key must be in {@code newChild}'s output. */
-    public Highlight withIndexKey(LogicalPlan newChild, Attribute key) {
-        assert newChild.outputSet().contains(key) : "HIGHLIGHT index key must be in the child output";
-        return new Highlight(source(), newChild, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields, key);
+    /** A non-null {@code key} must be in {@code newChild}'s output. */
+    public Highlight withIndexKeyAndMappings(LogicalPlan newChild, @Nullable Attribute key, Map<String, TextEsField> newFieldMappings) {
+        assert key == null || newChild.outputSet().contains(key) : "HIGHLIGHT index key must be in the child output";
+        return new Highlight(
+            source(),
+            newChild,
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            fields,
+            options,
+            generatedFields,
+            key,
+            newFieldMappings
+        );
     }
 
     /**
@@ -284,7 +323,8 @@ public class Highlight extends UnaryPlan
             newFields,
             options,
             newGeneratedFields,
-            indexKey
+            indexKey,
+            fieldMappings
         );
     }
 
@@ -313,7 +353,8 @@ public class Highlight extends UnaryPlan
             fields,
             options,
             generatedFields,
-            indexKey
+            indexKey,
+            fieldMappings
         );
     }
 
@@ -421,6 +462,7 @@ public class Highlight extends UnaryPlan
             // TO_TEXT declarations may not have been verified yet.
             HighlightAnalyzers.Resolved resolved = HighlightAnalyzers.resolve(
                 fields,
+                fieldMappings,
                 commandAnalyzerName,
                 analysisRegistry,
                 indexKey != null,
@@ -523,11 +565,23 @@ public class Highlight extends UnaryPlan
             && Objects.equals(fields, other.fields)
             && Objects.equals(options, other.options)
             && Objects.equals(generatedFields, other.generatedFields)
-            && Objects.equals(indexKey, other.indexKey);
+            && Objects.equals(indexKey, other.indexKey)
+            && Objects.equals(fieldMappings, other.fieldMappings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), prefix, query, implicitQuery, derivedFields, fields, options, generatedFields, indexKey);
+        return Objects.hash(
+            super.hashCode(),
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            fields,
+            options,
+            generatedFields,
+            indexKey,
+            fieldMappings
+        );
     }
 }

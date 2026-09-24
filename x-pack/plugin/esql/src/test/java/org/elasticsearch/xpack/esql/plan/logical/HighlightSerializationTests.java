@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -17,12 +18,14 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomTextEsField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -46,7 +49,8 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             fields,
             randomNonNullOptions(),
             generatedFor(prefix, fields),
-            randomIndexKey()
+            randomIndexKey(),
+            randomFieldMappings()
         );
     }
 
@@ -60,8 +64,9 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
         List<NamedExpression> fields = instance.fields();
         MapExpression options = instance.options();
         Attribute indexKey = instance.indexKey();
+        Map<String, TextEsField> fieldMappings = instance.fieldMappings();
 
-        switch (between(0, 7)) {
+        switch (between(0, 8)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> prefix = randomValueOtherThan(prefix, HighlightSerializationTests::randomPrefix);
             case 2 -> query = randomValueOtherThan(query, HighlightSerializationTests::randomQuery);
@@ -70,6 +75,7 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             case 5 -> fields = randomValueOtherThan(fields, HighlightSerializationTests::randomFields);
             case 6 -> options = randomValueOtherThan(options, HighlightSerializationTests::randomOptions);
             case 7 -> indexKey = randomValueOtherThan(indexKey, HighlightSerializationTests::randomIndexKey);
+            case 8 -> fieldMappings = randomValueOtherThan(fieldMappings, HighlightSerializationTests::randomFieldMappings);
         }
         return new Highlight(
             instance.source(),
@@ -81,7 +87,8 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             fields,
             options,
             generatedFor(prefix, fields),
-            indexKey
+            indexKey,
+            fieldMappings
         );
     }
 
@@ -126,7 +133,8 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
             fields,
             null,
             generatedFor(prefix, fields),
-            null
+            null,
+            Map.of()
         );
     }
 
@@ -141,6 +149,11 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
     // Set only when the queried indices disagree on an analyzer, so cover both cases.
     private static Attribute randomIndexKey() {
         return randomBoolean() ? null : randomReferenceAttribute(false);
+    }
+
+    // Set only for ON columns merged by FORK or UNION ALL, so cover the empty map too.
+    private static Map<String, TextEsField> randomFieldMappings() {
+        return randomMap(0, 3, () -> Tuple.tuple(randomIdentifier(), randomTextEsField(0)));
     }
 
     private static List<Attribute> generatedFor(String prefix, List<NamedExpression> fields) {

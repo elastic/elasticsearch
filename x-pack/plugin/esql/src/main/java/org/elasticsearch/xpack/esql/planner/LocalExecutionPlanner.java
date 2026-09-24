@@ -1636,6 +1636,7 @@ public class LocalExecutionPlanner {
 
         HighlightAnalyzers.Resolved resolved = HighlightAnalyzers.resolve(
             highlight.fields(),
+            highlight.fieldMappings(),
             analyzerName,
             context.analysisRegistry(),
             highlight.indexKey() != null,

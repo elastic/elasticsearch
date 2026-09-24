@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -14,12 +15,15 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomTextEsField;
 
 public class HighlightExecSerializationTests extends AbstractPhysicalPlanSerializationTests<HighlightExec> {
 
@@ -37,7 +41,8 @@ public class HighlightExecSerializationTests extends AbstractPhysicalPlanSeriali
             fields,
             randomNonNullOptions(),
             generatedFor(prefix, fields),
-            randomIndexKey()
+            randomIndexKey(),
+            randomFieldMappings()
         );
     }
 
@@ -49,21 +54,38 @@ public class HighlightExecSerializationTests extends AbstractPhysicalPlanSeriali
         List<NamedExpression> fields = instance.fields();
         MapExpression options = instance.options();
         Attribute indexKey = instance.indexKey();
+        Map<String, TextEsField> fieldMappings = instance.fieldMappings();
 
-        switch (between(0, 5)) {
+        switch (between(0, 6)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> prefix = randomValueOtherThan(prefix, HighlightExecSerializationTests::randomPrefix);
             case 2 -> query = randomValueOtherThan(query, HighlightExecSerializationTests::randomQuery);
             case 3 -> fields = randomValueOtherThan(fields, HighlightExecSerializationTests::randomFields);
             case 4 -> options = randomValueOtherThan(options, HighlightExecSerializationTests::randomOptions);
             case 5 -> indexKey = randomValueOtherThan(indexKey, HighlightExecSerializationTests::randomIndexKey);
+            case 6 -> fieldMappings = randomValueOtherThan(fieldMappings, HighlightExecSerializationTests::randomFieldMappings);
         }
-        return new HighlightExec(instance.source(), child, prefix, query, fields, options, generatedFor(prefix, fields), indexKey);
+        return new HighlightExec(
+            instance.source(),
+            child,
+            prefix,
+            query,
+            fields,
+            options,
+            generatedFor(prefix, fields),
+            indexKey,
+            fieldMappings
+        );
     }
 
     // Set only when the queried indices disagree on an analyzer, so cover both cases.
     private static Attribute randomIndexKey() {
         return randomBoolean() ? null : randomReferenceAttribute(false);
+    }
+
+    // Set only for ON columns merged by FORK or UNION ALL, so cover the empty map too.
+    private static Map<String, TextEsField> randomFieldMappings() {
+        return randomMap(0, 3, () -> Tuple.tuple(randomIdentifier(), randomTextEsField(0)));
     }
 
     private static String randomPrefix() {

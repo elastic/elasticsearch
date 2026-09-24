@@ -125,7 +125,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           boolean vValue = vBlock.getBoolean(vOffset);
-          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+          MaxBooleanAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -142,7 +142,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         boolean vValue = vVector.getBoolean(valuesPosition);
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxBooleanAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -189,7 +189,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), max.getBoolean(valuesPosition)));
+          MaxBooleanAggregator.combine(state, groupId, max.getBoolean(valuesPosition));
         }
       }
     }
@@ -212,7 +212,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           boolean vValue = vBlock.getBoolean(vOffset);
-          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+          MaxBooleanAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -229,7 +229,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         boolean vValue = vVector.getBoolean(valuesPosition);
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxBooleanAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -276,7 +276,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), max.getBoolean(valuesPosition)));
+          MaxBooleanAggregator.combine(state, groupId, max.getBoolean(valuesPosition));
         }
       }
     }
@@ -293,7 +293,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxBooleanAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -303,7 +303,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       boolean vValue = vVector.getBoolean(valuesPosition);
-      state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+      MaxBooleanAggregator.combine(state, groupId, vValue);
     }
   }
 
@@ -343,7 +343,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), max.getBoolean(valuesPosition)));
+        MaxBooleanAggregator.combine(state, groupId, max.getBoolean(valuesPosition));
       }
     }
   }

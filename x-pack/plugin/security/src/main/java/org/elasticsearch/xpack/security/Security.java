@@ -187,6 +187,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAct
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.stats.GetSecurityStatsAction;
@@ -295,6 +296,7 @@ import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccoun
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.security.action.service.TransportPutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.security.action.service.TransportQueryServiceAccountAction;
 import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
@@ -424,6 +426,7 @@ import org.elasticsearch.xpack.security.rest.action.service.RestDeleteUserManage
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestPutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestQueryServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.settings.RestGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.settings.RestUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.stats.RestSecurityStatsAction;
@@ -519,11 +522,6 @@ public class Security extends Plugin
         null,
         "security-auditing",
         License.OperationMode.GOLD
-    );
-    public static final LicensedFeature.Momentary TOKEN_SERVICE_FEATURE = LicensedFeature.momentary(
-        null,
-        "security-token-service",
-        License.OperationMode.STANDARD
     );
 
     private static final String REALMS_FEATURE_FAMILY = "security-realms";
@@ -851,7 +849,6 @@ public class Security extends Plugin
             settings,
             Clock.systemUTC(),
             client,
-            getLicenseState(),
             securityContext.get(),
             systemIndices.getMainIndexManager(),
             systemIndices.getTokenIndexManager(),
@@ -1888,6 +1885,7 @@ public class Security extends Plugin
             new ActionHandler(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
             new ActionHandler(GetServiceAccountNodesCredentialsAction.INSTANCE, TransportGetServiceAccountNodesCredentialsAction.class),
             new ActionHandler(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
+            new ActionHandler(QueryServiceAccountAction.INSTANCE, TransportQueryServiceAccountAction.class),
             new ActionHandler(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
             new ActionHandler(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
             new ActionHandler(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
@@ -1987,6 +1985,7 @@ public class Security extends Plugin
             new RestDeleteUserManagedServiceAccountAction(settings, getLicenseState(), userManagedServiceAccountsAvailable),
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
+            new RestQueryServiceAccountAction(settings, getLicenseState(), userManagedServiceAccountsAvailable),
             new RestKibanaEnrollAction(settings, getLicenseState()),
             new RestNodeEnrollmentAction(settings, getLicenseState()),
             new RestProfileHasPrivilegesAction(settings, getLicenseState()),

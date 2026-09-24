@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -170,7 +171,9 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         // Target node has a max of 2 concurrent recoveries slots. Source has a limit of 1.
         // This creates target active=2, target queued=1, source active=1, source queued=1.
         final var targetNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 2).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                .build()
         );
         final var targetTelemetry = resetAndGetTelemetryPlugin(targetNode);
         final var sourceTelemetry = resetAndGetTelemetryPlugin(sourceNode);
@@ -385,7 +388,9 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
 
     public void testRecoveryMetricsOnThrottledStoreRecovery() {
         final var node = internalCluster().startNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final var telemetry = resetAndGetTelemetryPlugin(node);
 
@@ -428,7 +433,6 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             node,
             telemetry,
             Map.of(RecoveryMetricsCollector.CURRENT_STORE_RECOVERIES, 0L, RecoveryMetricsCollector.QUEUED_STORE_RECOVERIES, 0L)
-
         );
     }
 
@@ -480,12 +484,20 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat("Direct cancellation measurements after pre-queued cancellation", cancellations, hasSize(1));
         assertThat(cancellations.getFirst().attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
         assertThat(cancellations.getFirst().attributes().get("es_recovery_scheduling_state"), equalTo("QUEUED"));
+        assertThat(cancellations.getFirst().attributes().get("es_recovery_stage"), equalTo("CREATED"));
+        assertThat(
+            "Direct cancellation elapsed time measurements",
+            nodeTelemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_WORK_TIME_METRIC),
+            empty()
+        );
     }
 
     public void testDirectCancellationMetricsQueuedAndStarted() throws Exception {
         final var node1 = internalCluster().startNode();
         final var node2 = internalCluster().startNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final var node2Telemetry = resetAndGetTelemetryPlugin(node2);
 
@@ -570,6 +582,12 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat("Direct cancellation measurements after queued store cancellation", cancellations, hasSize(1));
         assertThat(cancellations.getFirst().attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
         assertThat(cancellations.getFirst().attributes().get("es_recovery_scheduling_state"), equalTo("QUEUED"));
+        assertThat(cancellations.getFirst().attributes().get("es_recovery_stage"), equalTo("CREATED"));
+        assertThat(
+            "Direct cancellation elapsed time measurements",
+            node2Telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_WORK_TIME_METRIC),
+            empty()
+        );
 
         // Directly cancel the queued PEER recovery.
         final var queuedPeerShardId = new ShardId(resolveIndex(indexOne), 0);
@@ -595,7 +613,13 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             .findFirst()
             .orElseThrow();
         assertThat(queuedPeerMeasurement.attributes().get("es_recovery_scheduling_state"), equalTo("QUEUED"));
+        assertThat(queuedPeerMeasurement.attributes().get("es_recovery_stage"), equalTo("CREATED"));
         assertThat(queuedPeerMeasurement.getLong(), equalTo(1L));
+        assertThat(
+            "Direct cancellation elapsed time measurements",
+            node2Telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_WORK_TIME_METRIC),
+            empty()
+        );
 
         // Directly cancel the started recovery
         final var startedShardId = new ShardId(resolveIndex(indexTwo), 0);
@@ -622,7 +646,13 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             .findFirst()
             .orElseThrow();
         assertThat(startedMeasurement.attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
+        assertThat(startedMeasurement.attributes().get("es_recovery_stage"), equalTo("INIT"));
         assertThat(startedMeasurement.getLong(), equalTo(1L));
+        List<Measurement> cancellationsElapsedTime = node2Telemetry.getLongHistogramMeasurement(
+            RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_WORK_TIME_METRIC
+        );
+        assertThat("Direct cancellation elapsed time measurements", cancellationsElapsedTime, hasSize(1));
+        assertThat(cancellationsElapsedTime.getFirst().getLong(), greaterThanOrEqualTo(0L));
     }
 
     private TestTelemetryPlugin resetAndGetTelemetryPlugin(String node) {

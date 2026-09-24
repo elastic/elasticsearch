@@ -41,13 +41,16 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.ColumnarStringMatchQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
+import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -236,6 +239,17 @@ public enum StringFormat {
         };
     }
 
+    /** What each shape leaves behind, chosen to match what it names: a forced shape is not told to hold back. */
+    private SummaryPolicy summaryPolicy() {
+        return switch (this) {
+            case COLUMNAR -> ColumNARDocValuesFormat.DEFAULT_SUMMARY_POLICY;
+            case COLUMNAR_DICTIONARY -> new SummaryPolicy(4 << 20);
+            // Nothing is surveyed where no dictionary is allowed, so there is nothing to leave behind either.
+            case COLUMNAR_PLAIN -> SummaryPolicy.NONE;
+            default -> throw new IllegalStateException("not a columnar format: " + this);
+        };
+    }
+
     private Codec codecFor() {
         final DocValuesFormat dv = switch (this) {
             case LUCENE_SORTED -> new Lucene90DocValuesFormat();
@@ -246,7 +260,8 @@ public enum StringFormat {
                 (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
                 field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                dictionaryPolicy()
+                dictionaryPolicy(),
+                summaryPolicy()
             );
         };
         return new Elasticsearch96Codec() {
@@ -265,7 +280,8 @@ public enum StringFormat {
             (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            dictionaryPolicy()
+            dictionaryPolicy(),
+            summaryPolicy()
         );
         final Codec codec = new Elasticsearch96Codec() {
             @Override
@@ -352,6 +368,9 @@ public enum StringFormat {
 
         /** The prefix as a query, the shape of {@code LIKE "x*"}. */
         long queryPrefix(BytesRef prefix) throws IOException;
+
+        /** Documents whose value falls in {@code [lower, upper]}, inclusive. */
+        long queryRange(BytesRef lower, BytesRef upper) throws IOException;
     }
 
     /**
@@ -396,7 +415,7 @@ public enum StringFormat {
 
         @Override
         public long queryTerm(BytesRef term) throws IOException {
-            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.term(FIELD, term));
+            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.term(FIELD, term, ScanBudget.UNLIMITED));
         }
 
         @Override
@@ -407,7 +426,27 @@ public enum StringFormat {
 
         @Override
         public long queryPrefix(BytesRef prefix) throws IOException {
-            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.prefix(FIELD, prefix));
+            return bulkCount(
+                searcher,
+                directoryReader.leaves().get(0),
+                ColumnarStringTermQuery.prefix(FIELD, prefix, ScanBudget.UNLIMITED)
+            );
+        }
+
+        @Override
+        public long queryRange(BytesRef lower, BytesRef upper) throws IOException {
+            final BytesRef low = BytesRef.deepCopyOf(lower);
+            final BytesRef high = BytesRef.deepCopyOf(upper);
+            final String identity = "range=[" + low + "," + high + "]";
+            final Query query = new ColumnarStringMatchQuery(FIELD, value -> {
+                final int cmpLow = value.compareTo(low);
+                if (cmpLow < 0) {
+                    return false;
+                }
+                final int cmpHigh = value.compareTo(high);
+                return cmpHigh <= 0;
+            }, identity, ScanBudget.UNLIMITED);
+            return bulkCount(searcher, directoryReader.leaves().get(0), query);
         }
 
         private static long count(DocIdSetIterator matches) throws IOException {
@@ -663,6 +702,22 @@ public enum StringFormat {
         }
 
         @Override
+        public long queryRange(BytesRef lower, BytesRef upper) throws IOException {
+            if (format == ES819_BINARY) {
+                final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+                long found = 0;
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    final BytesRef value = values.binaryValue();
+                    if (value.compareTo(lower) >= 0 && value.compareTo(upper) <= 0) {
+                        found++;
+                    }
+                }
+                return found;
+            }
+            return bulkCount(searcher, reader.leaves().get(0), SortedDocValuesField.newSlowRangeQuery(FIELD, lower, upper, true, true));
+        }
+
+        @Override
         public long matchPrefix(BytesRef prefix) throws IOException {
             if (format == ES819_BINARY) {
                 final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
@@ -809,7 +864,7 @@ public enum StringFormat {
         long checksum;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             // One hash a distinct value rather than one a document, which is the whole point of the page
             // coming back as ordinals.
             for (int i = 0; i < dictionarySize; i++) {
@@ -821,7 +876,7 @@ public enum StringFormat {
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int count) {
+        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 checksum += StringFormat.group(groups, values[i]);
             }
@@ -832,14 +887,14 @@ public enum StringFormat {
         long checksum;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             for (int i = 0; i < count; i++) {
                 checksum += dictionary[ordinals[i]].length;
             }
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int count) {
+        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 checksum += values[i].length;
             }
@@ -853,7 +908,7 @@ public enum StringFormat {
         long checksum;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             if (groupOf.length < dictionarySize) {
                 groupOf = new int[dictionarySize];
             }
@@ -866,7 +921,7 @@ public enum StringFormat {
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int count) {
+        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 checksum += group(groups, values[i]);
             }

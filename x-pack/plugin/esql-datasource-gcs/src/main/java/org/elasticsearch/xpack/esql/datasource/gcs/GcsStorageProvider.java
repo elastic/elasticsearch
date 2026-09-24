@@ -26,9 +26,11 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -36,6 +38,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -93,6 +96,16 @@ public class GcsStorageProvider implements StorageProvider {
     }
 
     /**
+     * Test-only: accepts a configuration and pre-built Storage client.
+     * Use when the test needs a non-null config (e.g. to exercise auth-mode short-circuits in
+     * {@code testConnection()}) but wants to supply a mock or null client to avoid network calls.
+     */
+    GcsStorageProvider(GcsConfiguration config, Storage storage) {
+        this.config = config;
+        this.storage = storage;
+    }
+
+    /**
      * Returns the Storage client, building it lazily on first access if needed.
      * This allows the plugin to load successfully even when no GCS credentials are configured;
      * the error is deferred to when a gs:// query is actually executed.
@@ -145,6 +158,39 @@ public class GcsStorageProvider implements StorageProvider {
                     + e.getMessage(),
                 e
             );
+        }
+    }
+
+    /**
+     * Tests connectivity by listing at most one bucket with the configured credentials.
+     * Requires {@code storage.buckets.list} at the project level. A bucket-scoped probe
+     * (e.g. {@code storage().get(bucketName)}) is not possible here because the data source
+     * settings carry only credentials and project metadata — the bucket name lives in the
+     * data source URI, not in {@link GcsConfiguration}.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     */
+    public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "GCS anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public buckets; create a dataset to validate read access."
+            );
+        }
+        try {
+            storage().list(Storage.BucketListOption.pageSize(1));
+        } catch (StorageException e) {
+            if (e.getCode() == 403) {
+                // A 403 on list-buckets means the credentials are valid but have bucket-scoped
+                // IAM policies that deny the account-wide listing call. This is not a connectivity
+                // failure — the credentials work, they just lack the list-all-buckets privilege.
+                // Under the false-negative avoidance principle, report UNTESTABLE with guidance
+                // rather than FAILURE, which would prompt the user to "fix" working credentials.
+                throw new TestConnectionNotSupportedException(
+                    "GCS returned 403 Forbidden on list-buckets; credentials may be bucket-scoped",
+                    "Bucket-scoped service accounts cannot be verified at the data source level; create a dataset to validate access."
+                );
+            }
+            throw e;
         }
     }
 
@@ -246,6 +292,55 @@ public class GcsStorageProvider implements StorageProvider {
         }
 
         return new GcsStorageIterator(storage(), bucket, objectPrefix, prefix, recursive);
+    }
+
+    @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        validateGcsScheme(prefix);
+        String bucket = prefix.host();
+        String objectPrefix = extractObjectName(prefix);
+        if (objectPrefix.isEmpty() == false && objectPrefix.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+            objectPrefix += StoragePath.PATH_SEPARATOR;
+        }
+
+        List<StorageEntry> files = new ArrayList<>();
+        List<StoragePath> directories = new ArrayList<>();
+        String pathPrefix = bucketPathPrefix(prefix.scheme(), bucket);
+        try {
+            var page = storage().list(bucket, Storage.BlobListOption.prefix(objectPrefix), Storage.BlobListOption.currentDirectory());
+            for (Blob blob : page.iterateAll()) {
+                if (files.size() + directories.size() >= limit) {
+                    return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
+                }
+                String name = blob.getName();
+                if (name.endsWith(StoragePath.PATH_SEPARATOR)) {
+                    // With currentDirectory(), a "/"-terminated name is a subdirectory pseudo-object; the listing
+                    // prefix's own marker is not a child and is skipped.
+                    if (name.equals(objectPrefix) == false) {
+                        directories.add(StoragePath.of(pathPrefix + name.substring(0, name.length() - 1)));
+                    }
+                    continue;
+                }
+                files.add(toStorageEntry(blob, pathPrefix));
+            }
+        } catch (Exception e) {
+            throw new IOException(
+                "Failed to list children in bucket [" + bucket + "] with prefix [" + objectPrefix + "]: " + GcsFailureDetail.of(e),
+                e
+            );
+        }
+        return new StorageChildren(files, directories);
+    }
+
+    /** The {@code scheme://bucket/} prefix full object paths are built from, shared with {@link GcsStorageIterator}. */
+    private static String bucketPathPrefix(String scheme, String bucket) {
+        return scheme + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR;
+    }
+
+    /** One conversion from an SDK blob to a {@link StorageEntry}, shared by both listing shapes. */
+    private static StorageEntry toStorageEntry(Blob blob, String pathPrefix) {
+        Instant lastModified = blob.getUpdateTimeOffsetDateTime() != null ? blob.getUpdateTimeOffsetDateTime().toInstant() : null;
+        return new StorageEntry(StoragePath.of(pathPrefix + blob.getName()), blob.getSize(), lastModified);
     }
 
     @Override
@@ -398,13 +493,7 @@ public class GcsStorageProvider implements StorageProvider {
                 if (blob.getName().endsWith(StoragePath.PATH_SEPARATOR)) {
                     continue;
                 }
-                String fullPath = baseDirectory.scheme() + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR + blob
-                    .getName();
-                StoragePath objectPath = StoragePath.of(fullPath);
-
-                Instant lastModified = blob.getUpdateTimeOffsetDateTime() != null ? blob.getUpdateTimeOffsetDateTime().toInstant() : null;
-
-                return new StorageEntry(objectPath, blob.getSize(), lastModified);
+                return toStorageEntry(blob, bucketPathPrefix(baseDirectory.scheme(), bucket));
             }
             return null;
         }

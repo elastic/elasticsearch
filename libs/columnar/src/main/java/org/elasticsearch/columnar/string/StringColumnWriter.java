@@ -10,6 +10,7 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -19,11 +20,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.columnar.numeric.NumericBlockEncoder;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericColumnWriter;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
@@ -52,20 +55,20 @@ import java.util.List;
  */
 public final class StringColumnWriter {
 
-    /**
-     * Ordinals are packed a block at a time to the width the block needs, so this is how far a run of
-     * narrow ordinals has to reach before a single wide one stops widening it.
-     */
-    private static final int ORDINAL_BLOCK_SIZE = 128;
+    /** Blocks of ordinals read to decide whether compressing them pays, so the trial costs a block or two. */
+    private static final int ORDINAL_TRIAL_BLOCKS = 2;
+
+    /** How much of what packing them costs compressing them has to save before the larger block is worth it. */
+    private static final double ORDINAL_TRIAL_GAIN = 0.5;
 
     /** Terms to a block in the dictionary, so the stream records an offset for every term. */
     private static final int TERMS_PER_BLOCK = 1;
 
     /**
-     * Values per entry in the escape-rank table, which bounds the count of escapes before a value to one
-     * block's worth of ordinals.
+     * What closes a chunk of the dictionary. The terms are stored as they are and each is read where it lies,
+     * so nothing decompresses a chunk to reach one and only the size of the chunk index is at stake.
      */
-    static final int ESCAPE_RANK_BLOCK = 128;
+    private static final ChunkBounds DICTIONARY_CHUNKS = ChunkBounds.ofBytes(32 * 1024);
 
     private StringColumnWriter() {}
 
@@ -73,19 +76,19 @@ public final class StringColumnWriter {
      * Encodes a string column into {@code data}: iterator metadata, the block-encoded values, then the block
      * offset table; returns the metadata needed to reconstruct the column at read time.
      *
-     * @param maxDoc           documents in the segment
-     * @param numDocsWithField documents that have at least one slot
-     * @param numValues        total number of slots across all documents, null slots included
-     * @param numNullSlots     how many of those slots are null; the null-slot table is written only when
-     *                         this is positive
-     * @param cursors          supplies fresh forward cursors over the documents that have a slot; called
-     *                         once for the iterator and once for the values
-     * @param valuesPerBlock   values behind one offset in the byte stream
-     * @param chunkCodec       how a chunk of the byte stream is compressed
-     * @param targetChunkBytes bytes a chunk holds before it is closed
-     * @param directory        directory used for the temporary table files
-     * @param context          IO context for the temporary table files
-     * @param data             data output (iterator, value blocks, and the tables are appended)
+     * @param maxDoc                    documents in the segment
+     * @param numDocsWithField          documents that have at least one slot
+     * @param numValues                 total number of slots across all documents, null slots included
+     * @param numNullSlots              how many of those slots are null; the null-slot table is written only when
+     *                                  this is positive
+     * @param cursors                   supplies fresh forward cursors over the documents that have a slot; called
+     *                                  once for the iterator and once for the values
+     * @param options                   how the column is written: its dictionary policy, its chunk codec and
+     *                                  the units its streams are sized in
+     * @param known                     a vocabulary already worked out for these values, or null to survey them
+     * @param directory                 directory used for the temporary table files
+     * @param context                   IO context for the temporary table files
+     * @param data                      data output (iterator, value blocks, and the tables are appended)
      */
     public static StringColumnMetadata write(
         int maxDoc,
@@ -93,29 +96,32 @@ public final class StringColumnWriter {
         long numValues,
         long numNullSlots,
         IOSupplier<StringColumnValues> cursors,
-        int valuesPerBlock,
-        ChunkCodec chunkCodec,
-        int targetChunkBytes,
-        DictionaryPolicy policy,
+        StringColumnOptions options,
         Vocabulary.Terms known,
         Directory directory,
         IOContext context,
         IndexOutput data
     ) throws IOException {
+        final DictionaryPolicy dictionaryPolicy = options.dictionary();
+        final SummaryPolicy summaryPolicy = options.summary();
+        final ChunkCodec chunkCodec = options.chunkCodec();
+        final StringColumnOptions.Sizes sizes = options.sizes();
+        final int valuesPerBlock = sizes.valuesPerBlock();
         ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, data);
         if (numDocsWithField == 0) {
             return StringColumnMetadata.empty(iterator);
         }
 
         Vocabulary.Terms surveyed = null;
-        if (policy.enabled()) {
+        if (dictionaryPolicy.enabled()) {
             // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-            // Nulls are named by a reserved ordinal, not by a term, so they are no part of what a dictionary
-            // could cover. Counting them in the denominator would cost a column its dictionary on the
-            // strength of slots no dictionary was ever going to name.
-            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy, numValues - numNullSlots);
+            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), dictionaryPolicy, summaryPolicy);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
-            if (surveyed != null && policy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
+            // NOTE: a vocabulary can hold terms for a merge and none worth an ordinal here, so the size
+            // check is what keeps a bar of zero from admitting an empty dictionary.
+            if (surveyed != null
+                && surveyed.size() > 0
+                && dictionaryPolicy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
                 return withSummary(
                     writeDictionary(
                         iterator,
@@ -125,18 +131,16 @@ public final class StringColumnWriter {
                         cursors,
                         surveyed,
                         surveyed.columnBytes(),
-                        valuesPerBlock,
                         chunkCodec,
-                        targetChunkBytes,
+                        sizes,
                         directory,
                         context,
                         data
                     ),
                     surveyed,
                     numValues,
-                    valuesPerBlock,
                     chunkCodec,
-                    targetChunkBytes,
+                    sizes,
                     directory,
                     context,
                     data
@@ -146,13 +150,19 @@ public final class StringColumnWriter {
 
         // Set false the moment a value is seen out of order; nothing after that can restore it.
         boolean sorted = true;
+        // Whether a page of this column is worth naming its values. Naming costs a hash and a probe apiece and
+        // buys a consumer one entry per distinct value, so it pays where equal values arrive together and buys
+        // nothing where every value differs from the one before it. The stream finds those runs anyway while
+        // sizing its blocks, so what a page could collapse is known without comparing anything twice. A column
+        // written under no dictionary policy was told not to weigh what it repeats, and the page decides.
+        final boolean valuesWorthNaming;
         final ValueStream.Metadata written;
-        final MonotonicWriter.Table valueAddresses;
+        final SlotAddressing addressing;
         final MonotonicWriter.Table nullSlotTable;
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
                 chunkCodec,
-                targetChunkBytes,
+                sizes.plainChunks(),
                 valuesPerBlock,
                 numValues,
                 directory,
@@ -160,7 +170,14 @@ public final class StringColumnWriter {
                 data.getName(),
                 data
             );
-            AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName());
+            AddressingWriter slots = AddressingWriter.open(
+                numDocsWithField,
+                numValues,
+                sizes.slotCountsBlockSize(),
+                directory,
+                context,
+                data.getName()
+            );
             // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
             NullSlotWriter nullSlots = NullSlotWriter.open(numNullSlots, directory, context, data.getName())
         ) {
@@ -200,16 +217,26 @@ public final class StringColumnWriter {
                 }
             }
             written = stream.finish();
-            valueAddresses = slots.finish(valueAddress, data);
+            valuesWorthNaming = dictionaryPolicy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
+            addressing = slots.finish(valueAddress, data);
             nullSlotTable = nullSlots.finish(data);
         }
         return withSummary(
-            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, numNullSlots, valueAddresses, nullSlotTable, written, sorted),
+            StringColumnMetadata.plain(
+                iterator,
+                numDocsWithField,
+                numValues,
+                numNullSlots,
+                addressing,
+                nullSlotTable,
+                written,
+                sorted,
+                valuesWorthNaming
+            ),
             surveyed,
             numValues,
-            valuesPerBlock,
             chunkCodec,
-            targetChunkBytes,
+            sizes,
             directory,
             context,
             data
@@ -217,37 +244,39 @@ public final class StringColumnWriter {
     }
 
     /**
-     * Records the terms the survey found and how often it saw them, so a merge can work out a vocabulary
-     * without reading this segment's values again. A column that stayed plain keeps one too: the survey
-     * already ran, and the segment it merges into may be worth a dictionary where this one was not.
+     * Writes the terms the survey summarised and how often it saw them, so a merge can work out a
+     * vocabulary without reading this segment's values again. A column that stayed plain leaves one too:
+     * the survey already ran, and the segment it merges into may be worth a dictionary where this one was
+     * not.
      *
-     * <p>A dictionary column's terms are already on disk as its dictionary, so only the counts are added.
+     * <p>What it writes is not this column's dictionary but every term within the vocabulary policy's
+     * bound, because a term held once here may be one the merged column holds many times. Where the two
+     * coincide, a dictionary column's terms are already on disk and only the counts are added.
      */
     private static StringColumnMetadata withSummary(
         StringColumnMetadata metadata,
         Vocabulary.Terms vocabulary,
         long numValues,
-        int valuesPerBlock,
         ChunkCodec chunkCodec,
-        int targetChunkBytes,
+        StringColumnOptions.Sizes sizes,
         Directory directory,
         IOContext context,
         IndexOutput data
     ) throws IOException {
-        if (vocabulary == null || vocabulary.counted() == false || vocabulary.size() == 0) {
+        if (vocabulary == null || vocabulary.counted() == false || vocabulary.summarySize() == 0) {
             return metadata;
         }
-        final int size = vocabulary.size();
+        final int size = vocabulary.summarySize();
         ValueStream.Metadata terms = null;
-        if (metadata instanceof StringColumnMetadata.Dictionary column) {
+        if (metadata instanceof StringColumnMetadata.Dictionary column && vocabulary.summaryIsDictionary()) {
             assert column.dictionarySize() == size : column.dictionarySize() + " != " + size;
         } else {
             final BytesRef term = new BytesRef();
             try (
                 ValueStream.Writer writer = new ValueStream.Writer(
                     chunkCodec,
-                    targetChunkBytes,
-                    valuesPerBlock,
+                    sizes.escapeChunks(),
+                    sizes.valuesPerBlock(),
                     size,
                     directory,
                     context,
@@ -256,7 +285,7 @@ public final class StringColumnWriter {
                 )
             ) {
                 for (int ordinal = 0; ordinal < size; ordinal++) {
-                    vocabulary.terms().get(vocabulary.sortedIds()[ordinal], term);
+                    vocabulary.terms().get(vocabulary.summaryIds()[ordinal], term);
                     writer.add(term);
                 }
                 terms = writer.finish();
@@ -264,7 +293,7 @@ public final class StringColumnWriter {
         }
         final long countsOffset = data.getFilePointer();
         for (int ordinal = 0; ordinal < size; ordinal++) {
-            data.writeVLong(vocabulary.countOf(ordinal));
+            data.writeVLong(vocabulary.summaryCountOf(ordinal));
         }
         return metadata.withSummary(new StringColumnMetadata.Summary(terms, countsOffset, data.getFilePointer() - countsOffset, numValues));
     }
@@ -284,13 +313,13 @@ public final class StringColumnWriter {
         IOSupplier<StringColumnValues> cursors,
         Vocabulary.Terms vocabulary,
         long valueBytes,
-        int valuesPerBlock,
         ChunkCodec chunkCodec,
-        int targetChunkBytes,
+        StringColumnOptions.Sizes sizes,
         Directory directory,
         IOContext context,
         IndexOutput data
     ) throws IOException {
+        final int escapeRankBlockSize = sizes.escapeRankBlockSize();
         final int dictionarySize = vocabulary.size();
         // The terms start above the reserved null, and the escape marker sits one past the last of them.
         final int escapeOrdinal = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
@@ -309,7 +338,7 @@ public final class StringColumnWriter {
             // it lies. The offsets are a monotonic table, read off the mapped file.
             ValueStream.Writer writer = new ValueStream.Writer(
                 ChunkCodec.IDENTITY,
-                targetChunkBytes,
+                DICTIONARY_CHUNKS,
                 TERMS_PER_BLOCK,
                 dictionarySize,
                 directory,
@@ -319,7 +348,7 @@ public final class StringColumnWriter {
             )
         ) {
             for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
-                vocabulary.terms().get(vocabulary.sortedIds()[ordinal], scratch);
+                vocabulary.terms().get(vocabulary.dictionaryIds()[ordinal], scratch);
                 writer.add(scratch);
             }
             dictionary = writer.finish();
@@ -334,11 +363,23 @@ public final class StringColumnWriter {
             long index = 0;
             final ValueStream.Metadata escapeStream;
             final MonotonicWriter.Table escapeRanks;
-            final MonotonicWriter.Table valueAddresses;
+            final SlotAddressing addressing;
             try (
-                MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues));
+                MonotonicWriter ranks = new MonotonicWriter(
+                    directory,
+                    context,
+                    data.getName(),
+                    escapeRankEntries(numValues, escapeRankBlockSize)
+                );
                 // Nulls are named by a reserved ordinal below, so this layout keeps no null-slot table.
-                AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName())
+                AddressingWriter slots = AddressingWriter.open(
+                    numDocsWithField,
+                    numValues,
+                    sizes.slotCountsBlockSize(),
+                    directory,
+                    context,
+                    data.getName()
+                )
             ) {
                 // Opened one at a time, each named before the next is asked for: a temporary file that the
                 // one after it fails to open is still a file to delete, and only its name says which.
@@ -355,7 +396,7 @@ public final class StringColumnWriter {
                         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                             slots.startDocument(index);
                             for (int i = 0, count = values.valueCount(); i < count; i++) {
-                                if (index % ESCAPE_RANK_BLOCK == 0) {
+                                if (index % escapeRankBlockSize == 0) {
                                     ranks.add(escapes);
                                 }
                                 values.nextValue();
@@ -423,28 +464,27 @@ public final class StringColumnWriter {
                         ranks.add(escapes);
                     }
                 }
-                valueAddresses = slots.finish(index, data);
-                escapeStream = replayEscapes(
-                    directory,
-                    context,
-                    escapeTempName,
-                    escapes,
-                    chunkCodec,
-                    targetChunkBytes,
-                    valuesPerBlock,
-                    data
-                );
+                addressing = slots.finish(index, data);
+                escapeStream = replayEscapes(directory, context, escapeTempName, escapes, chunkCodec, sizes, data);
                 escapeRanks = escapes == 0 ? MonotonicWriter.Table.NONE : ranks.finish(data);
             }
 
             final String staged = ordinalTempName;
-            final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, () -> {
-                final IndexInput in = directory.openInput(staged, context);
+            // Compressing the ordinals only pays where they repeat, and it takes a larger block to reach
+            // that repetition at all. A sample says which of the two shapes this column's ordinals take.
+            final boolean compressOrdinals = compressionPaysForOrdinals(directory, context, staged, numValues, sizes);
+            final int ordinalBlockSize = compressOrdinals ? sizes.compressedOrdinalBlockSize() : sizes.packedOrdinalBlockSize();
+            // One ordinal a slot, reached by value address: nothing asks the ordinals which document a slot
+            // belongs to, and the string column already tables that, so they table nothing themselves.
+            final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, false, () -> {
+                final IndexInput in = directory.openInput(staged, IOContext.READONCE);
                 replays.add(in);
                 return stagedOrdinals(cursors.get(), in);
             },
-                NumericPipeline.defaultPipeline(ORDINAL_BLOCK_SIZE),
-                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                compressOrdinals
+                    ? NumericPipeline.compressedOrdinalPipeline(ordinalBlockSize)
+                    : NumericPipeline.runsAndOutliersPipeline(ordinalBlockSize),
+                BlockBytesCodec.forId(compressOrdinals ? BlockBytesCodec.ZSTD_ID : BlockBytesCodec.IDENTITY_ID),
                 // The ordinals build no skip index, so nothing is ever written to one.
                 null,
                 directory,
@@ -458,11 +498,12 @@ public final class StringColumnWriter {
                 numValues,
                 numNullSlots,
                 valueBytes,
-                valueAddresses,
+                addressing,
                 dictionary,
                 ordinals,
                 escapeStream,
                 escapeRanks,
+                escapeRankBlockSize,
                 dictionarySize,
                 sorted
             );
@@ -473,8 +514,8 @@ public final class StringColumnWriter {
     }
 
     /** One entry per block of values, plus one past the end. */
-    static long escapeRankEntries(long numValues) {
-        return (numValues + ESCAPE_RANK_BLOCK - 1) / ESCAPE_RANK_BLOCK + 1L;
+    static long escapeRankEntries(long numValues, int escapeRankBlockSize) {
+        return (numValues + escapeRankBlockSize - 1) / escapeRankBlockSize + 1L;
     }
 
     /** Writes the staged escaped values, now that how many of them there are is known. */
@@ -484,19 +525,18 @@ public final class StringColumnWriter {
         String name,
         long count,
         ChunkCodec chunkCodec,
-        int targetChunkBytes,
-        int valuesPerBlock,
+        StringColumnOptions.Sizes sizes,
         IndexOutput data
     ) throws IOException {
         if (count == 0) {
             return ValueStream.Metadata.empty();
         }
         try (
-            IndexInput staged = directory.openInput(name, context);
+            IndexInput staged = directory.openInput(name, IOContext.READONCE);
             ValueStream.Writer writer = new ValueStream.Writer(
                 chunkCodec,
-                targetChunkBytes,
-                valuesPerBlock,
+                sizes.escapeChunks(),
+                sizes.valuesPerBlock(),
                 count,
                 directory,
                 context,
@@ -517,6 +557,69 @@ public final class StringColumnWriter {
             }
             return writer.finish();
         }
+    }
+
+    /**
+     * Whether storing this column's ordinals compressed beats storing them packed. Both sides are priced as
+     * this column would actually write them — compressed through the minimal pipeline, packed through the
+     * run and patched stages, each at its own block size — over the first {@link #ORDINAL_TRIAL_BLOCKS}
+     * blocks of ordinals.
+     *
+     * <p>Packing is what a column falls back to, and those stages already take out the runs and the outliers
+     * a compressor would have found, so a column they handle has to stay packed: the larger block costs a
+     * point read the whole of it.
+     */
+    private static boolean compressionPaysForOrdinals(
+        Directory directory,
+        IOContext context,
+        String staged,
+        long numValues,
+        StringColumnOptions.Sizes sizes
+    ) throws IOException {
+        final int compressedBlockSize = sizes.compressedOrdinalBlockSize();
+        final int trialValues = ORDINAL_TRIAL_BLOCKS * compressedBlockSize;
+        if (numValues < trialValues) {
+            // Too few to hold repetition worth reaching, and too few to fill the larger block.
+            return false;
+        }
+        final long[] sample = new long[trialValues];
+        try (IndexInput in = directory.openInput(staged, context)) {
+            for (int i = 0; i < trialValues; i++) {
+                sample[i] = in.readVInt();
+            }
+        }
+        final long packed = packedOrdinalBytes(sample, sizes.packedOrdinalBlockSize());
+        final long compressed = compressedOrdinalBytes(sample, compressedBlockSize);
+        return packed > 0 && compressed <= packed * ORDINAL_TRIAL_GAIN;
+    }
+
+    /** What {@code sample} occupies under the pipeline and block a packed column is written with. */
+    private static long packedOrdinalBytes(long[] sample, int blockSize) throws IOException {
+        final NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.runsAndOutliersPipeline(blockSize), blockSize);
+        final long[] block = new long[blockSize];
+        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        for (int start = 0; start + blockSize <= sample.length; start += blockSize) {
+            // The encoder transforms the block in place, so each measurement takes its own copy.
+            System.arraycopy(sample, start, block, 0, blockSize);
+            encoder.encode(block, blockSize, out);
+        }
+        return out.size();
+    }
+
+    /** What {@code sample} occupies under the pipeline, block and codec a compressed column is written with. */
+    private static long compressedOrdinalBytes(long[] sample, int blockSize) throws IOException {
+        final NumericBlockEncoder encoder = new NumericBlockEncoder(NumericPipeline.compressedOrdinalPipeline(blockSize), blockSize);
+        final BlockBytesCodec codec = BlockBytesCodec.forId(BlockBytesCodec.ZSTD_ID);
+        final long[] block = new long[blockSize];
+        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        for (int start = 0; start + blockSize <= sample.length; start += blockSize) {
+            final int at = start;
+            codec.write(o -> {
+                System.arraycopy(sample, at, block, 0, blockSize);
+                encoder.encode(block, blockSize, o);
+            }, out);
+        }
+        return out.size();
     }
 
     /** The staged ordinals, over the documents {@code source} walks, so they can be written as a numeric column. */

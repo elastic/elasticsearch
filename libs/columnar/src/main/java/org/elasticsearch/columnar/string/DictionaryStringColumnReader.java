@@ -47,6 +47,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     /** Set when any value escaped the dictionary: their bytes, and where each one's is. */
     private final ValueStream.Reader escapes;
     private final LongValues escapeRanks;
+    /** Values between entries in {@link #escapeRanks}, as the column recorded it. */
+    private final int escapeRankBlockSize;
 
     private final int dictionarySize;
     /** The ordinal marking a value no term names, one past the last term. */
@@ -74,16 +76,18 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         if (column.hasEscapes()) {
             this.escapes = column.escapes().open(data);
             this.escapeCount = column.escapes().numValues();
+            this.escapeRankBlockSize = column.escapeRankBlockSize();
             this.escapeRanks = MonotonicReader.open(
                 data,
                 column.escapeRanks().meta(),
-                StringColumnWriter.escapeRankEntries(column.numValues()),
+                StringColumnWriter.escapeRankEntries(column.numValues(), escapeRankBlockSize),
                 column.escapeRanks().dataOffset(),
                 column.escapeRanks().dataLength()
             );
         } else {
             this.escapes = null;
             this.escapeCount = 0;
+            this.escapeRankBlockSize = 0;
             this.escapeRanks = null;
         }
     }
@@ -163,8 +167,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
      * is nearer.
      */
     private long escapeRankOf(long valueAddress) throws IOException {
-        final long block = valueAddress / StringColumnWriter.ESCAPE_RANK_BLOCK;
-        final long blockStart = block * StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final long block = valueAddress / escapeRankBlockSize;
+        final long blockStart = block * escapeRankBlockSize;
         long at;
         long rank;
         if (escapeCursorAddress >= blockStart && escapeCursorAddress <= valueAddress) {
@@ -235,7 +239,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             // carry several slots, nor on one where a slot may be the reserved null, which names no term.
             return false;
         }
-        growPage(count);
+        growPageDocs(count);
+        growPageValues(count);
         if (ranksOfAll(docs, offset, count) == false) {
             return false;
         }
@@ -331,8 +336,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * Fills a window from the ordinals alone, testing a decoded block of them at a time. Sound only where
-     * nothing escaped: an escaped ordinal says the value is elsewhere, so its bytes still decide it.
+     * Fills a window from the ordinals alone, testing a decoded block of them at a time. Valid only where no
+     * escaped value can match, since the escape ordinal says nothing about the bytes behind it.
      *
      * <p>A document matches on any one of its slots, so this walks the slots the way {@link #matchesRank}
      * does. They are contiguous, so a document's run of them almost always falls inside the block already
@@ -374,8 +379,12 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         final int from = firstTermAtLeast(target, end);
         final int lowOrdinal = from;
         final int highOrdinal = endOfRun(prefix, exact, from, end);
-        // Nothing in the dictionary matches, and nothing escaped, so nothing can.
-        if (lowOrdinal == highOrdinal && escapeCount == 0) {
+        // A value escapes only when no term names it, so an escaped value is never a term the dictionary
+        // holds. An exact term that is in the dictionary is decided by the ordinals alone. A prefix, or an
+        // exact term the dictionary does not hold, can still be carried by an escaped value.
+        final boolean escapesCanMatch = escapeCount > 0 && (exact == null || lowOrdinal == highOrdinal);
+        // Nothing in the dictionary matches, and no escape can, so nothing can.
+        if (lowOrdinal == highOrdinal && escapesCanMatch == false) {
             return DocIdSetIterator.empty();
         }
         final ColumnIterator presence = iterator();
@@ -385,7 +394,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
             @Override
             public boolean matches() throws IOException {
-                return matchesRank(presence.rank(), value, prefix, exact, lowOrdinal, highOrdinal);
+                return matchesRank(presence.rank(), prefix, exact, lowOrdinal, highOrdinal, escapesCanMatch);
             }
 
             @Override
@@ -395,7 +404,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
             @Override
             public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                if (escapeCount > 0) {
+                if (escapesCanMatch) {
                     super.intoBitSet(upTo, bitSet, offset);
                     return;
                 }
@@ -405,10 +414,10 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * Whether any of a document's values matches. The ordinals answer for every value the dictionary holds,
-     * and only an escaped one is resolved to its bytes.
+     * Whether any of a document's values matches. The ordinals decide every value the dictionary names, and
+     * an escaped value is read only when {@code escapesCanMatch}.
      */
-    private boolean matchesRank(int rank, BytesRef value, BytesRef prefix, BytesRef exact, int lowOrdinal, int highOrdinal)
+    private boolean matchesRank(int rank, BytesRef prefix, BytesRef exact, int lowOrdinal, int highOrdinal, boolean escapesCanMatch)
         throws IOException {
         final long first = firstValueAddress(rank);
         final long count = valueCount(rank);
@@ -421,6 +430,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                 if (ordinal >= lowOrdinal && ordinal < highOrdinal) {
                     return true;
                 }
+                continue;
+            }
+            if (escapesCanMatch == false) {
                 continue;
             }
             // Escaped, so only its bytes say what it is.
@@ -474,11 +486,38 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     @Override
-    protected boolean appendPage(int count, StringBlockSink sink) throws IOException {
+    protected boolean appendPage(int docCount, StringBlockSink sink) throws IOException {
+        // Where the page's values are, as addresses. One a document where the column holds one apiece, and otherwise
+        // a document's run of them with its nulls left out, which are no value a page can carry.
+        final int values;
+        if (pageable()) {
+            values = docCount;
+            growPageValues(docCount);
+            for (int i = 0; i < docCount; i++) {
+                pageValueAddresses[i] = pageRanks[i];
+            }
+        } else {
+            values = countPageValues(docCount);
+            growPageValues(Math.max(values, 1));
+            int at = 0;
+            for (int i = 0; i < docCount; i++) {
+                final long first = firstValueAddress(pageRanks[i]);
+                final long held = valueCount(pageRanks[i]);
+                for (long slotOf = 0; slotOf < held; slotOf++) {
+                    final long address = first + slotOf;
+                    if (isNullSlot(address) == false) {
+                        pageValueAddresses[at++] = address;
+                    }
+                }
+            }
+            assert at == values : "addressed " + at + " values, counted " + values;
+        }
+        final int[] counts = pageable() ? null : pageValueCounts;
+
         int escapedInPage = 0;
         final OrdinalBlockCursor cursor = new OrdinalBlockCursor();
-        for (int i = 0; i < count; i++) {
-            final int ordinal = cursor.at(pageRanks[i]);
+        for (int i = 0; i < values; i++) {
+            final int ordinal = cursor.at(pageValueAddresses[i]);
             pageOrdinals[i] = ordinal;
             if (ordinal >= escapeOrdinal) {
                 escapedInPage++;
@@ -486,7 +525,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
 
         // The ordinals this page holds, each once and in order, so a slot can be found by bisecting them.
-        final int distinct = distinctOrdinals(count, dictionarySize);
+        final int distinct = distinctOrdinals(values, dictionarySize);
 
         pageBytesLength = 0;
         int slot = 0;
@@ -495,7 +534,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             appendToPage(slot, scratch);
         }
         startPageSlots(escapedInPage);
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < values; i++) {
             final int ordinal = pageOrdinals[i];
             if (ordinal < escapeOrdinal) {
                 pageOrdinals[i] = slotOf(ordinal, distinct);
@@ -503,7 +542,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                 // Nothing names an escaped value but its bytes, so two documents holding the same ones are
                 // found to share a slot by those bytes. They cannot be found among the terms: a value
                 // escaped because the vocabulary does not hold it.
-                escapes.get(escapeRankOf(pageRanks[i]), scratch);
+                escapes.get(escapeRankOf(pageValueAddresses[i]), scratch);
                 final int found = pageSlotFor(scratch, slot);
                 if (found == slot) {
                     slot++;
@@ -513,15 +552,15 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         point(pageDictionary, slot);
 
-        // A page with as many entries as documents is no shorter as ordinals than as values.
-        if ((long) slot * MIN_PAGE_REPEAT > count) {
-            for (int i = 0; i < count; i++) {
+        // A page with as many entries as values is no shorter as ordinals than as values.
+        if ((long) slot * MIN_PAGE_REPEAT > values) {
+            for (int i = 0; i < values; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, count);
+            sink.appendValues(pageValues, values, counts, docCount);
             return true;
         }
-        sink.appendOrdinals(pageOrdinals, count, pageDictionary, slot);
+        sink.appendOrdinals(pageOrdinals, values, counts, docCount, pageDictionary, slot);
         return true;
     }
 
@@ -537,11 +576,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
      */
     private int distinctOrdinals(int count, int dictionarySize) {
         if (touched.length < count) {
+            charge((long) (count - touched.length) * Integer.BYTES);
             touched = new int[count];
         }
         int distinct = 0;
         if (dictionarySize <= count) {
             if (slotByOrdinal.length < dictionarySize) {
+                charge(2L * (dictionarySize - slotByOrdinal.length) * Integer.BYTES);
                 slotByOrdinal = new int[dictionarySize];
                 stampByOrdinal = new int[dictionarySize];
                 generation = 0;

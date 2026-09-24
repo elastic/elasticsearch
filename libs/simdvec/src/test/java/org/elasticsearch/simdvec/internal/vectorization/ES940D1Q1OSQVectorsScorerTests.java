@@ -14,6 +14,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.BBQTestUtils;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
@@ -52,14 +53,13 @@ public class ES940D1Q1OSQVectorsScorerTests extends BaseVectorizationTests {
                 out.writeBytes(doc, 0, doc.length);
             }
             try (IndexInput in = dir.openInput("v.bin", IOContext.DEFAULT)) {
-                var scalarScorer = new ES940OSQVectorsScorer(in, (byte) 1, (byte) 1, dims, length);
+                var scalarScorer = new ES940OSQVectorsScorer(in, new BBQEncoding(1, 1), dims, length);
                 assertEquals(expected, scalarScorer.quantizeScore(query));
             }
             try (IndexInput in2 = dir.openInput("v.bin", IOContext.DEFAULT)) {
                 var panamaScorer = MemorySegmentES940OSQVectorsScorer.usingPanama(
                     in2,
-                    (byte) 1,
-                    (byte) 1,
+                    new BBQEncoding(1, 1),
                     dims,
                     length,
                     ES940OSQVectorsScorer.BULK_SIZE,
@@ -97,8 +97,7 @@ public class ES940D1Q1OSQVectorsScorerTests extends BaseVectorizationTests {
             try (IndexInput in = dir.openInput("v.bin", IOContext.DEFAULT)) {
                 var nativeScorer = MemorySegmentES940OSQVectorsScorer.usingNative(
                     in,
-                    (byte) 1,
-                    (byte) 1,
+                    new BBQEncoding(1, 1),
                     dims,
                     length,
                     ES940OSQVectorsScorer.BULK_SIZE,

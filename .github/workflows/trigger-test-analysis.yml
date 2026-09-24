@@ -45,7 +45,10 @@ jobs:
             const alreadyReacted = reactions.some(
               (reaction) =>
                 reaction.content === reactionContent &&
-                reaction.user?.type === 'Bot'
+                (
+                  reaction.user?.login === 'github-actions[bot]' ||
+                  reaction.user?.type === 'Bot'
+                )
             );
 
             if (alreadyReacted) {
@@ -64,17 +67,18 @@ jobs:
             // Every other team gets the comment by default.
             const ANALYSIS_COMMENT_OPTOUT_TEAMS = ['Team:Analytics'];
 
-            // Labels that want the `needs:risk` triage label updated based on
-            // the analysis result. Every other team is left untouched.
+            // Labels that want full risk-label reconciliation based on the
+            // analysis result. Every other team gets blocker-only escalation.
             const TRIAGE_LABEL_OPTIN = [];
 
             const issueLabels = context.payload.issue.labels.map((label) => label.name);
 
             const commentOptedOut = issueLabels.some((label) => ANALYSIS_COMMENT_OPTOUT_TEAMS.includes(label));
             const labelUpdateOptedIn = issueLabels.some((label) => TRIAGE_LABEL_OPTIN.includes(label));
+            const triageMode = labelUpdateOptedIn ? 'full' : 'blocker-only';
 
             core.setOutput('reportToPr', !commentOptedOut);
-            core.setOutput('updateNeedsRiskLabel', labelUpdateOptedIn);
+            core.setOutput('triageMode', triageMode);
 
       - name: Trigger Buildkite pipeline
         if: steps.check-processed.outputs.alreadyProcessed != 'true'
@@ -84,17 +88,11 @@ jobs:
           ISSUE_TITLE:  ${{ github.event.issue.title }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           REPORT_TO_PR: ${{ steps.team-config.outputs.reportToPr }}
-          UPDATE_NEEDS_RISK_LABEL: ${{ steps.team-config.outputs.updateNeedsRiskLabel }}
+          ARCHIMEDES_TRIAGE_MODE: ${{ steps.team-config.outputs.triageMode }}
         run: |
           set -euo pipefail
 
           DRY_RUN=$(jq -n --argjson report "$REPORT_TO_PR" '$report | not')
-
-          # archimedes gates the release-risk / needs:risk label mutation on
-          # ARCHIMEDES_SKIP_TRIAGE (it does not read UPDATE_NEEDS_RISK_LABEL).
-          # Translate the opt-in decision here: skip triage unless the team
-          # explicitly opted in to having its risk labels updated.
-          SKIP_TRIAGE=$(jq -n --argjson update "$UPDATE_NEEDS_RISK_LABEL" '$update | not')
 
           BODY=$(jq -n \
             --arg url   "$ISSUE_URL" \
@@ -102,7 +100,7 @@ jobs:
             --arg num   "$ISSUE_NUMBER" \
             --argjson report "$REPORT_TO_PR" \
             --argjson dryRun "$DRY_RUN" \
-            --argjson skipTriage "$SKIP_TRIAGE" \
+            --arg triageMode "$ARCHIMEDES_TRIAGE_MODE" \
             '{
               branch:  "main",
               commit:  "HEAD",
@@ -112,7 +110,7 @@ jobs:
                 WORKFLOW: "test-analysis",
                 REPORT_TO_PR: ($report | tostring),
                 DRY_RUN: ($dryRun | tostring),
-                ARCHIMEDES_SKIP_TRIAGE: ($skipTriage | tostring)
+                ARCHIMEDES_TRIAGE_MODE: $triageMode
               }
             }')
 

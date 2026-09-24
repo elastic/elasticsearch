@@ -11,6 +11,8 @@ package org.elasticsearch.columnar;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -61,19 +63,28 @@ public final class ColumnarStringAutomatonQuery extends Query {
     private final String field;
     private final ByteRunAutomaton automaton;
     private final String description;
+    private final ScanBudget budget;
 
     /**
      * Documents whose value {@code automaton} accepts.
      *
-     * <p>{@code automaton} must be deterministic, as {@link ByteRunAutomaton} requires. {@code description}
-     * stands in for it in {@link #equals}, since an automaton has no equality worth caching on: it has to be
-     * derived from whatever produced the automaton, and two queries carrying the same description have to be
-     * the same query.
+     * <p>{@code automaton} must be deterministic, as {@link ByteRunAutomaton} requires. {@code description} names
+     * what the automaton was built from, for {@link #toString}; what the query is compared and cached on is the
+     * automaton itself, so a caller that spells its parameters differently cannot make two queries collide.
      */
-    public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description) {
+    public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description, ScanBudget budget) {
+        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, budget);
+    }
+
+    /**
+     * As above, for a caller that already compiled the automaton - a fuzzy query, whose {@link ByteRunAutomaton} is built
+     * by the query that defines the edit distance rather than by this one.
+     */
+    public ColumnarStringAutomatonQuery(String field, ByteRunAutomaton automaton, String description, ScanBudget budget) {
         this.field = Objects.requireNonNull(field);
-        this.automaton = new ByteRunAutomaton(Objects.requireNonNull(automaton));
+        this.automaton = Objects.requireNonNull(automaton);
         this.description = Objects.requireNonNull(description);
+        this.budget = Objects.requireNonNull(budget);
     }
 
     /**
@@ -82,18 +93,18 @@ public final class ColumnarStringAutomatonQuery extends Query {
      * <p>{@code foo} is a term, {@code foo*} a prefix and {@code *foo*} a value carrying a run of bytes, and
      * a column answers each of those without an automaton. Anything else is one.
      */
-    public static Query forWildcard(String field, String pattern) {
+    public static Query forWildcard(String field, String pattern, ScanBudget budget) {
         final String whole = literal(pattern);
         if (whole != null) {
-            return ColumnarStringTermQuery.term(field, new BytesRef(whole));
+            return ColumnarStringTermQuery.term(field, new BytesRef(whole), budget);
         }
         final String start = prefix(pattern);
         if (start != null) {
-            return ColumnarStringTermQuery.prefix(field, new BytesRef(start));
+            return ColumnarStringTermQuery.prefix(field, new BytesRef(start), budget);
         }
         final String inside = contained(pattern);
         if (inside != null) {
-            return ColumnarStringTermQuery.contains(field, new BytesRef(inside));
+            return ColumnarStringTermQuery.contains(field, new BytesRef(inside), budget);
         }
         return new ColumnarStringAutomatonQuery(
             field,
@@ -101,7 +112,8 @@ public final class ColumnarStringAutomatonQuery extends Query {
                 WildcardQuery.toAutomaton(new Term(field, pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             ),
-            "pattern=" + pattern
+            "pattern=" + pattern,
+            budget
         );
     }
 
@@ -147,49 +159,59 @@ public final class ColumnarStringAutomatonQuery extends Query {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final LeafReader reader = context.reader();
-                final BinaryDocValues values = reader.getBinaryDocValues(field);
-                if (values == null) {
+                final FieldInfo info = reader.getFieldInfos().fieldInfo(field);
+                if (info == null || info.getDocValuesType() != DocValuesType.BINARY) {
                     // No value for the field in this segment, so nothing here matches.
                     return null;
                 }
-                if (values instanceof StringColumnSource columnar) {
-                    final StringColumnReader column = columnar.reader();
-                    final DocIdSetIterator matches = column.match(value -> automaton.run(value.bytes, value.offset, value.length));
-                    return ConstantScoreScorerSupplier.fromIterator(matches, score(), scoreMode, reader.maxDoc());
-                }
-
-                // An overlay rather than the column, as an updated field is: the values are read one
-                // document at a time and run through the automaton. The surface carries a document's slots as
-                // one payload, so each is run separately and any of them accepted accepts the document.
-                final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
-                final TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
+                return new ConstantScoreScorerSupplier(score(), scoreMode, reader.maxDoc()) {
                     @Override
-                    public boolean matches() throws IOException {
-                        final int slots = decoder.reset(values.binaryValue());
-                        for (int slot = 0; slot < slots; slot++) {
-                            final BytesRef candidate = decoder.next();
-                            // A null has no bytes to run an automaton over, not even the empty ones.
-                            if (candidate == null) {
-                                continue;
-                            }
-                            if (automaton.run(candidate.bytes, candidate.offset, candidate.length)) {
-                                return true;
-                            }
-                        }
-                        return false;
+                    public long cost() {
+                        return reader.maxDoc();
                     }
 
                     @Override
-                    public float matchCost() {
-                        return 100f;
+                    public DocIdSetIterator iterator(long leadCost) throws IOException {
+                        // Checked here rather than where the supplier is built: everything below allocates, and
+                        // the answer is not wanted until Lucene asks for the iterator.
+                        budget.check(searcher);
+                        final BinaryDocValues values = reader.getBinaryDocValues(field);
+                        if (values == null) {
+                            return DocIdSetIterator.empty();
+                        }
+                        if (values instanceof StringColumnSource columnar) {
+                            final StringColumnReader column = columnar.reader();
+                            return column.match(value -> automaton.run(value.bytes, value.offset, value.length));
+                        }
+
+                        // An overlay rather than the column, as an updated field is: the values are read one
+                        // document at a time and run through the automaton. The surface carries a document's slots
+                        // as one payload, so each is run separately and any of them accepted accepts the document.
+                        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+                        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+                            @Override
+                            public boolean matches() throws IOException {
+                                final int slots = decoder.reset(values.binaryValue());
+                                for (int slot = 0; slot < slots; slot++) {
+                                    final BytesRef candidate = decoder.next();
+                                    // A null has no bytes to run an automaton over, not even the empty ones.
+                                    if (candidate == null) {
+                                        continue;
+                                    }
+                                    if (automaton.run(candidate.bytes, candidate.offset, candidate.length)) {
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            }
+
+                            @Override
+                            public float matchCost() {
+                                return 100f;
+                            }
+                        });
                     }
                 };
-                return ConstantScoreScorerSupplier.fromIterator(
-                    TwoPhaseIterator.asDocIdSetIterator(twoPhase),
-                    score(),
-                    scoreMode,
-                    reader.maxDoc()
-                );
             }
 
             @Override
@@ -217,13 +239,13 @@ public final class ColumnarStringAutomatonQuery extends Query {
             return true;
         }
         if (other instanceof ColumnarStringAutomatonQuery q) {
-            return field.equals(q.field) && description.equals(q.description);
+            return field.equals(q.field) && automaton.equals(q.automaton) && description.equals(q.description);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, description);
+        return Objects.hash(field, automaton, description);
     }
 }

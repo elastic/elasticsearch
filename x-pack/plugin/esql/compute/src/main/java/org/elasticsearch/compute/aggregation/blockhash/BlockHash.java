@@ -80,6 +80,17 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public abstract void add(Page page, GroupingAggregatorFunction.AddInput addInput);
 
     /**
+     * Like {@link #add(Page, GroupingAggregatorFunction.AddInput)}, but called when the number of
+     * distinct keys has reached the output limit. Existing keys must return their group id; new keys
+     * may return {@code null} (skip insertion) or a new group id — both are valid, and a key may
+     * return {@code null} in one call and a group id in a later one. Skipping new keys is an
+     * optimization for queries like {@code STATS … BY … | LIMIT N}. Defaults to {@link #add}.
+     */
+    public void addAfterLimitReached(Page page, GroupingAggregatorFunction.AddInput addInput) {
+        add(page, addInput);
+    }
+
+    /**
      * Lookup all values for the "group by" columns in the page to the hash and return an
      * {@link Iterator} of the values. The sum of {@link IntBlock#getPositionCount} for
      * all blocks returned by the iterator will equal {@link Page#getPositionCount} but
@@ -235,9 +246,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                 return new LongIntBlockHash(groups, blockFactory, emitBatchSize, true);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
+                return new LongBytesRefBlockHash(groups, blockFactory, emitBatchSize, false);
             } else if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, true);
+                return new LongBytesRefBlockHash(groups, blockFactory, emitBatchSize, true);
             }
             // TODO: wire (LONG, LONG) with adaptive
             if (allowBrokenOptimizations) {

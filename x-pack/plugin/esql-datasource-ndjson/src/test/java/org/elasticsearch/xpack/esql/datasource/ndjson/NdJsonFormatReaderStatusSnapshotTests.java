@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -48,7 +47,6 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
     }
 
     public void testCountersPopulatedAfterDrain() throws IOException {
-        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         String ndjson = """
             {"a": 1, "b": "x"}
             {"a": 2, "b": "y"}
@@ -61,7 +59,7 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
         var before = reader.statusSnapshot();
         assertEquals("ndjson", before.format());
         assertEquals(0L, before.parseErrors());
-        assertEquals(0L, before.readNanos());
+        assertEquals(0L, before.rowsEmitted());
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "b"), 10)) {
             while (iterator.hasNext()) {
@@ -73,14 +71,7 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
         var after = reader.statusSnapshot();
         assertEquals("ndjson", after.format());
         assertEquals("no malformed lines in this fixture", 0L, after.parseErrors());
-        assertTrue("read_nanos should be > 0 after at least one decodePage call", after.readNanos() > 0);
-        assertTrue("read_cpu_nanos should be > 0 after at least one decodePage call", after.readCpuNanos() > 0);
-        assertTrue("read_cpu_nanos must not exceed read_nanos", after.readCpuNanos() <= after.readNanos());
-
-        // Test manual addition to read_cpu_nanos
-        long readCpuNanosBeforeAccept = after.readCpuNanos();
-        reader.acceptReadCpuNanos(99_999L);
-        assertEquals(readCpuNanosBeforeAccept + 99_999L, reader.statusSnapshot().readCpuNanos());
+        assertEquals("3 rows in fixture", 3L, after.rowsEmitted());
     }
 
     public void testSiblingQueryReadersDoNotShareCounters() throws IOException {
@@ -90,9 +81,9 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
 
         drain(first);
 
-        assertTrue("the reader that read must report its own work", first.statusSnapshot().readNanos() > 0);
-        assertEquals("a sibling query's reader must not see it", 0L, second.statusSnapshot().readNanos());
-        assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().readNanos());
+        assertTrue("the reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
+        assertEquals("a sibling query's reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
+        assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
     }
 
     public void testQueryLevelSchemaWitherDoesNotLeakIntoTheSharedReader() throws IOException {
@@ -101,8 +92,8 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
 
         drain(scoped);
 
-        assertTrue(scoped.statusSnapshot().readNanos() > 0);
-        assertEquals("withSchema resolves per query, so it must fork", 0L, base.statusSnapshot().readNanos());
+        assertTrue(scoped.statusSnapshot().rowsEmitted() > 0);
+        assertEquals("withSchema resolves per query, so it must fork", 0L, base.statusSnapshot().rowsEmitted());
     }
 
     public void testQueryLevelDateFormatWitherDoesNotLeakIntoTheSharedReader() throws IOException {
@@ -111,8 +102,8 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
 
         drain(scoped);
 
-        assertTrue(scoped.statusSnapshot().readNanos() > 0);
-        assertEquals("declared date formats resolve per query, so this wither must fork too", 0L, base.statusSnapshot().readNanos());
+        assertTrue(scoped.statusSnapshot().rowsEmitted() > 0);
+        assertEquals("declared date formats resolve per query, so this wither must fork too", 0L, base.statusSnapshot().rowsEmitted());
     }
 
     public void testPerFileReadConfigCopyReportsThroughItsParent() throws IOException {
@@ -123,8 +114,8 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
 
         assertTrue(
             "withReadConfig runs per file, below the reader the status envelope snapshots, so its work must land"
-                + " in the parent — a fork here is the zero-read-time defect",
-            query.statusSnapshot().readNanos() > 0
+                + " in the parent — a fork here is the zero-rowsEmitted defect",
+            query.statusSnapshot().rowsEmitted() > 0
         );
     }
 

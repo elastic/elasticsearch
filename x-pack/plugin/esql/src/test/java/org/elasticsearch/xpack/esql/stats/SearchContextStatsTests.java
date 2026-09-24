@@ -19,6 +19,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
@@ -41,6 +42,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -333,6 +335,43 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
+     * Counterpart to {@link #testDocValuesOnlyKeywordIsNotDetectedAsSingleValued}: a keyword field
+     * with {@code index: false} and no {@code USE_DOC_VALUES_SKIPPER} where <em>every</em> document
+     * has exactly one value must still NOT be reported as single-valued. Without a skipper or a
+     * terms index there is no way to confirm single-valuedness, so the code conservatively returns
+     * {@code false}.
+     */
+    public void testDocValuesOnlySingleValuedKeywordIsNotDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final IndexReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new SortedSetDocValuesField("kw", new BytesRef("A"))));
+            writer.addDocument(List.of(new SortedSetDocValuesField("kw", new BytesRef("B"))));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = ((DirectoryReader) reader).leaves().get(0).reader();
+            assertNull("index:false keyword without skipper must have no terms", leafReader.terms("kw"));
+            assertNull("index:false keyword without skipper must have no DocValuesSkipper", leafReader.getDocValuesSkipper("kw"));
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertFalse(
+                "keyword field without terms or skipper must not be reported as single-valued even when all docs have one value",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
      * Verifies that a multi-valued numeric field without a points index or a doc-values skipper
      * ({@code index: false} in standard mode without {@code use_doc_values_skipper}) is never
      * reported as single-valued. Without the fix, {@code getPointValues()} returning {@code null}
@@ -408,7 +447,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
      * columnar or {@code use_doc_values_skipper} mode) is correctly detected as single-valued.
      * <p>
      * The codec records {@code globalMaxValueCount = 1} at flush time; {@code maxValueCount()}
-     * returning {@code 1} lets {@code detectSingleValue} return {@code true}, enabling
+     * returning {@code 1} lets {@code isSingleValueLeaf} return {@code true}, enabling
      * {@code PushStatsToSource} to push {@code COUNT(n)} down to an exists-doc-count query for an
      * exact result.
      */
@@ -554,6 +593,169 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
+     * Keyword-field counterpart of {@link #testSkipperNumericSingleValuedIsDetectedAsSingleValued}:
+     * a truly single-valued keyword field backed by a doc-values skipper must be reported as
+     * single-valued so that {@code COUNT(kw)} can be pushed down to an exists-doc-count query.
+     */
+    public void testSkipperKeywordSingleValuedIsDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("A"))));
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("B"))));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("kw");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertEquals("every doc has exactly one value, so maxValueCount must be 1", 1, skipper.maxValueCount());
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertTrue(
+                "single-valued skipper keyword field must be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Verifies that when a keyword field is present in only some segments (absent in others), the
+     * null skipper for the empty segments is correctly treated as "no values — not multi-valued",
+     * and {@code isSingleValue} still returns {@code true} as long as every segment that <em>does</em>
+     * have data is single-valued.
+     * <p>
+     * The existing {@link #testSkipperKeywordSingleValuedIsDetectedAsSingleValued} always calls
+     * {@code forceMerge(1)}, so the per-leaf tester's {@code skipper == null} branch is never
+     * exercised for keywords. This test keeps two segments: one with keyword data and one without.
+     */
+    public void testSkipperKeywordSingleValuedWithAbsentSegmentIsDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            // Segment 1: single-valued keyword documents → skipper reports maxValueCount == 1.
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("A"))));
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("B"))));
+            writer.commit();
+            // Segment 2: a document with no keyword field → getDocValuesSkipper("kw") returns null.
+            writer.addDocument(List.of());
+            reader = writer.getReader();
+        }
+
+        try {
+            assertEquals("must have exactly two leaf segments", 2, reader.leaves().size());
+            LeafReader seg1 = reader.leaves().get(0).reader();
+            LeafReader seg2 = reader.leaves().get(1).reader();
+            assertNotNull("segment 1 must have a DocValuesSkipper for 'kw'", seg1.getDocValuesSkipper("kw"));
+            assertNull("segment 2 must have no DocValuesSkipper for 'kw' (field absent)", seg2.getDocValuesSkipper("kw"));
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertTrue(
+                "single-valued keyword field absent in some segments must still be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Keyword-field counterpart of {@link #testSkipperNumericMultiValuedIsNotDetectedAsSingleValued}:
+     * a multi-valued keyword field backed by a doc-values skipper must not be reported as single-valued,
+     * so {@code COUNT(kw)} is not incorrectly pushed down to a doc-count exists query.
+     */
+    public void testSkipperKeywordMultiValuedIsNotDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(
+                List.of(
+                    SortedSetDocValuesField.indexedField("kw", new BytesRef("A")),
+                    SortedSetDocValuesField.indexedField("kw", new BytesRef("B"))
+                )
+            );
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("C"))));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("kw");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertTrue("one doc has 2 values, so maxValueCount must be > 1", skipper.maxValueCount() > 1);
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(
+                "multi-valued skipper keyword field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Verifies the {@code hasTerms()} detection path for keyword fields: a standard keyword field
+     * with {@code index: true} (the default) is detected as single-valued via the inverted-index
+     * check ({@code sumDocFreq == docCount}). All two new skipper-based keyword tests use
+     * {@code index: false}, so the terms branch was previously untested.
+     * <p>
+     * Note that with {@code USE_DOC_VALUES_SKIPPER} disabled, the mapper uses
+     * {@code FIELD_TYPE} (index options set, no skip index), so {@code IndexType} reports
+     * {@code hasTerms=true} and {@code hasDocValuesSkipper=false} — the skipper branch in
+     * {@code isSingleValueLeaf} is not reachable for this field type.
+     */
+    public void testIndexedKeywordSingleValuedIsDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new StringField("kw", "A", Field.Store.NO), new SortedSetDocValuesField("kw", new BytesRef("A"))));
+            writer.addDocument(List.of(new StringField("kw", "B", Field.Store.NO), new SortedSetDocValuesField("kw", new BytesRef("B"))));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            Terms terms = leafReader.terms("kw");
+            assertNotNull("indexed keyword must have a terms index", terms);
+            assertEquals("every doc has one value, so sumDocFreq must equal docCount", terms.getSumDocFreq(), terms.getDocCount());
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertTrue(
+                "single-valued indexed keyword field must be reported as single-valued via the terms check",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
      * Reproduces the mixed-index-mapping bug reported in review: when a query spans two indices
      * where the same field has different storage characteristics — points in one, doc-values skipper
      * in the other — {@code isSingleValue} picks the {@code MappedFieldType} from the first mapped
@@ -622,7 +824,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     /**
      * A single-valued numeric field with a point index must be reported as single-valued via the
      * {@code PointValues.size() == PointValues.getDocCount()} check. Covers the points branch of
-     * {@code detectSingleValue}, as opposed to the doc-values-skipper branch.
+     * {@code isSingleValueLeaf}, as opposed to the doc-values-skipper branch.
      */
     public void testPointIndexedSingleValuedNumericIsDetectedAsSingleValued() throws IOException {
         final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
@@ -687,6 +889,249 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 "multi-valued numeric field must not be reported as single-valued",
                 stats.isSingleValue(new FieldAttribute.FieldName("lng"))
             );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testFieldWithoutValuesIsSingleValued() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" }, "k": { "type": "keyword" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new StringField("k", "a", Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            assertNull(reader.leaves().get(0).reader().getPointValues("n"));
+            final SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertTrue(stats.isSingleValue(new FieldAttribute.FieldName("missing")));
+            assertTrue(stats.isSingleValue(new FieldAttribute.FieldName("n")));
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testFieldMappedInSomeShardsSingleValued() throws IOException {
+        final MapperService mappedService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" } } } }""");
+        final MapperService unmappedService = createMapperService("""
+            { "doc": { "properties": { "other": { "type": "long" } } } }""");
+
+        final Directory mappedDir = newDirectory();
+        final Directory unmappedDir = newDirectory();
+        final DirectoryReader mappedReader;
+        final DirectoryReader unmappedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), mappedDir)) {
+            writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO)));
+            writer.addDocument(List.of(new LongField("n", 2L, Field.Store.NO)));
+            writer.forceMerge(1);
+            mappedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), unmappedDir)) {
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            writer.forceMerge(1);
+            unmappedReader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(mappedService, newSearcher(mappedReader)),
+                    createSearchExecutionContext(unmappedService, newSearcher(unmappedReader))
+                )
+            );
+            assertTrue(stats.isSingleValue(new FieldAttribute.FieldName("n")));
+        } finally {
+            IOUtils.close(mappedReader, unmappedReader, mappedService, unmappedService, mappedDir, unmappedDir);
+        }
+    }
+
+    public void testFieldMappedInSomeShardsMultiValued() throws IOException {
+        final MapperService mappedService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" } } } }""");
+        final MapperService unmappedService = createMapperService("""
+            { "doc": { "properties": { "other": { "type": "long" } } } }""");
+
+        final Directory mappedDir = newDirectory();
+        final Directory unmappedDir = newDirectory();
+        final DirectoryReader mappedReader;
+        final DirectoryReader unmappedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), mappedDir)) {
+            writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO), new LongField("n", 2L, Field.Store.NO)));
+            writer.forceMerge(1);
+            mappedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), unmappedDir)) {
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            writer.forceMerge(1);
+            unmappedReader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(mappedService, newSearcher(mappedReader)),
+                    createSearchExecutionContext(unmappedService, newSearcher(unmappedReader))
+                )
+            );
+            assertFalse(stats.isSingleValue(new FieldAttribute.FieldName("n")));
+        } finally {
+            IOUtils.close(mappedReader, unmappedReader, mappedService, unmappedService, mappedDir, unmappedDir);
+        }
+    }
+
+    public void testMinMaxFromMappedShard() throws IOException {
+        final MapperService mappedService = createMapperService("""
+            { "doc": { "properties": { "d": { "type": "date" } } } }""");
+        final MapperService unmappedService = createMapperService("""
+            { "doc": { "properties": { "other": { "type": "long" } } } }""");
+
+        final long[] values = new long[randomIntBetween(2, 6)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomLongBetween(-10_000_000_000L, 10_000_000_000L);
+        }
+
+        final Directory mappedDir = newDirectory();
+        final Directory unmappedDir = newDirectory();
+        final DirectoryReader mappedReader;
+        final DirectoryReader unmappedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), mappedDir)) {
+            for (final long value : values) {
+                writer.addDocument(List.of(new LongField("d", value, Field.Store.NO)));
+            }
+            writer.forceMerge(1);
+            mappedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), unmappedDir)) {
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            writer.forceMerge(1);
+            unmappedReader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(mappedService, newSearcher(mappedReader)),
+                    createSearchExecutionContext(unmappedService, newSearcher(unmappedReader))
+                )
+            );
+            final FieldAttribute.FieldName d = new FieldAttribute.FieldName("d");
+            assertEquals(Arrays.stream(values).min().getAsLong(), stats.min(d));
+            assertEquals(Arrays.stream(values).max().getAsLong(), stats.max(d));
+        } finally {
+            IOUtils.close(mappedReader, unmappedReader, mappedService, unmappedService, mappedDir, unmappedDir);
+        }
+    }
+
+    public void testDocValuesOnlyNumericSingleValueNotProvable() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new SortedNumericDocValuesField("n", 1L)));
+            writer.addDocument(List.of(new SortedNumericDocValuesField("n", 2L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            final LeafReader leafReader = reader.leaves().get(0).reader();
+            assertNull(leafReader.getPointValues("n"));
+            assertNull(leafReader.getDocValuesSkipper("n"));
+            final SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(stats.isSingleValue(new FieldAttribute.FieldName("n")));
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testMinMaxMixedPointsAndSkipper() throws IOException {
+        final MapperService pointsService = createMapperService("""
+            { "doc": { "properties": { "d": { "type": "date" } } } }""");
+        final Settings skipperSettings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService skipperService = createMapperService(skipperSettings, """
+            { "doc": { "properties": { "d": { "type": "date", "index": false } } } }""");
+
+        final long[] pointsValues = new long[randomIntBetween(2, 6)];
+        for (int i = 0; i < pointsValues.length; i++) {
+            pointsValues[i] = randomLongBetween(-10_000_000_000L, 10_000_000_000L);
+        }
+        final long[] skipperValues = new long[randomIntBetween(2, 6)];
+        for (int i = 0; i < skipperValues.length; i++) {
+            skipperValues[i] = randomLongBetween(-10_000_000_000L, 10_000_000_000L);
+        }
+
+        final Directory pointsDir = newDirectory();
+        final Directory skipperDir = newDirectory();
+        final DirectoryReader pointsReader;
+        final DirectoryReader skipperReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), pointsDir)) {
+            for (final long value : pointsValues) {
+                writer.addDocument(List.of(new LongField("d", value, Field.Store.NO)));
+            }
+            writer.forceMerge(1);
+            pointsReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), skipperDir)) {
+            for (final long value : skipperValues) {
+                writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", value)));
+            }
+            writer.forceMerge(1);
+            skipperReader = writer.getReader();
+        }
+
+        try {
+            final LeafReader pointsLeaf = pointsReader.leaves().get(0).reader();
+            assertNotNull(pointsLeaf.getPointValues("d"));
+            assertNull(pointsLeaf.getDocValuesSkipper("d"));
+            final LeafReader skipperLeaf = skipperReader.leaves().get(0).reader();
+            assertNull(skipperLeaf.getPointValues("d"));
+            assertNotNull(skipperLeaf.getDocValuesSkipper("d"));
+
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(pointsService, newSearcher(pointsReader)),
+                    createSearchExecutionContext(skipperService, newSearcher(skipperReader))
+                )
+            );
+            final FieldAttribute.FieldName d = new FieldAttribute.FieldName("d");
+            final long expectedMin = Math.min(
+                Arrays.stream(pointsValues).min().getAsLong(),
+                Arrays.stream(skipperValues).min().getAsLong()
+            );
+            final long expectedMax = Math.max(
+                Arrays.stream(pointsValues).max().getAsLong(),
+                Arrays.stream(skipperValues).max().getAsLong()
+            );
+            assertEquals(expectedMin, stats.min(d));
+            assertEquals(expectedMax, stats.max(d));
+        } finally {
+            IOUtils.close(pointsReader, skipperReader, pointsService, skipperService, pointsDir, skipperDir);
+        }
+    }
+
+    public void testUnsupportedTypeFieldIsMultiValued() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "b": { "type": "boolean" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new StringField("k", "a", Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(stats.isSingleValue(new FieldAttribute.FieldName("b")));
         } finally {
             IOUtils.close(reader, mapperService, dir);
         }

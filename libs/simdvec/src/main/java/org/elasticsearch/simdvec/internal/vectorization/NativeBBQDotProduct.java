@@ -10,10 +10,17 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+
+import static org.elasticsearch.simdvec.BBQEncoding.D1Q1;
+import static org.elasticsearch.simdvec.BBQEncoding.D1Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D2Q2;
+import static org.elasticsearch.simdvec.BBQEncoding.D2Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D4Q4;
 
 /**
  * Native {@link BBQDotProduct}, using methods in {@link SimdVecLibrary}
@@ -22,22 +29,10 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
 
     private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElse(null);
 
-    private enum NativeMethod {
-        D1Q1,
-        D1Q4,
-        D2Q2,
-        D2Q4,
-        D4Q4
-    }
-
-    private static NativeMethod nativeMethod(int docBits, int queryBits) {
-        return switch ((docBits << 8) | queryBits) {
-            case (1 << 8) | 1 -> NativeMethod.D1Q1;
-            case (1 << 8) | 4 -> NativeMethod.D1Q4;
-            case (2 << 8) | 2 -> NativeMethod.D2Q2;
-            case (2 << 8) | 4 -> NativeMethod.D2Q4;
-            case (4 << 8) | 4 -> NativeMethod.D4Q4;
-            default -> null;
+    private static boolean supportedEncoding(BBQEncoding bbqEncoding) {
+        return switch (bbqEncoding.toSwitchValue()) {
+            case D1Q1, D1Q4, D2Q2, D2Q4, D4Q4 -> true;
+            default -> false;
         };
     }
 
@@ -45,29 +40,23 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
      * The query and score arrays are wrapped as heap segments, which native calls only accept
      * from JDK 22 onwards.
      */
-    public static boolean supports(IndexInput in, int docBits, int queryBits) {
-        return DISTANCE_FUNCS != null
-            && JdkFeatures.SUPPORTS_HEAP_SEGMENTS
-            && nativeMethod(docBits, queryBits) != null
-            && IndexInputUtils.canUseSegmentSlices(in);
+    public static boolean supports(IndexInput in) {
+        return DISTANCE_FUNCS != null && JdkFeatures.SUPPORTS_HEAP_SEGMENTS && IndexInputUtils.canUseSegmentSlices(in);
     }
 
     /**
      * Factory method for a native-code dot-product implementation where possible.
      *
-     * @param in         input positioned at the first data vector to score
-     * @param nDims      number of dimensions
-     * @param docBits    bits per dimension of the data vector, in {@code [1, MAX_BITS]}
-     * @param queryBits  bits per dimension of the query vector, in {@code [1, MAX_BITS]}
+     * @param in          input positioned at the first data vector to score
+     * @param nDims       number of dimensions
+     * @param bbqEncoding BBQ encoding sizes
      */
-    public static BBQDotProduct create(IndexInput in, int nDims, int docBits, int queryBits) {
-        if (!supports(in, docBits, queryBits)) {
-            return PanamaBBQDotProduct.create(in, nDims, docBits, queryBits);
+    public static BBQDotProduct create(IndexInput in, int nDims, BBQEncoding bbqEncoding) {
+        if (!supports(in) || !supportedEncoding(bbqEncoding)) {
+            return PanamaBBQDotProduct.create(in, nDims, bbqEncoding);
         }
-        return new NativeBBQDotProduct(in, docBits, queryBits, planeBytes(nDims));
+        return new NativeBBQDotProduct(in, bbqEncoding, planeBytes(nDims));
     }
-
-    private final NativeMethod nativeMethod;
 
     // Heap segments wrapping the caller's arrays. The caller reuses the same query and scores arrays
     // across a whole posting list, so the wrappers are cached against array identity.
@@ -76,9 +65,8 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSegment;
 
-    private NativeBBQDotProduct(IndexInput in, int docBits, int queryBits, int planeBytes) {
-        super(in, docBits, queryBits, planeBytes);
-        this.nativeMethod = nativeMethod(docBits, queryBits);
+    private NativeBBQDotProduct(IndexInput in, BBQEncoding bbqEncoding, int planeBytes) {
+        super(in, bbqEncoding, planeBytes);
     }
 
     private MemorySegment querySegment(byte[] query) {
@@ -101,12 +89,13 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     public long dotProduct(byte[] query) throws IOException {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
         MemorySegment querySegment = querySegment(query);
-        return IndexInputUtils.withSlice(in, docBytes, scratch, dataSegment -> switch (nativeMethod) {
+        return IndexInputUtils.withSlice(in, docBytes, scratch, dataSegment -> switch (encoding.toSwitchValue()) {
             case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1(dataSegment, querySegment, docBytes);
             case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4(dataSegment, querySegment, docBytes);
             case D2Q2 -> DISTANCE_FUNCS.dotProductD2Q2(dataSegment, querySegment, docBytes);
             case D2Q4 -> DISTANCE_FUNCS.dotProductD2Q4(dataSegment, querySegment, docBytes);
             case D4Q4 -> DISTANCE_FUNCS.dotProductD4Q4(dataSegment, querySegment, docBytes);
+            default -> throw new AssertionError("Unsupported encoding: " + encoding);
         });
     }
 
@@ -116,12 +105,13 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
         MemorySegment querySegment = querySegment(query);
         MemorySegment scoresSegment = scoresSegment(scores);
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
-            switch (nativeMethod) {
+            switch (encoding.toSwitchValue()) {
                 case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
                 case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
                 case D2Q2 -> DISTANCE_FUNCS.dotProductD2Q2Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
                 case D2Q4 -> DISTANCE_FUNCS.dotProductD2Q4Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
                 case D4Q4 -> DISTANCE_FUNCS.dotProductD4Q4Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
+                default -> throw new AssertionError("Unsupported encoding: " + encoding);
             }
         });
     }
@@ -133,7 +123,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
         MemorySegment scoresSegment = scoresSegment(scores);
         MemorySegment offsetsSegment = MemorySegment.ofArray(offsets);
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
-            switch (nativeMethod) {
+            switch (encoding.toSwitchValue()) {
                 case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1BulkWithOffsets(
                     dataSegment,
                     querySegment,
@@ -179,6 +169,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
                     offsetsCount,
                     scoresSegment
                 );
+                default -> throw new AssertionError("Unsupported encoding: " + encoding);
             }
         });
         repositionScoresMatchingOffsets(offsets, offsetsCount, scores);

@@ -31,6 +31,7 @@ import org.elasticsearch.sourcebatch.SourceSchema;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.IntPredicate;
 
 /**
  * Batch-time mapper resolution and columnar batch mapping for the bulk batch-indexing fast path.
@@ -75,7 +76,24 @@ public final class ShardBatchMapper {
      * falls outside the v1 batch-indexing support matrix and the caller should fall back to the
      * sequential path.
      */
+    public static BatchMapperResolution resolveMappers(SourceBatch batch, MappingLookup lookup, IndexSettings indexSettings) {
+        return resolveMappers(batch.schema(), lookup, indexSettings, batch::isEmptyObjectColumn);
+    }
+
+    /**
+     * Overload for tests that only have a schema. Column data is unavailable, so empty-object columns
+     * cannot be detected and any unmapped leaf under a dynamic parent causes the usual fallback.
+     */
     public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup, IndexSettings indexSettings) {
+        return resolveMappers(schema, lookup, indexSettings, leaf -> false);
+    }
+
+    private static BatchMapperResolution resolveMappers(
+        SourceSchema schema,
+        MappingLookup lookup,
+        IndexSettings indexSettings,
+        IntPredicate isEmptyObjectColumn
+    ) {
         // Runtime fields or index-time scripts anywhere in the mapping would require the normal
         // parsing flow; the batch path does not support them.
         if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
@@ -203,6 +221,13 @@ public final class ShardBatchMapper {
                     columnMappers[leaf] = null;
                     continue;
                 }
+                // An empty-object column ({} in every present row) produces nothing in the sequential
+                // path regardless of dynamic setting — DocumentParser finds no children and emits no
+                // mapper, no value, and nothing to ignored source. Skip it rather than aborting.
+                if (indexSettings.getMode().isStrictColumnar() && isEmptyObjectColumn.test(leaf)) {
+                    columnMappers[leaf] = null;
+                    continue;
+                }
                 logger.debug("batch indexing disabled: unmapped leaf [{}] under dynamic={} parent", fullPath, parentDynamic);
                 return null;
             }
@@ -212,6 +237,10 @@ public final class ShardBatchMapper {
                 return null;
             }
             final FieldMapper fieldMapper = (FieldMapper) resolved;
+            if (isMultiFieldSubField(fullPath, lookup)) {
+                logger.debug("batch indexing disabled: field [{}] is a mapped as a multi-field", fullPath);
+                return null;
+            }
             if (fieldMapper.supportsColumnarParse(indexSettings) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: mapper at [{}] of type [{}] does not support columnar parsing",
@@ -293,6 +322,27 @@ public final class ShardBatchMapper {
             return null;
         }
         return sink;
+    }
+
+    /**
+     * Detects whether a field is mapped as a multi-field. This to avoid trying to index a multi-field directly, which isn't allowed.
+     * If a field is a multi-field, then {@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)} should
+     * fall back to the sequential execution path, which will ignore the field in question. This is current behavior.
+     */
+    private static boolean isMultiFieldSubField(String fullPath, MappingLookup lookup) {
+        int dot = fullPath.lastIndexOf('.');
+        if (dot <= 0) {
+            return false;
+        }
+        // Only check immediate dotted parent, because multi-fields are always leaf fields:
+        if (lookup.getMapper(fullPath.substring(0, dot)) instanceof FieldMapper ancestor) {
+            for (FieldMapper subMapper : ancestor.multiFields()) {
+                if (subMapper.fullPath().equals(fullPath)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

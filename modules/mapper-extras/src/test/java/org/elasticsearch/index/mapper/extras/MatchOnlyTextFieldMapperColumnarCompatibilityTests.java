@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.extras;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -32,6 +33,48 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
     @Override
     protected Collection<Plugin> getPlugins() {
         return List.of(new MapperExtrasPlugin());
+    }
+
+    /** Index settings with the codec on, so the field's doc values are written as its payload. */
+    private static Settings columnarCodecSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+    }
+
+    private void assumeColumnarCodecEnabled() {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+    }
+
+    /**
+     * Under the codec the doc values are a payload carrying their own slot count, which is the one output the
+     * batch path cannot take straight from the source column, so these pin it against the row path.
+     */
+    public void testColumnarCodecSingleValue() throws IOException {
+        assumeColumnarCodecEnabled();
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
+            columnarCodecSettings(),
+            batch("columnar codec single value", 1L, doc("d1", 1L, "{\"f\":\"a line of a log\"}"), doc("d2", 2L, "{}"))
+        );
+    }
+
+    public void testColumnarCodecArrayOrder() throws IOException {
+        assumeColumnarCodecEnabled();
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").endObject()),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec array order",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"first line\",null,\"second line\"]}"),
+                doc("d2", 2L, "{\"f\":\"solo\"}"),
+                doc("d3", 3L, "{\"f\":[null]}"),
+                doc("d4", 4L, "{}")
+            )
+        );
     }
 
     private static Settings columnarSettings() {
@@ -185,6 +228,24 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         );
     }
 
+    /** A keyword sub-field on a match_only_text parent: both are driven from the same source column. */
+    public void testKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "match_only_text");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "match_only_text with keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"hello\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"alpha\",\"beta\"]}")
+            )
+        );
+    }
+
     public void testMultiValueViolationBailsOutOfColumnarPath() throws IOException {
         // Two values for a multi_value=false field: mapColumnBatch must throw so that
         // ShardBatchMapper falls back to the row path, which raises the correct
@@ -195,6 +256,18 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",\"b\"]}"));
+    }
+
+    public void testNullabilityViolationBailsOutOfColumnarPath() throws IOException {
+        // A null value for a nullability=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "match_only_text");
+            b.startObject("doc_values").field("nullability", false).endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"value\"}", "{\"f\":null}"));
     }
 
     public void testAllPresentDenseMultiValueFalse() throws IOException {

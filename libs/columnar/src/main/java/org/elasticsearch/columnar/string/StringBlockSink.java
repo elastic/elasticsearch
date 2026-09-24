@@ -12,28 +12,38 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.util.BytesRef;
 
 /**
- * Where {@link StringColumnReader#readBlock} puts a page of values.
+ * Where a page of a string column is handed to whoever asked for it.
  *
- * <p>Two shapes, because a page of a repetitive column is worth handing over as ordinals: a consumer
- * grouping by value then compares an int per document and resolves each distinct value once, rather than
- * hashing bytes once per document. A page with little repetition is handed over as values, since ordinals
- * into a dictionary as long as the page save nothing.
+ * <p>A page carries the values of a run of documents, and a document may hold several of them or none. So what
+ * arrives is a flat run of values and, beside it, how many of them each document took: {@code valueCounts} holds one
+ * entry per document, and is null where every document took exactly one.
+ *
+ * <p>Null slots never arrive. A null is not a value a consumer of a page can hold, so a document's nulls are dropped
+ * and its count is of what remains: a document of two slots with one null arrives holding one value, and one whose
+ * every slot is null arrives holding none.
  */
 public interface StringBlockSink {
 
     /**
-     * A page as one ordinal per document into {@code dictionary}, which holds the page's distinct values
-     * and is valid until the next call. Ordinals index it directly, so they run from zero however the
-     * column numbers its terms.
+     * A page as ordinals into its own distinct values, for a page that repeats enough to be worth naming them. A
+     * consumer grouping by value then compares an int per value and resolves each distinct one once, rather than
+     * hashing bytes once per value. The ordinals index {@code dictionary}, which holds {@code dictionarySize}
+     * entries and is valid until the next call.
      *
-     * <p>Distinct is by the bytes and holds whatever shape the column has: equal values are one entry
-     * however far apart the documents carrying them sit, whether the column is in term order, clustered
-     * into runs that restart, or in no order at all, and whether or not its vocabulary names them. So the
-     * ordinal is an identity within the page, and a consumer grouping by value can group on it and resolve
-     * the bytes once an entry rather than once a document.
+     * <p>Distinct is by the bytes, whatever shape the column has: equal values are one entry however far apart the
+     * documents carrying them sit, and whether or not the column's own vocabulary names them. So the ordinal is an
+     * identity within the page, and a consumer can group on it and resolve the bytes once an entry.
+     *
+     * @param ordinals    one entry per value, {@code valueCount} of them
+     * @param valueCount  values across every document in the page
+     * @param valueCounts values per document, or null when every document holds exactly one
+     * @param docCount    documents the page covers
      */
-    void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize);
+    void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize);
 
-    /** A page as one value per document, valid until the next call. */
-    void appendValues(BytesRef[] values, int count);
+    /**
+     * A page as its values, for a page that repeats too little for ordinals into a dictionary as long as the page to
+     * save anything. Shaped as above, and valid until the next call.
+     */
+    void appendValues(BytesRef[] values, int valueCount, int[] valueCounts, int docCount);
 }

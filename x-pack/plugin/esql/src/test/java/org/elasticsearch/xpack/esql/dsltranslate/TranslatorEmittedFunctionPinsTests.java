@@ -53,13 +53,14 @@ import static org.hamcrest.Matchers.not;
  * an already-declared gated class passes here — {@code QueryDslTranslatorTests} covers both paths per function for
  * that. It sees only {@code new X(}, and the shapes it cannot see — a static factory, an {@code X::new} reference —
  * are held shut by {@code testNoExpressionIsBuiltInAShapeTheCensusCannotSee} rather than by a sentence asking nicely.
- * It reads one file, so an emit moved into a helper class elsewhere in this package would still be invisible.
+ * It reads every main source in this package, so an emit moved into a helper here stays visible.
  * And it forces the DECLARATION, not its correctness: whether the pin named is the version that function actually
  * arrived in is settled by the behavioural cases in that suite, not here.
  */
 public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
 
-    private static final String TRANSLATOR = "src/main/java/org/elasticsearch/xpack/esql/dsltranslate/QueryDslTranslator.java";
+    private static final String PACKAGE = "src/main/java/org/elasticsearch/xpack/esql/dsltranslate";
+    private static final String TRANSLATOR = PACKAGE + "/QueryDslTranslator.java";
 
     /**
      * Available on any node that clears the rewrite's own gate ({@code esql_request_filter_on_dataset}), so emitting
@@ -109,11 +110,11 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
     );
 
     public void testEveryEmittedExpressionIsDeclared() throws IOException {
-        String source = Files.readString(esqlModuleRoot().resolve(TRANSLATOR));
+        String source = packageSource();
         Set<String> emitted = emittedExpressionClasses(source);
         Set<String> undeclared = undeclaredIn(source);
         assertThat(
-            "QueryDslTranslator constructs "
+            "The dsltranslate package constructs "
                 + undeclared
                 + ", which this census does not declare. An expression synthesized from a request filter must be one "
                 + "every targeted node can deserialize — the rewrite's own gate names one constant and cannot promise "
@@ -135,7 +136,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
      * green. Naming that in prose is a rule with no executor; this is the executor.
      */
     public void testNoExpressionIsBuiltInAShapeTheCensusCannotSee() throws IOException {
-        String source = Files.readString(esqlModuleRoot().resolve(TRANSLATOR));
+        String source = packageSource();
         Set<String> imported = importedExpressionClasses(source);
 
         Set<String> factories = new TreeSet<>();
@@ -172,7 +173,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
      * must not be relied on, since the constants sit on the leaves so a future subclass cannot inherit a stale pin.
      */
     public void testEveryGatedExpressionConsultsItsOwnPin() throws IOException {
-        String source = Files.readString(esqlModuleRoot().resolve(TRANSLATOR));
+        String source = packageSource();
         Map<String, String> pinPerConstructedClass = new TreeMap<>();
         for (String call : gatedCalls(source)) {
             Matcher constant = PIN_ARGUMENT.matcher(call);
@@ -260,6 +261,26 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             class T { Object f() { return new BigDecimal(new Or(a, b).toString()); } }
             """;
         assertThat(emittedExpressionClasses(fake), equalTo(Set.of("Or")));
+    }
+
+    /**
+     * Every main source in this package, concatenated. The translator is the only file that synthesizes expressions
+     * today; reading the package rather than that one file is what keeps an emit moved into a helper here visible.
+     */
+    private static Set<String> packageFiles() throws IOException {
+        try (var files = Files.list(esqlModuleRoot().resolve(PACKAGE))) {
+            return files.map(Path::toString)
+                .filter(f -> f.endsWith(".java"))
+                .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
+        }
+    }
+
+    private static String packageSource() throws IOException {
+        StringBuilder all = new StringBuilder();
+        for (String f : packageFiles()) {
+            all.append(Files.readString(PathUtils.get(f))).append('\n');
+        }
+        return all.toString();
     }
 
     /** Every class the source constructs that this census does not declare — the computation the build fails on. */

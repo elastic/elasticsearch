@@ -94,10 +94,10 @@ public final class ViewRequestFilterRewriter {
     private ViewRequestFilterRewriter() {}
 
     /**
-     * Whether the rewrite itself exists on every node the plan targets. It does not promise that every function a
-     * translated filter may contain is deserializable there — {@link QueryDslTranslator} gates those individually.
-     * {@link #rewrite} and {@code PlannerUtils.integrateEsFilterIntoFragment} both consult this so the logical filter
-     * and the Lucene fallback can never both apply, or both be absent.
+     * Whether the rewrite itself exists on every node the plan targets; the functions it may emit are gated
+     * individually by {@code QueryDslTranslator.gated}. {@link #rewrite} and
+     * {@code PlannerUtils.integrateEsFilterIntoFragment} both consult this so the logical filter and the Lucene
+     * fallback can never both apply, or both be absent.
      */
     public static boolean supportsRewrite(TransportVersion minimumVersion) {
         return minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET);

@@ -55,12 +55,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Shared base for {@link MvGreater} and {@link MvLess}: any-value one-sided comparison, two-valued
  * (null/empty → {@code false}), Lucene range pushdown.
  *
- * <h2>Transport versions</h2>
- * Each subclass holds its own {@code TransportVersion}, which {@code QueryDslTranslator} consults before synthesizing
- * one into a request filter: a translated filter names no function, so the user cannot be answered on the transport
- * layer the way {@link org.elasticsearch.xpack.esql.session.Versioned} allows for a feature they asked for by name.
- * Both subclasses reference {@code esql_mv_compare}, having arrived in one change; the constants sit on the leaves so
- * a future subclass cannot inherit a pin that predates it.
+ * <p>Each subclass holds its own {@code TransportVersion}, consulted by {@code QueryDslTranslator.gated}. Both
+ * reference {@code esql_mv_compare}, having arrived in one change; they sit on the leaves so a future subclass
+ * cannot inherit a pin that predates it.
  */
 public abstract class MvCompare extends EsqlScalarFunction implements OptionalArgument, TranslationAware {
 

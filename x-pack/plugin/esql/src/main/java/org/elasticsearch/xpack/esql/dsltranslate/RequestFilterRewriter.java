@@ -48,9 +48,8 @@ import java.util.Set;
  * transport version below.
  *
  * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: below that version the rewrite is skipped (unfiltered
- * relation, with a warning naming the datasets). That gate guards the REWRITE's existence and nothing more — it is
- * one constant, while the set of functions {@link QueryDslTranslator} synthesizes grows whenever a translation is
- * added. The contents are guarded separately, per emitted function, by {@code QueryDslTranslator.gated}.
+ * relation, with a warning naming the datasets). It guards the rewrite's existence only; the functions a translated
+ * filter contains are gated individually by {@code QueryDslTranslator.gated}.
  */
 public final class RequestFilterRewriter {
 

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -146,7 +147,8 @@ public final class StreamingParallelParsingCoordinator {
             WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
-            ExternalReadCounters.NOOP
+            ExternalReadCounters.NOOP,
+            null
         );
     }
 
@@ -226,7 +228,8 @@ public final class StreamingParallelParsingCoordinator {
             warningSinks,
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
-            ExternalReadCounters.NOOP
+            ExternalReadCounters.NOOP,
+            null
         );
     }
 
@@ -255,7 +258,8 @@ public final class StreamingParallelParsingCoordinator {
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
-        ExternalReadCounters readCounters
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -283,6 +287,7 @@ public final class StreamingParallelParsingCoordinator {
                 .stats(baseFileOffset, statsStripeSize, true)
                 .statsColumnScope(statsColumnScope)
                 .informationalWarningSink(warningSinks.informationalWarningSink())
+                .readCounters(formatCounters)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -305,7 +310,8 @@ public final class StreamingParallelParsingCoordinator {
             warningSinks,
             admission,
             breaker,
-            readCounters
+            readCounters,
+            formatCounters
         );
     }
 
@@ -461,6 +467,8 @@ public final class StreamingParallelParsingCoordinator {
         private final InputStream decompressedStream;
         private final AtomicBoolean streamClosed = new AtomicBoolean(false);
         private final ExternalReadCounters readCounters;
+        @Nullable
+        private final FormatReadCounters formatCounters;
         /** The reader as supplied by the caller; {@link #reader} may be swapped by {@link #bindInferredSchema}. */
         private final SegmentableFormatReader originalReader;
 
@@ -504,7 +512,8 @@ public final class StreamingParallelParsingCoordinator {
                 warningSinks,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
         }
 
@@ -526,7 +535,8 @@ public final class StreamingParallelParsingCoordinator {
             WarningSinks warningSinks,
             StreamingSegmentatorAdmission admission,
             CircuitBreaker breaker,
-            ExternalReadCounters readCounters
+            ExternalReadCounters readCounters,
+            @Nullable FormatReadCounters formatCounters
         ) {
             this.admission = admission;
             this.breaker = breaker;
@@ -572,6 +582,7 @@ public final class StreamingParallelParsingCoordinator {
 
             this.decompressedStream = decompressedStream;
             this.readCounters = readCounters;
+            this.formatCounters = formatCounters;
 
             // Gate the segmentator through the node-level admission controller so it is handed to the pool only when
             // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
@@ -1040,6 +1051,7 @@ public final class StreamingParallelParsingCoordinator {
                     .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                     .statsColumnScope(statsColumnScope)
                     .informationalWarningSink(warningSinks.informationalWarningSink())
+                    .readCounters(formatCounters)
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook reaches the
                 // same map the consumer-thread StatsCapturingIterator binds. The pages iterator is

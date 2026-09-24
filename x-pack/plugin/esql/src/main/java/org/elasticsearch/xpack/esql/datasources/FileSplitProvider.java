@@ -637,8 +637,10 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Phase 1: sequential in-memory filter. No object-store IO. Each survivor keeps one unmodifiable
-     * partition map (hive values copied by reference, {@code _file.*} written in place). No {@link FileTask}.
+     * Phase 1: sequential in-memory filter. No object-store IO. Each file builds one temporary map
+     * (hive values copied by reference, {@code _file.*} written in place) so filter hints see every
+     * listing key. The map frozen onto the survivor is that temporary map when the projection is
+     * unknown, otherwise only the retained keys with a non-null value. No {@link FileTask}.
      */
     private SurvivorBatch buildSurvivors(SplitDiscoveryContext context, long requestedStrideBytes) {
         FileList fileList = context.fileList();
@@ -655,20 +657,24 @@ public class FileSplitProvider implements SplitProvider {
             context.declaredReadSpec()
         );
         Set<String> metadataColumnNames = context.metadataColumnNames();
+        Set<String> retainedPartitionKeys = context.retainedPartitionKeys();
 
         int fileCount = fileList.fileCount();
         int certifiedSkips = 0;
         long probedFileBytes = 0;
         int[] fileIndices = new int[fileCount];
         ArrayList<Map<String, Object>> partitionValues = new ArrayList<>(fileCount);
-        // One directory BytesRef per distinct parent for this query. Discarded with the batch builder;
-        // the refs stay reachable from the frozen maps. Full path URIs are not interned.
-        Map<String, BytesRef> directoryIntern = new HashMap<>();
+        // Intern only when a survivor will keep {@code _file.directory}. A known projection that does not
+        // retain it, including an empty retain set, must not hold every parent BytesRef until this method
+        // returns. Full path URIs are never interned. Filters that read directory still see a per-file value.
+        boolean knownProjectionWithoutFilter = retainedPartitionKeys != null && filterHints.isEmpty();
+        boolean keepDirectory = retainedPartitionKeys == null || retainedPartitionKeys.contains(FileMetadataColumns.DIRECTORY);
+        Map<String, BytesRef> directoryIntern = keepDirectory ? new HashMap<>() : null;
         int survivors = 0;
         // Unified schema is query-wide. One unmodifiable map is shared by every file; the
         // concurrent split path only reads it.
         Map<String, DataType> reconciledTypes = unifiedSchema == null ? null : Map.copyOf(attributesToTypeMap(unifiedSchema.attributes()));
-        // Hive / _file.* listing values already live in the frozen partition map. Copy and strip
+        // Hive / _file.* listing values live in the temporary map the filter reads. Copy and strip
         // unbound _file.* (or overlay engine per-file constants) only when a hint names one of those keys.
         boolean overlayPerFileConstants = filterHints.isEmpty() == false
             && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
@@ -684,42 +690,51 @@ public class FileSplitProvider implements SplitProvider {
         boolean copyFilterValues = overlayPerFileConstants || hintsReferenceUnboundFileMetadata(filterHints, unboundFileMetadataNames);
         for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
-
-            Map<String, Object> values = new LinkedHashMap<>();
-            if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-                Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-                if (filePartitions != null) {
-                    // Copy references only. Do not mutate the listing map.
-                    values.putAll(filePartitions);
+            Map<String, Object> frozen;
+            if (knownProjectionWithoutFilter) {
+                // No hint reads the listing map, so only the retained keys are built. An empty set is Map.of().
+                frozen = retainedPartitionKeys.isEmpty()
+                    ? Map.of()
+                    : retainedListingValues(filePath, fileList, i, partitionInfo, retainedPartitionKeys, directoryIntern);
+            } else {
+                Map<String, Object> values = new LinkedHashMap<>();
+                if (partitionInfo != null && partitionInfo.isEmpty() == false) {
+                    Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
+                    if (filePartitions != null) {
+                        // Copy references only. Do not mutate the listing map.
+                        values.putAll(filePartitions);
+                    }
                 }
-            }
-            long modifiedMillis = fileList.lastModifiedMillis(i);
-            Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
-            FileMetadataColumns.putValues(values, filePath, fileList.size(i), modified, directoryIntern);
-            Map<String, Object> frozen = Collections.unmodifiableMap(values);
-            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
+                long modifiedMillis = fileList.lastModifiedMillis(i);
+                Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
+                FileMetadataColumns.putValues(values, filePath, fileList.size(i), modified, directoryIntern);
+                // Filter against the full listing map. The frozen survivor map may drop keys the hint still needs.
+                Map<String, Object> listingValues = Collections.unmodifiableMap(values);
+                SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
-            if (filterHints.isEmpty() == false) {
-                Map<String, Object> filterValues = copyFilterValues
-                    ? discoveryFilterValues(frozen, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
-                    : frozen;
-                if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
-                    certifiedSkips++;
-                    continue;
-                }
-                if (fileSchemaInfo != null) {
-                    Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
-                    fileColumnNames.addAll(filterValues.keySet());
-                    fileColumnNames.addAll(metadataColumnNames);
-                    // _file.record_ref is composed per row, so it is present on every file whatever the
-                    // file schema lists. The standard names are per-file constants and reach
-                    // fileColumnNames through filterValues above, when bound as metadata.
-                    fileColumnNames.add(FileMetadataColumns.RECORD_REF);
-                    if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
+                if (filterHints.isEmpty() == false) {
+                    Map<String, Object> filterValues = copyFilterValues
+                        ? discoveryFilterValues(listingValues, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
+                        : listingValues;
+                    if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                         certifiedSkips++;
                         continue;
                     }
+                    if (fileSchemaInfo != null) {
+                        Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
+                        fileColumnNames.addAll(filterValues.keySet());
+                        fileColumnNames.addAll(metadataColumnNames);
+                        // _file.record_ref is composed per row, so it is present on every file whatever the
+                        // file schema lists. The standard names are per-file constants and reach
+                        // fileColumnNames through filterValues above, when bound as metadata.
+                        fileColumnNames.add(FileMetadataColumns.RECORD_REF);
+                        if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
+                            certifiedSkips++;
+                            continue;
+                        }
+                    }
                 }
+                frozen = freezeRetainedPartitionValues(listingValues, retainedPartitionKeys);
             }
 
             long fileLength = fileList.size(i);
@@ -745,6 +760,102 @@ public class FileSplitProvider implements SplitProvider {
             anchorPinnedFirstFileWins,
             fileBackedQuerySchema
         );
+    }
+
+    /**
+     * {@code retainedKeys == null} keeps {@code listingValues} unchanged (unknown projection).
+     * Otherwise only retained keys with a non-null value are copied. A missing key and an explicit
+     * null both read back as {@code null}, so dropping them lets an empty projection be {@link Map#of()}.
+     */
+    private static Map<String, Object> freezeRetainedPartitionValues(
+        Map<String, Object> listingValues,
+        @Nullable Set<String> retainedKeys
+    ) {
+        if (retainedKeys == null) {
+            return listingValues;
+        }
+        if (retainedKeys.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> kept = null;
+        for (String key : retainedKeys) {
+            Object value = listingValues.get(key);
+            if (value != null) {
+                if (kept == null) {
+                    kept = new LinkedHashMap<>();
+                }
+                kept.put(key, value);
+            }
+        }
+        if (kept == null) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(kept);
+    }
+
+    /**
+     * Partition map for a known projection and no filter hint. Hive values are copied by reference.
+     * File-metadata keys are written only when retained, and {@code _file.directory} is the only key
+     * that consults {@code directoryIntern}.
+     */
+    private static Map<String, Object> retainedListingValues(
+        StoragePath filePath,
+        FileList fileList,
+        int index,
+        @Nullable PartitionMetadata partitionInfo,
+        Set<String> retained,
+        @Nullable Map<String, BytesRef> directoryIntern
+    ) {
+        LinkedHashMap<String, Object> kept = null;
+        if (partitionInfo != null && partitionInfo.isEmpty() == false) {
+            Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
+            if (filePartitions != null) {
+                for (Map.Entry<String, Object> entry : filePartitions.entrySet()) {
+                    if (entry.getValue() != null && retained.contains(entry.getKey())) {
+                        kept = putRetained(kept, entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+        }
+        if (retained.contains(FileMetadataColumns.PATH)) {
+            kept = putRetained(kept, FileMetadataColumns.PATH, new BytesRef(filePath.toString()));
+        }
+        if (retained.contains(FileMetadataColumns.NAME)) {
+            kept = putRetained(kept, FileMetadataColumns.NAME, new BytesRef(filePath.objectName()));
+        }
+        if (retained.contains(FileMetadataColumns.DIRECTORY)) {
+            StoragePath parent = filePath.parentDirectory();
+            if (parent != null) {
+                String parentText = parent.toString();
+                BytesRef directory = directoryIntern.get(parentText);
+                if (directory == null) {
+                    directory = new BytesRef(parentText);
+                    directoryIntern.put(parentText, directory);
+                }
+                kept = putRetained(kept, FileMetadataColumns.DIRECTORY, directory);
+            }
+        }
+        if (retained.contains(FileMetadataColumns.SIZE)) {
+            kept = putRetained(kept, FileMetadataColumns.SIZE, fileList.size(index));
+        }
+        if (retained.contains(FileMetadataColumns.MODIFIED)) {
+            long modifiedMillis = fileList.lastModifiedMillis(index);
+            if (modifiedMillis != 0L) {
+                kept = putRetained(kept, FileMetadataColumns.MODIFIED, modifiedMillis);
+            }
+        }
+        if (kept == null) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(kept);
+    }
+
+    private static LinkedHashMap<String, Object> putRetained(LinkedHashMap<String, Object> kept, String key, Object value) {
+        if (kept == null) {
+            kept = new LinkedHashMap<>();
+        }
+        kept.put(key, value);
+        return kept;
     }
 
     @Nullable
@@ -1970,7 +2081,7 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Full-file {@link StorageObject} for {@code fileSplit}, seeded with listing length (and mtime
+     * Full-file {@link StorageObject} for {@code fileSplit}, seeded with the file length (and mtime
      * when known) so {@code length()} / {@code lastModified()} do not probe the object store. Size
      * {@code 0} is a real empty object; missing length falls back to the path-only constructor.
      * <p>
@@ -1998,18 +2109,28 @@ public class FileSplitProvider implements SplitProvider {
      * Builds a {@link StorageObject} that exposes only the bytes for the given {@link FileSplit}.
      * Always wraps the provider's base object in {@link RangeStorageObject} so format readers and
      * splittable decompressors only see the split's compressed byte span (including offset {@code 0}).
-     * The inner object is the full file, seeded from listing metadata when present — never from
-     * {@link FileSplit#length()}, which is the view span.
+     * The inner object is the full file. A span split carries that length in {@code _file_length};
+     * {@link FileSplit#length()} is the view span there. A whole-file split (first and last) is not
+     * stamped, and its {@link FileSplit#length()} is the file.
      */
     public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
         return new RangeStorageObject(newObjectForFile(storageProvider, fileSplit), fileSplit.offset(), fileSplit.length());
     }
 
+    /**
+     * Full-file length. Span splits stamp {@code _file_length} because {@link FileSplit#length()} is
+     * only the view. A split that is both first and last is the whole file, so its length is the file
+     * even when {@code _file.size} was not retained. Any other split falls back to a retained
+     * {@code _file.size}, then {@code null}.
+     */
     @Nullable
     private static Long fileLengthHint(FileSplit fileSplit) {
         Object configured = fileSplit.config().get(FILE_LENGTH_KEY);
         if (configured instanceof String s) {
             return Long.parseLong(s);
+        }
+        if (isFirstInFile(fileSplit) && isLastInFile(fileSplit)) {
+            return fileSplit.length();
         }
         Object listed = fileSplit.partitionValues().get(FileMetadataColumns.SIZE);
         return listed instanceof Number n ? n.longValue() : null;
@@ -2127,6 +2248,7 @@ public class FileSplitProvider implements SplitProvider {
 
                 Map<String, Object> splitConfig = new HashMap<>(config);
                 splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
+                splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
                 if (m == 0) {
                     splitConfig.put(FIRST_SPLIT_KEY, "true");
                 }
@@ -2606,6 +2728,7 @@ public class FileSplitProvider implements SplitProvider {
             long length = Math.subtractExact(end, start);
             Map<String, Object> splitConfig = new HashMap<>(config);
             splitConfig.put(RECORD_ALIGNED_MACRO_SPLIT_KEY, "true");
+            splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
             if (i == 0) {
                 splitConfig.put(FIRST_SPLIT_KEY, "true");
             }
@@ -2728,6 +2851,7 @@ public class FileSplitProvider implements SplitProvider {
                     long groupEnd = frame.compressedOffset() + frame.compressedSize();
                     Map<String, Object> splitConfig = new HashMap<>(config);
                     splitConfig.put(COMPRESSED_OFFSET_SPLIT_KEY, "true");
+                    splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
                     if (splitCount == 0) {
                         splitConfig.put(FIRST_SPLIT_KEY, "true");
                     }

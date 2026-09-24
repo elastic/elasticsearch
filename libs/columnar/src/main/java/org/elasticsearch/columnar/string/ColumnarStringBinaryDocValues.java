@@ -184,7 +184,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             @Override
             public int nullCount() throws IOException {
                 // Whichever layout this is, only what already says which slots are null is touched: the
-                // null-slot table, or the ordinals. The values themselves are never decoded.
+                // lengths, or the ordinals. The values themselves are never decoded.
                 int nulls = 0;
                 for (long i = 0; i < count; i++) {
                     if (reader.isNullSlot(first + i)) {
@@ -216,6 +216,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             @Override
             public BytesRef value() throws IOException {
                 return reader.valueAt(at);
+            }
+
+            @Override
+            public int valueLength() throws IOException {
+                return reader.isNullSlot(at) ? -1 : reader.byteLengthAt(at);
             }
 
             @Override

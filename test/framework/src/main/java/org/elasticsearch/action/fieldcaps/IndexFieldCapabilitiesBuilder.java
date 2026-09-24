@@ -10,6 +10,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.util.Collections;
@@ -27,6 +28,9 @@ public class IndexFieldCapabilitiesBuilder {
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
     private Map<String, String> meta;
+    private @Nullable String indexAnalyzer;
+    private int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+    private boolean indexLocalAnalyzer;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
         this.name = name;
@@ -73,6 +77,22 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    public IndexFieldCapabilitiesBuilder indexAnalyzer(@Nullable String indexAnalyzer) {
+        this.indexAnalyzer = indexAnalyzer;
+        return this;
+    }
+
+    public IndexFieldCapabilitiesBuilder indexAnalyzerPositionIncrementGap(int indexAnalyzerPositionIncrementGap) {
+        this.indexAnalyzerPositionIncrementGap = indexAnalyzerPositionIncrementGap;
+        return this;
+    }
+
+    /** Withheld {@code index.analysis} name. Only meaningful when {@code indexAnalyzer} is null. */
+    public IndexFieldCapabilitiesBuilder indexLocalAnalyzer(boolean indexLocalAnalyzer) {
+        this.indexLocalAnalyzer = indexLocalAnalyzer;
+        return this;
+    }
+
     public IndexFieldCapabilities build() {
         return new IndexFieldCapabilities(
             name,
@@ -83,7 +103,10 @@ public class IndexFieldCapabilitiesBuilder {
             isInference,
             isDimension,
             metricType,
-            meta
+            meta,
+            indexAnalyzer,
+            indexAnalyzerPositionIncrementGap,
+            indexLocalAnalyzer
         );
     }
 }

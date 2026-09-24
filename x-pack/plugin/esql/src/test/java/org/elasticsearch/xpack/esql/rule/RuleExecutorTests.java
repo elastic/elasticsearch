@@ -68,7 +68,7 @@ public class RuleExecutorTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "Rule execution limit [100] reached. Last Rules: ["
+                "Rule execution limit [100] reached, last rules that changed the plan: ["
                     + "SplitProjects, logical.CombineProjections, "
                     + "SplitEvals, logical.CombineEvals, "
                     + "SplitProjects, logical.CombineProjections, "
@@ -97,7 +97,7 @@ public class RuleExecutorTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "Rule execution limit [2] reached. Last Rules: ["
+                "Rule execution limit [2] reached, last rules that changed the plan: ["
                     + "SplitEvals, logical.CombineEvals, "
                     + "SplitEvals, logical.CombineEvals]"
             )

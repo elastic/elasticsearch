@@ -65,7 +65,11 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
         boolean reached(int numberOfRuns, Collection<String> lastAppliedRules) {
             if (numberOfRuns >= this.runs) {
-                throw new RuleExecutionException("Rule execution limit [{}] reached. Last Rules: {}", numberOfRuns, lastAppliedRules);
+                throw new RuleExecutionException(
+                    "Rule execution limit [{}] reached, last rules that changed the plan: {}",
+                    numberOfRuns,
+                    lastAppliedRules
+                );
             }
             return false;
         }

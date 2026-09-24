@@ -13,9 +13,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.RequestBasedTaskRunnerTests
   method: testLoopOneAtATime
   issue: https://github.com/elastic/elasticsearch/issues/156103
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/search/retriever/line_983}
-  issue: https://github.com/elastic/elasticsearch/issues/156119
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
@@ -132,9 +129,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/159673
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/search/search-your-data/retrievers-examples/line_118}
-  issue: https://github.com/elastic/elasticsearch/issues/159676
 - class: org.elasticsearch.xpack.rank.linear.LinearRetrieverIT
   method: testLinearRetrieverPartialSearchErrorsFalse
   issue: https://github.com/elastic/elasticsearch/issues/159724
@@ -162,9 +156,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=vector-tile/10_basic/exact bounds}
   issue: https://github.com/elastic/elasticsearch/issues/159844
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/search/search-your-data/retrievers-examples/line_1933}
-  issue: https://github.com/elastic/elasticsearch/issues/159847
 - class: org.elasticsearch.upgrades.SecurityIndexRoleMappingCleanupIT
   method: testCleanupDuplicateMappings
   issue: https://github.com/elastic/elasticsearch/issues/159850

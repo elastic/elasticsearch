@@ -534,6 +534,28 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
         testFilter(expected, actual, singleton("photosCount"), emptySet());
     }
 
+    public void testBackslashFieldNameNestedFiltering() throws IOException {
+        // A field literally named "\" (single backslash) with a nested property. A pre-8.6 _source filter
+        // "\.nested_value" (backslash literal + dot separator) must keep returning that nested value without
+        // any client-side rewrite. See #136302.
+        String actual = """
+            {
+                "\\\\": {
+                    "nested_value": "value_C"
+                },
+                "other": "value"
+            }
+            """;
+        String expected = """
+            {
+                "\\\\": {
+                    "nested_value": "value_C"
+                }
+            }
+            """;
+        testFilter(expected, actual, singleton("\\.nested_value"), emptySet());
+    }
+
     public void testEmptySource() throws IOException {
         SourceFilter empty = new SourceFilter(new String[0], new String[0]);
         SourceFilter excludeWildcard = new SourceFilter(new String[0], new String[] { "test* " });

@@ -147,7 +147,13 @@ public final class ExternalFailures {
             // IAE from format readers may embed storage URIs in the message. Log at WARN on this node for
             // debugging; do not chain it into the exception so its message never crosses the wire.
             logger.warn("External read failed with IllegalArgumentException (cause logged, not forwarded)", iae);
-            return new ExternalClientException("Malformed external data ({})", iae.getClass().getSimpleName());
+            ExternalClientException iaeResult = new ExternalClientException("Malformed external data ({})", iae.getClass().getSimpleName());
+            // Include the IAE detail only when it is free of storage-URI schemes; a Parquet reader may surface
+            // a column name or file basename that is useful for diagnosis without leaking the full object path.
+            if (iae.getMessage() != null && containsStoragePath(iae.getMessage()) == false) {
+                iaeResult.setDetail(iae.getMessage());
+            }
+            return iaeResult;
         }
         RuntimeException result;
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {

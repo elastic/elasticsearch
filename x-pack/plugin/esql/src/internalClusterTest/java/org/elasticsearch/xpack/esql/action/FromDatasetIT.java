@@ -3597,10 +3597,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * Declared-type twin of {@link #testScalingDifferentialOverAnnotatedSortColumns} for the INT32 case: an
      * {@code INT32 DECIMAL(9,2)} column declared as {@code integer} routes through the {@code case INT} arm of
      * {@code rawValueFromStats} / {@code rawValueFromPageIndex}. That arm does not check
-     * {@code sortColumnAnnotationScales}, so it passes the raw unscaled integer (100..2099) to the threshold
-     * comparator instead of declining. The decoded bound is a whole-number integer (1..20), and 100 &gt; 1, so
+     * {@code sortColumnAnnotationScales}, so it passes the raw unscaled integer (100, 200, …) to the threshold
+     * comparator instead of declining. The decoded bound is a whole-number integer (1..rowCount), and 100 &gt; 1, so
      * the comparator decides every row group is dominated and skips the rows holding the true minimum. The fix makes
      * the arm yield {@code null} when the annotation rescales, preventing the skip.
+     *
+     * <p>Fixture values are exact wholes after DECIMAL decode ({@code N.00}) so declared integer exact-read
+     * accepts them; non-whole cents would be refused as value errors (see exact whole-number dataset reads).
      *
      * <p>The file is four columns wide so that {@code InsertExternalFieldExtraction} defers enough columns to engage
      * the threshold rail; projecting fewer keeps the scan narrow and the threshold is never published.
@@ -3608,9 +3611,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testScalingDifferentialOverDeclaredIntegerDecimalSortColumn() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // Raw unscaled integers 100..2099; with DECIMAL(9,2) annotation, decode divides by 100, giving 1.00..20.99.
-        // Declared integer: the double is cast to int (floor), yielding 1..20. Ascending values so the true minimum
-        // (1) lives in the first row groups — a unit-blind threshold still skips them because raw 100 > decoded 1.
+        // Raw unscaled multiples of 100 (100, 200, …); DECIMAL(9,2) decode divides by 100 → exact wholes 1.00..N.00.
+        // Declared integer exact-read accepts those wholes as 1..N. Ascending so the true minimum (1) lives in the
+        // first row groups — a unit-blind threshold still skips them because raw 100 > decoded 1.
         int rowCount = 2000;
         Path file = writeDecimalInt32Fixture("decimal_int32_sort", rowCount);
 
@@ -3997,7 +4000,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     /**
      * Four-column {@code DECIMAL(9,2)} fixture for {@link #testScalingDifferentialOverDeclaredIntegerDecimalSortColumn}.
-     * Raw unscaled integers {@code 100..100+rowCount-1}, stored as {@code INT32} with a {@code DECIMAL(9,2)} annotation.
+     * Raw unscaled integers {@code (i+1)*100} (100, 200, …), stored as {@code INT32} with a {@code DECIMAL(9,2)}
+     * annotation so decode yields exact wholes {@code 1.00..rowCount.00} — accepted by declared integer exact-read
+     * while still exposing the raw-vs-decoded scaling differential (raw 100 vs decoded 1).
      * Four columns are required so {@code InsertExternalFieldExtraction} defers enough to engage the threshold rail.
      * Very small row groups (256 bytes) ensure there are always later groups for a unit-blind threshold to wrongly skip.
      */
@@ -4023,7 +4028,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         ) {
             for (int i = 0; i < rowCount; i++) {
                 Group g = factory.newGroup();
-                g.add("amt", 100 + i);
+                g.add("amt", (i + 1) * 100);
                 g.add("id", (long) i);
                 g.add("pri", i);
                 g.add("msg", "m" + i);

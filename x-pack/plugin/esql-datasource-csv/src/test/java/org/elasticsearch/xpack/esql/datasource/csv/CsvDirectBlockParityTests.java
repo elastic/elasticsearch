@@ -235,9 +235,15 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(ul("0")), row(ul("9223372036854775808")), row(ul("18446744073709551615"))), rows);
     }
 
-    public void testUnsignedLongTruncatingTokensParity() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "a:unsigned_long\n42.9\n1e3\n");
+    /**
+     * Exact whole-number tokens (trailing-zero decimal, scientific) agree on both arms; a non-whole
+     * fraction is refused and nulls the cell under {@code null_field}, deliberately unlike
+     * {@code ::unsigned_long} which truncates toward zero.
+     */
+    public void testUnsignedLongExactWholeTokensParity() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:unsigned_long\n42.0\n1e3\n");
         assertEquals(List.of(row(ul("42")), row(ul("1000"))), rows);
+        assertEquals(List.of(row((Object) null), row(ul("5"))), read(false, nullField(), "a:unsigned_long\n42.9\n5\n"));
     }
 
     public void testUnsignedLongOutOfRangeNullFieldParity() throws IOException {

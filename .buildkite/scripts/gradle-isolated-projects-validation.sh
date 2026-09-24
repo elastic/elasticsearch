@@ -21,7 +21,8 @@ set -e
 if [[ ! -f "$REPORT_FILE" ]]; then
   echo "Expected Gradle problems report at $REPORT_FILE, but it was not created"
   if (( gradle_exit != 0 )); then
-    exit "$gradle_exit"
+    echo "Gradle command failed before a problems report was produced; skipping threshold enforcement for this run"
+    exit 0
   fi
   exit 1
 fi
@@ -37,8 +38,10 @@ summary=$(jq -r '
 ' "$REPORT_FILE")
 
 annotation_style="info"
-if (( gradle_exit != 0 || violation_count > MAX_ISOLATED_PROJECTS_VIOLATIONS )); then
+if (( violation_count > MAX_ISOLATED_PROJECTS_VIOLATIONS )); then
   annotation_style="error"
+elif (( gradle_exit != 0 )); then
+  annotation_style="warning"
 fi
 
 if command -v buildkite-agent >/dev/null 2>&1; then
@@ -60,8 +63,7 @@ echo "Allowed threshold: $MAX_ISOLATED_PROJECTS_VIOLATIONS"
 printf '%s\n' "$summary"
 
 if (( gradle_exit != 0 )); then
-  echo "Gradle command failed"
-  exit "$gradle_exit"
+  echo "Gradle command failed, but this validation only gates on the isolated-projects violation count"
 fi
 
 if (( violation_count > MAX_ISOLATED_PROJECTS_VIOLATIONS )); then

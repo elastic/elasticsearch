@@ -136,6 +136,112 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
         assertTripsLimit("String s = \"hello\"; s.toCharArray(); return \"x\";");
     }
 
+    // ---- the rest of java.lang: toString, valueOf, copies, base64, split and replace ----
+
+    public void testSubSequenceCharged() {
+        assertEquals(
+            AllocationEstimators.subSequenceBytes("hello world", 0, 5),
+            allocatedBytes("CharSequence c = \"hello world\"; c.subSequence(0, 5); return \"x\";")
+        );
+    }
+
+    public void testBuilderToStringChargedFromItsLength() {
+        StringBuilder hello = new StringBuilder("hello");
+        assertEquals(
+            AllocationEstimators.stringBuilderBytes("hello") + AllocationEstimators.toStringBytes(hello),
+            allocatedBytes("StringBuilder sb = new StringBuilder(\"hello\"); sb.toString(); return \"x\";")
+        );
+    }
+
+    public void testObjectToStringChargedAnAllowance() {
+        // A map's toString length is unknowable, so it gets the concat operand allowance plus the String object.
+        long map = AllocationEstimators.toStringBytes((Object) java.util.Map.of());
+        assertEquals(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + (long) AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES, map);
+        assertEquals(64L + map, allocatedBytes("Map m = new HashMap(); m.toString(); return \"x\";"));
+    }
+
+    public void testValueOfNumberChargedExactly() {
+        // The int is boxed on the way in, then rendered to one char.
+        long one = AllocationEstimators.stringValueOfBytes(5);
+        assertEquals(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + 2L, one);
+        assertEquals(AllocSizes.boxSize(int.class) + one, allocatedBytes("String.valueOf(5); return \"x\";"));
+    }
+
+    public void testCopyValueOfCharged() {
+        long array = AllocSizes.arraySize(char.class, 2);
+        assertEquals(
+            array + AllocationEstimators.copyValueOfBytes(new char[2]),
+            allocatedBytes("char[] c = new char[2]; String.copyValueOf(c); return \"x\";")
+        );
+        assertEquals(
+            array + AllocationEstimators.copyValueOfBytes(new char[2], 1, 1),
+            allocatedBytes("char[] c = new char[2]; String.copyValueOf(c, 1, 1); return \"x\";")
+        );
+    }
+
+    public void testBase64Charged() {
+        assertEquals(AllocationEstimators.encodeBase64Bytes("hello"), allocatedBytes("'hello'.encodeBase64(); return \"x\";"));
+        assertEquals(AllocationEstimators.decodeBase64Bytes("aGVsbG8="), allocatedBytes("'aGVsbG8='.decodeBase64(); return \"x\";"));
+        assertThat(AllocationEstimators.encodeBase64Bytes("hello"), greaterThan(AllocationEstimators.decodeBase64Bytes("hello")));
+    }
+
+    public void testSplitOnTokenChargedAsWorstCase() {
+        assertEquals(AllocationEstimators.splitOnTokenBytes("a,b,c", ","), allocatedBytes("'a,b,c'.splitOnToken(','); return \"x\";"));
+        assertEquals(
+            AllocationEstimators.splitOnTokenBytes("a,b,c", ",", 2),
+            allocatedBytes("'a,b,c'.splitOnToken(',', 2); return \"x\";")
+        );
+        assertThat(AllocationEstimators.splitOnTokenBytes("a,b,c", ",", 2), lessThan(AllocationEstimators.splitOnTokenBytes("a,b,c", ",")));
+        // A limit under one means no limit.
+        assertEquals(AllocationEstimators.splitOnTokenBytes("a,b,c", ","), AllocationEstimators.splitOnTokenBytes("a,b,c", ",", -1));
+    }
+
+    public void testReplaceBoundGrowsWithTheReplacement() {
+        long grow = AllocationEstimators.replaceBytes(null, "aXbXc", "X", "YY");
+        assertEquals(grow, allocatedBytes("'aXbXc'.replace('X', 'YY'); return \"x\";"));
+        assertThat(grow, greaterThan(AllocationEstimators.replaceBytes(null, "aXbXc", "X", "Y")));
+        // An empty target matches before and after every char.
+        assertThat(
+            AllocationEstimators.replaceBytes(null, "abc", "", "-"),
+            greaterThan(AllocationEstimators.replaceBytes(null, "abc", "b", "-"))
+        );
+    }
+
+    public void testReplaceWithFunctionCharged() {
+        // The lambda's capture object is charged where it is built; the regex literal is a constant and is not.
+        long lambda = AllocSizes.captureSize(1);
+        assertEquals(
+            lambda + AllocationEstimators.replaceAllBytes(null, "abc", 0, Pattern.compile("b"), null),
+            allocatedBytes("'abc'.replaceAll(/b/, m -> 'x'); return \"x\";")
+        );
+        assertEquals(
+            lambda + AllocationEstimators.replaceFirstBytes("abc", 0, Pattern.compile("b"), null),
+            allocatedBytes("'abc'.replaceFirst(/b/, m -> 'x'); return \"x\";")
+        );
+    }
+
+    public void testCharacterMembersCharged() {
+        assertEquals(AllocationEstimators.characterNameBytes(65), allocatedBytes("Character.getName(65); return \"x\";"));
+        assertEquals(AllocationEstimators.forNameBytes("LATIN"), allocatedBytes("Character.UnicodeScript.forName('LATIN'); return \"x\";"));
+        assertEquals(AllocationEstimators.unicodeScriptValuesBytes(), allocatedBytes("Character.UnicodeScript.values(); return \"x\";"));
+        assertThat(AllocationEstimators.unicodeScriptValuesBytes(), greaterThan(1000L));
+    }
+
+    public void testStackTraceElementCharged() {
+        assertEquals(
+            AllocationEstimators.stackTraceElementBytes(null, null, null, 0),
+            allocatedBytes("new StackTraceElement('a', 'b', 'c', 1); return \"x\";")
+        );
+    }
+
+    public void testToStringRunawayTripsLimit() {
+        // A builder copied to a String every iteration: the copies are transient but each one is charged.
+        assertTripsLimit(
+            "StringBuilder sb = new StringBuilder(); sb.setLength(10000); for (int i = 0; i < 1000; ++i) { sb.toString(); } return \"x\";",
+            "1mb"
+        );
+    }
+
     // ---- Pattern.split, an @inject_constant augmentation ----
 
     public void testPatternSplitCharged() {

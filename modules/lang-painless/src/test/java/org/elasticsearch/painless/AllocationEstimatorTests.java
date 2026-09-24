@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * End-to-end tests for {@code @allocates} pre-checks: the annotated call's operands are replayed through the estimator
@@ -37,6 +38,42 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.allocation-estimator"));
         contexts.put(PainlessTestScript.CONTEXT, whitelists);
         return contexts;
+    }
+
+    // ---- Iterable augmentations that build a collection or a String ----
+
+    public void testAsListCopiesOnlyWhenTheReceiverIsNotAList() {
+        assertEquals(0L, AllocationEstimators.asListBytes(List.of()));
+        assertEquals(40L, allocatedBytes("List l = new ArrayList(); l.asList(); return \"x\";"));
+        assertEquals(
+            AllocationEstimators.hashSetShellBytes() + AllocationEstimators.asListBytes(java.util.Set.of()),
+            allocatedBytes("Set s = new HashSet(); s.asList(); return \"x\";")
+        );
+        assertEquals(0L, AllocationEstimators.asCollectionBytes(java.util.Set.of()));
+    }
+
+    public void testFindResultsAndGroupByChargedFromTheCollectionSize() {
+        long lambda = AllocSizes.captureSize(1);
+        assertEquals(
+            40L + lambda + AllocationEstimators.findResultsBytes(null, List.of(), null),
+            allocatedBytes("List l = new ArrayList(); l.findResults(x -> x); return \"x\";")
+        );
+        assertEquals(
+            40L + lambda + AllocationEstimators.groupByBytes(null, List.of(), null),
+            allocatedBytes("List l = new ArrayList(); l.groupBy(x -> x); return \"x\";")
+        );
+        assertThat(
+            AllocationEstimators.groupByBytes(null, List.of("a", "b"), null),
+            greaterThan(AllocationEstimators.groupByBytes(null, List.of("a"), null))
+        );
+    }
+
+    public void testIterableJoinMatchesStringJoin() {
+        assertEquals(AllocationEstimators.joinBytes(",", List.of()), AllocationEstimators.iterableJoinBytes(List.of(), ","));
+        assertEquals(
+            40L + AllocationEstimators.iterableJoinBytes(List.of(), ","),
+            allocatedBytes("List l = new ArrayList(); l.join(','); return \"x\";")
+        );
     }
 
     public void testSubstringChargedFromArguments() {

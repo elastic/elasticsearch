@@ -48,7 +48,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
             final BytesRef slot = randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 30));
             slots.add(slot);
             if (slot == null) {
-                ColumnarBinaryDocValuesField.recordNull(doc, FIELD);
+                ColumnarBinaryDocValuesField.recordNull(doc, FIELD, null);
             } else {
                 ColumnarBinaryDocValuesField.recordValue(doc, FIELD, slot, MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED);
             }
@@ -66,7 +66,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
         final List<BytesRef> slots = new ArrayList<>();
         for (int i = 0; i < between(1, 5); i++) {
             slots.add(null);
-            ColumnarBinaryDocValuesField.recordNull(doc, FIELD);
+            ColumnarBinaryDocValuesField.recordNull(doc, FIELD, null);
         }
         assertSlots(doc, slots);
         assertNoCounts(doc);
@@ -75,7 +75,7 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
     /** An empty array is a count of zero and nothing after it. */
     public void testEmptyArrayIsACountOfZero() throws IOException {
         final LuceneDocument doc = new LuceneDocument();
-        ColumnarBinaryDocValuesField.recordEmptyArray(doc, FIELD);
+        ColumnarBinaryDocValuesField.recordEmptyArray(doc, FIELD, null);
         assertSlots(doc, List.of());
         assertEquals("the empty payload", StringBinaryPayload.EMPTY, doc.getField(FIELD).binaryValue());
         assertNoCounts(doc);

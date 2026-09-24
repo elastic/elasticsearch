@@ -304,3 +304,80 @@ teardown:
           }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "Field [creator.metadata.foo] is not allowed for querying or aggregation" }
+
+---
+"Test with_profile_uid reports the profile uid of an author who has one":
+  - do:
+      headers:
+        Authorization: "Basic c2FfY3JlYXRvcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_creator
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZWRpdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_editor
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: false }
+
+  # Only the creator has a profile.
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "sa_creator",
+            "password" : "x-pack-test-password"
+          }
+  - is_true: uid
+  - match: { "user.username": "sa_creator" }
+  - set: { uid: creator_profile_uid }
+
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+        with_profile_uid: true
+  - match: { "attributed/worker_1.creator.principal": "sa_creator" }
+  - match: { "attributed/worker_1.creator_profile_uid": $creator_profile_uid }
+  - match: { "attributed/worker_1.editor.principal": "sa_editor" }
+  - is_false: "attributed/worker_1.editor_profile_uid"
+
+  # Off by default, as for API keys.
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+  - match: { "attributed/worker_1.creator.principal": "sa_creator" }
+  - is_false: "attributed/worker_1.creator_profile_uid"
+
+  - do:
+      security.query_service_accounts:
+        with_profile_uid: true
+        body: >
+          {
+            "query": { "term": { "username": "attributed/worker_1" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.creator_profile_uid: $creator_profile_uid }
+  - is_false: service_accounts.0.editor_profile_uid
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "attributed/worker_1" } }
+          }
+  - match: { total: 1 }
+  - is_false: service_accounts.0.creator_profile_uid

@@ -26,6 +26,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * sorting. Built-in accounts are not in the security index and so are not searched; {@link GetServiceAccountRequest}
  * reports them.
  * <p>
+ * {@code withProfileUid} asks for the profile uid of each matched account's creator and editor
+ * <p>
  * Local-only: the node that receives the REST request runs the search itself, so the request is never serialized.
  */
 public final class QueryServiceAccountRequest extends UntypedActionRequest {
@@ -40,6 +42,7 @@ public final class QueryServiceAccountRequest extends UntypedActionRequest {
     private final List<FieldSortBuilder> fieldSortBuilders;
     @Nullable
     private final SearchAfterBuilder searchAfterBuilder;
+    private final boolean withProfileUid;
 
     public QueryServiceAccountRequest(
         @Nullable QueryBuilder queryBuilder,
@@ -48,11 +51,23 @@ public final class QueryServiceAccountRequest extends UntypedActionRequest {
         @Nullable List<FieldSortBuilder> fieldSortBuilders,
         @Nullable SearchAfterBuilder searchAfterBuilder
     ) {
+        this(queryBuilder, from, size, fieldSortBuilders, searchAfterBuilder, false);
+    }
+
+    public QueryServiceAccountRequest(
+        @Nullable QueryBuilder queryBuilder,
+        @Nullable Integer from,
+        @Nullable Integer size,
+        @Nullable List<FieldSortBuilder> fieldSortBuilders,
+        @Nullable SearchAfterBuilder searchAfterBuilder,
+        boolean withProfileUid
+    ) {
         this.queryBuilder = queryBuilder;
         this.from = from;
         this.size = size;
         this.fieldSortBuilders = fieldSortBuilders;
         this.searchAfterBuilder = searchAfterBuilder;
+        this.withProfileUid = withProfileUid;
     }
 
     public QueryBuilder getQueryBuilder() {
@@ -73,6 +88,10 @@ public final class QueryServiceAccountRequest extends UntypedActionRequest {
 
     public SearchAfterBuilder getSearchAfterBuilder() {
         return searchAfterBuilder;
+    }
+
+    public boolean withProfileUid() {
+        return withProfileUid;
     }
 
     @Override

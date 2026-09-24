@@ -62,6 +62,14 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
                 withCreatedAt(userManaged, randomValueOtherThan(userManaged.createdAt(), ServiceAccountInfoTests::randomOptionalInstant)),
                 withEditor(userManaged, randomValueOtherThan(userManaged.editor(), ServiceAccountInfoTests::randomOptionalAuthor)),
                 withEditedAt(userManaged, randomValueOtherThan(userManaged.editedAt(), ServiceAccountInfoTests::randomOptionalInstant)),
+                withCreatorProfileUid(
+                    userManaged,
+                    randomValueOtherThan(userManaged.creatorProfileUid(), ServiceAccountInfoTests::randomOptionalProfileUid)
+                ),
+                withEditorProfileUid(
+                    userManaged,
+                    randomValueOtherThan(userManaged.editorProfileUid(), ServiceAccountInfoTests::randomOptionalProfileUid)
+                ),
                 randomBuiltIn()
             );
         };
@@ -76,7 +84,9 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.creator(),
             info.createdAt(),
             info.editor(),
-            info.editedAt()
+            info.editedAt(),
+            info.creatorProfileUid(),
+            info.editorProfileUid()
         );
     }
 
@@ -89,7 +99,9 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.creator(),
             info.createdAt(),
             info.editor(),
-            info.editedAt()
+            info.editedAt(),
+            info.creatorProfileUid(),
+            info.editorProfileUid()
         );
     }
 
@@ -102,7 +114,9 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.creator(),
             info.createdAt(),
             info.editor(),
-            info.editedAt()
+            info.editedAt(),
+            info.creatorProfileUid(),
+            info.editorProfileUid()
         );
     }
 
@@ -115,7 +129,9 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.creator(),
             info.createdAt(),
             info.editor(),
-            info.editedAt()
+            info.editedAt(),
+            info.creatorProfileUid(),
+            info.editorProfileUid()
         );
     }
 
@@ -128,7 +144,9 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             creator,
             info.createdAt(),
             info.editor(),
-            info.editedAt()
+            info.editedAt(),
+            info.creatorProfileUid(),
+            info.editorProfileUid()
         );
     }
 
@@ -141,7 +159,9 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.creator(),
             createdAt,
             info.editor(),
-            info.editedAt()
+            info.editedAt(),
+            info.creatorProfileUid(),
+            info.editorProfileUid()
         );
     }
 
@@ -154,7 +174,39 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.creator(),
             info.createdAt(),
             editor,
-            info.editedAt()
+            info.editedAt(),
+            info.creatorProfileUid(),
+            info.editorProfileUid()
+        );
+    }
+
+    private static ServiceAccountInfo.UserManaged withCreatorProfileUid(ServiceAccountInfo.UserManaged info, String creatorProfileUid) {
+        return new ServiceAccountInfo.UserManaged(
+            info.principal(),
+            info.roles(),
+            info.enabled(),
+            info.description(),
+            info.creator(),
+            info.createdAt(),
+            info.editor(),
+            info.editedAt(),
+            creatorProfileUid,
+            info.editorProfileUid()
+        );
+    }
+
+    private static ServiceAccountInfo.UserManaged withEditorProfileUid(ServiceAccountInfo.UserManaged info, String editorProfileUid) {
+        return new ServiceAccountInfo.UserManaged(
+            info.principal(),
+            info.roles(),
+            info.enabled(),
+            info.description(),
+            info.creator(),
+            info.createdAt(),
+            info.editor(),
+            info.editedAt(),
+            info.creatorProfileUid(),
+            editorProfileUid
         );
     }
 
@@ -167,7 +219,9 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.creator(),
             info.createdAt(),
             info.editor(),
-            editedAt
+            editedAt,
+            info.creatorProfileUid(),
+            info.editorProfileUid()
         );
     }
 
@@ -240,7 +294,9 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             ServiceAccountAuthorTests.randomAuthor(),
             randomInstant(),
             ServiceAccountAuthorTests.randomAuthor(),
-            randomInstant()
+            randomInstant(),
+            randomOptionalProfileUid(),
+            randomOptionalProfileUid()
         );
         final TransportVersion beforeAttribution = TransportVersionUtils.getPreviousVersion(
             ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION
@@ -322,6 +378,38 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
         assertThat(unattributed, equalTo(Map.of("type", "user_managed", "roles", List.of(), "enabled", false)));
     }
 
+    /**
+     * Profile uids are attached beside whichever authors the account has, as flat siblings of the author objects, and
+     * a uid for an author the account does not have is dropped.
+     */
+    public void testProfileUidsAreReportedBesideTheAuthorsTheAccountHas() throws IOException {
+        final ServiceAccountAuthor creator = new ServiceAccountAuthor("alice", null, null, "native1", "native", null);
+        final ServiceAccountInfo.UserManaged created = new ServiceAccountInfo.UserManaged(
+            "apps/worker",
+            List.of(),
+            true,
+            null,
+            creator,
+            Instant.ofEpochMilli(1_700_000_000_000L),
+            null,
+            null
+        );
+        assertThat(created.creatorProfileUid(), nullValue());
+        assertThat(innerToMap(created), not(hasKey("creator_profile_uid")));
+
+        final ServiceAccountInfo.UserManaged resolved = created.withProfileUids("u_alice", "u_nobody");
+        assertThat(resolved.creatorProfileUid(), equalTo("u_alice"));
+        assertThat(resolved.editorProfileUid(), nullValue());
+        final Map<String, Object> rendered = innerToMap(resolved);
+        assertThat(rendered.get("creator_profile_uid"), equalTo("u_alice"));
+        assertThat(rendered.get("creator"), equalTo(Map.of("principal", "alice", "realm", "native1", "realm_type", "native")));
+        assertThat(rendered, not(hasKey("editor_profile_uid")));
+        assertThat(innerToMap(created.withProfileUids(null, null)), equalTo(innerToMap(created)));
+
+        final ServiceAccountInfo.UserManaged unattributed = new ServiceAccountInfo.UserManaged("apps/worker", List.of(), true, null);
+        assertThat(unattributed.withProfileUids("u_alice", "u_bob"), equalTo(unattributed));
+    }
+
     private static Map<String, Object> innerToMap(ServiceAccountInfo info) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         info.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -347,8 +435,14 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             randomOptionalAuthor(),
             randomOptionalInstant(),
             randomOptionalAuthor(),
-            randomOptionalInstant()
+            randomOptionalInstant(),
+            randomOptionalProfileUid(),
+            randomOptionalProfileUid()
         );
+    }
+
+    private static String randomOptionalProfileUid() {
+        return randomBoolean() ? null : "u_" + randomAlphaOfLengthBetween(5, 10);
     }
 
     private static String randomDescription() {

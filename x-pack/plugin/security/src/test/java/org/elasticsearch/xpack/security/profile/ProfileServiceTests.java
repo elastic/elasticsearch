@@ -55,7 +55,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -75,6 +77,7 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesReque
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequestTests;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
@@ -1328,6 +1331,73 @@ public class ProfileServiceTests extends ESTestCase {
         PlainActionFuture<Collection<String>> finalListener = listener;
         ExecutionException e = expectThrows(ExecutionException.class, () -> finalListener.get());
         assertThat(e.getMessage(), containsString("test unavailable"));
+    }
+
+    /**
+     * Authors who are the same person share one lookup, an author from a realm this node does not have resolves to
+     * no profile without one, and a found profile's uid is reported for every author it belongs to, in author order.
+     */
+    @SuppressWarnings("unchecked")
+    public void testProfileSearchForServiceAccountAuthors() throws Exception {
+        // The sample profile document is for realm_name_1 of realm_type_1, so the author has to be from there.
+        final ServiceAccountAuthor alice = new ServiceAccountAuthor("alice", "Alice", null, "realm_name_1", "realm_type_1", null);
+        // The same person as recorded by a later write, after a full name was added: one subject, two authors.
+        final ServiceAccountAuthor aliceRenamed = new ServiceAccountAuthor("alice", "Alice B.", null, "realm_name_1", "realm_type_1", null);
+        final ServiceAccountAuthor bob = new ServiceAccountAuthor("bob", null, null, "unconfigured_realm", "ldap", null);
+        realmRefLookup = realmIdentifier -> {
+            if (realmIdentifier.getName().equals("realm_name_1")) {
+                assertThat(realmIdentifier.getType(), is("realm_type_1"));
+                // The same realm ref every time, so that the two lookups for alice are recognised as one subject.
+                return new Authentication.RealmRef("realm_name_1", "realm_type_1", "nodeName");
+            }
+            assertThat(realmIdentifier.getName(), is("unconfigured_realm"));
+            return null;
+        };
+        final SearchHit hit = SearchHit.unpooled(0, "profile_u_alice");
+        hit.sourceRef(new BytesArray(getSampleProfileDocumentSource("u_alice", "alice", List.of("role_a"), 1L)));
+        final SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+        final MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(hits), null) },
+            randomNonNegativeLong()
+        );
+        try {
+            doAnswer(invocation -> {
+                assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+                final MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                // one search for alice, who is both creator and editor; none for bob, whose realm is not configured
+                assertThat(multiSearchRequest.requests(), iterableWithSize(1));
+                assertThat(
+                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(),
+                    containsInAnyOrder(
+                        new TermQueryBuilder("user_profile.user.username.keyword", "alice"),
+                        new TermQueryBuilder("user_profile.user.realm.type", "realm_type_1"),
+                        new TermQueryBuilder("user_profile.user.realm.name", "realm_name_1")
+                    )
+                );
+                final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(multiSearchResponse);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+
+            final PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+            profileService.resolveProfileUidsForServiceAccountAuthors(List.of(alice, bob, aliceRenamed, alice), listener);
+            assertThat(listener.get(), contains("u_alice", null, "u_alice", "u_alice"));
+        } finally {
+            multiSearchResponse.decRef();
+            hits.decRef();
+        }
+    }
+
+    public void testProfilesIndexMissingWhenRetrievingProfilesOfServiceAccountAuthors() throws Exception {
+        when(profileIndex.forCurrentProject().indexExists()).thenReturn(false);
+        realmRefLookup = realmIdentifier -> new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), "nodeName");
+        final PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+        profileService.resolveProfileUidsForServiceAccountAuthors(
+            List.of(new ServiceAccountAuthor("alice", null, null, "native1", "native", null)),
+            listener
+        );
+        assertThat(listener.get(), nullValue());
     }
 
     public void testSerializationSize() {

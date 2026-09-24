@@ -78,6 +78,9 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
      * The creator and editor record who created the account and who last replaced it, and the two timestamps when.
      * Each is {@code null} when unknown: the editor and its timestamp until the account is first replaced, and the
      * creator and its timestamp for an account written before they were recorded.
+     * <p>
+     * The two profile uids are not stored with the account. They are looked up when a caller asks for them with
+     * {@code with_profile_uid}, and are {@code null} otherwise, or when the author has no profile.
      */
     record UserManaged(
         String principal,
@@ -87,7 +90,9 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         @Nullable ServiceAccountAuthor creator,
         @Nullable Instant createdAt,
         @Nullable ServiceAccountAuthor editor,
-        @Nullable Instant editedAt
+        @Nullable Instant editedAt,
+        @Nullable String creatorProfileUid,
+        @Nullable String editorProfileUid
     ) implements ServiceAccountInfo {
 
         public UserManaged {
@@ -100,6 +105,41 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
          */
         public UserManaged(String principal, List<String> roles, boolean enabled, @Nullable String description) {
             this(principal, roles, enabled, description, null, null, null, null);
+        }
+
+        /**
+         * An account as it is read from the store, with no profile uids resolved.
+         */
+        public UserManaged(
+            String principal,
+            List<String> roles,
+            boolean enabled,
+            @Nullable String description,
+            @Nullable ServiceAccountAuthor creator,
+            @Nullable Instant createdAt,
+            @Nullable ServiceAccountAuthor editor,
+            @Nullable Instant editedAt
+        ) {
+            this(principal, roles, enabled, description, creator, createdAt, editor, editedAt, null, null);
+        }
+
+        /**
+         * The same account with the profile uids of its creator and editor filled in. A uid given for an author the
+         * account does not have is dropped, since there is no one it could belong to.
+         */
+        public UserManaged withProfileUids(@Nullable String creatorProfileUid, @Nullable String editorProfileUid) {
+            return new UserManaged(
+                principal,
+                roles,
+                enabled,
+                description,
+                creator,
+                createdAt,
+                editor,
+                editedAt,
+                creator == null ? null : creatorProfileUid,
+                editor == null ? null : editorProfileUid
+            );
         }
 
         @Override
@@ -136,7 +176,9 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
             in.readOptionalWriteable(ServiceAccountAuthor::readFrom),
             in.readOptionalInstant(),
             in.readOptionalWriteable(ServiceAccountAuthor::readFrom),
-            in.readOptionalInstant()
+            in.readOptionalInstant(),
+            in.readOptionalString(),
+            in.readOptionalString()
         );
     }
 
@@ -170,6 +212,8 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                     out.writeOptionalInstant(userManaged.createdAt());
                     out.writeOptionalWriteable(userManaged.editor());
                     out.writeOptionalInstant(userManaged.editedAt());
+                    out.writeOptionalString(userManaged.creatorProfileUid());
+                    out.writeOptionalString(userManaged.editorProfileUid());
                 }
             }
         }
@@ -209,11 +253,17 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                 if (userManaged.createdAt() != null) {
                     builder.field("created_at", userManaged.createdAt().toEpochMilli());
                 }
+                if (userManaged.creatorProfileUid() != null) {
+                    builder.field("creator_profile_uid", userManaged.creatorProfileUid());
+                }
                 if (userManaged.editor() != null) {
                     builder.field("editor", userManaged.editor());
                 }
                 if (userManaged.editedAt() != null) {
                     builder.field("edited_at", userManaged.editedAt().toEpochMilli());
+                }
+                if (userManaged.editorProfileUid() != null) {
+                    builder.field("editor_profile_uid", userManaged.editorProfileUid());
                 }
             }
         }

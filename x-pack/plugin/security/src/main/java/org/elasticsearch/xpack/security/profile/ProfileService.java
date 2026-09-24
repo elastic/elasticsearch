@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -367,7 +368,27 @@ public class ProfileService {
     }
 
     public void resolveProfileUidsForApiKeys(Collection<ApiKey> apiKeyInfos, ActionListener<Collection<String>> listener) {
-        List<Subject> subjects = apiKeyInfos.stream().map(this::getApiKeyCreatorSubject).filter(Objects::nonNull).distinct().toList();
+        resolveProfileUids(apiKeyInfos, this::getApiKeyCreatorSubject, listener);
+    }
+
+    /**
+     * Looks up the profile uid of each author, answering with one entry per author in the same order: the uid, or
+     * {@code null} when the author has no profile or names a realm this node does not have. Answers {@code null}
+     * altogether when there is no profile index yet, as {@link #resolveProfileUidsForApiKeys} does.
+     */
+    public void resolveProfileUidsForServiceAccountAuthors(
+        Collection<ServiceAccountAuthor> authors,
+        ActionListener<Collection<String>> listener
+    ) {
+        resolveProfileUids(authors, this::getServiceAccountAuthorSubject, listener);
+    }
+
+    /**
+     * Resolves one profile uid per item through the subject each item names. Items naming the same subject share a
+     * single lookup, and an item whose subject cannot be determined resolves to {@code null} without one.
+     */
+    private <T> void resolveProfileUids(Collection<T> items, Function<T, Subject> toSubject, ActionListener<Collection<String>> listener) {
+        List<Subject> subjects = items.stream().map(toSubject).filter(Objects::nonNull).distinct().toList();
         searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
             if (resultsAndErrors == null) {
                 // profile index does not exist
@@ -379,8 +400,8 @@ public class ProfileService {
                     .filter(t -> Objects.nonNull(t.v2()))
                     .map(t -> new Tuple<>(t.v1(), t.v2().uid()))
                     .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
-                listener.onResponse(apiKeyInfos.stream().map(apiKeyInfo -> {
-                    Subject subject = getApiKeyCreatorSubject(apiKeyInfo);
+                listener.onResponse(items.stream().map(item -> {
+                    Subject subject = toSubject.apply(item);
                     return subject == null ? null : profileUidLookup.get(subject);
                 }).toList());
             } else {
@@ -932,6 +953,26 @@ public class ProfileService {
         } else {
             return null;
         }
+    }
+
+    /**
+     * The subject to look a profile up for, derived the same way as an API key owner's: the author's realm name and
+     * type are resolved against this node's current configuration. The author also carries the realm domain as it was
+     * when recorded, but that is deliberately not used, because a profile is found through the domain the realm is in
+     * now, which may have changed since.
+     */
+    private Subject getServiceAccountAuthorSubject(ServiceAccountAuthor author) {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(author.realmType(), author.realm());
+        final Authentication.RealmRef realmRef = realmRefLookup.apply(realmIdentifier);
+        if (realmRef == null) {
+            logger.debug(
+                "encountered service account author [{}] from realm [{}], where that realm is not currently configured on the local node",
+                author.principal(),
+                realmIdentifier
+            );
+            return null;
+        }
+        return new Subject(new User(author.principal(), Strings.EMPTY_ARRAY), realmRef);
     }
 
     private Subject getApiKeyCreatorSubject(ApiKey apiKeyInfo) {

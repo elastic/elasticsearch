@@ -25,11 +25,15 @@ import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountResponse;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.support.ServiceAccountBoolQueryBuilder;
 import org.junit.Before;
 
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -43,6 +47,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -51,6 +56,7 @@ import static org.mockito.Mockito.verify;
 public class TransportQueryServiceAccountActionTests extends ESTestCase {
 
     private ServiceAccountService serviceAccountService;
+    private ProfileService profileService;
     private TransportQueryServiceAccountAction action;
     private final AtomicReference<SearchSourceBuilder> searchedSource = new AtomicReference<>();
 
@@ -58,8 +64,72 @@ public class TransportQueryServiceAccountActionTests extends ESTestCase {
     public void init() {
         final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         serviceAccountService = mock(ServiceAccountService.class);
+        profileService = mock(ProfileService.class);
         stubQueryResponse(QueryServiceAccountResponse.EMPTY);
-        action = new TransportQueryServiceAccountAction(transportService, ActionFilters.EMPTY, serviceAccountService);
+        action = new TransportQueryServiceAccountAction(transportService, ActionFilters.EMPTY, serviceAccountService, profileService);
+    }
+
+    /**
+     * Profile uids are looked up for the authors of the page's accounts, creator then editor in page order, and each
+     * item keeps its sort values and its place. The total is that of the whole result, so it is untouched.
+     */
+    public void testProfileUidsAreLookedUpForThePagesAuthorsWhenAskedFor() {
+        final ServiceAccountAuthor alice = new ServiceAccountAuthor("alice", null, null, "native1", "native", null);
+        final ServiceAccountAuthor bob = new ServiceAccountAuthor("bob", null, null, "ldap1", "ldap", null);
+        final Instant now = Instant.ofEpochMilli(1_700_000_000_000L);
+        final ServiceAccountInfo.UserManaged edited = new ServiceAccountInfo.UserManaged(
+            "apps/edited",
+            List.of(),
+            true,
+            null,
+            alice,
+            now,
+            bob,
+            now
+        );
+        final ServiceAccountInfo.UserManaged legacy = new ServiceAccountInfo.UserManaged("apps/legacy", List.of(), true, null);
+        stubQueryResponse(
+            new QueryServiceAccountResponse(
+                7,
+                List.of(
+                    new QueryServiceAccountResponse.Item(edited, new Object[] { "apps/edited" }),
+                    new QueryServiceAccountResponse.Item(legacy, new Object[] { "apps/legacy" })
+                )
+            )
+        );
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Collection<String>> listener = (ActionListener<Collection<String>>) invocation.getArguments()[1];
+            listener.onResponse(List.of("u_alice", "u_bob"));
+            return null;
+        }).when(profileService).resolveProfileUidsForServiceAccountAuthors(any(), any());
+
+        final QueryServiceAccountResponse response = execute(new QueryServiceAccountRequest(null, null, null, null, null, true));
+
+        verify(profileService).resolveProfileUidsForServiceAccountAuthors(eq(List.of(alice, bob)), any());
+        assertThat(
+            response,
+            equalTo(
+                new QueryServiceAccountResponse(
+                    7,
+                    List.of(
+                        new QueryServiceAccountResponse.Item(edited.withProfileUids("u_alice", "u_bob"), new Object[] { "apps/edited" }),
+                        new QueryServiceAccountResponse.Item(legacy, new Object[] { "apps/legacy" })
+                    )
+                )
+            )
+        );
+    }
+
+    public void testProfilesAreNotConsultedUnlessAskedFor() {
+        execute(new QueryServiceAccountRequest(null, null, null, null, null, false));
+        execute(new QueryServiceAccountRequest(null, null, null, null, null));
+        verify(profileService, never()).resolveProfileUidsForServiceAccountAuthors(any(), any());
+    }
+
+    public void testAnEmptyPageNeedsNoProfileLookup() {
+        assertThat(execute(new QueryServiceAccountRequest(null, null, null, null, null, true)), is(QueryServiceAccountResponse.EMPTY));
+        verify(profileService, never()).resolveProfileUidsForServiceAccountAuthors(any(), any());
     }
 
     public void testARequestWithNothingSetSearchesEveryAccountWithSearchDefaults() {

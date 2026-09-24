@@ -24,6 +24,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Selects the service accounts to report on. Every part is a filter rather than a lookup: a namespace or service name
  * that no account could carry, reserved or malformed, matches nothing instead of being rejected, which is why
  * {@link #validate()} has nothing to say about either.
+ * <p>
+ * {@code withProfileUid} asks for the profile uid of each user-managed account's creator and editor.
+ * It costs one multi-search of the profile index with a search per distinct person,
+ * by principal and realm, across all the accounts reported, so it is off unless asked for.
  */
 public class GetServiceAccountRequest extends UntypedActionRequest {
 
@@ -32,6 +36,7 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
     @Nullable
     private final String serviceName;
     private final EnumSet<ServiceAccountType> type;
+    private final boolean withProfileUid;
 
     /**
      * Reports on built-in accounts only, which is what this request meant before user-managed accounts existed.
@@ -41,9 +46,19 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
     }
 
     public GetServiceAccountRequest(@Nullable String namespace, @Nullable String serviceName, EnumSet<ServiceAccountType> type) {
+        this(namespace, serviceName, type, false);
+    }
+
+    public GetServiceAccountRequest(
+        @Nullable String namespace,
+        @Nullable String serviceName,
+        EnumSet<ServiceAccountType> type,
+        boolean withProfileUid
+    ) {
         this.namespace = namespace;
         this.serviceName = serviceName;
         this.type = EnumSet.copyOf(Objects.requireNonNull(type, "type cannot be null"));
+        this.withProfileUid = withProfileUid;
     }
 
     public GetServiceAccountRequest(StreamInput in) throws IOException {
@@ -54,6 +69,8 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
         this.type = in.getTransportVersion().supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO)
             ? in.readEnumSet(ServiceAccountType.class)
             : EnumSet.of(ServiceAccountType.BUILT_IN);
+        this.withProfileUid = in.getTransportVersion().supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION)
+            && in.readBoolean();
     }
 
     public String getNamespace() {
@@ -68,17 +85,24 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
         return type;
     }
 
+    public boolean withProfileUid() {
+        return withProfileUid;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetServiceAccountRequest that = (GetServiceAccountRequest) o;
-        return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName) && type.equals(that.type);
+        return Objects.equals(namespace, that.namespace)
+            && Objects.equals(serviceName, that.serviceName)
+            && type.equals(that.type)
+            && withProfileUid == that.withProfileUid;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(namespace, serviceName, type);
+        return Objects.hash(namespace, serviceName, type, withProfileUid);
     }
 
     @Override
@@ -96,6 +120,11 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
                     + type.stream().map(ServiceAccountType::value).collect(Collectors.joining(", "))
                     + "]"
             );
+        }
+        // A node that does not know attribution has no authors to look profiles up for, so the flag is dropped
+        // rather than refused: the answer is the same account, without the fields the caller asked to enrich.
+        if (out.getTransportVersion().supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION)) {
+            out.writeBoolean(withProfileUid);
         }
     }
 

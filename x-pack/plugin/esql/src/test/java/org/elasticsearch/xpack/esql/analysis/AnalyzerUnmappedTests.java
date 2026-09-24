@@ -635,7 +635,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     private void expectInSubqueryLeftKeyPlan(String column, String queryWithSet) {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         LogicalPlan plan = partialMappingTest().statement(queryWithSet);
         assertThat("plan should be fully resolved once the IN left key loads from _source", plan.resolved(), is(true));
         assertThat("column [" + column + "] should be present in the resolved output", Expressions.names(plan.output()), hasItem(column));
@@ -1654,17 +1653,14 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadAllModeAllowsInSubquery() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         test().statement(setUnmappedLoadAll("FROM test | WHERE emp_no IN (FROM test | KEEP emp_no)"));
     }
 
     public void testLoadAllModeAllowsNotInSubquery() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         test().statement(setUnmappedLoadAll("FROM test | WHERE emp_no NOT IN (FROM test | KEEP emp_no)"));
     }
 
     public void testLoadAllModeAllowsInSubqueryInOr() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         test().statement(setUnmappedLoadAll("FROM test | WHERE emp_no IN (FROM test | KEEP emp_no) OR languages > 1"));
     }
 
@@ -1752,7 +1748,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadAllInSubqueryEvalThenKeepExactNamesDoesNotExpand() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
             FROM partial_mapping_sample_data
             | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)

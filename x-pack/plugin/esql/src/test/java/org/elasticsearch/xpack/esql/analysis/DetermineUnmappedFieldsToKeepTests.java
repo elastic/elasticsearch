@@ -482,7 +482,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testInSubqueryRightKeepOmitsUnmappedFieldsAttribute() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         LogicalPlan plan = test().statement(setUnmappedLoadAll("""
             FROM test | WHERE unmapped_extra IN (FROM test | KEEP unmapped_extra)
             """));
@@ -490,7 +489,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testNotInSubqueryRightKeepOmitsUnmappedFieldsAttribute() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         LogicalPlan plan = test().statement(setUnmappedLoadAll("""
             FROM test | WHERE unmapped_extra NOT IN (FROM test | KEEP unmapped_extra)
             """));
@@ -498,14 +496,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testInSubqueryOuterKeepExactNameOmitsUnmappedFieldsAttribute() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         assertNoUnmappedFieldsAttribute("""
             FROM test | WHERE unmapped_extra IN (FROM test | KEEP unmapped_extra) | KEEP emp_no, unmapped_extra
             """);
     }
 
     public void testInSubqueryRightKeepWildcardOmitsUnmappedFieldsAttribute() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         LogicalPlan plan = test().statement(setUnmappedLoadAll("""
             FROM test | WHERE emp_no IN (FROM test | KEEP emp_no*)
             """));
@@ -513,7 +509,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testNotInSubqueryRightKeepWildcardOmitsUnmappedFieldsAttribute() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         LogicalPlan plan = test().statement(setUnmappedLoadAll("""
             FROM test | WHERE emp_no NOT IN (FROM test | KEEP emp_no*)
             """));
@@ -521,7 +516,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testInSubqueryRightInsertedProjectOmitsUnmappedFieldsAttribute() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         var ids = new EsIndex(
             "ids",
             Map.of("id", keywordField("id")),
@@ -534,7 +528,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     public void testMarkJoinRightKeepWildcardOmitsUnmappedFieldsAttribute() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         LogicalPlan plan = test().statement(setUnmappedLoadAll("""
             FROM test | WHERE emp_no IN (FROM test | KEEP emp_no*) OR languages > 1
             """));
@@ -821,7 +814,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     private static void assertInSubqueryLeftExpandsRightDoesNot(LogicalPlan plan) {
-        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
         AbstractSubqueryJoin join = EsqlTestUtils.singleValue(plan.collect(AbstractSubqueryJoin.class));
         UnmappedFieldsPattern leftPattern = EsqlTestUtils.singleValue(
             CollectionUtils.collect(

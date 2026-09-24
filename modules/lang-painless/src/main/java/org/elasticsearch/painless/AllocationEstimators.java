@@ -70,7 +70,7 @@ public final class AllocationEstimators {
      * length (from an out-of-range argument the real call will reject) costs just the overhead.
      */
     private static long newStringBytes(long chars) {
-        return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.mulSat(2L, Math.max(0L, chars));
+        return AllocSizes.addSat(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD, AllocSizes.mulSat(2L, Math.max(0L, chars)));
     }
 
     /**
@@ -131,7 +131,7 @@ public final class AllocationEstimators {
      */
     public static long mapCopyBytes(java.util.Map<?, ?> source) {
         long size = source == null ? 0 : source.size();
-        return 64 + AllocSizes.mulSat(size, LINKED_HASH_MAP_ENTRY_BYTES);
+        return AllocSizes.addSat(64, AllocSizes.mulSat(size, LINKED_HASH_MAP_ENTRY_BYTES));
     }
 
     /**
@@ -140,13 +140,13 @@ public final class AllocationEstimators {
      */
     public static long setCopyBytes(Collection<?> source) {
         long size = source == null ? 0 : source.size();
-        return 88 + AllocSizes.mulSat(size, LINKED_HASH_MAP_ENTRY_BYTES);
+        return AllocSizes.addSat(88, AllocSizes.mulSat(size, LINKED_HASH_MAP_ENTRY_BYTES));
     }
 
     /** Cost of copying a {@link Collection} into a {@code new LinkedList(c)}: the list shell plus one node per element. */
     public static long linkedListCopyBytes(Collection<?> source) {
         long size = source == null ? 0 : source.size();
-        return 32 + AllocSizes.mulSat(size, 40);
+        return AllocSizes.addSat(32, AllocSizes.mulSat(size, 40));
     }
 
     // ---- java.util collections whose size depends on an argument: sized constructors, copy constructors, and the

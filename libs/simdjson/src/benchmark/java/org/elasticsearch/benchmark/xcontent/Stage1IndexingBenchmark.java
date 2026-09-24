@@ -11,6 +11,8 @@ package org.elasticsearch.benchmark.xcontent;
 
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.simdjson.JsonDocumentParser;
+import org.elasticsearch.simdjson.SimdJsonParserPool;
 import org.elasticsearch.simdjson.internal.StructuralIndexer;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -92,6 +94,8 @@ public class Stage1IndexingBenchmark {
     private byte[][] docs;
     private StructuralIndexer indexer;
     private BitIndexes bitIndexes;
+    private JsonDocumentParser docParser;
+    private final StringFieldParsingBenchmark.CountingHandler noopHandler = new StringFieldParsingBenchmark.CountingHandler();
 
     @Setup
     public void setUp() {
@@ -107,6 +111,7 @@ public class Stage1IndexingBenchmark {
         }
         indexer = new StructuralIndexer(Math.max(maxLen, 4096));
         bitIndexes = new BitIndexes(maxLen + 1);
+        docParser = new SimdJsonParserPool(Math.max(maxLen, 4096)).forCurrentThread();
         printSetupSummary(totalLen);
     }
 
@@ -142,5 +147,21 @@ public class Stage1IndexingBenchmark {
             entries += bitIndexes.writeCount();
         }
         return entries;
+    }
+
+    /**
+     * Stage 1 plus the walk, with a handler that records nothing. Subtracting {@link #stage1Only}
+     * gives the walker's own cost, and subtracting this from an end-to-end pipeline measurement
+     * over the same corpus (see {@code SimdJsonParserBenchmark}, same {@code generateDoc}) gives
+     * the consuming handler's. Without this middle term an end-to-end result cannot say which of
+     * the three is worth optimizing.
+     */
+    @Benchmark
+    public long stage1AndWalk() {
+        for (byte[] doc : docs) {
+            docParser.parseDocument(doc, doc.length, noopHandler);
+        }
+        docParser.publishFieldNames();
+        return noopHandler.checksum;
     }
 }

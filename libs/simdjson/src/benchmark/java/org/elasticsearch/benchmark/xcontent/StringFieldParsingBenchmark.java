@@ -142,7 +142,7 @@ public class StringFieldParsingBenchmark {
      * as cheap as possible so the benchmark measures {@code walkObject}/{@code StringParser}, not
      * a handler implementation.
      */
-    private static final class CountingHandler implements JsonDocumentHandler {
+    static final class CountingHandler implements JsonDocumentHandler {
         long checksum;
 
         @Override

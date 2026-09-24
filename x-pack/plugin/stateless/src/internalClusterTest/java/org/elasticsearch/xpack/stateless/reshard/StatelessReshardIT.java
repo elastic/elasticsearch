@@ -142,6 +142,7 @@ import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -5609,12 +5610,20 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
      * warming path was taken.
      */
     public void testReshardTargetSearchShardTriggersWarming() {
-        Settings indexNodeSettings = Settings.builder()
+        // After the reshard completes, delete-unowned (RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD = 0 from nodeSettings) runs
+        // immediately, creating a new BCC commit on shard 1 that the recovery warming did not cover. Two equivalent strategies
+        // prevent that from causing a spurious cache miss in the zero-miss assertion below.
+        final boolean delayDeletions = randomBoolean();
+        Settings.Builder indexSettingsBuilder = Settings.builder()
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             // Force commit internal-files replicated content so BCC blobs are uploaded to the object store.
-            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-            .build();
-        Settings searchNodeSettings = Settings.builder()
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true);
+        if (delayDeletions) {
+            // Keep delete-unowned from running during the search phase by extending the grace period well beyond the test window.
+            indexSettingsBuilder.put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), "1h");
+        }
+        Settings indexNodeSettings = indexSettingsBuilder.build();
+        Settings.Builder searchSettingsBuilder = Settings.builder()
             .put(indexNodeSettings)
             // Force search internal-files replicated content so warmingInputs (endTargetsToWarm) is non-null during recovery,
             // which is required for searchRecoveryTimeout to be consulted (and therefore for our reshard-target branch to apply).
@@ -5623,8 +5632,13 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
             // Ensure the blob cache can actually hold data so warming bytes are non-zero.
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(32).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4).getStringRep())
-            .build();
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4).getStringRep());
+        if (delayDeletions == false) {
+            // Foreground prefetch of non-uploaded commits: blocks the shard reopen until the delete-unowned BCC commit
+            // has been fetched from the index node, so no search thread reads an unwarmed blob.
+            searchSettingsBuilder.put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), true);
+        }
+        Settings searchNodeSettings = searchSettingsBuilder.build();
         startMasterAndIndexNode(indexNodeSettings);
         String searchNode = startSearchNode(searchNodeSettings);
         ensureStableCluster(2);

@@ -18,10 +18,13 @@ import spock.lang.Specification
  * Elasticsearch checkout. The JAR is built by the {@code :build-tools:gradle-runner:jar}
  * task before this test runs (wired via the {@code test} task dependency).
  *
- * <p>Two scenarios are tested:
+ * <p>Three scenarios are tested:
  * <ol>
  *   <li><b>Normal build</b> &ndash; runs the {@code help} task without preemption
  *       and validates that {@code task-status.json} is written correctly.</li>
+ *   <li><b>Problems capture build</b> &ndash; runs the {@code help} task with
+ *       {@code GRADLE_CAPTURE_PROBLEMS_STATUS=true} and validates that
+ *       {@code problems-status.json} is written correctly.</li>
  *   <li><b>Preemption build</b> &ndash; runs with simulated GCP preemption and
  *       validates the exit code, marker file, exit file, and task-status.json.</li>
  * </ol>
@@ -45,6 +48,7 @@ class GradleRunnerFuncSpec extends Specification {
     def setup() {
         // Clean output files before each test
         new File(projectDir, 'build/task-status.json').delete()
+        new File(projectDir, 'build/problems-status.json').delete()
         new File(projectDir, 'build/.preemption-marker.json').delete()
         new File(preemptionExitFile).delete()
     }
@@ -71,6 +75,25 @@ class GradleRunnerFuncSpec extends Specification {
         and: 'preemption artifacts are absent'
         !new File(projectDir, 'build/.preemption-marker.json').exists()
         !new File(preemptionExitFile).exists()
+    }
+
+    def "problems capture build writes problems-status.json when enabled"() {
+        when:
+        def result = runGradleRunner([GRADLE_CAPTURE_PROBLEMS_STATUS: 'true'], 'help')
+
+        then: 'exit code is 0'
+        result.exitCode == 0
+
+        and: 'problems-status.json exists with correct structure'
+        def problems = parseJson('build/problems-status.json')
+        problems != null
+        problems.totalProblems != null
+        problems.totalProblems >= 0
+        problems.severities instanceof List
+        problems.problems instanceof List
+
+        and: 'task-status.json is still written'
+        parseJson('build/task-status.json') != null
     }
 
     def "preempted build exits with 47 and writes all preemption artifacts"() {

@@ -45,16 +45,18 @@ elif (( gradle_exit != 0 )); then
 fi
 
 if command -v buildkite-agent >/dev/null 2>&1; then
-  cat <<EOF | buildkite-agent annotate --context "$ANNOTATION_CONTEXT" --style "$annotation_style"
+  annotation=$(cat <<EOF
 ### Gradle isolated projects validation
 
-- Gradle exit code: `$gradle_exit`
-- Violations: `$violation_count`
-- Threshold: `$MAX_ISOLATED_PROJECTS_VIOLATIONS`
-- Report: `$REPORT_FILE`
+- Gradle exit code: $gradle_exit
+- Violations: $violation_count
+- Threshold: $MAX_ISOLATED_PROJECTS_VIOLATIONS
+- Report: $REPORT_FILE
 
 $summary
 EOF
+)
+  printf '%s\n' "$annotation" | buildkite-agent annotate --context "$ANNOTATION_CONTEXT" --style "$annotation_style"
 fi
 
 echo "Gradle exit code: $gradle_exit"

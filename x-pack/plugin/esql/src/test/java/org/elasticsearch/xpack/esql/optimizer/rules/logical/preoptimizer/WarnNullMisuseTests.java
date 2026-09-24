@@ -19,6 +19,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.hamcrest.Matchers.containsString;
 
 public class WarnNullMisuseTests extends AbstractLogicalPlanOptimizerTests {
+    public WarnNullMisuseTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     @Override
     protected LogicalPlan plan(String query) {
         LogicalPlan analyzed = defaultAnalyzer().query(query);

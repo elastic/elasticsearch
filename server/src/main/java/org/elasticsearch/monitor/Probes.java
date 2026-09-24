@@ -18,14 +18,15 @@ import java.lang.reflect.Method;
 public class Probes {
     private static final Logger logger = LogManager.getLogger(Probes.class);
 
-    public static short getLoadAndScaleToPercent(Method method, OperatingSystemMXBean osMxBean) {
+    public static double getLoad(Method method, OperatingSystemMXBean osMxBean) {
         logger.debug("Starting probe of method {} on osMxBean {}", method, osMxBean);
         if (method != null) {
             try {
                 double load = (double) method.invoke(osMxBean);
-                if (load >= 0) {
-                    return (short) (load * 100);
+                if (load < 0) {
+                    logger.debug("Method returned negative value.");
                 }
+                return load;
             } catch (Exception e) {
                 logger.debug(() -> "failed to invoke method [" + method + "] on osMxBean [" + osMxBean + "]", e);
                 return -1;
@@ -33,5 +34,9 @@ public class Probes {
         }
         logger.debug("Method is null. Returning default value.");
         return -1;
+    }
+
+    public static short scaleToPercent(double load) {
+        return load < 0 ? -1 : (short) (load * 100);
     }
 }

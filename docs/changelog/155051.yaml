@@ -1,0 +1,6 @@
+pr: 155051
+summary: Allow searchable snapshot ILM actions to use -1 for unbounded shard allocation
+area: ILM
+type: enhancement
+issues:
+ - 153993

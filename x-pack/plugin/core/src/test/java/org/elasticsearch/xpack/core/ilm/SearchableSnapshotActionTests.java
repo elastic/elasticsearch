@@ -115,13 +115,32 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     public void testCreateWithInvalidTotalShardsPerNode() {
-        int invalidTotalShardsPerNode = randomIntBetween(-100, 0);
+        int invalidTotalShardsPerNode = randomIntBetween(-100, -2);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new SearchableSnapshotAction("test", true, invalidTotalShardsPerNode, null, null)
         );
-        assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1", exception.getMessage());
+        assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= -1", exception.getMessage());
+    }
+
+    public void testCreateWithUnboundedTotalShardsPerNode() {
+        SearchableSnapshotAction action = new SearchableSnapshotAction("test", true, -1, null, null);
+
+        assertThat(action.getTotalShardsPerNode(), is(-1));
+    }
+
+    public void testUnboundedTotalShardsPerNodeIsPassedToMountStep() {
+        SearchableSnapshotAction action = new SearchableSnapshotAction("test", true, -1, null, null);
+
+        MountSnapshotStep mountStep = (MountSnapshotStep) action.toSteps(
+            null,
+            TimeseriesLifecycleType.COLD_PHASE,
+            new StepKey(TimeseriesLifecycleType.COLD_PHASE, "next", "step"),
+            null
+        ).stream().filter(step -> step instanceof MountSnapshotStep).findFirst().orElseThrow();
+
+        assertThat(mountStep.getTotalShardsPerNode(), is(-1));
     }
 
     private List<StepKey> expectedStepKeys(String phase, boolean forceMergeIndex, boolean hasReplicateFor, Boolean forceMergeOnClone) {

@@ -1,0 +1,6 @@
+area: Infra/CLI
+issues:
+ - 137315
+pr: 156210
+summary: Fix Windows scripts aborting when an environment variable value contains parentheses
+type: bug

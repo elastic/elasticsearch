@@ -41,10 +41,12 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -59,15 +61,17 @@ import java.util.Set;
  * the Aggregate output before admission. {@code direction: both} runs outbound
  * then inbound as separate hop plans and combines pages before SORT and
  * admission. In-command {@code SORT} (plus an always-on {@code node_reached}
- * ascending tie-break) orders each hop's rows before admission. When
- * {@code UNTIL} is present, the sorted hop rows are then filtered with that
+ * ascending tie-break) orders each hop's rows, then optional caps bind in order
+ * {@code max_edges_per_node}, {@code max_frontier}, {@code max_nodes} — a row
+ * removed by a cap cannot satisfy {@code UNTIL} and is not admitted. When
+ * {@code UNTIL} is present, the remaining hop rows are filtered with that
  * boolean expression (ordinary {@link Filter} over the emit columns); the first
  * matching row and every row before it are admitted, later rows are dropped,
  * and the walk stops. An edge onto a node admitted on an earlier hop is a
- * closing edge: it is emitted with {@code node_reached} null and does not
- * re-enter the frontier. Same-hop duplicates of a newly admitted
- * {@code node_reached} keep that value and enter the frontier once. Stage
- * subset — see {@link #validateSubset}.
+ * closing edge: it is emitted with {@code node_reached} null, does not
+ * re-enter the frontier, and does not spend any of the three budgets.
+ * Same-hop duplicates of a newly admitted {@code node_reached} keep that value
+ * and enter the frontier once. Stage subset — see {@link #validateSubset}.
  */
 public final class GraphExpandDriver {
 
@@ -234,8 +238,9 @@ public final class GraphExpandDriver {
             nextLeg = Leg.OUT;
         }
 
-        // SORT then UNTIL then admission — UNTIL is not a post-filter after all hops.
+        // SORT → caps → UNTIL → admission — UNTIL is not a post-filter after all hops.
         sortHopRows(rows);
+        applyCaps(rows);
         if (graphExpand.until() != null && rows.isEmpty() == false) {
             pendingUntilRows = rows;
             awaitingUntilFilter = true;
@@ -493,6 +498,127 @@ public final class GraphExpandDriver {
         return a.toString().compareTo(b.toString());
     }
 
+    /**
+     * Applies optional walk budgets after SORT and before UNTIL. Closing edges
+     * (target already in {@link #visited} from an earlier hop) are kept and do
+     * not spend budget. Dropped rows are simply absent — there is no
+     * {@code dropped} column.
+     */
+    private void applyCaps(List<List<Object>> rows) {
+        Integer maxEdgesPerNode = optionInt("max_edges_per_node");
+        Integer maxFrontier = optionInt("max_frontier");
+        Integer maxNodes = optionInt("max_nodes");
+        if (maxEdgesPerNode == null && maxFrontier == null && maxNodes == null) {
+            return;
+        }
+        // Snapshot at hop start: the seed (and prior admits) already count toward max_nodes.
+        Set<Object> reachedBefore = Set.copyOf(visited);
+        List<List<Object>> current = rows;
+        if (maxEdgesPerNode != null) {
+            current = applyFanOutCap(current, maxEdgesPerNode, reachedBefore);
+        }
+        if (maxFrontier != null) {
+            current = applyNewNodeCap(current, maxFrontier, reachedBefore);
+        }
+        if (maxNodes != null) {
+            int remaining = maxNodes - reachedBefore.size();
+            current = applyNewNodeCap(current, Math.max(remaining, 0), reachedBefore);
+        }
+        if (current != rows) {
+            rows.clear();
+            rows.addAll(current);
+        }
+    }
+
+    /**
+     * Per frontier node, keep at most {@code maxEdgesPerNode} edges that would
+     * admit a new node, in the already sorted order. Closing edges are free.
+     * The frontier end is {@code node_from} on an outbound leg and
+     * {@code node_to} on an inbound leg.
+     */
+    private static List<List<Object>> applyFanOutCap(List<List<Object>> rows, int maxEdgesPerNode, Set<Object> reachedBefore) {
+        Map<Object, Integer> spent = new HashMap<>();
+        List<List<Object>> kept = new ArrayList<>(rows.size());
+        for (List<Object> row : rows) {
+            Object reached = row.get(2);
+            if (reached == null) {
+                continue;
+            }
+            if (reachedBefore.contains(reached)) {
+                kept.add(row);
+                continue;
+            }
+            Object via = frontierNode(row);
+            int count = spent.getOrDefault(via, 0);
+            if (count >= maxEdgesPerNode) {
+                continue;
+            }
+            spent.put(via, count + 1);
+            kept.add(row);
+        }
+        return kept;
+    }
+
+    /**
+     * Keep edges for at most {@code limit} distinct newly reached nodes (in
+     * current order). Edges to nodes past that cut are dropped; closing edges
+     * and further edges onto an already-kept new node are kept. {@code limit}
+     * may be 0 (admit no new nodes).
+     */
+    private static List<List<Object>> applyNewNodeCap(List<List<Object>> rows, int limit, Set<Object> reachedBefore) {
+        LinkedHashSet<Object> keptNew = new LinkedHashSet<>();
+        List<List<Object>> kept = new ArrayList<>(rows.size());
+        for (List<Object> row : rows) {
+            Object reached = row.get(2);
+            if (reached == null) {
+                continue;
+            }
+            if (reachedBefore.contains(reached)) {
+                kept.add(row);
+                continue;
+            }
+            if (keptNew.contains(reached)) {
+                kept.add(row);
+                continue;
+            }
+            if (keptNew.size() >= limit) {
+                continue;
+            }
+            keptNew.add(reached);
+            kept.add(row);
+        }
+        return kept;
+    }
+
+    /**
+     * Endpoint that matched the frontier for this hop leg: stored source on an
+     * outbound walk ({@code node_reached == node_to}), stored target on inbound.
+     */
+    private static Object frontierNode(List<Object> row) {
+        Object from = row.get(0);
+        Object to = row.get(1);
+        Object reached = row.get(2);
+        if (Objects.equals(reached, to)) {
+            return from;
+        }
+        if (Objects.equals(reached, from)) {
+            return to;
+        }
+        return from;
+    }
+
+    private Integer optionInt(String key) {
+        MapExpression options = graphExpand.options();
+        if (options == null) {
+            return null;
+        }
+        Expression value = options.keyFoldedMap().get(key);
+        if (value == null) {
+            return null;
+        }
+        return ((Number) value.fold(FoldContext.small())).intValue();
+    }
+
     private List<Object> admitRows(List<List<Object>> rows) {
         int reachedIdx = 2; // node_reached
         int hopStart = admittedRows.size();
@@ -574,11 +700,9 @@ public final class GraphExpandDriver {
                     }
                 }
                 case "hub_degree" -> throw new IllegalArgumentException("GRAPH EXPAND hub_degree is not supported in this build");
-                case "max_edges_per_node" -> throw new IllegalArgumentException(
-                    "GRAPH EXPAND max_edges_per_node is not supported in this build"
-                );
-                case "max_nodes" -> throw new IllegalArgumentException("GRAPH EXPAND max_nodes is not supported in this build");
-                case "max_frontier" -> throw new IllegalArgumentException("GRAPH EXPAND max_frontier is not supported in this build");
+                case "max_edges_per_node", "max_nodes", "max_frontier" -> {
+                    // allowed — applied after SORT and before UNTIL in applyCaps
+                }
                 default -> throw new IllegalArgumentException("GRAPH EXPAND option [" + key + "] is not supported in this build");
             }
         });

@@ -150,3 +150,47 @@ node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weigh
 a                 | c               | c                    | 1           | 9
 a                 | d               | d                    | 1           | 9
 ;
+
+
+max_edges_per_node keeps closing edges free
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "max_edges_per_node": 1 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | c               | c                    | 2
+b                 | a               | null                 | 2
+;
+
+
+max_frontier keeps only the first new nodes
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_ranked ON node_id == source TO target
+    STATS weight = SUM(weight)
+    SORT weight DESC
+    WITH { "max_hops": 1, "direction": "out", "max_frontier": 1 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long
+a                 | c               | c                    | 1           | 9
+;
+
+
+max_nodes includes the seed
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+  WITH { "max_hops": 5, "direction": "out", "max_nodes": 2 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | a               | null                 | 2
+;

@@ -865,7 +865,8 @@ public final class QueryDslTranslator {
      * pin would refuse plans for reasons that have nothing to do with deserialization. Add a family here when it is
      * gated; the census is what makes sure that happens.
      */
-    private boolean everyPinnedFunctionIsSupported(Expression applied) {
+    // Package-private so the suite can exercise the backstop directly; nothing outside calls it.
+    boolean everyPinnedFunctionIsSupported(Expression applied) {
         if (applied == null) {
             // A wholly unsupported filter translates to nothing; there is no expression to check.
             return true;
@@ -875,9 +876,7 @@ public final class QueryDslTranslator {
                 throw new AssertionError(
                     "translated filter carries ["
                         + e.getClass().getSimpleName()
-                        + "] that was built without consulting its pin ["
-                        + MvGreater.MV_COMPARE_TRANSPORT_VERSION
-                        + "]; every emit site must go through gated()"
+                        + "] that was built without consulting its pin; every emit site must go through gated()"
                 );
             }
         });

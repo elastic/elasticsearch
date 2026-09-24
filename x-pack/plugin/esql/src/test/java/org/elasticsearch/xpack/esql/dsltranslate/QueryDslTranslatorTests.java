@@ -707,6 +707,27 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /** A missing field needs no function: below the pin it still translates, to the same false the leaf would fold to. */
+    /**
+     * The backstop itself, exercised directly. Every other case reaches it only as a side effect of translating, so
+     * none would notice its condition being replaced by a constant — which would make it decoration rather than a
+     * gate. These two are what make disabling it break something.
+     */
+    public void testBackstopRejectsAFunctionThatSkippedTheGate() {
+        QueryDslTranslator translator = new QueryDslTranslator(BINDER, FIELDS, CONFIG, TransportVersion.current());
+        Expression smuggled = new MvGreater(Source.EMPTY, BINDER.apply("tags"), Literal.keyword(Source.EMPTY, "m"), null);
+
+        AssertionError e = expectThrows(AssertionError.class, () -> translator.everyPinnedFunctionIsSupported(smuggled));
+        assertThat(e.getMessage(), containsString("MvGreater"));
+        assertThat(e.getMessage(), containsString("every emit site must go through gated()"));
+    }
+
+    /** And it accepts what the gate approved, or it would red every honest translation. */
+    public void testBackstopAcceptsAFunctionTheGateApproved() {
+        QueryDslTranslator translator = new QueryDslTranslator(BINDER, FIELDS, CONFIG, TransportVersion.current());
+        Expression approved = translator.translate(QueryBuilders.rangeQuery("tags").gt("m")).applied();
+        assertTrue(translator.everyPinnedFunctionIsSupported(approved));
+    }
+
     public void testMissingFieldNeedsNoGatedFunction() {
         QueryDslTranslator.TranslationResult below = translateResult(QueryBuilders.rangeQuery("absent").gt("m"), BELOW_MV_COMPARE);
         assertThat("nothing is degraded for a field the source does not have", below.unsupported(), empty());

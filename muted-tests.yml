@@ -135,12 +135,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/search/search-your-data/retrievers-examples/line_118}
   issue: https://github.com/elastic/elasticsearch/issues/159676
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: builds distribution from branches via archives extractedAssemble
-  issue: https://github.com/elastic/elasticsearch/issues/159719
-- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-  method: supports linux aarch distributions
-  issue: https://github.com/elastic/elasticsearch/issues/159720
 - class: org.elasticsearch.xpack.rank.linear.LinearRetrieverIT
   method: testLinearRetrieverPartialSearchErrorsFalse
   issue: https://github.com/elastic/elasticsearch/issues/159724
@@ -180,6 +174,11 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/159938
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  issue: https://github.com/elastic/elasticsearch/issues/160049
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference_bwc/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/160056
 
 # Examples:
 #

@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 156135
-pr: 158313
-summary: Fix bulk inference requests being left waiting forever
-type: bug

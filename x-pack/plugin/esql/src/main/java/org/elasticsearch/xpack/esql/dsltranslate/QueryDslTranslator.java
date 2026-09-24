@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -47,6 +48,8 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,6 +105,8 @@ public final class QueryDslTranslator {
     private final Configuration configuration;
     private final long nowInMillis;
     private final TransportVersion minimumVersion;
+    /** Populated only under assertions: the gated functions {@link #gated} actually approved. */
+    private final Set<Expression> gateApproved = Collections.newSetFromMap(new IdentityHashMap<>());
 
     /**
      * @param fieldBinder   resolves a DSL field name to the ES|QL expression standing for it on this source — the
@@ -845,6 +850,10 @@ public final class QueryDslTranslator {
         return type == DataType.DATETIME || type == DataType.DATE_NANOS;
     }
 
+    private static Expression aNewTranslation(Expression f) {
+        return new MvAppend(Source.EMPTY, f, f);
+    }
+
     private static Literal longLit(long value, DataType type) {
         return new Literal(Source.EMPTY, value, type);
     }
@@ -867,18 +876,22 @@ public final class QueryDslTranslator {
             return true;
         }
         applied.forEachDown(MvCompare.class, e -> {
-            if (minimumVersion.supports(MvGreater.MV_COMPARE_TRANSPORT_VERSION) == false) {
+            if (gateApproved.contains(e) == false) {
                 throw new AssertionError(
                     "translated filter carries ["
                         + e.getClass().getSimpleName()
-                        + "], pinned at ["
+                        + "] that was built without consulting its pin ["
                         + MvGreater.MV_COMPARE_TRANSPORT_VERSION
-                        + "], on a cluster whose minimum is ["
-                        + minimumVersion
-                        + "] — it was built without consulting its pin"
+                        + "]; every emit site must go through gated()"
                 );
             }
         });
+        return true;
+    }
+
+    /** Records the gated functions inside an approved leaf, so a sibling site that skipped the gate stands out. */
+    private boolean recordApproved(Expression built) {
+        built.forEachDown(MvCompare.class, gateApproved::add);
         return true;
     }
 
@@ -904,7 +917,9 @@ public final class QueryDslTranslator {
             leaf.get();
             throw new TranslationUnsupportedException(construct, VERSION_REASON);
         }
-        return leaf.get();
+        Expression built = leaf.get();
+        assert recordApproved(built);
+        return built;
     }
 
     /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */

@@ -233,10 +233,10 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSomethingNew;
             class T { Expression f() { return new And(new MvSomethingNew(source, field)); } }
             """;
-        assertThat(emittedExpressionClasses(fake), equalTo(Set.of("And", "MvSomethingNew")));
+        assertThat(emittedExpressionClasses(codeOnly(fake)), equalTo(Set.of("And", "MvSomethingNew")));
         // The point is not that the regex works; it is that the check testEveryEmittedExpressionIsDeclared runs would
         // have gone red. So run that computation, not a restatement of it.
-        assertThat(undeclaredIn(fake), equalTo(Set.of("MvSomethingNew")));
+        assertThat(undeclaredIn(codeOnly(fake)), equalTo(Set.of("MvSomethingNew")));
         assertThat("a declared class stays declared", undeclaredIn(fake), not(hasItem("And")));
     }
 
@@ -248,7 +248,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         String ungated = """
             class T { Expression f() { return checkedLeaf(field, new MvGreater(source, field, bound, opts)); } }
             """;
-        assertThat(gatedCalls(ungated), empty());
+        assertThat(gatedCalls(codeOnly(ungated)), empty());
 
         String mispaired = """
             class T { Expression f() {
@@ -256,7 +256,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
                     () -> checkedLeaf(field, new MvGreater(source, field, bound, opts)));
             } }
             """;
-        List<String> calls = gatedCalls(mispaired);
+        List<String> calls = gatedCalls(codeOnly(mispaired));
         assertThat(calls, hasSize(1));
         Matcher constant = PIN_ARGUMENT.matcher(calls.get(0));
         Matcher built = CONSTRUCTION.matcher(calls.get(0));
@@ -273,8 +273,8 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
                 return new org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSomethingNew(s, f);
             } }
             """;
-        assertThat(emittedExpressionClasses(fake), equalTo(Set.of("MvSomethingNew")));
-        assertThat(undeclaredIn(fake), equalTo(Set.of("MvSomethingNew")));
+        assertThat(emittedExpressionClasses(codeOnly(fake)), equalTo(Set.of("MvSomethingNew")));
+        assertThat(undeclaredIn(codeOnly(fake)), equalTo(Set.of("MvSomethingNew")));
     }
 
     /** A constructed class that is not an imported expression is not the census's business. */
@@ -284,7 +284,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
             class T { Object f() { return new BigDecimal(new Or(a, b).toString()); } }
             """;
-        assertThat(emittedExpressionClasses(fake), equalTo(Set.of("Or")));
+        assertThat(emittedExpressionClasses(codeOnly(fake)), equalTo(Set.of("Or")));
     }
 
     /**
@@ -302,9 +302,42 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
     private static String packageSource() throws IOException {
         StringBuilder all = new StringBuilder();
         for (String f : packageFiles()) {
-            all.append(Files.readString(PathUtils.get(f))).append('\n');
+            all.append(codeOnly(Files.readString(PathUtils.get(f)))).append('\n');
         }
         return all.toString();
+    }
+
+    /**
+     * The source with comments and string literals blanked out. Without this the census reads its own prose: a javadoc
+     * saying "every emit site must go through gated()" is not a call site, and a comment naming {@code new MvGreater(}
+     * is not a construction.
+     */
+    static String codeOnly(String source) {
+        StringBuilder out = new StringBuilder(source.length());
+        int i = 0;
+        while (i < source.length()) {
+            char c = source.charAt(i);
+            if (c == '/' && i + 1 < source.length() && source.charAt(i + 1) == '/') {
+                while (i < source.length() && source.charAt(i) != '\n') {
+                    i++;
+                }
+            } else if (c == '/' && i + 1 < source.length() && source.charAt(i + 1) == '*') {
+                int end = source.indexOf("*/", i + 2);
+                i = end < 0 ? source.length() : end + 2;
+                out.append(' ');
+            } else if (c == '"') {
+                i++;
+                while (i < source.length() && source.charAt(i) != '"') {
+                    i += source.charAt(i) == '\\' ? 2 : 1;
+                }
+                i++;
+                out.append("\"\"");
+            } else {
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
     }
 
     /** Every class the source constructs that this census does not declare — the computation the build fails on. */

@@ -1219,6 +1219,51 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             """);
     }
 
+    public void testSerialization_ReasoningWithoutEffortPreservesEndpointThinkingBudget() throws IOException {
+        // Google rejects thinkingBudget combined with thinkingLevel, but when no effort is set there is no
+        // thinkingLevel, so the endpoint-level budget can be forwarded safely.
+        var request = requestWithReasoning(new Reasoning(null, null, null, true));
+
+        assertJsonEquals(serialize(request, thinkingConfig), """
+            {
+                "contents": [ { "role": "user", "parts": [ { "text": "Hello, Vertex AI!" } ] } ],
+                "generationConfig": {
+                    "thinkingConfig": { "thinkingBudget": 256, "includeThoughts": true }
+                }
+            }
+            """);
+    }
+
+    public void testSerialization_ForeignFormatReasoningDetailIsNotUsedAsSignature() throws IOException {
+        // Reasoning details from other providers (e.g. Anthropic) must be filtered out; sending a foreign
+        // thought signature to Gemini results in a 400 (invalid thought signature).
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
+            null,
+            List.of(new TextReasoningDetail("anthropic-claude-v1", GOOGLE_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE))
+        );
+
+        // The foreign-format signature must not appear on the function call; the sentinel is used instead.
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": %s, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, FUNCTION_ARGUMENTS, GOOGLE_TOOL_CALL_ID));
+    }
+
     public void testSerialization_ThoughtSignatureIsAttachedToMatchingFunctionCall() throws IOException {
         var message = new Message(
             null,

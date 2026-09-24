@@ -75,8 +75,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
     /**
      * Identifies reasoning details as having come from this provider, so a client knows how to echo them back.
+     * Checked on the request side to filter out reasoning details from other providers.
      */
-    static final String GOOGLE_VERTEX_AI_FORMAT = "google-vertex-ai-v1";
+    public static final String GOOGLE_VERTEX_AI_FORMAT = "google-vertex-ai-v1";
 
     private final BiFunction<String, Exception, Exception> errorParser;
     private final GoogleVertexAiChatCompletionChunkParser chunkParser;
@@ -128,18 +129,47 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     public static class GoogleVertexAiChatCompletionChunkParser {
 
         private final boolean excludeReasoning;
-        private long reasoningIndex;
+        /**
+         * Incremented at the start of each tool call across the stream so that clients accumulating
+         * tool-call deltas by index can distinguish parallel calls.
+         */
+        private int toolCallIndex = 0;
+        /**
+         * Monotonically increasing index of the current thought block. Incremented when the block ends: either
+         * a {@code thoughtSignature} closes it, or a non-thought part (text or function call) interrupts it.
+         * All streamed fragments of one block share the same index.
+         */
+        private long reasoningIndex = 0;
+        /**
+         * {@code true} while consecutive thought parts are still accumulating the same reasoning block;
+         * {@code false} once a signature ends the block or a non-thought part interrupts it.
+         */
+        private boolean inThoughtBlock = false;
 
         public GoogleVertexAiChatCompletionChunkParser(boolean excludeReasoning) {
             this.excludeReasoning = excludeReasoning;
+        }
+
+        /**
+         * Ends an open thought block so that the next reasoning detail gets a new index. Does nothing when no block
+         * is open, so a run of content parts does not advance the index.
+         */
+        private void endThoughtBlock() {
+            if (inThoughtBlock) {
+                inThoughtBlock = false;
+                reasoningIndex++;
+            }
         }
 
         private static @Nullable ChatCompletionUsageResponse usageMetadataToChunk(@Nullable UsageMetadata usage) {
             if (usage == null) {
                 return null;
             }
+            // Gemini's candidatesTokenCount excludes thoughtsTokenCount; in the OpenAI schema
+            // completion_tokens is meant to include reasoning_tokens so we add them here.
+            var thoughtsTokens = usage.thoughtsTokenCount() == null ? 0 : usage.thoughtsTokenCount();
             return new ChatCompletionUsageResponse(
-                usage.candidatesTokenCount(),
+                usage.candidatesTokenCount() + thoughtsTokens,
                 usage.promptTokenCount(),
                 usage.totalTokenCount(),
                 null,
@@ -163,23 +193,19 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 role = candidate.content().role(); // Role is at the content level
                 for (Part part : candidate.content().parts()) {
                     if (part.functionCall() != null) {
+                        // A function call ends any open thought block.
+                        endThoughtBlock();
                         var fc = part.functionCall();
                         var function = new ChatCompletionToolCallResponse.Function(fc.args(), fc.name());
                         // Gemini 3 returns an id for each function call. Older models and older responses do not, in
                         // which case the name is the only stable identifier available.
                         var toolCallId = fc.id() != null ? fc.id() : fc.name();
-                        toolCalls.add(
-                            new ChatCompletionToolCallResponse(
-                                0, // No explicit index from VertexAI so we use 0
-                                toolCallId,
-                                function,
-                                FUNCTION_TYPE
-                            )
-                        );
+                        toolCalls.add(new ChatCompletionToolCallResponse(toolCallIndex++, toolCallId, function, FUNCTION_TYPE));
 
-                        if (excludeReasoning == false && part.thoughtSignature() != null) {
-                            // Binding the signature to the tool call id lets a subsequent turn re-attach it to the
-                            // same function call part, which Gemini 3 rejects the request without.
+                        if (part.thoughtSignature() != null) {
+                            // Always return function-call signatures even when reasoning is excluded.
+                            // Signatures are opaque state that Gemini 3 needs for multi-turn tool use;
+                            // they are not user-visible reasoning content.
                             reasoningDetails.add(
                                 new ReasoningDetail.TextReasoningDetail(
                                     GOOGLE_VERTEX_AI_FORMAT,
@@ -197,8 +223,15 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                         // A thought summary is reasoning rather than user-visible content, so it is kept out of the
                         // content string even when reasoning is excluded.
                         if (excludeReasoning || (part.text() == null && part.thoughtSignature() == null)) {
+                            // A signed-but-excluded part still closes the block so the next thought gets a new index.
+                            // inThoughtBlock is never set to true in this branch, so we increment directly.
+                            if (part.thoughtSignature() != null) {
+                                reasoningIndex++;
+                            }
                             continue;
                         }
+                        // All fragments of one thought block share the same index; the block ends when a signature
+                        // arrives or when a non-thought part interrupts it.
                         if (part.text() != null) {
                             reasoningTextBuilder.append(part.text());
                         }
@@ -206,14 +239,22 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                             new ReasoningDetail.TextReasoningDetail(
                                 GOOGLE_VERTEX_AI_FORMAT,
                                 null,
-                                reasoningIndex++,
+                                reasoningIndex,
                                 part.text(),
                                 part.thoughtSignature()
                             )
                         );
+                        if (part.thoughtSignature() != null) {
+                            inThoughtBlock = false;
+                            reasoningIndex++;
+                        } else {
+                            inThoughtBlock = true;
+                        }
                         continue;
                     }
 
+                    // Non-thought text part — ends any open thought block.
+                    endThoughtBlock();
                     if (part.text() != null) {
                         contentTextBuilder.append(part.text());
                     }

@@ -409,6 +409,8 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             }
             """);
 
+        // completionTokens must include reasoning tokens so that prompt + completion == total.
+        assertThat(chunk.usage().completionTokens(), is(27));
         assertThat(chunk.usage().completionTokenDetails().reasoningTokens(), is(7));
     }
 
@@ -436,6 +438,195 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
         assertThat(asTextReasoningDetail(firstChunk, 0).index(), is(0L));
         assertThat(asTextReasoningDetail(secondChunk, 0).index(), is(1L));
+    }
+
+    public void testReasoningIndexStaysSameForFragmentsOfOnThoughtBlock() throws IOException {
+        // A thought block that lacks a thoughtSignature on the first chunk is still being streamed;
+        // the second chunk (with the signature) completes it. Both fragments must carry the same index.
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunkParser = new GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser(false);
+
+        var fragmentChunk = parseWith(chunkParser, parserConfig, Strings.format("""
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [ { "text": "Analyzing the request...", "thought": true } ]
+                }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 5, "totalTokenCount": 15 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r1"
+            }
+            """));
+        var terminalChunk = parseWith(chunkParser, parserConfig, thoughtChunk("...done.", THOUGHT_SIGNATURE));
+
+        assertThat(asTextReasoningDetail(fragmentChunk, 0).index(), is(0L));
+        assertThat(asTextReasoningDetail(terminalChunk, 0).index(), is(0L));
+    }
+
+    public void testFunctionCallSignatureReturnedEvenWhenExcludeReasoningIsTrue() throws IOException {
+        // Thought signatures bound to function calls are opaque state that Gemini 3 needs for multi-turn
+        // tool use, not user-visible reasoning content. They must be returned even when reasoning is excluded.
+        var chunk = parse(Strings.format("""
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "functionCall": { "name": "%s", "args": { "topic": "Q3 planning" }, "id": "%s" },
+                      "thoughtSignature": "%s"
+                    }
+                  ]
+                },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "responseId"
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE), true);
+
+        var message = chunk.choices().getFirst().message();
+        assertThat(message.toolCalls().getFirst().id(), is(GOOGLE_TOOL_CALL_ID));
+        // reasoning details must contain the signature even with excludeReasoning=true
+        var detail = asTextReasoningDetail(chunk, 0);
+        assertThat(detail.id(), is(GOOGLE_TOOL_CALL_ID));
+        assertThat(detail.signature(), is(THOUGHT_SIGNATURE));
+        assertNull(detail.text());
+    }
+
+    public void testReasoningIndexAdvancesWhenTextEndsAnUnsignedThoughtBlock() throws IOException {
+        // Gemini typically streams: unsigned thought fragments, then answer text, then a trailing empty text part
+        // carrying the thoughtSignature. The signature is a separate block and must get a different index than the
+        // thought so that a client merging by index keeps them apart.
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunkParser = new GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser(false);
+
+        var thoughtChunk = parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [ { "text": "Analyzing the request.", "thought": true } ]
+                }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 5, "totalTokenCount": 15 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r1"
+            }
+            """);
+        var textChunk1 = parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "The answer is 42." } ] }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 10, "totalTokenCount": 20 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r2"
+            }
+            """);
+        var textChunk2 = parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "More details." } ] }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 10, "totalTokenCount": 20 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r2"
+            }
+            """);
+        var signatureChunk = parseWith(chunkParser, parserConfig, Strings.format("""
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "", "thoughtSignature": "%s" } ] },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r3"
+            }
+            """, THOUGHT_SIGNATURE));
+
+        // The thought fragment is at index 0.
+        assertThat(asTextReasoningDetail(thoughtChunk, 0).index(), is(0L));
+        assertThat(asTextReasoningDetail(thoughtChunk, 0).text(), is("Analyzing the request."));
+        assertNull(asTextReasoningDetail(thoughtChunk, 0).signature());
+
+        // The text chunks end the thought block; they carry no reasoning details.
+        assertNull(textChunk1.choices().getFirst().message().reasoningDetails());
+        assertNull(textChunk2.choices().getFirst().message().reasoningDetails());
+
+        // The trailing signature is at index 1, not 0 — the text part ended the thought block.
+        // Also confirms that consecutive content chunks don't redundantly advance the index.
+        assertThat(asTextReasoningDetail(signatureChunk, 0).index(), is(1L));
+        assertThat(asTextReasoningDetail(signatureChunk, 0).signature(), is(THOUGHT_SIGNATURE));
+        assertNull(asTextReasoningDetail(signatureChunk, 0).text());
+    }
+
+    public void testReasoningIndexAdvancesWhenAFunctionCallEndsAnUnsignedThoughtBlock() throws IOException {
+        // A function call ends the open thought block, so a second thought block starts at the next index.
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunkParser = new GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser(false);
+
+        var thoughtChunk = parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [ { "text": "Deciding which tool to use.", "thought": true } ]
+                }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 5, "totalTokenCount": 15 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r1"
+            }
+            """);
+        var functionCallChunk = parseWith(chunkParser, parserConfig, Strings.format("""
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "functionCall": { "name": "%s", "args": { "topic": "Q3 planning" }, "id": "%s" },
+                      "thoughtSignature": "%s"
+                    }
+                  ]
+                },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r2"
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
+        var secondThoughtChunk = parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [ { "text": "Now processing the result.", "thought": true } ]
+                }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 5, "totalTokenCount": 15 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r3"
+            }
+            """);
+
+        // First thought block at index 0.
+        assertThat(asTextReasoningDetail(thoughtChunk, 0).index(), is(0L));
+
+        // Function-call signature is id-bound; index is null.
+        var fcDetail = asTextReasoningDetail(functionCallChunk, 0);
+        assertThat(fcDetail.id(), is(GOOGLE_TOOL_CALL_ID));
+        assertThat(fcDetail.signature(), is(THOUGHT_SIGNATURE));
+        assertNull(fcDetail.index());
+
+        // The function call ended the thought block, so the second thought is at index 1.
+        assertThat(asTextReasoningDetail(secondThoughtChunk, 0).index(), is(1L));
     }
 
     private static String thoughtChunk(String thought, String signature) {

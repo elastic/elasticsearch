@@ -20,6 +20,8 @@ import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiUnifiedStreamingProcessor;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
 
 import java.io.IOException;
@@ -42,6 +45,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
+    private static final Logger logger = LogManager.getLogger(GoogleVertexAiUnifiedChatCompletionRequestEntity.class);
+
     private static final String CONTENTS = "contents";
     private static final String ROLE = "role";
     private static final String PARTS = "parts";
@@ -202,7 +207,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
     private void buildSystemInstruction(XContentBuilder builder) throws IOException {
         var messages = unifiedChatInput.getRequest().messages();
-        var systemMessages = messages.stream().filter(message -> message.role().equalsIgnoreCase(SYSTEM_ROLE)).toList();
+        var systemMessages = messages.stream().filter(GoogleVertexAiUnifiedChatCompletionRequestEntity::isSystemMessage).toList();
 
         if (systemMessages.isEmpty()) {
             return;
@@ -282,6 +287,19 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private void buildContents(XContentBuilder builder) throws IOException {
         var messages = unifiedChatInput.getRequest().messages();
 
+        // Build a tool-call-id → function-name map once to avoid O(n·m) scanning when resolving
+        // the function name for each tool message.
+        var functionNameById = new HashMap<String, String>();
+        for (var message : messages) {
+            if (message.toolCalls() != null) {
+                for (var toolCall : message.toolCalls()) {
+                    if (toolCall.id() != null) {
+                        functionNameById.put(toolCall.id(), toolCall.function().name());
+                    }
+                }
+            }
+        }
+
         builder.startArray(CONTENTS);
         for (var turn : toContentTurns(messages)) {
             var first = turn.getFirst();
@@ -291,7 +309,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             {
                 if (isToolMessage(first)) {
                     for (var toolMessage : turn) {
-                        buildFunctionResponsePart(builder, toolMessage, messages);
+                        buildFunctionResponsePart(builder, toolMessage, functionNameById);
                     }
                 } else {
                     buildMessageParts(builder, first);
@@ -317,12 +335,13 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
      */
     private void buildMessageParts(XContentBuilder builder, Message message) throws IOException {
         var texts = extractTextParts(message);
-        var signaturesByToolCallId = signaturesByToolCallId(message);
-        var unboundSignature = unboundSignature(message);
+        var googleReasoningDetails = textReasoningDetails(message);
+        var signaturesByToolCallId = signaturesByToolCallId(googleReasoningDetails);
+        var unboundSignature = unboundSignature(googleReasoningDetails);
         var toolCalls = message.toolCalls();
         var hasToolCalls = toolCalls != null && toolCalls.isEmpty() == false;
 
-        for (var reasoningDetail : textReasoningDetails(message)) {
+        for (var reasoningDetail : googleReasoningDetails) {
             if (reasoningDetail.text() == null) {
                 continue;
             }
@@ -359,6 +378,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                     // Gemini 3 requires a thought signature on the first functionCall of a step. When the client has
                     // not sent reasoning_details (e.g. because the client predates that field), use Google's sentinel
                     // so the request is not rejected with a 400.
+                    logger.debug(
+                        "No thought signature for first function call [{}]; using skip-validator sentinel",
+                        toolCall.function().name()
+                    );
                     signature = SKIP_THOUGHT_SIGNATURE_VALIDATOR;
                 }
                 firstCall = false;
@@ -386,10 +409,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     /**
      * Emits one {@code functionResponse} part for a tool message. When multiple tool messages answer a parallel
      * function call turn they are all written inside the same {@code parts} array, with one call to this method per
-     * message. Google requires the function name, which the unified tool message does not carry, so it is resolved
-     * from the tool call the message responds to.
+     * message. Google requires the function name, which the unified tool message does not carry, so it is looked up
+     * in the pre-built {@code functionNameById} map. When no entry is found the id is itself the function name
+     * (the response path synthesises an id from the name when the model returns none).
      */
-    private void buildFunctionResponsePart(XContentBuilder builder, Message message, List<Message> messages) throws IOException {
+    private void buildFunctionResponsePart(XContentBuilder builder, Message message, Map<String, String> functionNameById)
+        throws IOException {
         var toolCallId = message.toolCallId();
         if (toolCallId == null) {
             throw new ElasticsearchStatusException(
@@ -398,7 +423,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             );
         }
 
-        var functionName = resolveFunctionName(toolCallId, messages);
+        var functionName = functionNameById.getOrDefault(toolCallId, toolCallId);
 
         builder.startObject();
         {
@@ -413,24 +438,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             builder.endObject();
         }
         builder.endObject();
-    }
-
-    /**
-     * Finds the name of the function the given tool call invoked. The chat completion response path falls back to the
-     * function name when Google returns no function call id, so an unmatched id is itself the name.
-     */
-    private static String resolveFunctionName(String toolCallId, List<Message> messages) {
-        for (var message : messages) {
-            if (message.toolCalls() == null) {
-                continue;
-            }
-            for (var toolCall : message.toolCalls()) {
-                if (toolCallId.equals(toolCall.id())) {
-                    return toolCall.function().name();
-                }
-            }
-        }
-        return toolCallId;
     }
 
     private Map<String, Object> toolResponse(Message message) {
@@ -451,6 +458,11 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         return Map.of(FUNCTION_RESPONSE_OUTPUT, text);
     }
 
+    /**
+     * Returns the {@link ReasoningDetail.TextReasoningDetail} entries from the message that were produced by
+     * this provider ({@code format == google-vertex-ai-v1}). Details from other providers (e.g. Anthropic) are
+     * filtered out to avoid sending foreign signatures to Gemini, which would result in a 400.
+     */
     private static List<ReasoningDetail.TextReasoningDetail> textReasoningDetails(Message message) {
         if (message.reasoningDetails() == null) {
             return List.of();
@@ -459,12 +471,13 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             .stream()
             .filter(ReasoningDetail.TextReasoningDetail.class::isInstance)
             .map(ReasoningDetail.TextReasoningDetail.class::cast)
+            .filter(d -> GoogleVertexAiUnifiedStreamingProcessor.GOOGLE_VERTEX_AI_FORMAT.equals(d.format()))
             .toList();
     }
 
-    private static Map<String, String> signaturesByToolCallId(Message message) {
+    private static Map<String, String> signaturesByToolCallId(List<ReasoningDetail.TextReasoningDetail> details) {
         var signatures = new HashMap<String, String>();
-        for (var reasoningDetail : textReasoningDetails(message)) {
+        for (var reasoningDetail : details) {
             if (reasoningDetail.id() != null && reasoningDetail.signature() != null) {
                 signatures.put(reasoningDetail.id(), reasoningDetail.signature());
             }
@@ -477,8 +490,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
      * matched to a part positionally.
      */
     @Nullable
-    private static String unboundSignature(Message message) {
-        for (var reasoningDetail : textReasoningDetails(message)) {
+    private static String unboundSignature(List<ReasoningDetail.TextReasoningDetail> details) {
+        for (var reasoningDetail : details) {
             if (reasoningDetail.id() == null && reasoningDetail.text() == null && reasoningDetail.signature() != null) {
                 return reasoningDetail.signature();
             }
@@ -635,15 +648,21 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     }
 
     /**
-     * Writes {@code generationConfig.thinkingConfig}. Request-level reasoning maps to {@code thinkingLevel}, which
-     * Google rejects if combined with {@code thinkingBudget}, so the endpoint-level thinking budget only applies when
-     * the request carries no reasoning of its own.
+     * Writes {@code generationConfig.thinkingConfig}.
+     * <p>
+     * Request-level reasoning with an explicit effort maps to {@code thinkingLevel}. Google rejects a request that
+     * carries both {@code thinkingLevel} and {@code thinkingBudget}, so the endpoint-level budget is dropped when an
+     * effort is set. When the request carries reasoning but no effort (e.g. only {@code exclude} or {@code summary}),
+     * there is no {@code thinkingLevel} to conflict with, so the endpoint budget is still written.
      */
     private void buildThinkingConfig(XContentBuilder builder, @Nullable Reasoning reasoning) throws IOException {
         if (reasoning != null) {
             builder.startObject(THINKING_CONFIG);
             if (reasoning.effort() != null) {
                 builder.field(THINKING_LEVEL, toThinkingLevel(reasoning.effort()));
+            } else if (thinkingConfig.isEmpty() == false) {
+                // No effort was specified so thinkingLevel is not written; the endpoint-level budget is still valid.
+                builder.field(THINKING_BUDGET, thinkingConfig.getThinkingBudget());
             }
             builder.field(INCLUDE_THOUGHTS, Boolean.TRUE.equals(reasoning.exclude()) == false);
             builder.endObject();
@@ -658,9 +677,16 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     }
 
     /**
-     * Maps a unified reasoning effort onto Google's {@code ThinkingLevel} enum. Google has no equivalent of
-     * {@code xhigh}, and Gemini 3 cannot disable thinking, so neither is silently substituted for a level the caller
-     * did not ask for.
+     * Maps a unified reasoning effort onto Google's {@code ThinkingLevel} enum.
+     * <p>
+     * <strong>Gemini model compatibility:</strong> {@code thinkingLevel} is only supported by Gemini 3 models.
+     * Gemini 2.5 and earlier accept only {@code thinkingBudget}; sending {@code thinkingLevel} to those models
+     * results in a 400 from the API. When using this parameter, ensure the endpoint's model supports it.
+     * <p>
+     * Google has no equivalent of {@code xhigh}, and Gemini 3 cannot disable thinking, so neither is silently
+     * substituted for a level the caller did not ask for.
+     * <p>
+     * See <a href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/thinking">thinking</a>.
      */
     private static String toThinkingLevel(Reasoning.ReasoningEffort effort) {
         return switch (effort) {

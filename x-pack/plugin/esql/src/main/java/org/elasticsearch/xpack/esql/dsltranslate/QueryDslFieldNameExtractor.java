@@ -68,10 +68,13 @@ public final class QueryDslFieldNameExtractor {
             // Bind to NULL: only the requested names matter here, not the expression that comes out. This mirrors what
             // the rewriter does for a field absent from the output, so translation stays on a supported path.
             return Literal.NULL;
-            // Every field binds to NULL here, so no function that would need a version gate is ever built, and the
-            // translated expression is discarded — only the names are kept. current() states that rather than
-            // threading a version through a path where no expression reaches another node.
-        }, fieldList, configuration, TransportVersion.current());
+        },
+            fieldList,
+            configuration,
+            // The translated expression is discarded here — only the collected names are kept — so nothing built on
+            // this path is ever serialized to another node, and the version gate has no question to answer.
+            TransportVersion.current()
+        );
 
         QueryDslTranslator.TranslationResult result;
         try {

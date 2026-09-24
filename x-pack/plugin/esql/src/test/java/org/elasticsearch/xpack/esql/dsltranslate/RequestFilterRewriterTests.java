@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RequestFilterRewriterTests extends ESTestCase {
@@ -123,7 +124,17 @@ public class RequestFilterRewriterTests extends ESTestCase {
             VerificationException.class,
             () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.rangeQuery("k").gt("m"), CONFIG, CURRENT, false)
         );
-        assertThat(e.getMessage(), allOf(containsString("single lower bound on keyword"), containsString("dataset [ds]")));
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("single lower bound on keyword"),
+                containsString("dataset [ds]"),
+                // The cause, not just the construct: "unsupported" would be wrong for a clause the cluster is merely
+                // too old for, and without this the assertion passes on a message that misstates it.
+                containsString(QueryDslTranslator.VERSION_REASON),
+                not(containsString("unsupported on dataset"))
+            )
+        );
     }
 
     /** Partial mode: the gated conjunct is dropped with a warning, and the rest of the filter is still applied. */

@@ -13,15 +13,20 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The census of expressions {@link QueryDslTranslator} synthesizes, and the transport version each one owes.
@@ -88,6 +93,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
     // The shapes this census cannot see. The sibling census guards its own blind spot executably rather than in
     // prose; this does the same, so a new expression built through a factory or a constructor reference cannot
     // slip past by being spelled differently.
+    private static final Pattern PIN_ARGUMENT = Pattern.compile("([A-Z]\\w+\\.[A-Z_][A-Z0-9_]*)");
     private static final Pattern STATIC_FACTORY = Pattern.compile("\\b([A-Z]\\w+)\\s*\\.\\s*([a-z]\\w*)\\s*\\(");
     private static final Pattern CTOR_REFERENCE = Pattern.compile("\\b([A-Z]\\w+)\\s*::\\s*new");
 
@@ -101,20 +107,11 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         "^import\\s+org\\.elasticsearch\\.xpack\\.esql\\.(?:core\\.)?expression\\.[\\w.]*?([A-Z]\\w+);",
         Pattern.MULTILINE
     );
-    // The gate reads gated(field, Class.CONSTANT, construct, leaf), so the pin is the SECOND argument. Requiring the
-    // Class.CONSTANT shape also keeps the helper's own declaration — gated(Expression, TransportVersion, ...) — out
-    // of the census, since a parameter list carries no qualified constant.
-    private static final Pattern REQUIRE = Pattern.compile("gated\\s*\\(\\s*[^,()]+,\\s*([A-Z]\\w+\\.[A-Z_][A-Z0-9_]*)");
 
     public void testEveryEmittedExpressionIsDeclared() throws IOException {
         String source = Files.readString(esqlModuleRoot().resolve(TRANSLATOR));
         Set<String> emitted = emittedExpressionClasses(source);
-
-        Set<String> declared = new TreeSet<>(PREDATES_REWRITE_GATE);
-        declared.addAll(GATED.keySet());
-
-        Set<String> undeclared = new TreeSet<>(emitted);
-        undeclared.removeAll(declared);
+        Set<String> undeclared = undeclaredIn(source);
         assertThat(
             "QueryDslTranslator constructs "
                 + undeclared
@@ -127,7 +124,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             empty()
         );
 
-        Set<String> declaredButGone = new TreeSet<>(declared);
+        Set<String> declaredButGone = new TreeSet<>(declaredClasses());
         declaredButGone.removeAll(emitted);
         assertThat("declared but no longer constructed — delete the declaration: " + declaredButGone, declaredButGone, empty());
     }
@@ -168,19 +165,51 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         assertThat("a constructor reference is invisible to the construction census too: " + refs, refs, empty());
     }
 
-    public void testEveryGatedExpressionHasItsPinConsulted() throws IOException {
+    /**
+     * Each gated call must consult the pin of the function IT builds. Asserting over the union of constants seen
+     * anywhere in the file does not do that: swapping two sites' constants leaves the union identical, and it stays
+     * inert only while the constants resolve to the same id — which {@code MvCompare}'s javadoc says is exactly what
+     * must not be relied on, since the constants sit on the leaves so a future subclass cannot inherit a stale pin.
+     */
+    public void testEveryGatedExpressionConsultsItsOwnPin() throws IOException {
         String source = Files.readString(esqlModuleRoot().resolve(TRANSLATOR));
-        Set<String> consulted = pinsConsulted(source);
-        Set<String> expected = new TreeSet<>(GATED.values());
+        Map<String, String> pinPerConstructedClass = new TreeMap<>();
+        for (String call : gatedCalls(source)) {
+            Matcher constant = PIN_ARGUMENT.matcher(call);
+            Matcher built = CONSTRUCTION.matcher(call);
+            assertTrue("a gated() call names no pin: " + call, constant.find());
+            assertTrue("a gated() call builds nothing: " + call, built.find());
+            pinPerConstructedClass.put(built.group(1), constant.group(1));
+        }
+
+        Map<String, String> expected = new TreeMap<>(GATED);
         assertThat(
-            "a gated expression whose pin is never consulted is an ungated expression with a constant beside it; "
-                + "expected gated() calls carrying "
-                + expected
-                + " but found "
-                + consulted,
-            consulted,
+            "each gated function must consult its own pin, not merely some pin: " + pinPerConstructedClass,
+            pinPerConstructedClass,
             equalTo(expected)
         );
+    }
+
+    /** The text of every {@code gated(...)} call in the source, each from the name to its matching close paren. */
+    private static List<String> gatedCalls(String source) {
+        List<String> calls = new ArrayList<>();
+        // The lookbehind skips the helper's own declaration, "private Expression gated(", whose parameter list
+        // carries no qualified constant and would otherwise read as a call that names no pin.
+        Matcher m = Pattern.compile("(?<!Expression )\\bgated\\s*\\(").matcher(source);
+        while (m.find()) {
+            int depth = 1;
+            int i = m.end();
+            while (depth > 0 && i < source.length()) {
+                char c = source.charAt(i++);
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth--;
+                }
+            }
+            calls.add(source.substring(m.end(), i));
+        }
+        return calls;
     }
 
     /** The census has to fail on a new undeclared construction, or it is decoration. */
@@ -190,30 +219,37 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSomethingNew;
             class T { Expression f() { return new And(new MvSomethingNew(source, field)); } }
             """;
-        Set<String> emitted = emittedExpressionClasses(fake);
-        assertThat(emitted, equalTo(Set.of("And", "MvSomethingNew")));
-
-        Set<String> declared = new TreeSet<>(PREDATES_REWRITE_GATE);
-        declared.addAll(GATED.keySet());
-        assertFalse("a class nobody declared must not read as declared", declared.contains("MvSomethingNew"));
+        assertThat(emittedExpressionClasses(fake), equalTo(Set.of("And", "MvSomethingNew")));
+        // The point is not that the regex works; it is that the check testEveryEmittedExpressionIsDeclared runs would
+        // have gone red. So run that computation, not a restatement of it.
+        assertThat(undeclaredIn(fake), equalTo(Set.of("MvSomethingNew")));
+        assertThat("a declared class stays declared", undeclaredIn(fake), not(hasItem("And")));
     }
 
     /**
-     * The pin half has to discriminate too: a source that builds a gated function without consulting its constant
-     * must come back with nothing consulted, or the check passes on a translator that ships the function unpinned.
+     * The pairing has to discriminate: a source that builds a gated function without routing it through the gate must
+     * come back with nothing, and one that routes it through the WRONG pin must not read as correct.
      */
-    public void testPinCensusSeesNoConsultationWhenThereIsNone() {
-        String unpinned = """
+    public void testPinPairingSeesUngatedAndMispairedConstruction() {
+        String ungated = """
             class T { Expression f() { return checkedLeaf(field, new MvGreater(source, field, bound, opts)); } }
             """;
-        assertThat(pinsConsulted(unpinned), empty());
+        assertThat(gatedCalls(ungated), empty());
 
-        String pinned = """
+        String mispaired = """
             class T { Expression f() {
-                return gated(field, MvGreater.MV_COMPARE_TRANSPORT_VERSION, "range[...]", () -> leaf());
+                return gated(field, MvLess.MV_COMPARE_TRANSPORT_VERSION, "range[...]",
+                    () -> checkedLeaf(field, new MvGreater(source, field, bound, opts)));
             } }
             """;
-        assertThat(pinsConsulted(pinned), equalTo(Set.of("MvGreater.MV_COMPARE_TRANSPORT_VERSION")));
+        List<String> calls = gatedCalls(mispaired);
+        assertThat(calls, hasSize(1));
+        Matcher constant = PIN_ARGUMENT.matcher(calls.get(0));
+        Matcher built = CONSTRUCTION.matcher(calls.get(0));
+        assertTrue(constant.find());
+        assertTrue(built.find());
+        assertThat("the pairing must expose the mismatch, not hide it in a union", built.group(1), equalTo("MvGreater"));
+        assertThat(constant.group(1), equalTo("MvLess.MV_COMPARE_TRANSPORT_VERSION"));
     }
 
     /** A constructed class that is not an imported expression is not the census's business. */
@@ -226,6 +262,19 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         assertThat(emittedExpressionClasses(fake), equalTo(Set.of("Or")));
     }
 
+    /** Every class the source constructs that this census does not declare — the computation the build fails on. */
+    private static Set<String> undeclaredIn(String source) {
+        Set<String> undeclared = new TreeSet<>(emittedExpressionClasses(source));
+        undeclared.removeAll(declaredClasses());
+        return undeclared;
+    }
+
+    private static Set<String> declaredClasses() {
+        Set<String> declared = new TreeSet<>(PREDATES_REWRITE_GATE);
+        declared.addAll(GATED.keySet());
+        return declared;
+    }
+
     /** The simple names the source imports as an ES|QL expression. */
     private static Set<String> importedExpressionClasses(String source) {
         Set<String> imported = new TreeSet<>();
@@ -236,19 +285,9 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         return imported;
     }
 
-    /** The pin constants the source is seen to consult. */
-    private static Set<String> pinsConsulted(String source) {
-        Set<String> consulted = new TreeSet<>();
-        Matcher m = REQUIRE.matcher(source);
-        while (m.find()) {
-            consulted.add(m.group(1));
-        }
-        return consulted;
-    }
-
     /**
-     * The classes the source both imports as an ES|QL expression and constructs. Intersecting the two is what keeps
-     * a {@code BigDecimal} or a local record out of the census without maintaining a list of things to ignore.
+     * The classes the source both imports as an ES|QL expression and constructs. Intersecting the two is what keeps a
+     * {@code BigDecimal} or a local record out of the census without maintaining a list of things to ignore.
      */
     private static Set<String> emittedExpressionClasses(String source) {
         Set<String> imported = importedExpressionClasses(source);

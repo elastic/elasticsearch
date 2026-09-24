@@ -97,8 +97,21 @@ public final class RequestFilterRewriter {
             } else {
                 List<String> messages = new ArrayList<>(result.failures().size());
                 for (FilterRewriter.NodeFailure nf : result.failures()) {
+                    // Same distinction the warning draws: "unsupported" is wrong for a clause the cluster is merely
+                    // too old for, and this arm is what a test reads to check the cause was reported honestly.
                     messages.add(
-                        "request filter clause uses [" + nf.clause().construct() + "], unsupported on dataset [" + name(nf.node()) + "]"
+                        nf.clause().reason() == null
+                            ? "request filter clause uses ["
+                                + nf.clause().construct()
+                                + "], unsupported on dataset ["
+                                + name(nf.node())
+                                + "]"
+                            : "request filter clause uses ["
+                                + nf.clause().construct()
+                                + "] on dataset ["
+                                + name(nf.node())
+                                + "], skipped because "
+                                + nf.clause().reason()
                     );
                 }
                 throw new VerificationException(String.join("\n", messages));

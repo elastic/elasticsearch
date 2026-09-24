@@ -674,24 +674,20 @@ public final class QueryDslTranslator {
 
         // One bound → mv_greater / mv_less (any-value, two-valued).
         if (hasLower) {
+            Literal lower = literalFor(field, range.from());
             return gated(
                 field,
                 MvGreater.MV_COMPARE_TRANSPORT_VERSION,
                 "range[single lower bound on " + type.typeName() + "]",
-                () -> checkedLeaf(
-                    field,
-                    new MvGreater(Source.EMPTY, field, literalFor(field, range.from()), includeBoundOptions(range.includeLower()))
-                )
+                () -> checkedLeaf(field, new MvGreater(Source.EMPTY, field, lower, includeBoundOptions(range.includeLower())))
             );
         }
+        Literal upper = literalFor(field, range.to());
         return gated(
             field,
             MvLess.MV_COMPARE_TRANSPORT_VERSION,
             "range[single upper bound on " + type.typeName() + "]",
-            () -> checkedLeaf(
-                field,
-                new MvLess(Source.EMPTY, field, literalFor(field, range.to()), includeBoundOptions(range.includeUpper()))
-            )
+            () -> checkedLeaf(field, new MvLess(Source.EMPTY, field, upper, includeBoundOptions(range.includeUpper())))
         );
     }
 
@@ -767,15 +763,23 @@ public final class QueryDslTranslator {
             return checkedLeaf(field, new MvInRange(Source.EMPTY, field, longLit(lo, type), longLit(hi, type)));
         }
         if (hasLower) {
-            return gated(field, MvGreater.MV_COMPARE_TRANSPORT_VERSION, "range[single lower bound on " + type.typeName() + "]", () -> {
-                long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
-                return checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)));
-            });
+            // Resolve the bound BEFORE the gate. A bound that cannot be parsed is not a version failure, and
+            // reporting it as one sends the operator to upgrade a cluster where the clause drops just the same.
+            long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
+            return gated(
+                field,
+                MvGreater.MV_COMPARE_TRANSPORT_VERSION,
+                "range[single lower bound on " + type.typeName() + "]",
+                () -> checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)))
+            );
         }
-        return gated(field, MvLess.MV_COMPARE_TRANSPORT_VERSION, "range[single upper bound on " + type.typeName() + "]", () -> {
-            long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
-            return checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)));
-        });
+        long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
+        return gated(
+            field,
+            MvLess.MV_COMPARE_TRANSPORT_VERSION,
+            "range[single upper bound on " + type.typeName() + "]",
+            () -> checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)))
+        );
     }
 
     /**
@@ -847,6 +851,9 @@ public final class QueryDslTranslator {
         return new Literal(Source.EMPTY, value, type);
     }
 
+    /** Why a version-gated construct was skipped. Separate from the construct name so the name stays the name. */
+    static final String VERSION_REASON = "the cluster contains a node too old to evaluate it";
+
     /**
      * Refuses to synthesize a function the targeted nodes cannot deserialize. The rewrite's own gate promises only
      * that the REWRITE exists on every node; it names one constant, chosen once, while the set of functions this
@@ -860,9 +867,6 @@ public final class QueryDslTranslator {
      * {@code mv_in_range}, {@code mv_contains} and {@code mv_intersects} need no check: all three predate the
      * rewrite's own gate, so any node that reaches this code at all already has them.
      */
-    /** Why a version-gated construct was skipped. Separate from the construct name so the name stays the name. */
-    static final String VERSION_REASON = "the cluster contains a node too old to evaluate it";
-
     private Expression gated(Expression field, TransportVersion required, String construct, Supplier<Expression> leaf) {
         if (minimumVersion.supports(required) == false) {
             // A MISSING field is null-bound and every leaf folds it to false, so the answer here needs no function at

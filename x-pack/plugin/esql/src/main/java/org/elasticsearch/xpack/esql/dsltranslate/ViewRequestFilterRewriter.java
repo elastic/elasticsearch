@@ -219,7 +219,10 @@ public final class ViewRequestFilterRewriter {
                 QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration, minimumVersion);
                 // The same construct can fail more than once on one view (two wildcard clauses, say); the set keeps the header short.
                 for (QueryDslTranslator.UnsupportedClause unsupported : result.unsupported()) {
-                    skipped.add("[" + unsupported.construct() + "] on view [" + key + "]");
+                    String where = "[" + unsupported.construct() + "] on view [" + key + "]";
+                    // A clause dropped because a node is too old is not an unsupported construct; say which it was,
+                    // as RequestFilterRewriter does, or the operator hunts for a capability the cluster already has.
+                    skipped.add(unsupported.reason() == null ? where : where + " because " + unsupported.reason());
                 }
                 Expression condition = result.applied();
                 if (condition == Literal.TRUE) {

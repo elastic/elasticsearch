@@ -736,6 +736,23 @@ public class QueryDslTranslatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * The same, BELOW the pin, where it is easy to get wrong: the gate runs on the path a malformed bound also takes,
+     * so an unparseable date must still be reported as an unparseable date. Reporting it as a version failure sends
+     * the operator to upgrade a cluster where the clause would drop just the same afterwards.
+     */
+    public void testAMalformedBoundBelowThePinIsNotAVersionFailure() {
+        for (String field : List.of("@timestamp", "ts_nanos")) {
+            QueryDslTranslator.TranslationResult below = translateResult(
+                QueryBuilders.rangeQuery(field).gt("not-a-date"),
+                BELOW_MV_COMPARE
+            );
+            assertThat(below.unsupported(), hasSize(1));
+            assertThat(below.unsupported().get(0).construct(), containsString("date bound on"));
+            assertNull("a bound that cannot be parsed is not a version problem", below.unsupported().get(0).reason());
+        }
+    }
+
     // Every field the binder knows, of every type, plus one it does not.
     private static final List<String> ALL_BOUND_FIELDS = List.of(
         "status",

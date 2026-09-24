@@ -12,8 +12,8 @@ _meta:
 # metric associated with the value field.
 composed_of:
   - exemplars@settings
-  - labels-prometheus@mappings
-  - prometheus@settings
+  - metrics-prometheus@mappings
+  - metrics-prometheus@settings
   - exemplars-prometheus@mappings
   - exemplars@custom
   - exemplars-prometheus@custom

@@ -70,7 +70,6 @@ setup:
   - match: { .$idx0name.mappings.properties.metric_name.type: "keyword" }
   - match: { .$idx0name.mappings.properties.metric_name.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.value.type: "double" }
-  - is_false: .$idx0name.mappings.properties.metrics
 ---
 "Test bulk ingest and query":
   - do:

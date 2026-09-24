@@ -16,4 +16,4 @@ template:
         time_series_dimension: true
       exemplar_labels:
         type: passthrough
-        priority: 20
+        priority: 30

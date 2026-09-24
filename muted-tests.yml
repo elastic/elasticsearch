@@ -687,3 +687,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
   method: testStopSkipsQueuedNestedLeaves
   issue: https://github.com/elastic/elasticsearch/issues/160201
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounterTests
+  issue: https://github.com/elastic/elasticsearch/issues/160233

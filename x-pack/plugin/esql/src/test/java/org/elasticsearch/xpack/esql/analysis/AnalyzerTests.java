@@ -3414,7 +3414,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3426,7 +3426,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3451,7 +3451,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3466,7 +3466,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -6613,7 +6613,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true, true);
     }
 
     public void testHighlightCombinesImplicitQueriesFromMultipleWhereCommands() {

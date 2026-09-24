@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -32,6 +33,14 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
      * directly by a role descriptor, which is what {@link BuiltIn} still writes to such a node.
      */
     TransportVersion USER_MANAGED_SERVICE_ACCOUNT_INFO = TransportVersion.fromName("user_managed_service_account_info");
+
+    /**
+     * Gates the optional description of a user-managed account, which is written after the older fields both in this
+     * wire form and in that of the request that writes an account. A node before this version is sent the account
+     * without its description rather than being refused it: the description carries no meaning, so the account is
+     * still whole without it.
+     */
+    TransportVersion USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION = TransportVersion.fromName("user_managed_service_account_description");
 
     String principal();
 
@@ -55,9 +64,10 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
 
     /**
      * An account created through the API, whose privileges are the named roles resolved when it authenticates. The
-     * roles are reported as the caller gave them.
+     * roles are reported as the caller gave them. The description is free text that means nothing to Elasticsearch,
+     * carried for the caller's benefit, and is {@code null} when the account has none.
      */
-    record UserManaged(String principal, List<String> roles, boolean enabled) implements ServiceAccountInfo {
+    record UserManaged(String principal, List<String> roles, boolean enabled, @Nullable String description) implements ServiceAccountInfo {
 
         public UserManaged {
             Objects.requireNonNull(principal, "service account principal cannot be null");
@@ -77,7 +87,12 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         }
         return switch (in.readEnum(ServiceAccountType.class)) {
             case BUILT_IN -> new BuiltIn(principal, new RoleDescriptor(in));
-            case USER_MANAGED -> new UserManaged(principal, in.readStringCollectionAsImmutableList(), in.readBoolean());
+            case USER_MANAGED -> new UserManaged(
+                principal,
+                in.readStringCollectionAsImmutableList(),
+                in.readBoolean(),
+                in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION) ? in.readOptionalString() : null
+            );
         };
     }
 
@@ -103,6 +118,9 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
             case UserManaged userManaged -> {
                 out.writeStringCollection(userManaged.roles());
                 out.writeBoolean(userManaged.enabled());
+                if (out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION)) {
+                    out.writeOptionalString(userManaged.description());
+                }
             }
         }
     }
@@ -132,6 +150,9 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
             case UserManaged userManaged -> {
                 builder.stringListField("roles", userManaged.roles());
                 builder.field("enabled", userManaged.enabled());
+                if (userManaged.description() != null) {
+                    builder.field("description", userManaged.description());
+                }
             }
         }
         return builder;

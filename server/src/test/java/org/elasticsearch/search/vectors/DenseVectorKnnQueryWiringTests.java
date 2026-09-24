@@ -99,7 +99,8 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
                 1,
                 false,
                 autoCalibrate,
-                BBQIVFIndexOptions.QuantizationType.OSQ
+                BBQIVFIndexOptions.QuantizationType.OSQ,
+                false
             ),
             Collections.emptyMap(),
             false,

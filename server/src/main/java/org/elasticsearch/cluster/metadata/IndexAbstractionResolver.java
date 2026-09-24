@@ -323,7 +323,8 @@ public class IndexAbstractionResolver {
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
             if (isWildcardExpression && indexAbstraction.isSystem()) {
-                return false; // system views should not be picked up by wildcard pattern expressions
+                // system views should not be picked up by wildcard pattern expressions, unless that starts with a dot
+                return isVisibleDueToImplicitHidden(expression, index);
             }
             return indicesOptions.indexAbstractionOptions().resolveViews();
         }

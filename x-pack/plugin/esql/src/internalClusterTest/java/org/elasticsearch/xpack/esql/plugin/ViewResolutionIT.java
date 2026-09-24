@@ -70,12 +70,11 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
             }
             try (var response = run(syncEsqlQueryRequest("FROM *-view"))) {
                 assertOk(response);
-                // unlike system indices, system views are not excluded from wildcard patterns
                 assertResultConcreteIndices(response, "regular-index");
             }
             try (var response = run(syncEsqlQueryRequest("FROM .system-*"))) {
                 assertOk(response);
-                assertEmpty(response);
+                assertResultConcreteIndices(response, "system-index");
             }
             try (var response = run(syncEsqlQueryRequest("FROM *"))) {
                 assertOk(response);

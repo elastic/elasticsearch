@@ -89,13 +89,7 @@ public final class ExternalFailures {
      * Storage-URI scheme prefixes that must never appear in an {@link ExternalException} message
      * handed to a caller. Used by the {@code assert} guard in {@link #classify}.
      */
-    private static final String[] STORAGE_URI_SCHEMES = {
-        "s3://",
-        "s3a://",
-        "s3n://",
-        "gs://",
-        "wasb://",
-        "wasbs://" };
+    private static final String[] STORAGE_URI_SCHEMES = { "s3://", "s3a://", "s3n://", "gs://", "wasb://", "wasbs://" };
 
     /**
      * Returns {@code true} when no message in {@code e}'s full cause chain contains a known

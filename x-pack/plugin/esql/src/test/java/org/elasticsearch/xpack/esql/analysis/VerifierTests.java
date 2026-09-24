@@ -4985,6 +4985,15 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testGraphExpandAggregateWhereRequiresStats() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        // Second WHERE slot without STATS — not reinterpreted as a document filter.
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WHERE id IS NOT NULL WHERE id IS NOT NULL",
+            containsString("GRAPH EXPAND aggregate WHERE requires STATS")
+        );
+    }
+
     public void testTopSnippetsQueryFoldableAfterOptimization() {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
     }

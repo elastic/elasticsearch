@@ -6727,4 +6727,44 @@ public class AnalyzerTests extends AnalyzerTestCase {
             equalTo(List.of("node_from", "node_to", "node_reached", "hop", "weight", "edges", "label"))
         );
     }
+
+    public void testGraphExpandResolvesDocumentAndAggregateWhereAgainstCorrectOutputs() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "source",
+            new EsField("source", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "target",
+            new EsField("target", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "weight",
+            new EsField("weight", INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("edges", IndexResolution.valid(EsIndexGenerator.esIndex("edges", mapping)));
+        var plan = a.query(
+            """
+                ROW node_id = "a"
+                | GRAPH EXPAND edges ON node_id == source TO target
+                    WHERE weight > 1
+                    STATS weight = SUM(weight), edges = COUNT(*)
+                    WHERE edges >= 2
+                    WITH { "max_hops": 2, "direction": "out" }
+                """
+        );
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertNotNull(graphExpand.documentFilter());
+        assertTrue(graphExpand.documentFilter().resolved());
+        // Document WHERE binds to the edge field, not the STATS alias of the same name.
+        assertTrue(
+            graphExpand.documentFilter().anyMatch(e -> e instanceof Attribute attr && attr.name().equals("weight") && attr.resolved())
+        );
+        assertNotNull(graphExpand.aggregateFilter());
+        assertTrue(graphExpand.aggregateFilter().resolved());
+        // Aggregate WHERE binds to the STATS alias, not a raw document field absent from the hop Aggregate.
+        assertTrue(
+            graphExpand.aggregateFilter().anyMatch(e -> e instanceof Attribute attr && attr.name().equals("edges") && attr.resolved())
+        );
+    }
 }

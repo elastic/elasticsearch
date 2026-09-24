@@ -249,16 +249,17 @@ public class GraphExpand extends UnaryPlan
 
     @Override
     public boolean expressionsResolved() {
-        // Edge index + ON/TO + result attrs. STATS aggregates/groupings resolve
-        // against the edge relation when present; document WHERE / SORT / UNTIL
-        // stay unresolved until a later stage implements them.
+        // Edge index + ON/TO + result attrs + optional STATS + both WHERE slots.
+        // Aggregate WHERE without STATS never resolves (see postAnalysisVerification).
         return edgeRelation.resolved()
             && seedColumn.resolved()
             && matchField.resolved()
             && targetFields.stream().allMatch(Attribute::resolved)
             && resultAttributes != null
             && (aggregates == null || Resolvables.resolved(aggregates))
-            && (groupings == null || Resolvables.resolved(groupings));
+            && (groupings == null || Resolvables.resolved(groupings))
+            && (documentFilter == null || documentFilter.resolved())
+            && (aggregateFilter == null || (aggregates != null && aggregateFilter.resolved()));
     }
 
     @Override
@@ -294,6 +295,9 @@ public class GraphExpand extends UnaryPlan
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        if (aggregateFilter != null && aggregates == null) {
+            failures.add(fail(this, "GRAPH EXPAND aggregate WHERE requires STATS"));
+        }
         postAnalysisOptionsVerification(failures);
     }
 

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -2206,6 +2207,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         Expression aggregateFilter = ctx.aggFilter != null ? expression(ctx.aggFilter.booleanExpression()) : null;
+        // aggField grammar allows `COUNT(*) WHERE …` (per-agg filter). When the command-level
+        // aggregate WHERE slot is empty, that WHERE was the collapsed-edge filter — promote it.
+        if (aggregateFilter == null && aggregates != null && aggregates.isEmpty() == false) {
+            NamedExpression last = aggregates.get(aggregates.size() - 1);
+            if (last instanceof Alias alias && alias.child() instanceof FilteredExpression filtered) {
+                aggregateFilter = filtered.filter();
+                List<NamedExpression> unwrapped = new ArrayList<>(aggregates);
+                unwrapped.set(unwrapped.size() - 1, alias.replaceChild(filtered.delegate()));
+                aggregates = unwrapped;
+            }
+        }
 
         List<Order> sorts = null;
         if (ctx.graphExpandSort() != null) {
@@ -2217,6 +2229,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         List<? extends NamedExpression> finalAggregates = aggregates;
         List<Expression> finalGroupings = groupings;
+        Expression finalAggregateFilter = aggregateFilter;
         List<Order> finalSorts = sorts;
         return input -> new GraphExpand(
             source,
@@ -2228,7 +2241,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             documentFilter,
             finalAggregates,
             finalGroupings,
-            aggregateFilter,
+            finalAggregateFilter,
             finalSorts,
             until,
             options

@@ -2749,7 +2749,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Resolves {@link GraphExpand}: edge index → {@link EsRelation} (same shape as
          * {@link ResolveTable}), seed column against the child output, match/TO fields
-         * and STATS aggregates/groupings against the edge index output.
+         * and STATS aggregates/groupings against the edge index output. Document WHERE
+         * resolves against the edge output; aggregate WHERE against the hop Aggregate
+         * output (endpoint pair + STATS columns).
          */
         private LogicalPlan resolveGraphExpand(GraphExpand ge, List<Attribute> childrenOutput, AnalyzerContext context) {
             LogicalPlan edgeRelation = ge.edgeRelation();
@@ -2799,6 +2801,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 groupings = resolvedGroups;
             }
 
+            Expression documentFilter = ge.documentFilter();
+            boolean documentFilterChanged = false;
+            if (documentFilter != null && edgeRelation.resolved()) {
+                Expression resolvedDocFilter = documentFilter.transformUp(
+                    UnresolvedAttribute.class,
+                    ua -> maybeResolveAttribute(ua, edgeOutput)
+                );
+                documentFilterChanged = resolvedDocFilter != documentFilter;
+                documentFilter = resolvedDocFilter;
+            }
+
+            Expression aggregateFilter = ge.aggregateFilter();
+            boolean aggregateFilterChanged = false;
+            if (aggregateFilter != null && aggregates == null) {
+                // Second WHERE without STATS — do not resolve against edge documents.
+                Expression stamped = aggregateFilter.transformUp(UnresolvedAttribute.class, ua -> {
+                    if (ua.customMessage()) {
+                        return ua;
+                    }
+                    return ua.withUnresolvedMessage("GRAPH EXPAND aggregate WHERE requires STATS");
+                });
+                aggregateFilterChanged = stamped != aggregateFilter;
+                aggregateFilter = stamped;
+            } else if (aggregateFilter != null
+                && aggregates != null
+                && Resolvables.resolved(aggregates)
+                && (groupings == null || Resolvables.resolved(groupings))
+                && matchField.resolved()
+                && Resolvables.resolved(targetFields)
+                && targetFields.isEmpty() == false) {
+                List<Attribute> hopAggregateOutput = hopAggregateOutputAttributes(
+                    matchField,
+                    targetFields.get(0),
+                    aggregates,
+                    groupings
+                );
+                Expression resolvedAggFilter = aggregateFilter.transformUp(
+                    UnresolvedAttribute.class,
+                    ua -> maybeResolveAttribute(ua, hopAggregateOutput)
+                );
+                aggregateFilterChanged = resolvedAggFilter != aggregateFilter;
+                aggregateFilter = resolvedAggFilter;
+            }
+
             boolean needResultAttributes = ge.resultAttributes() == null
                 || statsChanged
                 || (ge.resultAttributes() != null
@@ -2811,6 +2857,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 || matchField != ge.matchField()
                 || targetsChanged
                 || statsChanged
+                || documentFilterChanged
+                || aggregateFilterChanged
                 || needResultAttributes) {
                 List<Attribute> resultAttributes = ge.resultAttributes();
                 if (Resolvables.resolved(targetFields)
@@ -2836,10 +2884,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     seedColumn,
                     matchField,
                     targetFields,
-                    ge.documentFilter(),
+                    documentFilter,
                     aggregates,
                     groupings,
-                    ge.aggregateFilter(),
+                    aggregateFilter,
                     ge.sorts(),
                     ge.until(),
                     ge.options(),
@@ -2847,6 +2895,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             return ge;
+        }
+
+        /**
+         * Output attributes of the hop {@link Aggregate}: user STATS aliases, then the
+         * implicit endpoint-pair groupings, then any user {@code BY} — same shape as
+         * {@code GraphExpandDriver#buildHopAggregate}.
+         */
+        private static List<Attribute> hopAggregateOutputAttributes(
+            Attribute matchField,
+            Attribute targetField,
+            List<? extends NamedExpression> aggregates,
+            List<Expression> groupings
+        ) {
+            List<Expression> allGroupings = new ArrayList<>(2 + (groupings != null ? groupings.size() : 0));
+            allGroupings.add(matchField);
+            allGroupings.add(targetField);
+            if (groupings != null) {
+                allGroupings.addAll(groupings);
+            }
+            List<Attribute> output = new ArrayList<>(aggregates.size() + allGroupings.size());
+            for (NamedExpression aggregate : aggregates) {
+                output.add(aggregate.toAttribute());
+            }
+            for (Expression grouping : allGroupings) {
+                Attribute attr = Expressions.attribute(grouping);
+                if (attr != null) {
+                    output.add(attr);
+                }
+            }
+            return output;
         }
 
         /**

@@ -41,3 +41,34 @@ node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | edges
 a                 | b               | b                    | 1           | 1          | owns
 a                 | b               | b                    | 1           | 1          | ships
 ;
+
+
+Document WHERE filters hop documents before STATS
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_weighted ON node_id == source TO target
+    WHERE weight > 1
+    STATS weight = SUM(weight), edges = COUNT(*)
+    WITH { "max_hops": 2, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long | edges:long
+a                 | b               | b                    | 1           | 4           | 1
+b                 | c               | c                    | 2           | 10          | 1
+;
+
+
+Aggregate WHERE filters collapsed edges after STATS
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_weighted ON node_id == source TO target
+    STATS weight = SUM(weight), edges = COUNT(*)
+    WHERE edges >= 2
+    WITH { "max_hops": 2, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long | edges:long
+a                 | b               | b                    | 1           | 5           | 2
+;

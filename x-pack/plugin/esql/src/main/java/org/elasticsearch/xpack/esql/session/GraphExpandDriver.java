@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -49,7 +50,9 @@ import java.util.Set;
  * Each hop is a full plan/dispatch round through {@link EsqlSession#executeSubPlan}.
  * Without STATS the hop is {@code Filter → Eval → Project}. With STATS an
  * {@link Aggregate} sits on the filtered edge scan (pair grouping always, user
- * {@code BY} refining it) before Eval/Project. Admitted nodes are remembered here
+ * {@code BY} refining it) before Eval/Project. Document {@code WHERE} is ANDed
+ * into the edge {@link Filter}; aggregate {@code WHERE} is a {@link Filter} on
+ * the Aggregate output before admission. Admitted nodes are remembered here
  * so a later hop does not re-admit them. Stage subset — see {@link #validateSubset}.
  */
 public final class GraphExpandDriver {
@@ -188,7 +191,11 @@ public final class GraphExpandDriver {
             literals.add(new Literal(source, value, nodeType));
         }
         In inPredicate = new In(source, matchField, literals);
-        LogicalPlan hopChild = new Filter(source, graphExpand.edgeRelation(), inPredicate);
+        // Document WHERE filters hop documents before STATS (and before emit when there is no STATS).
+        Expression edgePredicate = graphExpand.documentFilter() != null
+            ? Predicates.combineAnd(List.of(inPredicate, graphExpand.documentFilter()))
+            : inPredicate;
+        LogicalPlan hopChild = new Filter(source, graphExpand.edgeRelation(), edgePredicate);
 
         Attribute nodeFrom = resultAttributes.get(0);
         Attribute nodeTo = resultAttributes.get(1);
@@ -200,8 +207,12 @@ public final class GraphExpandDriver {
         if (graphExpand.aggregates() != null) {
             Aggregate aggregate = buildHopAggregate(source, hopChild);
             hopChild = aggregate;
-            evalFrom = attributeByName(aggregate.output(), matchField.name());
-            evalTo = attributeByName(aggregate.output(), targetField.name());
+            // Aggregate WHERE filters collapsed edges after STATS, before admission.
+            if (graphExpand.aggregateFilter() != null) {
+                hopChild = new Filter(source, aggregate, graphExpand.aggregateFilter());
+            }
+            evalFrom = attributeByName(hopChild.output(), matchField.name());
+            evalTo = attributeByName(hopChild.output(), targetField.name());
         }
 
         List<Alias> evalFields = List.of(
@@ -308,11 +319,8 @@ public final class GraphExpandDriver {
     // --- subset / options --------------------------------------------------------
 
     static void validateSubset(GraphExpand ge) {
-        if (ge.documentFilter() != null) {
-            throw new IllegalArgumentException("GRAPH EXPAND document WHERE is not supported in this build");
-        }
-        if (ge.aggregateFilter() != null) {
-            throw new IllegalArgumentException("GRAPH EXPAND aggregate WHERE is not supported in this build");
+        if (ge.aggregateFilter() != null && ge.aggregates() == null) {
+            throw new IllegalArgumentException("GRAPH EXPAND aggregate WHERE requires STATS");
         }
         if (ge.sorts() != null) {
             throw new IllegalArgumentException("GRAPH EXPAND SORT is not supported in this build");

@@ -1412,7 +1412,8 @@ class NodeConstruction {
                 threadPool,
                 telemetryProvider,
                 repositoriesService,
-                fileSettingsHealthTracker
+                fileSettingsHealthTracker,
+                projectResolver
             )
         );
 
@@ -1420,7 +1421,11 @@ class NodeConstruction {
         modules.add(b -> {
             serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
             final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
-            final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(telemetryProvider);
+            final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(
+                telemetryProvider,
+                throttlingRecoveryService::blockedState,
+                threadPool.relativeTimeInMillisSupplier()
+            );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(
                 transportService,
@@ -1631,7 +1636,8 @@ class NodeConstruction {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
-        FileSettingsHealthTracker fileSettingsHealthTracker
+        FileSettingsHealthTracker fileSettingsHealthTracker,
+        ProjectResolver projectResolver
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1644,8 +1650,8 @@ class NodeConstruction {
 
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
-            new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new DiskHealthIndicatorService(clusterService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService, projectResolver),
+            new DiskHealthIndicatorService(clusterService, projectResolver),
             new ShardsCapacityHealthIndicatorService(clusterService),
             new FileSettingsHealthIndicatorService()
         );
@@ -1667,7 +1673,7 @@ class NodeConstruction {
 
         List<HealthTracker<?>> healthTrackers = List.of(
             new DiskHealthTracker(nodeService, clusterService),
-            new RepositoriesHealthTracker(repositoriesService),
+            new RepositoriesHealthTracker(repositoriesService, projectResolver),
             fileSettingsHealthTracker
         );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);

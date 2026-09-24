@@ -859,9 +859,26 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         visit(irForEachSubIterableNode.getConditionNode(), writeScope);
 
         if (painlessMethod == null) {
+            // DefBootstrap.ITERATOR carries no annotation, so there is no estimator to replay. The size is the same either
+            // way, a collection iterator or the ValueIterator wrapper for an array, so charge the constant inline.
+            writeAllocationCheck(writeScope, AllocSizes.ITERATOR_BYTES);
+
             Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class));
             methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
+            java.lang.reflect.Method iteratorEstimator = irForEachSubIterableNode.getDecorationValue(IRDAllocationEstimator.class);
+
+            if (iteratorEstimator != null && isAllocationTrackingActive(writeScope)) {
+                Variable[] operands = writeDynamicAllocationCheck(
+                    writeScope,
+                    methodWriter,
+                    "iteratorOperand",
+                    painlessMethod.methodType().parameterArray(),
+                    iteratorEstimator
+                );
+                loadCallOperands(methodWriter, operands);
+            }
+
             methodWriter.invokeMethodCall(painlessMethod);
         }
 
@@ -1785,6 +1802,17 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irDefInterfaceReferenceNode.getLocation());
 
+        List<String> captureNames = irDefInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
+        boolean captureBox = irDefInterfaceReferenceNode.hasCondition(IRCCaptureBox.class);
+
+        // The functional interface is picked at runtime, but the capture object is allocated either way: one slot per captured
+        // value, plus one for the script instance when it is captured. Charge it the same way the typed path does. The check
+        // leaves nothing on the stack, so it can go first.
+        int captureCount = (irDefInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class) ? 1 : 0) + (captureNames == null
+            ? 0
+            : captureNames.size());
+        writeAllocationCheck(writeScope, AllocSizes.captureSize(captureCount));
+
         // place holder for functional interface receiver
         // which is resolved and replace at runtime
         methodWriter.push((String) null);
@@ -1792,9 +1820,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (irDefInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class)) {
             writeInstanceScriptCapture(writeScope, methodWriter);
         }
-
-        List<String> captureNames = irDefInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
-        boolean captureBox = irDefInterfaceReferenceNode.hasCondition(IRCCaptureBox.class);
 
         if (captureNames != null) {
             for (String captureName : captureNames) {

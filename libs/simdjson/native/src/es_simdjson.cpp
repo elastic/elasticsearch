@@ -18,6 +18,8 @@
  * Pinned to simdjson v4.6.9 (amalgamated single-header distribution).
  */
 
+#include <iterator>
+
 #include "simdjson.h"
 
 #include <cstdint>

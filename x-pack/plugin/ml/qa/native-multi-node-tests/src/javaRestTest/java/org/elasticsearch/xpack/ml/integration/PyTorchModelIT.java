@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateR
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -306,7 +308,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testLiveDeploymentStats() throws IOException {
+    public void testLiveDeploymentStats() throws Exception {
         String modelId = "live_deployment_stats";
         createPassThroughModel(modelId);
         putVocabulary(List.of("once", "twice"), modelId);
@@ -366,6 +368,81 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(5));
             int inferenceCount = sumInferenceCountOnNodes(nodes);
             assertThat(inferenceCount, equalTo(5));
+
+            // The native process reports its resident set size (current and OS peak) periodically. Elasticsearch surfaces
+            // these, summed across nodes, as runtime_native_memory_bytes / peak_runtime_native_memory_bytes in
+            // model_size_stats. When running against an ml-cpp that emits periodic RSS (the coordinated PR build sets
+            // -Dtests.ml.expect_native_rss=true) we enforce the full end-to-end chain, waiting for the first report.
+            // Otherwise the check is best-effort so it does not flake against a released ml-cpp that does not report RSS
+            // within the short test window.
+            boolean requireNativeRss = Booleans.parseBoolean(System.getProperty("tests.ml.expect_native_rss", "false"));
+            try {
+                // Wait for the periodic native RSS report so this is a genuine end-to-end check when running against an
+                // ml-cpp that emits it, then assert the full accounting chain.
+                assertBusy(() -> assertNativeRuntimeMemorySurfaced(modelId), 30, TimeUnit.SECONDS);
+            } catch (AssertionError noReportYet) {
+                // A released ml-cpp without periodic reporting never sends RSS, so tolerate its absence to avoid flaking -
+                // unless -Dtests.ml.expect_native_rss=true demands it (the coordinated ml-cpp + ES build).
+                if (requireNativeRss) {
+                    throw noReportYet;
+                }
+                logger.info("native RSS not reported within timeout; skipping strict runtime-native-memory assertion");
+            }
+        }
+    }
+
+    /**
+     * Enforces the RSS accounting chain end to end. The native process's periodic report carries the OS peak RSS
+     * (high-water mark), which is available on every platform, whereas the current RSS is not reported on macOS
+     * ({@code CProcessStats::residentSetSize()} returns 0 there). We therefore use the peak as the "a measurement has
+     * arrived" signal so this assertion is portable: the summed per-node peak must be surfaced as
+     * peak_runtime_native_memory_bytes in model_size_stats, and where the current RSS is reported it must be surfaced as
+     * runtime_native_memory_bytes and never exceed the peak. A missing report fails (driving the surrounding assertBusy
+     * to retry) rather than being tolerated. Used only when the native process is known to emit periodic RSS.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertNativeRuntimeMemorySurfaced(String modelId) throws IOException {
+        Response statsResponse = getTrainedModelStats(modelId);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(statsResponse).get("trained_model_stats");
+        assertThat(stats, hasSize(1));
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "deployment_stats.nodes",
+            stats.get(0)
+        );
+
+        long summedAvgRss = 0;
+        long summedPeakRss = 0;
+        for (var node : nodes) {
+            Number nodeAvgRss = (Number) node.get("average_inference_process_memory_rss_bytes");
+            Number nodePeakRss = (Number) node.get("peak_inference_process_memory_rss_bytes");
+            if (nodeAvgRss != null) {
+                summedAvgRss += nodeAvgRss.longValue();
+            }
+            if (nodePeakRss != null) {
+                summedPeakRss += nodePeakRss.longValue();
+            }
+        }
+        // The peak RSS is reported on every platform, so use it as the signal that a measurement has arrived. Failing
+        // here (rather than skipping) drives the surrounding assertBusy to keep polling until the first report lands.
+        assertThat("native peak RSS not yet reported", summedPeakRss, greaterThan(0L));
+
+        Number peakRuntimeNativeMemory = (Number) XContentMapValues.extractValue(
+            "model_size_stats.peak_runtime_native_memory_bytes",
+            stats.get(0)
+        );
+        assertThat(peakRuntimeNativeMemory, notNullValue());
+        assertThat(peakRuntimeNativeMemory.longValue(), equalTo(summedPeakRss));
+
+        Number runtimeNativeMemory = (Number) XContentMapValues.extractValue("model_size_stats.runtime_native_memory_bytes", stats.get(0));
+        if (summedAvgRss > 0) {
+            // Current RSS is reported on this platform (e.g. Linux): it must be surfaced and never exceed the peak.
+            assertThat(runtimeNativeMemory, notNullValue());
+            assertThat(runtimeNativeMemory.longValue(), equalTo(summedAvgRss));
+            assertThat(peakRuntimeNativeMemory.longValue(), greaterThanOrEqualTo(runtimeNativeMemory.longValue()));
+        } else {
+            // Current RSS is not supported on this platform (macOS): the API omits runtime_native_memory_bytes rather
+            // than implying the deployment is using no memory.
+            assertThat(runtimeNativeMemory, nullValue());
         }
     }
 

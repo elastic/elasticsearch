@@ -120,6 +120,15 @@ public final class ShardBatchMapper {
 
         final MetadataFieldMapper[] metadataMappers = lookup.getMapping().getSortedMetadataMappers();
 
+        // An empty metadata mapper array means the index has not yet received its first mapping — the
+        // initial cluster-state mapping was null, so MapperService.mappingLookup() returned EMPTY. We
+        // cannot determine columnar eligibility without metadata mappers (e.g. SourceFieldMapper governs
+        // whether stored _source is compatible), so fall back to the sequential path.
+        if (metadataMappers.length == 0) {
+            logger.debug("batch indexing disabled: mapping not yet established (no metadata mappers)");
+            return null;
+        }
+
         for (MetadataFieldMapper mapper : metadataMappers) {
             if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
                 logger.debug(

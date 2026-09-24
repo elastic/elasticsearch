@@ -367,12 +367,15 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertThat(BlobCacheMetrics.NOOP.readCount(), is(0L));
         assertThat(BlobCacheMetrics.NOOP.missCount(), is(0L));
 
-        // Other recording methods delegate to MeterRegistry.NOOP. No state to assert, but must not throw
         BlobCacheMetrics.NOOP.recordBypassRead();
+        assertThat(BlobCacheMetrics.NOOP.readCount(), is(0L));
+        assertThat(BlobCacheMetrics.NOOP.missCount(), is(0L));
+
+        // Other recording methods delegate to MeterRegistry.NOOP. No state to assert, but must not throw
         BlobCacheMetrics.NOOP.recordCachePopulationMetrics(
             randomIdentifier() + ".fdt",
             randomIntBetween(1, 1000),
-            randomLong(),
+            randomNonNegativeLong(),
             randomFrom(BlobCacheMetrics.CachePopulationReason.values()),
             randomFrom(CachePopulationSource.values())
         );
@@ -380,12 +383,12 @@ public class BlobCacheMetricsTests extends ESTestCase {
         BlobCacheMetrics.NOOP.recordEvictedRegionMaxFreq(1);
         BlobCacheMetrics.NOOP.recordPrefetch(randomFrom(BlobCacheMetrics.PrefetchResult.values()));
         BlobCacheMetrics.NOOP.recordEvictionScan(
-            randomLong(),
-            randomLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomFrom(BlobCacheMetrics.EvictionScanMode.values()),
             randomFrom(BlobCacheMetrics.EvictionScanOutcome.values())
         );
-        BlobCacheMetrics.NOOP.recordLockAcquire(randomLong(), randomFrom(BlobCacheMetrics.LockAcquireSite.values()));
+        BlobCacheMetrics.NOOP.recordLockAcquire(randomNonNegativeLong(), randomFrom(BlobCacheMetrics.LockAcquireSite.values()));
     }
 
     private static void assertEvictionScanAttributes(

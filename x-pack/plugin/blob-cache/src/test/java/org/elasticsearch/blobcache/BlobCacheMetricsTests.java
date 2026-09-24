@@ -361,6 +361,33 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertThat(measurements.getFirst().attributes().isEmpty(), is(true));
     }
 
+    public void testNoop() {
+        BlobCacheMetrics.NOOP.recordRead(randomLong());
+        BlobCacheMetrics.NOOP.recordMiss(randomLong());
+        assertThat(BlobCacheMetrics.NOOP.readCount(), is(0L));
+        assertThat(BlobCacheMetrics.NOOP.missCount(), is(0L));
+
+        // Other recording methods delegate to MeterRegistry.NOOP. No state to assert, but must not throw
+        BlobCacheMetrics.NOOP.recordBypassRead();
+        BlobCacheMetrics.NOOP.recordCachePopulationMetrics(
+            randomIdentifier() + ".fdt",
+            randomIntBetween(1, 1000),
+            randomLong(),
+            randomFrom(BlobCacheMetrics.CachePopulationReason.values()),
+            randomFrom(CachePopulationSource.values())
+        );
+        BlobCacheMetrics.NOOP.recordEpochChange();
+        BlobCacheMetrics.NOOP.recordEvictedRegionMaxFreq(1);
+        BlobCacheMetrics.NOOP.recordPrefetch(randomFrom(BlobCacheMetrics.PrefetchResult.values()));
+        BlobCacheMetrics.NOOP.recordEvictionScan(
+            randomLong(),
+            randomLong(),
+            randomFrom(BlobCacheMetrics.EvictionScanMode.values()),
+            randomFrom(BlobCacheMetrics.EvictionScanOutcome.values())
+        );
+        BlobCacheMetrics.NOOP.recordLockAcquire(randomLong(), randomFrom(BlobCacheMetrics.LockAcquireSite.values()));
+    }
+
     private static void assertEvictionScanAttributes(
         Measurement measurement,
         BlobCacheMetrics.EvictionScanMode mode,

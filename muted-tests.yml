@@ -249,6 +249,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
   issue: https://github.com/elastic/elasticsearch/issues/154602
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
+  issue: https://github.com/elastic/elasticsearch/issues/154606
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
@@ -531,9 +534,6 @@ tests:
 - class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
   method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=0}
   issue: https://github.com/elastic/elasticsearch/issues/159398
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testLiveVersionMapArchive
-  issue: https://github.com/elastic/elasticsearch/issues/159399
 - class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
   method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/159400
@@ -673,9 +673,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification byte vector type}
   issue: https://github.com/elastic/elasticsearch/issues/160126
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
-  issue: https://github.com/elastic/elasticsearch/issues/160160
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogramTests
   issue: https://github.com/elastic/elasticsearch/issues/160168
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
@@ -686,3 +683,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/160201
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounterTests
   issue: https://github.com/elastic/elasticsearch/issues/160233
+- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/159774
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/159773

@@ -3210,6 +3210,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         return (DenseVector) nodes.getFirst();
     }
 
+    /** DENSE_VECTOR is rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND}, so its tests pin a version that supports it. */
+    private TestAnalyzer denseVectorAnalyzer() {
+        TransportVersion floor = DenseVector.ESQL_DENSE_VECTOR_COMMAND;
+        return typesAnalyzer().minimumTransportVersion(minimumVersion.supports(floor) ? minimumVersion : floor);
+    }
+
     /**
      * The unused generated column and its input field are pruned. Checks the delta explicitly: the analyzed node embeds
      * both {@code keyword} and {@code text}; after pruning only {@code keyword} (whose generated column is kept) remains,
@@ -3231,12 +3237,6 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *     \_EsRelation[types][...]
      * }
      */
-    /** DENSE_VECTOR is rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND}, so its tests pin a version that supports it. */
-    private TestAnalyzer denseVectorAnalyzer() {
-        TransportVersion floor = DenseVector.ESQL_DENSE_VECTOR_COMMAND;
-        return typesAnalyzer().minimumTransportVersion(minimumVersion.supports(floor) ? minimumVersion : floor);
-    }
-
     public void testDenseVectorPrunesUnusedGeneratedColumn() {
         var query = """
             from types

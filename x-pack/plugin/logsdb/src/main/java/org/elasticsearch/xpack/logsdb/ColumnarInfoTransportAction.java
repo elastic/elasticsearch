@@ -16,11 +16,6 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 /**
  * Reports basic availability and enablement for the {@code columnar} index mode.
- * <p>
- * The {@code enabled} flag reflects {@code cluster.columnar.enabled}, the cluster-level gate
- * that prevents creation of any strict-columnar index when {@code false}. Note that
- * {@code cluster.logsdb_columnar.enabled} is a testing-only knob (gated on snapshot builds)
- * and is intentionally not used here.
  */
 public class ColumnarInfoTransportAction extends XPackInfoFeatureTransportAction {
 
@@ -44,6 +39,8 @@ public class ColumnarInfoTransportAction extends XPackInfoFeatureTransportAction
 
     @Override
     public boolean enabled() {
+        // cluster.columnar.enabled is a cluster setting that controls whether all columnar index modes are enabled. If this is disabled,
+        // then creating any new indices with columnar index modes will fail.
         return clusterService.getClusterSettings().get(LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED);
     }
 }

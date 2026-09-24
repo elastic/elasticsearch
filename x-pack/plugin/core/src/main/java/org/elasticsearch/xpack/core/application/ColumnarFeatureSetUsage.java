@@ -21,9 +21,7 @@ import java.util.Objects;
  * <p>
  * Reported under the {@code columnar} key in {@code GET /_xpack/usage}. Counts standalone
  * columnar indices and data streams backed by columnar write indices, together with
- * doc/byte totals gathered via {@code IndexModeStatsActionType}. The {@code enabled} flag
- * reflects {@code cluster.columnar.enabled} — the cluster-level gate that, when {@code false},
- * prevents creation of any index whose mode satisfies {@code isStrictColumnar()}.
+ * doc/byte totals gathered via {@code IndexModeStatsActionType}.
  */
 public final class ColumnarFeatureSetUsage extends XPackFeatureUsage {
     public static final TransportVersion COLUMNAR_USAGE = TransportVersion.fromName("columnar_usage");

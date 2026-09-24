@@ -186,9 +186,10 @@ public interface FileList {
     }
 
     /**
-     * Notices raised while this listing was built: {@code file_exclusions} drops and reserved partition-name
-     * renames. Empty when neither happened. Nothing is emitted from here; cached listings carry these so a cache
-     * hit hands the resolver the same notices as a cold expand.
+     * Notices raised while this listing was built: reserved partition-name renames, and {@code file_exclusions} drops from
+     * a glob segment that listed nothing (a comma-separated resource gathers every segment's notices). Empty when neither
+     * happened. Nothing is emitted from here; cached listings carry these so a cache hit hands the resolver the same
+     * notices as a cold expand.
      */
     default List<String> listingWarnings() {
         return List.of();

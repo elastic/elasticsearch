@@ -91,7 +91,7 @@ public class TransportQueryServiceAccountActionTests extends ESTestCase {
             1,
             List.of(
                 new QueryServiceAccountResponse.Item(
-                    new ServiceAccountInfo.UserManaged("apps/worker_0", List.of("role-a"), true),
+                    new ServiceAccountInfo.UserManaged("apps/worker_0", List.of("role-a"), true, null),
                     new Object[] { "apps/worker_0", true }
                 )
             )

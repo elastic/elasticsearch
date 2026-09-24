@@ -702,3 +702,31 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testDeleteAndRecreateIndexDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/160169
+# Lucene 10.6 int8_hnsw scoring shift, suspected apache/lucene#16030.
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/160139
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/160139
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/160139
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/160139
+- class: org.elasticsearch.test.rest.yaml.CcsVectorsYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/160139
+- class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/160139
+# apache/lucene#16582 rewrites full-coverage doc-values ranges to FieldExistsQuery.
+- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesStringIT
+  methods:
+    - testAndNotCaseInsensitiveLike {SEMANTIC_TEXT_WITH_KEYWORD}
+    - testAndNotCaseInsensitiveRLike {SEMANTIC_TEXT_WITH_KEYWORD}
+    - testAndNotLike {SEMANTIC_TEXT_WITH_KEYWORD}
+    - testAndNotRLike {SEMANTIC_TEXT_WITH_KEYWORD}
+    - testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
+  issue: https://github.com/elastic/elasticsearch/issues/160197

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -59,10 +60,42 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        final IndexModeStats counts = computeIndexModeStats(
+            projectMetadata,
+            clusterService.getClusterSettings(),
+            IndexMode.LOGSDB_COLUMNAR
+        );
+
+        final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+        final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
+        client.execute(IndexModeStatsActionType.TYPE, statsRequest, listener.map(statsResponse -> {
+            final var indexStats = statsResponse.stats().get(counts.indexMode);
+            return new XPackUsageFeatureResponse(
+                new LogsDBColumnarFeatureSetUsage(
+                    true,
+                    counts.enabled,
+                    counts.numIndices,
+                    counts.numIndicesWithSyntheticSources,
+                    indexStats.numDocs(),
+                    indexStats.numBytes(),
+                    counts.dataStreamsCount,
+                    counts.dataStreamsManagedByIlm,
+                    counts.dataStreamsManagedByDlm
+                )
+            );
+        }));
+    }
+
+    static IndexModeStats computeIndexModeStats(ProjectMetadata projectMetadata, ClusterSettings clusterSettings, IndexMode indexMode) {
+        // cluster.columnar.enabled is a cluster setting that controls whether all columnar index modes are enabled. If this is disabled,
+        // then creating any new indices with columnar index modes will fail.
+        // The cluster.logsdb_columnar.enabled is a setting that controls whether data steams with logs-*-* use logsdb_columnar index mode,
+        // but only for snapshot builds.
+        final boolean enabled = clusterSettings.get(LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED);
         int numIndices = 0;
         int numIndicesWithSyntheticSources = 0;
         for (IndexMetadata indexMetadata : projectMetadata) {
-            if (indexMetadata.getIndexMode() == IndexMode.LOGSDB_COLUMNAR) {
+            if (indexMetadata.getIndexMode() == indexMode) {
                 numIndices++;
                 if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {
                     numIndicesWithSyntheticSources++;
@@ -75,7 +108,7 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
         for (DataStream dataStream : projectMetadata.dataStreams().values()) {
             Index writeIndex = dataStream.getWriteIndex();
             IndexMetadata writeIndexMetadata = projectMetadata.index(writeIndex);
-            if (writeIndexMetadata.getIndexMode() != IndexMode.LOGSDB_COLUMNAR) {
+            if (writeIndexMetadata.getIndexMode() != indexMode) {
                 continue;
             }
             dataStreamsCount++;
@@ -85,35 +118,24 @@ public class LogsDBColumnarUsageTransportAction extends XPackUsageFeatureTranspo
                 dataStreamsManagedByDlm++;
             }
         }
-
-        // cluster.columnar.enabled is a cluster setting that controls whether all columnar index modes are enabled. If this is disabled,
-        // then creating any new indices with columnar index modes will fail.
-        // The cluster.logsdb_columnar.enabled is a setting that controls whether data steams with logs-*-* use logsdb_columnar index mode,
-        // but only for snapshot builds.
-        final boolean enabled = clusterService.getClusterSettings().get(LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED);
-
-        final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
-        final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
-        final int finalNumIndices = numIndices;
-        final int finalNumIndicesWithSyntheticSources = numIndicesWithSyntheticSources;
-        final int finalDataStreamsCount = dataStreamsCount;
-        final int finalDataStreamsManagedByIlm = dataStreamsManagedByIlm;
-        final int finalDataStreamsManagedByDlm = dataStreamsManagedByDlm;
-        client.execute(IndexModeStatsActionType.TYPE, statsRequest, listener.map(statsResponse -> {
-            final var indexStats = statsResponse.stats().get(IndexMode.LOGSDB_COLUMNAR);
-            return new XPackUsageFeatureResponse(
-                new LogsDBColumnarFeatureSetUsage(
-                    true,
-                    enabled,
-                    finalNumIndices,
-                    finalNumIndicesWithSyntheticSources,
-                    indexStats.numDocs(),
-                    indexStats.numBytes(),
-                    finalDataStreamsCount,
-                    finalDataStreamsManagedByIlm,
-                    finalDataStreamsManagedByDlm
-                )
-            );
-        }));
+        return new IndexModeStats(
+            indexMode,
+            enabled,
+            numIndices,
+            numIndicesWithSyntheticSources,
+            dataStreamsCount,
+            dataStreamsManagedByIlm,
+            dataStreamsManagedByDlm
+        );
     }
+
+    record IndexModeStats(
+        IndexMode indexMode,
+        boolean enabled,
+        int numIndices,
+        int numIndicesWithSyntheticSources,
+        int dataStreamsCount,
+        int dataStreamsManagedByIlm,
+        int dataStreamsManagedByDlm
+    ) {}
 }

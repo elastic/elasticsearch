@@ -531,7 +531,8 @@ public class ExternalSourceResolver {
      * and returns {@code true}; otherwise returns {@code false}. Used in the resolution failure path so that a footer
      * read which failed <em>because</em> the query was cancelled mid-flight surfaces as cancellation rather than as a
      * generic resolution error. Such a failure can arrive wrapped — {@code resolveSingleSource} wraps reader failures
-     * in {@link IllegalArgumentException} and the schema cache wraps loader failures in {@code ExecutionException} —
+     * in {@link IllegalArgumentException} and cache loaders (file-metadata {@code computeIfAbsent}, or callers that
+     * wrap schema loads) may wrap failures in {@code ExecutionException} —
      * so the cancellation state is consulted directly rather than matched on the exception type.
      */
     private boolean reportIfCancelled(String path, ActionListener<?> listener) {
@@ -831,8 +832,8 @@ public class ExternalSourceResolver {
             return breaking;
         }
         // Recover a client error from behind a wrapper, the same way the 503 and 429 arms above do. Resolution
-        // runs inside Cache#computeIfAbsent on the cacheable rail, which reports a loader failure as an
-        // ExecutionException -- so without this a correctly-typed 400 reached the client as a 500, and only on
+        // may arrive behind an ExecutionException (file-metadata {@code computeIfAbsent}, or other wrappers) —
+        // so without this a correctly-typed 400 reached the client as a 500, and only on
         // that rail, making the status depend on whether the provider happened to be cacheable. Recovering at the
         // boundary rather than auditing every wrap site means a wrapper introduced later cannot silently
         // reintroduce the same masking.
@@ -843,8 +844,8 @@ public class ExternalSourceResolver {
             return clientError;
         }
         // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
-        // does. The file-metadata rail raises IOException (missing object, access denied) and it arrives wrapped
-        // in the schema cache's ExecutionException on the cacheable rail — so without this a missing bucket is a
+        // does. The file-metadata rail raises IOException (missing object, access denied) and it may arrive wrapped
+        // in ExecutionException on the cacheable rail — so without this a missing bucket is a
         // 500 on the cacheable path and a 400 on the non-cacheable path. The storage layer separates retryable
         // faults as ExternalUnavailableException (503) before they reach here, so any IOException that remains
         // is non-retryable and is the caller's fault. rootDetail rather than getMessage so the ExecutionException
@@ -1057,9 +1058,9 @@ public class ExternalSourceResolver {
             // The anchor's length/mtime are already known from the listing, so seed a ListingHint and resolve it on the
             // async footer-read path (like the fan-out) rather than a synchronous resolveSingleSource. This both skips
             // the existence/HEAD + length probe and, more importantly, avoids pinning the metadata-read executor thread
-            // across the anchor footer read. Unlike the single-file getOrComputeSchema path this does not coalesce
-            // concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is safe
-            // because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
+            // across the anchor footer read. Unlike the single-file {@code getOrComputeSchema} path this does not
+            // coalesce concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is
+            // safe because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
             ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
             final FileList finalListing = listing;
             ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
@@ -2220,9 +2221,9 @@ public class ExternalSourceResolver {
     /**
      * Cache-aware async single-file resolve for the multi-file fan-out. Peeks the schema cache and, on a miss,
      * resolves asynchronously (without pinning a thread across the footer read) and stores the result. Unlike the
-     * single-file {@code getOrComputeSchema} path this does not coalesce concurrent misses for the same key: two
-     * concurrent misses may both fetch. That is acceptable here because each fan-out file is a distinct key and
-     * footer resolution is idempotent; see {@link ExternalSourceCacheService#getSchemaIfPresent}.
+     * single-file {@link ExternalSourceCacheService#getOrComputeSchema} path this does not coalesce concurrent misses
+     * for the same key: two concurrent misses may both fetch. That is acceptable here because each fan-out file is a
+     * distinct key and footer resolution is idempotent; see {@link ExternalSourceCacheService#getSchemaIfPresent}.
      */
     private void cachedResolveSingleSourceAsync(
         StoragePath filePath,

@@ -975,10 +975,7 @@ public final class SimdJsonDirectWalker {
     }
 
     /**
-     * A scratch buffer for unescaping values whose consumer copies the bytes out before the next
-     * call — currently only field names, which are turned into a {@link String} or interned by the
-     * name cache. String values handed to the handler outlive the call, so they get an array of
-     * their own instead: copying out of a scratch costs more than allocating at the right size.
+     * A scratch buffer for unescaping values whose consumer copies the bytes out before the next call.
      */
     private byte[] ensureStringBuf(int minLen) {
         if (stringBuf.length < minLen + StringParser.DESTINATION_PADDING) {

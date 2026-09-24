@@ -196,11 +196,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
     }
 
     /**
-     * Unescaped values stay readable after later calls in the same document. Handlers are allowed
-     * to keep the {@code (buf, off, len)} slice and decode it later — the ESCF handler stages it
-     * and reads it at flush — so unescaping several values through one shared buffer would let a
-     * later value overwrite an earlier one. Decoding eagerly, as most tests here do, cannot
-     * observe that, so this handler keeps the slices and decodes only at the end.
+     * Unescaped values stay readable after later calls in the same document.
      */
     public void testRetainedUnescapedValuesDoNotAlias() {
         record Slice(byte[] buf, int off, int len) {}

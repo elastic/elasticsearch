@@ -534,9 +534,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
                     // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
                     .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
-                    // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
-                    // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
-                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
+                    // A DECLARED schema binds by name explicitly. An anchor-pinned first_file_wins glob also binds by
+                    // name: the schema came from the anchor file only, so every other file's header must be matched by
+                    // name rather than by position. Name binding on the anchor itself is idempotent.
+                    .withDeclaredProvenanceBinding(
+                        context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED
+                            || ExternalSourceResolver.isAnchorPinnedFirstFileWins(
+                                context.path() != null ? context.path().toString() : null,
+                                context.config(),
+                                context.declaredReadSpec()
+                            )
+                    );
                 ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
                 Map<String, Object> partitionValues = Map.of();

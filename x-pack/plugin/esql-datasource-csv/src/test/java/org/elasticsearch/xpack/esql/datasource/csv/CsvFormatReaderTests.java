@@ -7445,7 +7445,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue("absent declared column reads null", page.getBlock(0).isNull(0));
             page.releaseBlocks();
         }
-        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [nope] is not present in some source files")));
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("column [nope] is not present in some source files")));
     }
 
     /** A headerless declared name that is not {@code col<N>} names no physical column, so it reads null with a warning. */
@@ -7472,7 +7472,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue("headerless non-col<N> declared column reads null", page.getBlock(0).isNull(0));
             page.releaseBlocks();
         }
-        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [EventTime] is not present in some source files")));
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("column [EventTime] is not present in some source files")));
     }
 
     /** A non-canonical headerless index ({@code col007} — inference names field 7 exactly {@code col7}) reads null. */
@@ -7498,7 +7498,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue("col007 is not the canonical name for field 7, so it reads null", page.getBlock(0).isNull(0));
             page.releaseBlocks();
         }
-        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [col007] is not present in some source files")));
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("column [col007] is not present in some source files")));
     }
 
     /** A headerless index beyond the cap ({@code col500000000}) reads null without sizing a huge array or overflowing. */

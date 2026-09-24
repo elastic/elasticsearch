@@ -628,7 +628,11 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, DataType> inferredFileTypes,
         @Nullable SourceStatistics statistics,
         @Nullable Map<String, Object> foldedSourceMetadata,
-        boolean unknownNativeTypes
+        boolean unknownNativeTypes,
+        // True when this file must be read by column name rather than by position. Set for a DECLARED schema
+        // and for every file in an anchor-pinned first_file_wins read: the pinned schema came from the anchor
+        // file only, so every other file must bind its header by name. Name binding on the anchor is idempotent.
+        boolean bindByName
     ) {
         private FileTask toTask() {
             return new FileTask(
@@ -645,7 +649,8 @@ public class FileSplitProvider implements SplitProvider {
                 inferredFileTypes,
                 statistics,
                 foldedSourceMetadata,
-                unknownNativeTypes
+                unknownNativeTypes,
+                bindByName
             );
         }
     }
@@ -845,6 +850,11 @@ public class FileSplitProvider implements SplitProvider {
             readSchema = fileSchemaInfo.fileSchema().attributes();
         }
         boolean unknownNativeTypes = ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo, batch.anchorPinnedFirstFileWins());
+        // True when the reader must bind by column name rather than by position. A DECLARED schema names its
+        // columns explicitly; an anchor-pinned first_file_wins read has a schema that came only from the anchor
+        // file, so every file (including the anchor) must bind its header by name to stay correct when files
+        // list their columns in different orders.
+        boolean bindByName = context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED || batch.anchorPinnedFirstFileWins();
         return new ResolvedFile(
             filePath,
             fileLength,
@@ -859,7 +869,8 @@ public class FileSplitProvider implements SplitProvider {
             inferredFileTypes,
             fileStatistics,
             context.metadata() == null ? null : context.metadata().sourceMetadata(),
-            unknownNativeTypes
+            unknownNativeTypes,
+            bindByName
         );
     }
 
@@ -1720,7 +1731,10 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable Map<String, Object> foldedSourceMetadata,
         // True when this FIRST_FILE_WINS glob file has no native-type snapshot. Column statistics
         // must be withheld before alignment can interpret them against the pinned read schema.
-        boolean unknownNativeTypes
+        boolean unknownNativeTypes,
+        // True when this file must be read by column name rather than by position. Mirrors the same
+        // field on ResolvedFile — see its documentation for the rationale.
+        boolean bindByName
     ) {}
 
     /**
@@ -1836,7 +1850,7 @@ public class FileSplitProvider implements SplitProvider {
                 return;
             }
             FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
-            if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
+            if (configuredReader != null && task.bindByName()) {
                 configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
             }
             if (requiresSequentialWholeFileRead(configuredReader)) {
@@ -1913,7 +1927,7 @@ public class FileSplitProvider implements SplitProvider {
         // here too, or the split-side reader's declaredNameBindingNeedsFileStart() is silently false and the gate
         // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
         FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
-        if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
+        if (configuredReader != null && task.bindByName()) {
             configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
         }
 

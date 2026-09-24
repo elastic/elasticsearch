@@ -1094,9 +1094,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Maps each position of a pinned declared schema to the raw field index it reads, so each declared column
-     * binds the file column it names regardless of its position. Returns {@code null} for a pinned inferred schema
-     * ({@link #declaredProvenanceBinding} is false) — the caller then keeps the positional contract.
+     * Maps each position of a pinned schema to the raw field index it reads, so each column binds the file column
+     * it names regardless of its position.
      * <p>
      * Headerless files self-bind: the physical name IS the position ({@code col4} -> field 4), so no file content is
      * needed and binding stays content-independent. Headered files bind against {@code headerFields}, which the caller
@@ -1105,7 +1104,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * @param headerFields the file's header names, or {@code null} for a headerless file
      */
     private int[] declaredFieldIndexes(List<Attribute> readSchema, String[] headerFields, StorageObject object) {
-        if (declaredProvenanceBinding == false || readSchema == null) {
+        if (readSchema == null) {
             return null;
         }
         int[] bound = new int[readSchema.size()];
@@ -1176,7 +1175,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         for (String name : headerNames) {
             if (seen.add(name) == false) {
                 throw new IllegalArgumentException(
-                    "the header of [" + object.path() + "] has duplicate column name [" + name + "]; declared columns cannot bind by name"
+                    "the header of [" + object.path() + "] has duplicate column name [" + name + "]; columns cannot bind by name"
                 );
             }
         }

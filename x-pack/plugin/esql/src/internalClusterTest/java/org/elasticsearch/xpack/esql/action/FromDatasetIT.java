@@ -2741,7 +2741,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
@@ -2773,7 +2773,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header on Parquet", warnings, not(empty()));
     }
@@ -2812,7 +2812,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // records is effectively absent from the file, so the file-level message is accurate.
         List<String> warnings = collectWarningsContaining(
             "FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
     }

@@ -64,7 +64,7 @@ public class SkipWarnings {
      * formats.
      */
     public static String absentDeclaredColumnMessage(String columnName) {
-        return "declared column [" + columnName + "] is not present in some source files and reads null there";
+        return "column [" + columnName + "] is not present in some source files and reads null there";
     }
 
     /**

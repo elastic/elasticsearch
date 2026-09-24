@@ -191,11 +191,6 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
         return new Sum(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
     }
 
-    @Override
-    public Sum withFilter(Expression filter) {
-        return new Sum(source(), field(), filter, window(), summationMode, longOverflowMode);
-    }
-
     /** Returns a new {@code Sum} with the field replaced, preserving all other properties. */
     public Sum withField(Expression field) {
         return new Sum(source(), field, filter(), window(), summationMode, longOverflowMode);

@@ -25,4 +25,9 @@ public class RestPutDatasetActionTests extends ESTestCase {
             hasItem(EsqlDataSourcesCapabilities.DATASET_TEXT_TYPE_NOT_DECLARABLE)
         );
     }
+
+    /** Same reasoning for the capability gating the {@code _id} rejection pin. */
+    public void testIdRejectionCapabilityIsAdvertised() {
+        assertThat(new RestPutDatasetAction().supportedCapabilities(), hasItem(EsqlDataSourcesCapabilities.DATASET_ID_NOT_DECLARABLE));
+    }
 }

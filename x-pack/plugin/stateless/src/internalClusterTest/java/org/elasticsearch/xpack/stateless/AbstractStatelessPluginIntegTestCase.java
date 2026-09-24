@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.War
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -1226,8 +1227,8 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var primaryTerm = Long.parseLong(entry.getKey());
             Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();
             statelessCompoundCommits.forEach(filename -> {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(filename)) {
-                    set.add(new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(filename)));
+                if (BatchedCompoundCommit.startsWithBlobPrefix(filename)) {
+                    set.add(new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(filename)));
                 }
             });
         }

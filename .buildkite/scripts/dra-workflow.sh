@@ -16,11 +16,11 @@ echo --- Preparing
 sudo NEEDRESTART_MODE=l apt-get update -y
 sudo NEEDRESTART_MODE=l apt-get install -y libxml2-utils python3.10-venv
 
-# Branch used to resolve dependency manifests (beats, ml-cpp) and reported to
-# release-manager. Defaults to the current Buildkite branch, but is overridable
-# so feature branches can point at a real release branch's manifests when
-# testing DRA changes (the ml-cpp / beats DRA pipelines only build the actual
-# release branches, so a feature branch would otherwise fail manifest lookup).
+# Branch used to resolve dependency manifests (beats, ml-cpp). Defaults to the
+# current Buildkite branch, but is overridable so feature branches can point at
+# a real release branch's manifests when testing DRA changes (the ml-cpp / beats
+# DRA pipelines only build the actual release branches, so a feature branch would
+# otherwise fail manifest lookup).
 RM_BRANCH="${RM_BRANCH:-$BRANCH}"
 if [[ "$RM_BRANCH" == "main" ]]; then
   RM_BRANCH=master
@@ -95,7 +95,7 @@ else
 x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="-$VERSION_QUALIFIER"
 fi
 
-# we regenerate this file as part of the release manager invocation
+# remove the stale checksum — dractl generates a fresh one during artifact classification
 rm "build/distributions/elasticsearch-jdbc-${ES_VERSION}${VERSION_SUFFIX}.taco.sha512"
 
 # Allow other users access to read the artifacts so they are readable in the
@@ -106,29 +106,64 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
 # Publish the exploded maven aggregation tree to snapshots.elastic.co /
-# artifacts.elastic.co ourselves, ahead of the release-manager cutover tracked
-# in https://github.com/elastic/elasticsearch-team/issues/4297.
+# artifacts.elastic.co. The maven tree is published directly from the workspace;
+# GCS publication of all other artifacts is handled by the dra-prep plugin below.
 echo --- Publishing maven aggregation to S3
 DRA_WORKFLOW="$WORKFLOW" \
   .buildkite/scripts/dra-maven-snapshots-publish.sh
 
-echo --- Running release-manager
+echo --- Consolidating distribution artifacts for DRA staging
+mkdir -p artifacts
+find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec cp {} artifacts/ \;
 
-# Artifacts should be generated
-docker run --rm \
-  --name release-manager \
-  -e VAULT_ADDR="$DRA_VAULT_ADDR" \
-  -e VAULT_ROLE_ID="$DRA_VAULT_ROLE_ID_SECRET" \
-  -e VAULT_SECRET_ID="$DRA_VAULT_SECRET_ID_SECRET" \
-  --mount type=bind,readonly=false,src="$PWD",target=/artifacts \
-  docker.elastic.co/infra/release-manager:latest \
-  cli collect \
-  --project elasticsearch \
-  --branch "$RM_BRANCH" \
-  --commit "$BUILDKITE_COMMIT" \
-  --workflow "$WORKFLOW" \
-  --qualifier "${VERSION_QUALIFIER:-}" \
-  --version "$BASE_VERSION" \
-  --artifact-set main \
-  --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
-  --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
+echo "Artifacts to be staged:"
+ls -1 artifacts/
+
+echo --- Uploading artifacts to Buildkite store
+buildkite-agent artifact upload 'artifacts/*'
+
+echo --- Uploading DRA pipeline steps
+cat <<EOF | buildkite-agent pipeline upload
+steps:
+  - wait: ~
+
+  - label: ":package: DRA Prep"
+    key: dra-prep
+    command: ".buildkite/scripts/stage_artifacts.sh"
+    env:
+      DRA_WORKFLOW: "${WORKFLOW}"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2204
+      machineType: n2-standard-8
+      diskSizeGb: 100
+    plugins:
+      - elastic/dra-prep#v0.1.8:
+          product_id: elasticsearch
+          stack_version: "${BASE_VERSION}"
+          workflow: "${WORKFLOW}"
+          dependencies:
+            - "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
+            - "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
+
+  - label: ":pipeline: DRA processing for elasticsearch / ${BASE_VERSION} / ${WORKFLOW}"
+    trigger: unified-release-dra-processing
+    async: true
+    depends_on: dra-prep
+    build:
+      env:
+        DRA_PRODUCT_ID: elasticsearch
+        DRA_STACK_VERSION: "${BASE_VERSION}"
+        DRA_WORKFLOW: "${WORKFLOW}"
+
+  - trigger: elasticsearch-hadoop-dra-workflow
+    label: "Trigger DRA staging workflow for elasticsearch-hadoop"
+    async: true
+    depends_on: dra-prep
+    build:
+      branch: "${BUILDKITE_BRANCH}"
+      env:
+        DRA_WORKFLOW: staging
+        USE_PROD_DOCKER_CREDENTIALS: "true"
+    if: build.env('DRA_WORKFLOW') == 'staging'
+EOF

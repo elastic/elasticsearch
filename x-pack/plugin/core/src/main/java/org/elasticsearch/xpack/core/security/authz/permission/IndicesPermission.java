@@ -696,7 +696,12 @@ public final class IndicesPermission {
             // groups × concreteIndicesViewsAndDatasets. All concrete indices of a resource go through
             // the same set of matching groups, so they accumulate identical permissions.
             Set<FieldPermissions> fieldPermissions = null;
-            DocumentLevelPermissions docPermissions = DocumentLevelPermissions.EMPTY;
+            // DLS queries are gathered in a plain set and frozen into a DocumentLevelPermissions once per
+            // resource, below. The first matching group's query set is shared rather than copied; a copy
+            // is only made when a second group's queries have to be merged in.
+            Set<BytesReference> queries = null;
+            boolean queriesCopied = false;
+            boolean allowAllDocuments = false;
             boolean hasExplicitDlsFls = false;
 
             for (Group group : groups) {
@@ -720,12 +725,24 @@ public final class IndicesPermission {
                         }
 
                         if (group.hasQuery()) {
-                            docPermissions = docPermissions.withQueries(group.getQuery());
+                            if (allowAllDocuments == false) {
+                                final Set<BytesReference> query = group.getQuery();
+                                if (queries == null) {
+                                    queries = query;
+                                } else if (false == queries.containsAll(query)) {
+                                    if (queriesCopied == false) {
+                                        queries = new HashSet<>(queries);
+                                        queriesCopied = true;
+                                    }
+                                    queries.addAll(query);
+                                }
+                            }
                         } else {
                             // if more than one permission matches for a concrete index here and if
                             // a single permission doesn't have a role query then DLS will not be
                             // applied even when other permissions do have a role query
-                            docPermissions = DocumentLevelPermissions.ALLOW_ALL;
+                            allowAllDocuments = true;
+                            queries = null;
                         }
 
                         // Tracked at the resource level rather than per concrete index: all concrete
@@ -738,6 +755,9 @@ public final class IndicesPermission {
 
             if (granted) {
                 grantedResources.add(resourceName);
+                final DocumentLevelPermissions docPermissions = allowAllDocuments
+                    ? DocumentLevelPermissions.ALLOW_ALL
+                    : DocumentLevelPermissions.filteredBy(queries);
 
                 // Propagate resource-level permissions over the concrete indices. Using merge (not put)
                 // preserves cross-resource accumulation semantics: if a concrete index appears in
@@ -754,10 +774,10 @@ public final class IndicesPermission {
                 }
 
                 // An alias, data stream or ::failures name is not among its own concrete indices, so
-                // record it too. For a plain index, view or dataset the loop already wrote this key and
-                // the merge is a no-op. A name that resolves to nothing records neither FLS nor DLS,
-                // and its IndexAccessControl stays unrestricted.
-                if (false == concreteIndicesViewsAndDatasets.isEmpty()) {
+                // record it too; canHaveBackingIndices() is exactly that distinction. For a plain index,
+                // view or dataset the loop already wrote this key. A name that resolves to nothing records
+                // neither FLS nor DLS, and its IndexAccessControl stays unrestricted.
+                if (resource.canHaveBackingIndices() && false == concreteIndicesViewsAndDatasets.isEmpty()) {
                     mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, resourceName, fieldPermissions, docPermissions);
                     if (hasExplicitDlsFls) {
                         indicesWithExplicitDlsFls.add(resourceName);
@@ -1152,23 +1172,11 @@ public final class IndicesPermission {
         }
 
         /**
-         * Returns a new instance with {@code newQueries} merged into this instance's queries.
-         * Returns {@code this} if the queries are already contained, or {@link #ALLOW_ALL} if applicable.
+         * Returns {@link #EMPTY} when {@code queries} is {@code null}, otherwise an instance restricted to
+         * {@code queries}. The set is stored as given and never mutated afterwards.
          */
-        DocumentLevelPermissions withQueries(Set<BytesReference> newQueries) {
-            if (allowAll) {
-                return ALLOW_ALL;
-            }
-            if (queries != null && queries.containsAll(newQueries)) {
-                return this;
-            }
-            int expectedSize = (queries == null ? 0 : queries.size()) + newQueries.size();
-            Set<BytesReference> merged = Sets.newHashSetWithExpectedSize(expectedSize);
-            if (queries != null) {
-                merged.addAll(queries);
-            }
-            merged.addAll(newQueries);
-            return new DocumentLevelPermissions(false, Set.copyOf(merged));
+        static DocumentLevelPermissions filteredBy(@Nullable Set<BytesReference> queries) {
+            return queries == null ? EMPTY : new DocumentLevelPermissions(false, queries);
         }
 
         static DocumentLevelPermissions merge(DocumentLevelPermissions a, DocumentLevelPermissions b) {
@@ -1198,24 +1206,38 @@ public final class IndicesPermission {
      * {@code buildIndicesAccessControl} call. Indices that accumulate the same FLS and DLS permissions
      * will share a single {@code IndexAccessControl} object.
      *
-     * <p>Uses a two-level {@link IdentityHashMap} keyed by {@code DocumentLevelPermissions} then
-     * {@code Set<FieldPermissions>} to avoid creating composite key objects. Identity-based lookup
-     * is safe because all concrete indices of the same resource share the same accumulated objects,
-     * which is the dominant deduplication case (e.g. 1500 backing indices of a data stream).
+     * <p>Lookup is by identity of the accumulated {@code DocumentLevelPermissions} and
+     * {@code Set<FieldPermissions>}. That is safe because all concrete indices of the same resource share
+     * the same accumulated objects, which is the dominant deduplication case (e.g. 1500 backing indices of
+     * a data stream). {@code dlsFlsImplicit} is part of an {@code IndexAccessControl}'s identity, so it is
+     * part of the key too.
      *
-     * <p>{@code dlsFlsImplicit} is part of an {@code IndexAccessControl}'s identity, so explicit and
-     * implicit DLS/FLS are kept in separate maps rather than adding a third key dimension.
+     * <p>Most authorizations resolve to one distinct permission set, so the first entry is held inline and
+     * the identity maps are only created once a request spans several distinct sets (several resources,
+     * or aliases over indices with differing grants).
      *
      * <p>This class is not thread-safe and is intended to be created and used within
      * a single invocation of {@code buildIndicesAccessControl}.
      */
     private static class IndexAccessControlCache {
 
+        /** Sizes the identity maps for the few distinct permission sets a single request typically has. */
+        private static final int EXPECTED_DISTINCT_PERMISSION_SETS = 4;
+
         private final FieldPermissionsCache fieldPermissionsCache;
-        private final Map<DocumentLevelPermissions, Map<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> explicitDlsFls =
-            new IdentityHashMap<>();
-        private final Map<DocumentLevelPermissions, Map<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> implicitDlsFls =
-            new IdentityHashMap<>();
+
+        @Nullable
+        private DocumentLevelPermissions firstDocPerms;
+        @Nullable
+        private Set<FieldPermissions> firstFieldPerms;
+        private boolean firstHasExplicitDlsFls;
+        @Nullable
+        private IndicesAccessControl.IndexAccessControl first;
+
+        @Nullable
+        private Map<DocumentLevelPermissions, Map<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> explicitDlsFls;
+        @Nullable
+        private Map<DocumentLevelPermissions, Map<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> implicitDlsFls;
 
         IndexAccessControlCache(FieldPermissionsCache fieldPermissionsCache) {
             this.fieldPermissionsCache = fieldPermissionsCache;
@@ -1226,8 +1248,28 @@ public final class IndicesPermission {
             @Nullable Set<FieldPermissions> fieldPerms,
             boolean hasExplicitDlsFls
         ) {
-            final var cache = hasExplicitDlsFls ? explicitDlsFls : implicitDlsFls;
-            return cache.computeIfAbsent(docPerms, k -> new IdentityHashMap<>())
+            if (first == null) {
+                first = buildNew(docPerms, fieldPerms, hasExplicitDlsFls);
+                firstDocPerms = docPerms;
+                firstFieldPerms = fieldPerms;
+                firstHasExplicitDlsFls = hasExplicitDlsFls;
+                return first;
+            }
+            if (docPerms == firstDocPerms && fieldPerms == firstFieldPerms && hasExplicitDlsFls == firstHasExplicitDlsFls) {
+                return first;
+            }
+            Map<DocumentLevelPermissions, Map<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> cache = hasExplicitDlsFls
+                ? explicitDlsFls
+                : implicitDlsFls;
+            if (cache == null) {
+                cache = new IdentityHashMap<>(EXPECTED_DISTINCT_PERMISSION_SETS);
+                if (hasExplicitDlsFls) {
+                    explicitDlsFls = cache;
+                } else {
+                    implicitDlsFls = cache;
+                }
+            }
+            return cache.computeIfAbsent(docPerms, k -> new IdentityHashMap<>(EXPECTED_DISTINCT_PERMISSION_SETS))
                 .computeIfAbsent(fieldPerms, fp -> buildNew(docPerms, fp, hasExplicitDlsFls));
         }
 

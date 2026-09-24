@@ -82,7 +82,8 @@ public class ExternalFailuresTests extends ESTestCase {
         RuntimeException classified = ExternalFailures.classify(iae);
         assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
         assertNotSame(iae, classified);
-        assertSame(iae, classified.getCause());
+        // IAE is intentionally not chained: its message may embed storage URIs which would cross the wire via caused_by.
+        assertNull(classified.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
         assertThat(classified.getMessage(), org.hamcrest.Matchers.containsString("IllegalArgumentException"));
         assertThat(classified.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("s3://")));

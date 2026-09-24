@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -51,7 +52,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
             throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
         }, "GET_OBJECT", path));
 
-        assertTrue(ex.getMessage().contains("503"));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ex.status());
         assertEquals(4, calls.get());
     }
 
@@ -144,7 +145,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
             throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
         }, "GET_OBJECT", path));
 
-        assertTrue(ex.getMessage().contains("503"));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ex.status());
         assertEquals(1, calls.get());
     }
 }

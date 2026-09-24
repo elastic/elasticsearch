@@ -91,7 +91,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 10),
             null,
             "k:keyword\nhelloworld12\n",
-            "CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
+            "Malformed external data: CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
                 + "(10, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
                 + "(or null_field) to skip and warn instead of failing"
         );
@@ -104,7 +104,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             null,
             "k:keyword\n\"helloworld\"\n",
-            "CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
+            "Malformed external data: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
                 + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
                 + "(or null_field) to skip and warn instead of failing"
         );
@@ -117,7 +117,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
-            "CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
+            "Malformed external data: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
                 + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
                 + "(or null_field) to skip and warn instead of failing"
         );
@@ -139,7 +139,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of(),
             null,
             "k:keyword\n\"x\"y\n",
-            "CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
+            "Malformed external data: CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
                 + "quote; row: <unparsed>; set error_mode=skip_row (or null_field) to skip and warn "
                 + "instead of failing"
         );
@@ -754,7 +754,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        String expected = "CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
+        String expected = "Malformed external data: CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
             assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));

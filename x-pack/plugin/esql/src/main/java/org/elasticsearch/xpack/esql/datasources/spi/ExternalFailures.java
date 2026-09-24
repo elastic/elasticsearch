@@ -94,12 +94,8 @@ public final class ExternalFailures {
         "s3a://",
         "s3n://",
         "gs://",
-        "az://",
-        "azblob://",
         "wasb://",
-        "wasbs://",
-        "http://",
-        "https://" };
+        "wasbs://" };
 
     /**
      * Returns {@code true} when no message in {@code e}'s full cause chain contains a known

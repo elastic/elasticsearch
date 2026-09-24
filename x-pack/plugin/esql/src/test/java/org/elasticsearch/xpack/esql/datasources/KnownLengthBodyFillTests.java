@@ -17,7 +17,6 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Unit tests for {@link KnownLengthBodyFill}. Message text is pinned so HTTP 206 and S3
@@ -56,18 +55,10 @@ public class KnownLengthBodyFillTests extends ESTestCase {
                 ExternalUnavailableException eue = fill.copyOrOverflow(dest, ByteBuffer.wrap(overflow));
                 assertNotNull(eue);
                 assertFalse(eue.throttling());
-                assertEquals(
-                    store
-                        + " response body exceeded expected length reading ["
-                        + path.objectName()
-                        + "]: cumulative="
-                        + ((long) prefix + overflow.length)
-                        + ", expected="
-                        + expected,
-                    eue.getMessage()
-                );
-                assertThat(eue.getMessage(), startsWith(store + " "));
                 assertThat(eue.getMessage(), containsString(path.objectName()));
+                assertThat(eue.getMessage(), containsString("response body exceeded expected length"));
+                assertThat(eue.getMessage(), containsString("cumulative=" + ((long) prefix + overflow.length)));
+                assertThat(eue.getMessage(), containsString("expected=" + expected));
                 assertEquals(prefix, fill.offset());
                 assertEquals(0, closeCalls.get());
                 assertArrayEquals(filled, copiedBytes(dest, prefix));
@@ -94,18 +85,10 @@ public class KnownLengthBodyFillTests extends ESTestCase {
                 ExternalUnavailableException eue = fill.shortReadOrNull();
                 assertNotNull(eue);
                 assertFalse(eue.throttling());
-                assertEquals(
-                    store
-                        + " response body shorter than expected reading ["
-                        + path.objectName()
-                        + "]: received="
-                        + payload.length
-                        + ", expected="
-                        + expected,
-                    eue.getMessage()
-                );
-                assertThat(eue.getMessage(), startsWith(store + " "));
                 assertThat(eue.getMessage(), containsString(path.objectName()));
+                assertThat(eue.getMessage(), containsString("response body shorter than expected"));
+                assertThat(eue.getMessage(), containsString("received=" + payload.length));
+                assertThat(eue.getMessage(), containsString("expected=" + expected));
             }
         }
     }

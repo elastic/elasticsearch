@@ -154,7 +154,11 @@ class GradleRunnerFuncSpec extends Specification {
     // --- Helpers ---
 
     private RunResult runGradleRunner(Map<String, String> env, String... gradleArgs) {
-        def command = ['java', '-jar', runnerJar, '--project-dir', projectDir, '--'] + gradleArgs.toList()
+        return runGradleRunnerInProject(env, projectDir, *gradleArgs)
+    }
+
+    private RunResult runGradleRunnerInProject(Map<String, String> env, String projectDirectory, String... gradleArgs) {
+        def command = ['java', '-jar', runnerJar, '--project-dir', projectDirectory, '--'] + gradleArgs.toList()
         def pb = new ProcessBuilder(command)
         pb.redirectErrorStream(true)
         pb.environment().putAll(env)
@@ -179,7 +183,11 @@ class GradleRunnerFuncSpec extends Specification {
     }
 
     private Object parseJson(String relativePath) {
-        def file = new File(projectDir, relativePath)
+        return parseJson(new File(projectDir), relativePath)
+    }
+
+    private Object parseJson(File baseDir, String relativePath) {
+        def file = new File(baseDir, relativePath)
         if (!file.exists()) return null
         new JsonSlurper().parseText(file.text)
     }

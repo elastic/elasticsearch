@@ -27,13 +27,15 @@ if [[ ! -f "$REPORT_FILE" ]]; then
   exit 1
 fi
 
-violation_count=$(jq -r '.totalProblems // 0' "$REPORT_FILE")
+violation_count=$(jq -r '[.problems[] | select(.id | startswith("validation:configuration-cache:")) | .count] | add // 0' "$REPORT_FILE")
 summary=$(jq -r '
-  ["Severity breakdown:"]
-  + ((.severities // []) | map("- \(.severity): \(.count)"))
+  (.problems // []) as $problems
+  | ($problems | map(select(.id | startswith("validation:configuration-cache:")))) as $isolatedProjectProblems
+  | ["Severity breakdown (isolated-projects validation only):"]
+  + (($isolatedProjectProblems | sort_by(.severity) | group_by(.severity) | map("- \(.[0].severity): \(map(.count) | add)")) // [])
   + [""]
-  + ["Top 10 problem IDs:"]
-  + (((.problems // [])[:10]) | map("- \(.count)x \(.id) (\(.severity))"))
+  + ["Top 10 isolated-projects problem IDs:"]
+  + (($isolatedProjectProblems[:10]) | map("- \(.count)x \(.id) (\(.severity))"))
   | join("\n")
 ' "$REPORT_FILE")
 
@@ -60,7 +62,7 @@ EOF
 fi
 
 echo "Gradle exit code: $gradle_exit"
-echo "Isolated projects violations: $violation_count"
+echo "Isolated projects validation violations: $violation_count"
 echo "Allowed threshold: $MAX_ISOLATED_PROJECTS_VIOLATIONS"
 printf '%s\n' "$summary"
 

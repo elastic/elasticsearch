@@ -61,7 +61,8 @@ import java.util.Set;
  * the Aggregate output before admission. {@code direction: both} runs outbound
  * then inbound as separate hop plans and combines pages before SORT and
  * admission. In-command {@code SORT} (plus an always-on {@code node_reached}
- * ascending tie-break) orders each hop's rows, then optional caps bind in order
+ * ascending tie-break) orders each hop's rows, then {@code hub_degree} may
+ * refuse a frontier node (stub row, no budget spend) before the three caps
  * {@code max_edges_per_node}, {@code max_frontier}, {@code max_nodes} — a row
  * removed by a cap cannot satisfy {@code UNTIL} and is not admitted. When
  * {@code UNTIL} is present, the remaining hop rows are filtered with that
@@ -238,8 +239,9 @@ public final class GraphExpandDriver {
             nextLeg = Leg.OUT;
         }
 
-        // SORT → caps → UNTIL → admission — UNTIL is not a post-filter after all hops.
+        // SORT → hub_degree → caps → UNTIL → admission — UNTIL is not a post-filter after all hops.
         sortHopRows(rows);
+        applyHubDegree(rows);
         applyCaps(rows);
         if (graphExpand.until() != null && rows.isEmpty() == false) {
             pendingUntilRows = rows;
@@ -346,22 +348,34 @@ public final class GraphExpandDriver {
 
         // node_from / node_to keep stored orientation; node_reached follows the walk leg.
         Attribute reachedExpr = leg == Leg.OUT ? evalTo : evalFrom;
-        List<Alias> evalFields = List.of(
-            new Alias(source, nodeFrom.name(), evalFrom, nodeFrom.id(), false),
-            new Alias(source, nodeTo.name(), evalTo, nodeTo.id(), false),
-            new Alias(source, nodeReached.name(), reachedExpr, nodeReached.id(), false),
-            new Alias(source, hopAttr.name(), new Literal(source, hop, DataType.INTEGER), hopAttr.id(), false)
-        );
+        List<Alias> evalFields = new ArrayList<>(5);
+        evalFields.add(new Alias(source, nodeFrom.name(), evalFrom, nodeFrom.id(), false));
+        evalFields.add(new Alias(source, nodeTo.name(), evalTo, nodeTo.id(), false));
+        evalFields.add(new Alias(source, nodeReached.name(), reachedExpr, nodeReached.id(), false));
+        evalFields.add(new Alias(source, hopAttr.name(), new Literal(source, hop, DataType.INTEGER), hopAttr.id(), false));
+        // Optional dropped: null on every hop row; hub stubs overwrite with the refused degree.
+        // Must live on Eval (Literal) — Project only accepts Attribute children.
+        Attribute droppedAttr = null;
+        for (int i = 4; i < resultAttributes.size(); i++) {
+            if ("dropped".equals(resultAttributes.get(i).name())) {
+                droppedAttr = resultAttributes.get(i);
+                break;
+            }
+        }
+        if (droppedAttr != null) {
+            evalFields.add(
+                new Alias(source, droppedAttr.name(), new Literal(source, null, DataType.INTEGER), droppedAttr.id(), false)
+            );
+        }
         Eval eval = new Eval(source, hopChild, evalFields);
 
         List<NamedExpression> projections = new ArrayList<>(resultAttributes.size());
-        for (Alias alias : evalFields) {
-            projections.add(alias.toAttribute());
+        for (int i = 0; i < 4; i++) {
+            projections.add(evalFields.get(i).toAttribute());
         }
-        // STATS payload columns after hop (aggregates then user BY), in written order.
+        // STATS payload columns after hop (aggregates then user BY), then optional dropped.
         for (int i = 4; i < resultAttributes.size(); i++) {
-            Attribute wanted = resultAttributes.get(i);
-            projections.add(attributeByName(eval.output(), wanted.name()));
+            projections.add(attributeByName(eval.output(), resultAttributes.get(i).name()));
         }
         return new Project(source, eval, projections);
     }
@@ -499,10 +513,75 @@ public final class GraphExpandDriver {
     }
 
     /**
-     * Applies optional walk budgets after SORT and before UNTIL. Closing edges
-     * (target already in {@link #visited} from an earlier hop) are kept and do
-     * not spend budget. Dropped rows are simply absent — there is no
-     * {@code dropped} column.
+     * Refuses frontier nodes whose distinct {@code node_reached} count is
+     * strictly greater than {@code hub_degree}. Runs after SORT and before the
+     * three budget caps, while closing-edge targets still carry their
+     * {@code node_reached} value. A refused node loses every edge and emits one
+     * stub ({@code node_to}/{@code node_reached} null, {@code dropped} = degree)
+     * that admits nobody and spends no budget. Degree equal to the cap keeps
+     * every edge.
+     */
+    private void applyHubDegree(List<List<Object>> rows) {
+        Integer hubDegree = optionInt("hub_degree");
+        if (hubDegree == null || rows.isEmpty()) {
+            return;
+        }
+        Map<Object, Set<Object>> distinctReached = new HashMap<>();
+        for (List<Object> row : rows) {
+            Object reached = row.get(2);
+            if (reached == null) {
+                continue;
+            }
+            Object via = frontierNode(row);
+            distinctReached.computeIfAbsent(via, k -> new HashSet<>()).add(reached);
+        }
+        Set<Object> refused = new HashSet<>();
+        for (Map.Entry<Object, Set<Object>> entry : distinctReached.entrySet()) {
+            if (entry.getValue().size() > hubDegree) {
+                refused.add(entry.getKey());
+            }
+        }
+        if (refused.isEmpty()) {
+            return;
+        }
+        int droppedIdx = indexOf(resultAttributes, "dropped");
+        List<List<Object>> kept = new ArrayList<>(rows.size());
+        Set<Object> stubEmitted = new HashSet<>();
+        for (List<Object> row : rows) {
+            Object via = frontierNode(row);
+            if (refused.contains(via) == false) {
+                kept.add(row);
+                continue;
+            }
+            if (stubEmitted.add(via)) {
+                kept.add(hubStub(via, row, distinctReached.get(via).size(), droppedIdx));
+            }
+        }
+        rows.clear();
+        rows.addAll(kept);
+    }
+
+    /**
+     * One refusal stub for a frontier node: admits nobody, carries the degree in
+     * {@code dropped}, nulls STATS payload columns.
+     */
+    private List<Object> hubStub(Object frontierNodeId, List<Object> template, int degree, int droppedIdx) {
+        List<Object> stub = new ArrayList<>(resultAttributes.size());
+        for (int i = 0; i < resultAttributes.size(); i++) {
+            stub.add(null);
+        }
+        stub.set(0, frontierNodeId); // node_from
+        // node_to / node_reached stay null
+        stub.set(3, template.get(3)); // hop
+        stub.set(droppedIdx, degree);
+        return stub;
+    }
+
+    /**
+     * Applies optional walk budgets after SORT/{@code hub_degree} and before
+     * UNTIL. Closing edges (target already in {@link #visited} from an earlier
+     * hop) and hub stubs ({@code node_reached} null) are kept and do not spend
+     * budget. Rows removed by a cap are simply absent.
      */
     private void applyCaps(List<List<Object>> rows) {
         Integer maxEdgesPerNode = optionInt("max_edges_per_node");
@@ -532,8 +611,8 @@ public final class GraphExpandDriver {
 
     /**
      * Per frontier node, keep at most {@code maxEdgesPerNode} edges that would
-     * admit a new node, in the already sorted order. Closing edges are free.
-     * The frontier end is {@code node_from} on an outbound leg and
+     * admit a new node, in the already sorted order. Closing edges and hub stubs
+     * are free. The frontier end is {@code node_from} on an outbound leg and
      * {@code node_to} on an inbound leg.
      */
     private static List<List<Object>> applyFanOutCap(List<List<Object>> rows, int maxEdgesPerNode, Set<Object> reachedBefore) {
@@ -542,6 +621,8 @@ public final class GraphExpandDriver {
         for (List<Object> row : rows) {
             Object reached = row.get(2);
             if (reached == null) {
+                // Hub stub — keep, no budget.
+                kept.add(row);
                 continue;
             }
             if (reachedBefore.contains(reached)) {
@@ -561,9 +642,9 @@ public final class GraphExpandDriver {
 
     /**
      * Keep edges for at most {@code limit} distinct newly reached nodes (in
-     * current order). Edges to nodes past that cut are dropped; closing edges
-     * and further edges onto an already-kept new node are kept. {@code limit}
-     * may be 0 (admit no new nodes).
+     * current order). Edges to nodes past that cut are dropped; closing edges,
+     * hub stubs, and further edges onto an already-kept new node are kept.
+     * {@code limit} may be 0 (admit no new nodes).
      */
     private static List<List<Object>> applyNewNodeCap(List<List<Object>> rows, int limit, Set<Object> reachedBefore) {
         LinkedHashSet<Object> keptNew = new LinkedHashSet<>();
@@ -571,6 +652,8 @@ public final class GraphExpandDriver {
         for (List<Object> row : rows) {
             Object reached = row.get(2);
             if (reached == null) {
+                // Hub stub — keep, no budget.
+                kept.add(row);
                 continue;
             }
             if (reachedBefore.contains(reached)) {
@@ -626,6 +709,8 @@ public final class GraphExpandDriver {
         for (List<Object> row : rows) {
             Object reached = row.get(reachedIdx);
             if (reached == null) {
+                // Hub stub: emit as-is, admit nobody, do not frontier.
+                admittedRows.add(row);
                 continue;
             }
             // Target admitted on an earlier hop (not this hop): closing edge.
@@ -699,9 +784,11 @@ public final class GraphExpandDriver {
                         );
                     }
                 }
-                case "hub_degree" -> throw new IllegalArgumentException("GRAPH EXPAND hub_degree is not supported in this build");
+                case "hub_degree" -> {
+                    // allowed — applied after SORT and before the three budget caps
+                }
                 case "max_edges_per_node", "max_nodes", "max_frontier" -> {
-                    // allowed — applied after SORT and before UNTIL in applyCaps
+                    // allowed — applied after SORT/hub_degree and before UNTIL in applyCaps
                 }
                 default -> throw new IllegalArgumentException("GRAPH EXPAND option [" + key + "] is not supported in this build");
             }
@@ -784,18 +871,35 @@ public final class GraphExpandDriver {
 
     /** Builds the four walk output attributes once analysis has resolved the TO field type. */
     public static List<Attribute> buildResultAttributes(Source source, DataType nodeType) {
-        return buildResultAttributes(source, nodeType, null, null);
+        return buildResultAttributes(source, nodeType, null, null, false);
     }
 
     /**
      * Walk columns {@code node_from}, {@code node_to}, {@code node_reached}, {@code hop},
-     * then STATS output columns in written order (aggregates, then user {@code BY}).
+     * then STATS output columns in written order (aggregates, then user {@code BY}),
+     * then optional {@code dropped} when {@code hub_degree} is set.
      */
     public static List<Attribute> buildResultAttributes(
         Source source,
         DataType nodeType,
         @Nullable List<? extends NamedExpression> aggregates,
         @Nullable List<Expression> groupings
+    ) {
+        return buildResultAttributes(source, nodeType, aggregates, groupings, false);
+    }
+
+    /**
+     * Walk columns {@code node_from}, {@code node_to}, {@code node_reached}, {@code hop},
+     * then STATS output columns in written order (aggregates, then user {@code BY}).
+     * When {@code includeDropped} is true (query set {@code hub_degree}), appends
+     * {@code dropped} after those columns.
+     */
+    public static List<Attribute> buildResultAttributes(
+        Source source,
+        DataType nodeType,
+        @Nullable List<? extends NamedExpression> aggregates,
+        @Nullable List<Expression> groupings,
+        boolean includeDropped
     ) {
         // Not synthetic: Analyzer.planWithoutSyntheticAttributes would strip them from the
         // query output (leaving an empty Project) if they were marked synthetic.
@@ -823,6 +927,14 @@ public final class GraphExpandDriver {
                 }
             }
         }
+        if (includeDropped) {
+            attributes.add(new ReferenceAttribute(source, null, "dropped", DataType.INTEGER, Nullability.TRUE, null, false));
+        }
         return List.copyOf(attributes);
+    }
+
+    /** True when the expand options map names {@code hub_degree}. */
+    public static boolean hasHubDegree(@Nullable MapExpression options) {
+        return options != null && options.keyFoldedMap().containsKey("hub_degree");
     }
 }

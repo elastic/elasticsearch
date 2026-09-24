@@ -2845,11 +2845,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 aggregateFilter = resolvedAggFilter;
             }
 
+            boolean includeDropped = org.elasticsearch.xpack.esql.session.GraphExpandDriver.hasHubDegree(ge.options());
+            int baseWalkColumns = includeDropped ? 5 : 4;
             boolean needResultAttributes = ge.resultAttributes() == null
                 || statsChanged
                 || (ge.resultAttributes() != null
                     && aggregates != null
-                    && ge.resultAttributes().size() == 4
+                    && ge.resultAttributes().size() == baseWalkColumns
                     && (aggregates.isEmpty() == false || (groupings != null && groupings.isEmpty() == false)));
 
             List<Attribute> resultAttributes = ge.resultAttributes();
@@ -2869,12 +2871,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         ge.source(),
                         targetFields.get(0).dataType(),
                         aggregates,
-                        groupings
+                        groupings,
+                        includeDropped
                     );
                 } else if (resultAttributes == null && Resolvables.resolved(targetFields) && targetFields.isEmpty() == false) {
                     resultAttributes = org.elasticsearch.xpack.esql.session.GraphExpandDriver.buildResultAttributes(
                         ge.source(),
-                        targetFields.get(0).dataType()
+                        targetFields.get(0).dataType(),
+                        null,
+                        null,
+                        includeDropped
                     );
                 }
             }

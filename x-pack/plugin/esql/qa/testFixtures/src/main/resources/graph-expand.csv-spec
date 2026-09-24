@@ -194,3 +194,33 @@ node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
 a                 | b               | b                    | 1
 b                 | a               | null                 | 2
 ;
+
+
+hub_degree refuses a frontier node above the cap
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "hub_degree": 2 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | dropped:integer
+a                 | b               | b                    | 1           | null
+b                 | null            | null                 | 2           | 3
+;
+
+
+hub_degree equal to degree keeps every edge
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "hub_degree": 3 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | dropped:integer
+a                 | b               | b                    | 1           | null
+b                 | c               | c                    | 2           | null
+b                 | d               | d                    | 2           | null
+b                 | a               | null                 | 2           | null
+;

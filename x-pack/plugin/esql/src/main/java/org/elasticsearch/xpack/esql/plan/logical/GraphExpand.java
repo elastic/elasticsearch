@@ -87,7 +87,9 @@ public class GraphExpand extends UnaryPlan
     private final MapExpression options;
     /**
      * Output columns {@code node_from}, {@code node_to}, {@code node_reached},
-     * {@code hop} — set during analysis once the TO field type is known.
+     * {@code hop}, optional STATS columns, and optional {@code dropped} when
+     * {@code hub_degree} is set — built during analysis once the TO field type
+     * is known.
      */
     private final List<Attribute> resultAttributes;
 

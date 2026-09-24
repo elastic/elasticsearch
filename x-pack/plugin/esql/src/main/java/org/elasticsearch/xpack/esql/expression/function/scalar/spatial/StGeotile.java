@@ -142,7 +142,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         }
         BlockLoaderFunctionConfig.GeoGridShapeTilerFactory shapeTilers = shapeTilers(
             encoders,
-            () -> (shape, onTruncation) -> computeGeotileCells(shape, precision, bounds, onTruncation)
+            () -> (shape, onTruncation) -> toLongArray(computeGeotileCells(shape, precision, bounds, onTruncation))
         );
         return new BlockLoaderFunctionConfig.GeoGrid(
             BlockLoaderFunctionConfig.Function.ST_GEOTILE,
@@ -303,7 +303,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                 if (geometry instanceof Point point) {
                     GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
                     long gridId = bounds.calculateGridId(point);
-                    return gridId < 0 ? null : gridId;
+                    return gridId == -1L ? null : gridId;
                 }
                 return foldMultiValue(computeGeotileCells(wkb, precision, bbox, foldWarningConsumer()));
             }

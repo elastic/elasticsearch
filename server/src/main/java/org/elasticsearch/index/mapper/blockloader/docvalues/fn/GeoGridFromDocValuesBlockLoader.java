@@ -30,9 +30,11 @@ import java.io.IOException;
  * is decoded to latitude and longitude and handed to the {@link BlockLoaderFunctionConfig.GeoGridEncoder}
  * from the config, so the point itself is never materialised as a block. Multi-valued points produce
  * one cell id per point, in doc values order and without de-duplication, which matches the output of the
- * equivalent ES|QL evaluator. For bounded grids the encoder returns a negative id for a point outside the
- * bounds; such points are dropped, and a document left with no cell loads as {@code null}, again as the
- * evaluator does.
+ * equivalent ES|QL evaluator. An encoder result of {@code -1} means the point has no cell (it lies outside
+ * the bounds of a bounded grid); such points are dropped, and a document left with no cell loads as
+ * {@code null}, again as the evaluator does. Any other value, including negative ones (geohash at
+ * precision ≥ 8 can set bit 63), is a valid cell id; see
+ * {@link BlockLoaderFunctionConfig.GeoGridEncoder} for why {@code -1} is safe as a sentinel.
  */
 public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
@@ -97,7 +99,7 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
             try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     long cellId = docValues.advanceExact(docs.get(i)) ? cellId(docValues.longValue(), encoder) : -1;
-                    if (cellId < 0) {
+                    if (cellId == -1L) {
                         builder.appendNull();
                     } else {
                         builder.appendLong(cellId);
@@ -126,7 +128,7 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
     private static class Sorted extends BlockDocValuesReader {
         private final TrackingSortedNumericDocValues numericDocValues;
         private final BlockLoaderFunctionConfig.GeoGridEncoder encoder;
-        /** Cells of the current document that lie inside the bounds; sized on demand. */
+        /** Cells of the current document; sized on demand. */
         private long[] cells = new long[8];
 
         Sorted(TrackingSortedNumericDocValues numericDocValues, BlockLoaderFunctionConfig.GeoGridEncoder encoder) {
@@ -148,7 +150,7 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
                     int count = docValues.docValueCount();
                     if (count == 1) {
                         long cellId = cellId(docValues.nextValue(), encoder);
-                        if (cellId < 0) {
+                        if (cellId == -1L) {
                             builder.appendNull();
                         } else {
                             builder.appendLong(cellId);
@@ -161,7 +163,7 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
                     int kept = 0;
                     for (int v = 0; v < count; v++) {
                         long cellId = cellId(docValues.nextValue(), encoder);
-                        if (cellId >= 0) {
+                        if (cellId != -1L) {
                             cells[kept++] = cellId;
                         }
                     }

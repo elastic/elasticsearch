@@ -42,6 +42,12 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLoaderTests {
     private static final int PRECISION = 5;
+    /**
+     * A precision high enough that {@link Geohash#longEncode} can set bit 63, producing naturally
+     * negative cell ids. Used to verify that valid negative ids are not discarded as if they were
+     * the {@code -1} no-cell sentinel.
+     */
+    private static final int HIGH_PRECISION = 9;
     private static final BlockLoaderFunctionConfig.GeoGridShapeTilerFactory POINTS_ONLY = warnings -> {
         throw new AssertionError("shapes are not loaded by the point loader");
     };
@@ -66,7 +72,11 @@ public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLo
             geohash(PRECISION, null),
             geotile(PRECISION, null),
             geohash(PRECISION, BOUNDS),
-            geotile(PRECISION, BOUNDS)
+            geotile(PRECISION, BOUNDS),
+            // HIGH_PRECISION geohash cells can have bit 63 set (naturally negative); the loader must
+            // pass them through rather than treating them as the -1 no-cell sentinel
+            geohash(HIGH_PRECISION, null),
+            geohash(HIGH_PRECISION, BOUNDS)
         )) {
             LongsBlockLoader pointsLoader = new LongsBlockLoader("field");
             GeoGridFromDocValuesBlockLoader gridLoader = new GeoGridFromDocValuesBlockLoader("field", config);
@@ -166,7 +176,7 @@ public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLo
             List<Long> pointValues = v instanceof List<?> l ? (List<Long>) l : List.of((Long) v);
             List<Long> expected = pointValues.stream()
                 .map(encoded -> GeoGridFromDocValuesBlockLoader.cellId(encoded, encoder))
-                .filter(cellId -> cellId >= 0)
+                .filter(cellId -> cellId != -1L)
                 .toList();
             outOfBounds += pointValues.size() - expected.size();
             if (expected.isEmpty()) {

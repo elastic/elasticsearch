@@ -14,8 +14,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.h3.H3;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 import java.util.function.Consumer;
 
 /**
@@ -69,9 +68,9 @@ public abstract class GeoHexGridTiler {
     /**
      * The cells at this tiler's precision that intersect the shape, in the order they are found, at most
      * {@code maxCells} of them. When the limit is reached {@code onTruncation} is called once with a message and
-     * the partial list is returned.
+     * the partial array is returned.
      */
-    public List<Long> cells(GeoShapeDocValues shape, int maxCells, Consumer<String> onTruncation) throws IOException {
+    public long[] cells(GeoShapeDocValues shape, int maxCells, Consumer<String> onTruncation) throws IOException {
         Cells cells = new Cells(maxCells, onTruncation);
         assert shape.minLon() <= shape.maxLon();
         // first check if we are touching just fetch cells
@@ -79,13 +78,13 @@ public abstract class GeoHexGridTiler {
             final long singleCell = boundsInSameCell(shape, precision);
             if (singleCell > 0) {
                 setValuesFromPointResolution(singleCell, cells, shape);
-                return cells.list;
+                return cells.toArray();
             }
             // TODO: specialize when they are neighbour cells.
         }
         // recurse tree
         setValuesByRecursion(cells, shape);
-        return cells.list;
+        return cells.toArray();
     }
 
     /**
@@ -235,7 +234,8 @@ public abstract class GeoHexGridTiler {
 
     /** Collects cells up to a limit, warning once through the callback when the limit is reached. */
     static final class Cells {
-        private final List<Long> list = new ArrayList<>();
+        private long[] array;
+        private int size;
         private final int maxCells;
         private final Consumer<String> onTruncation;
         private boolean full;
@@ -243,26 +243,30 @@ public abstract class GeoHexGridTiler {
         Cells(int maxCells, Consumer<String> onTruncation) {
             this.maxCells = maxCells;
             this.onTruncation = onTruncation;
+            this.array = new long[Math.min(maxCells, 16)];
         }
 
         void add(long h3) {
             if (full) {
                 return;
             }
-            if (list.size() >= maxCells) {
+            if (size >= maxCells) {
                 full = true;
                 onTruncation.accept("ST_GEOHEX generated more than " + maxCells + " grid cells");
                 return;
             }
-            list.add(h3);
+            if (size == array.length) {
+                array = Arrays.copyOf(array, Math.min(size * 2, maxCells));
+            }
+            array[size++] = h3;
         }
 
         boolean full() {
             return full;
         }
 
-        List<Long> list() {
-            return list;
+        long[] toArray() {
+            return size == array.length ? array : Arrays.copyOf(array, size);
         }
     }
 

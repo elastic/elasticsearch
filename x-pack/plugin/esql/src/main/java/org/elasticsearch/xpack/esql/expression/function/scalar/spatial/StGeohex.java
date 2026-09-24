@@ -256,7 +256,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
                 Warnings w = ctx.createOnlyWarnings(evalSource);
                 GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, bbox);
-                return wkb -> tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning);
+                return wkb -> toList(tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning));
             };
             return spatialDocValues
                 ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
@@ -276,7 +276,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
                 Warnings w = ctx.createOnlyWarnings(evalSource);
                 GeoHexGridTiler tiler = GeoHexGridTiler.makeGridTiler(precision, null);
-                return wkb -> tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning);
+                return wkb -> toList(tiler.cells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), MAX_GRID_CELLS, w::registerWarning));
             };
             return spatialDocValues
                 ? new StGeohexFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
@@ -308,7 +308,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
                 if (geometry instanceof Point point) {
                     GeoHexBoundedGrid bounds = new GeoHexBoundedGrid(precision, bbox);
                     long gridId = bounds.calculateGridId(point);
-                    return gridId < 0 ? null : gridId;
+                    return gridId == -1L ? null : gridId;
                 }
                 return foldMultiValue(computeGeohexCells(wkb, precision, bbox, foldWarningConsumer()));
             }
@@ -427,6 +427,6 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
      */
     static List<Long> computeGeohexCells(GeoShapeDocValues shape, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
         throws IOException {
-        return GeoHexGridTiler.makeGridTiler(precision, bbox).cells(shape, MAX_GRID_CELLS, onTruncation);
+        return toList(GeoHexGridTiler.makeGridTiler(precision, bbox).cells(shape, MAX_GRID_CELLS, onTruncation));
     }
 }

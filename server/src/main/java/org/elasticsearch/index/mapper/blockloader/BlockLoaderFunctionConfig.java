@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -69,8 +68,12 @@ public interface BlockLoaderFunctionConfig {
 
     /**
      * Encodes a decoded {@code geo_point}, given as {@code (x, y)} i.e. longitude then latitude, into a geo-grid cell id.
-     * A negative result means the point has no cell, which for a bounded grid means it lies outside the bounds; the
-     * loader then emits {@code null}, or drops the value for a multi-valued point.
+     * A result of {@code -1} means the point has no cell, which for a bounded grid means it lies outside the bounds;
+     * the loader then emits {@code null}, or drops the value for a multi-valued point. Any other result is a valid
+     * cell id, which may be negative: geohash at precision ≥ 8 sets bit 63. {@code -1} itself can never be a valid
+     * cell id of any grid: a geohash long encoding of {@code -1} would need precision nibble 15 while the maximum is
+     * 12, and valid geotile and geohex (H3) cell ids are always non-negative. Encoders for unbounded grids never
+     * return {@code -1}, so the same check applies to all grids.
      * <p>
      * Implementations are supplied by the caller (ES|QL) because the grid libraries, in particular H3 for
      * {@code geohex}, are not all available to the server module. An encoder may keep per-instance scratch state, so the
@@ -90,7 +93,7 @@ public interface BlockLoaderFunctionConfig {
      */
     @FunctionalInterface
     interface GeoGridShapeTiler {
-        List<Long> cells(BytesRef encodedShape) throws IOException;
+        long[] cells(BytesRef encodedShape) throws IOException;
     }
 
     /**

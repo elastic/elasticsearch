@@ -9,19 +9,16 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Loads {@code geo_shape} doc values as the geo-grid cells ({@code long}s) intersecting each shape, fusing
@@ -31,7 +28,6 @@ import java.util.List;
  * shapes intersect no cell, for instance because all lie outside the bounds, loads as {@code null}.
  */
 public class GeoGridFromShapeDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-    private static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(2).getBytes();
 
     private final String fieldName;
     private final BlockLoaderFunctionConfig.GeoGrid config;
@@ -51,14 +47,12 @@ public class GeoGridFromShapeDocValuesBlockLoader extends BlockDocValuesReader.D
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        BinaryDocValues binaryDocValues = context.reader().getBinaryDocValues(fieldName);
-        if (binaryDocValues == null) {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        TrackingBinaryDocValues tracking = TrackingBinaryDocValues.get(breaker, context, fieldName);
+        if (tracking == null) {
             return ConstantNull.COLUMN_READER;
         }
         // Tilers may carry scratch state, so every reader gets its own
-        return new Reader(breaker, binaryDocValues, config.shapeTilers().create(warnings));
+        return new Reader(tracking, config.shapeTilers().create(warnings));
     }
 
     @Override
@@ -73,14 +67,13 @@ public class GeoGridFromShapeDocValuesBlockLoader extends BlockDocValuesReader.D
             + "]";
     }
 
-    private static class Reader implements BlockLoader.ColumnAtATimeReader {
-        private final CircuitBreaker breaker;
-        private final BinaryDocValues binaryDocValues;
+    private static class Reader extends BlockDocValuesReader {
+        private final TrackingBinaryDocValues tracking;
         private final BlockLoaderFunctionConfig.GeoGridShapeTiler tiler;
 
-        Reader(CircuitBreaker breaker, BinaryDocValues binaryDocValues, BlockLoaderFunctionConfig.GeoGridShapeTiler tiler) {
-            this.breaker = breaker;
-            this.binaryDocValues = binaryDocValues;
+        Reader(TrackingBinaryDocValues tracking, BlockLoaderFunctionConfig.GeoGridShapeTiler tiler) {
+            super(null);
+            this.tracking = tracking;
             this.tiler = tiler;
         }
 
@@ -96,15 +89,15 @@ public class GeoGridFromShapeDocValuesBlockLoader extends BlockDocValuesReader.D
         }
 
         private void read(int doc, LongBuilder builder) throws IOException {
-            if (binaryDocValues.advanceExact(doc) == false) {
+            if (tracking.docValues().advanceExact(doc) == false) {
                 builder.appendNull();
                 return;
             }
-            List<Long> cells = tiler.cells(binaryDocValues.binaryValue());
-            if (cells.isEmpty()) {
+            long[] cells = tiler.cells(tracking.docValues().binaryValue());
+            if (cells.length == 0) {
                 builder.appendNull();
-            } else if (cells.size() == 1) {
-                builder.appendLong(cells.get(0));
+            } else if (cells.length == 1) {
+                builder.appendLong(cells[0]);
             } else {
                 builder.beginPositionEntry();
                 for (long cell : cells) {
@@ -115,8 +108,8 @@ public class GeoGridFromShapeDocValuesBlockLoader extends BlockDocValuesReader.D
         }
 
         @Override
-        public boolean canReuse(int startingDocID) {
-            return true;
+        protected int docId() {
+            return tracking.docValues().docID();
         }
 
         @Override
@@ -126,7 +119,7 @@ public class GeoGridFromShapeDocValuesBlockLoader extends BlockDocValuesReader.D
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            tracking.close();
         }
     }
 }

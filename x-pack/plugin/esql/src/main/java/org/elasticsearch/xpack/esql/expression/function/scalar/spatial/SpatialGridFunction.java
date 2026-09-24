@@ -272,7 +272,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
     /** Computes the cells of a shape for {@link #shapeTilers}, reporting truncation through the consumer. */
     @FunctionalInterface
     protected interface ShapeCells {
-        List<Long> compute(GeoShapeDocValues shape, Consumer<String> onTruncation) throws IOException;
+        long[] compute(GeoShapeDocValues shape, Consumer<String> onTruncation) throws IOException;
     }
 
     /**
@@ -281,6 +281,8 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
      * than tiled, which matters at cell boundaries, and everything else runs the evaluator's tiling algorithm on the
      * stored triangle tree, including truncation and its warning.
      */
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
+
     protected static BlockLoaderFunctionConfig.GeoGridShapeTilerFactory shapeTilers(
         Supplier<BlockLoaderFunctionConfig.GeoGridEncoder> encoders,
         Supplier<ShapeCells> shapeCellsSupplier
@@ -294,11 +296,27 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
                 GeoShapeDocValues shape = GeoShapeDocValues.fromDocValue(encoded);
                 if (shape.isSinglePoint()) {
                     long cell = encoder.encode(shape.centroidLon(), shape.centroidLat());
-                    return cell < 0 ? List.of() : List.of(cell);
+                    return cell == -1L ? EMPTY_LONG_ARRAY : new long[] { cell };
                 }
                 return shapeCells.compute(shape, onTruncation);
             };
         };
+    }
+
+    protected static long[] toLongArray(List<Long> list) {
+        long[] array = new long[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            array[i] = list.get(i);
+        }
+        return array;
+    }
+
+    protected static List<Long> toList(long[] array) {
+        List<Long> list = new ArrayList<>(array.length);
+        for (long v : array) {
+            list.add(v);
+        }
+        return list;
     }
 
     @Override
@@ -352,6 +370,12 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
     }
 
     protected interface BoundedGrid {
+        /**
+         * Returns the cell id of the point, or {@code -1} if the point lies outside the bounds. {@code -1} is never
+         * a valid cell id: a geohash long encoding of {@code -1} would need precision nibble 15 while the maximum
+         * is 12, and valid geotile and geohex (H3) cell ids are always non-negative. Valid cell ids may however be
+         * negative (geohash at precision ≥ 8 sets bit 63), so callers must compare against {@code -1} exactly.
+         */
         long calculateGridId(Point point);
 
         int precision();
@@ -489,7 +513,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             long grid = bounds.calculateGridId(point);
-            if (grid < 0) {
+            if (grid == -1L) {
                 results.appendNull();
             } else {
                 results.appendLong(grid);
@@ -508,7 +532,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             long grid = bounds.calculateGridId(point);
-            if (grid >= 0) {
+            if (grid != -1L) {
                 gridIds.add(grid);
             }
         } else {
@@ -528,7 +552,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
             final int firstValueIndex = encoded.getFirstValueIndex(position);
             if (valueCount == 1) {
                 long grid = bounds.calculateGridId(GEO.longAsPoint(encoded.getLong(firstValueIndex)));
-                if (grid < 0) {
+                if (grid == -1L) {
                     results.appendNull();
                 } else {
                     results.appendLong(grid);
@@ -537,7 +561,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
                 var gridIds = new ArrayList<Long>(valueCount);
                 for (int i = 0; i < valueCount; i++) {
                     var grid = bounds.calculateGridId(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)));
-                    if (grid >= 0) {
+                    if (grid != -1L) {
                         gridIds.add(grid);
                     }
                 }

@@ -145,7 +145,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
         }
         BlockLoaderFunctionConfig.GeoGridShapeTilerFactory shapeTilers = shapeTilers(
             encoders,
-            () -> (shape, onTruncation) -> computeGeohashCells(shape, precision, bounds, onTruncation)
+            () -> (shape, onTruncation) -> toLongArray(computeGeohashCells(shape, precision, bounds, onTruncation))
         );
         return new BlockLoaderFunctionConfig.GeoGrid(
             BlockLoaderFunctionConfig.Function.ST_GEOHASH,
@@ -306,7 +306,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                 if (geometry instanceof Point point) {
                     GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
                     long gridId = bounds.calculateGridId(point);
-                    return gridId < 0 ? null : gridId;
+                    return gridId == -1L ? null : gridId;
                 }
                 return foldMultiValue(computeGeohashCells(wkb, precision, bbox, foldWarningConsumer()));
             }

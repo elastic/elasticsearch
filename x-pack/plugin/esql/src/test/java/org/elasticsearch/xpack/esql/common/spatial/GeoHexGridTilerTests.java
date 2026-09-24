@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Ported from {@code GeoHexTilerTests} in the spatial module: every case checks the recursive search of
@@ -97,7 +96,11 @@ public class GeoHexGridTilerTests extends ESTestCase {
         );
         for (int precision = res; precision < res + 4; precision++) {
             String msg = "Failed " + WellKnownText.toWKT(point) + " at resolution " + res + " with precision " + precision;
-            List<Long> cells = GeoHexGridTiler.makeGridTiler(precision, bbox).cells(shape(world), NO_LIMIT, m -> {});
+            long[] cellArr = GeoHexGridTiler.makeGridTiler(precision, bbox).cells(shape(world), NO_LIMIT, m -> {});
+            List<Long> cells = new ArrayList<>(cellArr.length);
+            for (long c : cellArr) {
+                cells.add(c);
+            }
             assertCorner(cells, new Point(tile.getMinLon(), tile.getMinLat()), precision, msg);
             assertCorner(cells, new Point(tile.getMaxLon(), tile.getMinLat()), precision, msg);
             assertCorner(cells, new Point(tile.getMinLon(), tile.getMaxLat()), precision, msg);
@@ -165,8 +168,8 @@ public class GeoHexGridTilerTests extends ESTestCase {
     public void testTruncation() throws Exception {
         Rectangle world = new Rectangle(-180, 180, 90, -90);
         List<String> warnings = new ArrayList<>();
-        List<Long> cells = GeoHexGridTiler.makeGridTiler(2, null).cells(shape(world), 100, warnings::add);
-        assertThat(cells, hasSize(100));
+        long[] cells = GeoHexGridTiler.makeGridTiler(2, null).cells(shape(world), 100, warnings::add);
+        assertThat(cells.length, equalTo(100));
         assertThat(warnings, equalTo(List.of("ST_GEOHEX generated more than 100 grid cells")));
     }
 
@@ -180,7 +183,7 @@ public class GeoHexGridTilerTests extends ESTestCase {
         for (long h3 : H3.getLongRes0Cells()) {
             addBruteForce(tiler, bruteForce, shape, h3, precision);
         }
-        assertThat(geometry.toString(), sorted(recursive.list()), equalTo(sorted(bruteForce)));
+        assertThat(geometry.toString(), sorted(recursive.toArray()), equalTo(sorted(bruteForce)));
     }
 
     private static void addBruteForce(GeoHexGridTiler tiler, List<Long> cells, GeoShapeDocValues shape, long h3, int precision)
@@ -198,11 +201,11 @@ public class GeoHexGridTilerTests extends ESTestCase {
 
     private void assertBucketCount(Geometry geometry, int precision, GeoBoundingBox bbox) throws Exception {
         GeoShapeDocValues shape = shape(geometry);
-        List<Long> cells = GeoHexGridTiler.makeGridTiler(precision, bbox).cells(shape, NO_LIMIT, m -> {});
+        long[] cells = GeoHexGridTiler.makeGridTiler(precision, bbox).cells(shape, NO_LIMIT, m -> {});
         GeoHexGridTiler bounded = bbox == null ? null : GeoHexGridTiler.makeGridTiler(precision, bbox);
         GeoHexGridTiler predicate = GeoHexGridTiler.makeGridTiler(precision, null);
         int expected = computeBuckets(H3.getLongRes0Cells(), bounded, predicate, shape, precision);
-        assertThat("[" + precision + "] bucket count", cells.size(), equalTo(expected));
+        assertThat("[" + precision + "] bucket count", cells.length, equalTo(expected));
     }
 
     private static int computeBuckets(
@@ -227,7 +230,7 @@ public class GeoHexGridTilerTests extends ESTestCase {
     }
 
     private void assertCorner(List<Long> cells, Point point, int precision, String msg) throws IOException {
-        List<Long> cornerCells = GeoHexGridTiler.makeGridTiler(precision, null).cells(shape(point), NO_LIMIT, m -> {});
+        long[] cornerCells = GeoHexGridTiler.makeGridTiler(precision, null).cells(shape(point), NO_LIMIT, m -> {});
         for (long corner : cornerCells) {
             assertTrue(msg, cells.contains(corner));
         }
@@ -235,6 +238,15 @@ public class GeoHexGridTilerTests extends ESTestCase {
 
     private static List<Long> sorted(List<Long> cells) {
         List<Long> copy = new ArrayList<>(cells);
+        copy.sort(null);
+        return copy;
+    }
+
+    private static List<Long> sorted(long[] cells) {
+        List<Long> copy = new ArrayList<>(cells.length);
+        for (long c : cells) {
+            copy.add(c);
+        }
         copy.sort(null);
         return copy;
     }

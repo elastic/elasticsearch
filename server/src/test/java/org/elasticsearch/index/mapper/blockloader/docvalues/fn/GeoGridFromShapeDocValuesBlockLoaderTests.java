@@ -53,17 +53,17 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
     private static final GeoShapeIndexer INDEXER = new GeoShapeIndexer(Orientation.CCW, FIELD);
 
     /** Points get one "cell", rectangles two, unless the extent is entirely west of the meridian, which gets none. */
-    static List<Long> extentCells(BytesRef encodedShape) throws IOException {
+    static long[] extentCells(BytesRef encodedShape) throws IOException {
         GeometryDocValueReader reader = new GeometryDocValueReader();
         reader.reset(encodedShape);
         var extent = reader.getExtent();
         if (extent.maxX() < 0) {
-            return List.of();
+            return new long[0];
         }
         if (extent.minX() == extent.maxX() && extent.minY() == extent.maxY()) {
-            return List.of((long) extent.minX());
+            return new long[] { (long) extent.minX() };
         }
-        return List.of((long) extent.minX(), (long) extent.maxX());
+        return new long[] { (long) extent.minX(), (long) extent.maxX() };
     }
 
     public void testLoadsCellsPerDocument() throws IOException {
@@ -165,8 +165,18 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
                 expected.add(null);
                 continue;
             }
-            List<Long> cells = extentCells(docValues.binaryValue());
-            expected.add(cells.isEmpty() ? null : cells.size() == 1 ? cells.get(0) : cells);
+            long[] cells = extentCells(docValues.binaryValue());
+            if (cells.length == 0) {
+                expected.add(null);
+            } else if (cells.length == 1) {
+                expected.add(cells[0]);
+            } else {
+                List<Long> asList = new ArrayList<>(cells.length);
+                for (long c : cells) {
+                    asList.add(c);
+                }
+                expected.add(asList);
+            }
         }
         return expected;
     }

@@ -26,6 +26,7 @@ public class Constants {
         "cluster:admin/esql/data_source/delete",
         "cluster:admin/esql/data_source/get",
         "cluster:admin/esql/data_source/put",
+        "cluster:admin/esql/data_source/test_connection",
         "cluster:admin/fleet/secrets/delete",
         "cluster:admin/fleet/secrets/get",
         "cluster:admin/fleet/secrets/post",
@@ -440,6 +441,7 @@ public class Constants {
         "cluster:monitor/xpack/info/gpu_vector_indexing",
         "cluster:monitor/xpack/info/ilm",
         "cluster:monitor/xpack/info/logsdb",
+        "cluster:monitor/xpack/info/logsdb_columnar",
         "cluster:monitor/xpack/info/logstash",
         "cluster:monitor/xpack/info/ml",
         "cluster:monitor/xpack/info/monitoring",
@@ -508,6 +510,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/inference",
         "cluster:monitor/xpack/usage/logging",
         "cluster:monitor/xpack/usage/logsdb",
+        "cluster:monitor/xpack/usage/logsdb_columnar",
         "cluster:monitor/xpack/usage/logstash",
         "cluster:monitor/xpack/usage/ml",
         "cluster:monitor/xpack/usage/monitoring",
@@ -620,6 +623,7 @@ public class Constants {
         "indices:data/read/esql/resolve_fields",
         "indices:data/read/esql/resolve_views",
         "indices:data/read/esql/search_shards",
+        "indices:data/read/esql/stream",
         "indices:data/read/explain",
         "indices:data/read/field_caps",
         "indices:data/read/get",
@@ -709,6 +713,7 @@ public class Constants {
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate",
-        "internal:index/shard/recovery/cancel_recoveries"
+        "internal:index/shard/recovery/cancel_recoveries",
+        "internal:xpack/esql/datasource/test_connection/node"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

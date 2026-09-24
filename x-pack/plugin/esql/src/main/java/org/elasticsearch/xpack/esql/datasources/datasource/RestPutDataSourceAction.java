@@ -68,7 +68,8 @@ public class RestPutDataSourceAction extends BaseRestHandler implements RestRequ
         return Set.of(
             EsqlDataSourcesCapabilities.DATA_SOURCES,
             EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
-            EsqlDataSourcesCapabilities.DATASET_REGION
+            EsqlDataSourcesCapabilities.DATASET_REGION,
+            EsqlDataSourcesCapabilities.EXTERNAL_DATASET_MESSAGES
         );
     }
 }

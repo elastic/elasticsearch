@@ -287,12 +287,7 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
                                 assertThat(
                                     context + " says the filter was not applied",
                                     result.warnings(),
-                                    hasItem(
-                                        allOf(
-                                            containsString("a node is too old to evaluate it"),
-                                            containsString(PROJECTION_DATASET)
-                                        )
-                                    )
+                                    hasItem(allOf(containsString("a node is too old to evaluate it"), containsString(PROJECTION_DATASET)))
                                 );
                             }
                         }

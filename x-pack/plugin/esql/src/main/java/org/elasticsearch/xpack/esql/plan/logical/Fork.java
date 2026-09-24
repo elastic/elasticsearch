@@ -184,7 +184,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
      * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
      * a later one shadows answer for the column.
      */
-    private static boolean producesOnlyNull(LogicalPlan branch, Attribute attr) {
+    public static boolean producesOnlyNull(LogicalPlan branch, Attribute attr) {
         Holder<Boolean> onlyNull = new Holder<>(false);
         branch.forEachDown(Eval.class, eval -> {
             for (Alias field : eval.fields()) {

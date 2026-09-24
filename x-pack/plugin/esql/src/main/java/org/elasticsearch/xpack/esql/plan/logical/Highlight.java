@@ -295,6 +295,24 @@ public class Highlight extends UnaryPlan
         return copy(child(), query, fields, newOptions, generatedFields);
     }
 
+    /** A non-null {@code key} must be in {@code newChild}'s output. */
+    public Highlight withIndexKeyAndMappings(LogicalPlan newChild, @Nullable Attribute key, Map<String, TextEsField> newFieldMappings) {
+        assert key == null || newChild.outputSet().contains(key) : "HIGHLIGHT index key must be in the child output";
+        return new Highlight(
+            source(),
+            newChild,
+            prefix,
+            query,
+            implicitQuery,
+            derivedFields,
+            fields,
+            options,
+            generatedFields,
+            key,
+            newFieldMappings
+        );
+    }
+
     /**
      * Keeps {@link #derivedFields}. Pass {@code newGeneratedFields} unchanged unless {@code newFields} changed:
      * {@code generatedAttributesFor} mints fresh {@link NameId}s on every call.

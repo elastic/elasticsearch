@@ -965,41 +965,25 @@ public final class AllocationEstimators {
         return AllocSizes.arrayBytes(Math.max(needed, 2L * capacity + 2), 2);
     }
 
-    /** A number, boolean or character renders to a short String that is cheap and safe to measure before the real call. */
-    private static boolean isScalar(Object value) {
-        return value instanceof Number || value instanceof Boolean || value instanceof Character;
+    /** The String a builder makes of {@code value} when it is not text, given its {@code chars}. */
+    private static long valueStringBytes(Object value, long chars) {
+        return value == null || value instanceof CharSequence ? 0 : newStringBytes(chars);
     }
 
-    /** Chars {@code value} adds: its length for text, four for null, the exact rendering for a scalar, an allowance otherwise. */
-    private static long appendedChars(Object value) {
-        if (value == null) {
-            return 4;
-        } else if (value instanceof CharSequence sequence) {
-            return sequence.length();
-        } else if (isScalar(value)) {
-            return String.valueOf(value).length();
-        }
-        return AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES / 2;
-    }
-
-    /** The String a builder makes of {@code value} when it is not text. */
-    private static long valueStringBytes(Object value) {
-        if (value == null || value instanceof CharSequence) {
-            return 0;
-        } else if (isScalar(value)) {
-            return newStringBytes(String.valueOf(value).length());
-        }
-        return AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES;
+    /** {@code value} appended or inserted: its String when one is made, plus the builder's growth if it does not fit. */
+    private static long builderTakesBytes(int length, int capacity, Object value) {
+        long chars = AllocSizes.renderedChars(value);
+        return AllocSizes.addSat(valueStringBytes(value, chars), builderGrowthBytes(length, capacity, chars));
     }
 
     /** {@code StringBuilder.append(value)}. */
     public static long appendBytes(StringBuilder receiver, Object value) {
-        return AllocSizes.addSat(valueStringBytes(value), builderGrowthBytes(receiver.length(), receiver.capacity(), appendedChars(value)));
+        return builderTakesBytes(receiver.length(), receiver.capacity(), value);
     }
 
     /** {@code StringBuffer.append(value)}. */
     public static long appendBytes(StringBuffer receiver, Object value) {
-        return AllocSizes.addSat(valueStringBytes(value), builderGrowthBytes(receiver.length(), receiver.capacity(), appendedChars(value)));
+        return builderTakesBytes(receiver.length(), receiver.capacity(), value);
     }
 
     /** {@code StringBuilder.append(sequence, start, end)}. */
@@ -1034,12 +1018,12 @@ public final class AllocationEstimators {
 
     /** {@code StringBuilder.insert(offset, value)}. */
     public static long insertBytes(StringBuilder receiver, int offset, Object value) {
-        return AllocSizes.addSat(valueStringBytes(value), builderGrowthBytes(receiver.length(), receiver.capacity(), appendedChars(value)));
+        return builderTakesBytes(receiver.length(), receiver.capacity(), value);
     }
 
     /** {@code StringBuffer.insert(offset, value)}. */
     public static long insertBytes(StringBuffer receiver, int offset, Object value) {
-        return AllocSizes.addSat(valueStringBytes(value), builderGrowthBytes(receiver.length(), receiver.capacity(), appendedChars(value)));
+        return builderTakesBytes(receiver.length(), receiver.capacity(), value);
     }
 
     /** Chars {@code replace(start, end, text)} adds: the text minus the range it replaces. */

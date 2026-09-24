@@ -184,7 +184,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testAppendNumberChargesItsExactString() {
-        // The int is boxed, then rendered to one char. Nothing grows.
+        // The int is boxed, then counted as one char without rendering it. Nothing grows.
         long one = AllocationEstimators.appendBytes(new StringBuilder(), 5);
         assertEquals(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + 2L, one);
         assertEquals(

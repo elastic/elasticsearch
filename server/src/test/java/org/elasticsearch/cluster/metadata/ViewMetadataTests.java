@@ -9,15 +9,13 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomName;
-import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomView;
 
 public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMetadata> {
 
@@ -28,28 +26,32 @@ public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMe
 
     @Override
     protected ViewMetadata createTestInstance() {
-        return randomViewMetadata();
+        return new ViewMetadata(randomMap(0, 64, () -> {
+            var name = randomIdentifier();
+            return new Tuple<>(name, new View(name, ViewTests.randomQuery()));
+        }));
     }
 
     @Override
     protected ViewMetadata mutateInstance(ViewMetadata instance) {
         Map<String, View> views = new HashMap<>(instance.views());
-        if (views.isEmpty()) {
-            String name = randomName();
-            return new ViewMetadata(Map.of(name, randomView(name)));
+        var mutation = between(0, 2);
+        if (mutation == 0 || views.isEmpty()) {
+            var name = randomIdentifier();
+            views.put(name, new View(name, ViewTests.randomQuery()));
+        } else if (mutation == 1) {
+            var name = randomFrom(views.keySet());
+            views.remove(name);
+        } else if (mutation == 2) {
+            var name = randomFrom(views.keySet());
+            views.compute(name, (n, view) -> new View(name, randomValueOtherThan(view.query(), ViewTests::randomQuery)));
         }
-        views.replaceAll((name, view) -> randomValueOtherThan(view, () -> randomView(name)));
         return new ViewMetadata(views);
     }
 
-    private static ViewMetadata randomViewMetadata() {
-        int numViews = randomIntBetween(0, 64);
-        Map<String, View> views = new HashMap<>(numViews);
-        for (int i = 0; i < numViews; i++) {
-            final String name = randomName();
-            views.put(name, randomView(name));
-        }
-        return new ViewMetadata(views);
+    private static View randomView(String name) {
+        String query = "FROM " + randomAlphaOfLength(10);
+        return new View(name, query);
     }
 
     @Override

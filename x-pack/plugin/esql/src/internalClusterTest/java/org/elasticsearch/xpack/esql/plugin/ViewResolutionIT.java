@@ -53,6 +53,37 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testSystemViews() {
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
+
+        indexRandom(
+            true,
+            false,
+            prepareIndex("system-index").setSource(Map.of("id", randomIdentifier(), "source", "system-index")),
+            prepareIndex("regular-index").setSource(Map.of("id", randomIdentifier(), "source", "regular-index"))
+        );
+        var systemView = createView(".system-view", "FROM system-index", null, true);
+        try (var regularView = createView("regular-view", "FROM regular-index")) {
+            try (var response = run(syncEsqlQueryRequest("FROM .system-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "system-index"); // concrete name resolves system view
+            }
+            try (var response = run(syncEsqlQueryRequest("FROM *-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "regular-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("FROM .system-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "system-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("FROM *"))) {
+                assertOk(response);
+                // system-view & regular-index matched as indices and another regular-view matched as a view
+                assertResultConcreteIndices(response, "system-index", "regular-index", "regular-index");
+            }
+        }
+    }
+
     public void testDotPrefixedViews() {
         assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
         indexRandom(true, false, prepareIndex("regular-index-1").setSource(Map.of("id", randomIdentifier(), "source", "regular-index-1")));
@@ -98,18 +129,27 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     private Releasable createView(String name, String query) {
+        return createView(name, query, null, false);
+    }
+
+    private Releasable createView(String name, String query, String description, boolean system) {
         assertAcked(
             client().execute(
                 PutViewAction.INSTANCE,
-                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query, description, system))
             )
         );
-        return () -> assertAcked(
-            client().execute(
-                DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
-            )
-        );
+        return () -> {
+            // TODO delete system views
+            if (system == false) {
+                assertAcked(
+                    client().execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                    )
+                );
+            }
+        };
     }
 
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {

@@ -95,6 +95,13 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             builder.put("index.number_of_replicas", numReplicas);
         }
         builder.put("index.mapping.total_fields.limit", 5000);
+        // These tests time out in CI on bulk and search requests. The slowlog names the exact shard, document and query that were
+        // slow, which the client-side request timing in AbstractChallengeRestTest cannot see. It is written to the cluster's
+        // <cluster>_index_indexing_slowlog.json and <cluster>_index_search_slowlog.json files, not to the main cluster log.
+        builder.put("index.indexing.slowlog.threshold.index.warn", "5s");
+        builder.put("index.indexing.slowlog.source", 2000);
+        builder.put("index.search.slowlog.threshold.query.warn", "5s");
+        builder.put("index.search.slowlog.threshold.fetch.warn", "5s");
     }
 
     @Override

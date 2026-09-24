@@ -162,4 +162,103 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     public void testPatternSplitTripsLimit() {
         assertTripsLimit("/,/.split('a,b'); return \"x\";");
     }
+
+    // ---- StringBuilder and StringBuffer grow only when an append does not fit ----
+
+    public void testAppendWithinCapacityChargesNothing() {
+        assertEquals(0L, AllocationEstimators.appendBytes(new StringBuilder(), "abc"));
+        assertEquals(
+            AllocationEstimators.stringBuilderShellBytes(),
+            allocatedBytes("StringBuilder sb = new StringBuilder(); sb.append(\"abc\"); return \"x\";")
+        );
+    }
+
+    public void testAppendPastCapacityChargesTheNewArray() {
+        // 19 chars into a 16-char builder: the JDK grows to twice the capacity plus two, 34 chars.
+        String text = "0123456789abcdefXYZ";
+        assertEquals(AllocSizes.arrayBytes(34, 2), AllocationEstimators.appendBytes(new StringBuilder(), text));
+        assertEquals(
+            AllocationEstimators.stringBuilderShellBytes() + AllocationEstimators.appendBytes(new StringBuilder(), text),
+            allocatedBytes("StringBuilder sb = new StringBuilder(); sb.append(\"0123456789abcdefXYZ\"); return \"x\";")
+        );
+    }
+
+    public void testAppendNumberChargesItsExactString() {
+        // The int is boxed on the way in, then the builder makes a one-char String of it. Nothing grows, and the number's
+        // length is measured rather than guessed so a loop of appends is not charged growth it never does.
+        long one = AllocationEstimators.appendBytes(new StringBuilder(), 5);
+        assertEquals(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + 2L, one);
+        assertEquals(
+            AllocationEstimators.stringBuilderShellBytes() + AllocSizes.boxSize(int.class) + one,
+            allocatedBytes("StringBuilder sb = new StringBuilder(); sb.append(5); return \"x\";")
+        );
+    }
+
+    public void testAppendOtherObjectChargesAnAllowance() {
+        // An arbitrary object's toString length is unknowable, so it gets the same allowance as a concat operand.
+        long list = AllocationEstimators.appendBytes(new StringBuilder(), List.of());
+        assertThat(list, greaterThan((long) AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES));
+    }
+
+    public void testSetLengthGrowthCharged() {
+        assertEquals(AllocSizes.arrayBytes(100, 2), AllocationEstimators.setLengthBytes(new StringBuilder(), 100));
+        assertEquals(
+            AllocationEstimators.stringBuilderShellBytes() + AllocationEstimators.setLengthBytes(new StringBuilder(), 100),
+            allocatedBytes("StringBuilder sb = new StringBuilder(); sb.setLength(100); return \"x\";")
+        );
+    }
+
+    public void testAppendCodePointAtCapacityGrows() {
+        // setLength(16) fills the default builder exactly; the code point then needs room for two more chars.
+        StringBuilder full = new StringBuilder();
+        full.setLength(16);
+        assertEquals(0L, AllocationEstimators.setLengthBytes(new StringBuilder(), 16));
+        assertEquals(AllocSizes.arrayBytes(34, 2), AllocationEstimators.appendCodePointBytes(full, 65));
+        assertEquals(
+            AllocationEstimators.stringBuilderShellBytes() + AllocationEstimators.appendCodePointBytes(full, 65),
+            allocatedBytes("StringBuilder sb = new StringBuilder(); sb.setLength(16); sb.appendCodePoint(65); return \"x\";")
+        );
+    }
+
+    public void testReplaceAndInsertGrowthCharged() {
+        StringBuilder abc = new StringBuilder("abc");
+        String text = "0123456789abcdefXYZ";
+        long replace = AllocationEstimators.replaceBytes(abc, 0, 1, text);
+        long insert = AllocationEstimators.insertBytes(new StringBuilder(), 0, text);
+        assertThat(replace, greaterThan(0L));
+        assertThat(insert, greaterThan(0L));
+        assertEquals(
+            AllocationEstimators.stringBuilderBytes("abc") + replace,
+            allocatedBytes("StringBuilder sb = new StringBuilder(\"abc\"); sb.replace(0, 1, \"0123456789abcdefXYZ\"); return \"x\";")
+        );
+        assertEquals(
+            AllocationEstimators.stringBuilderShellBytes() + insert,
+            allocatedBytes("StringBuilder sb = new StringBuilder(); sb.insert(0, \"0123456789abcdefXYZ\"); return \"x\";")
+        );
+    }
+
+    public void testStringBufferAppendGrowthCharged() {
+        String text = "0123456789abcdefXYZ";
+        assertEquals(
+            AllocationEstimators.stringBufferShellBytes() + AllocationEstimators.appendBytes(new StringBuffer(), text),
+            allocatedBytes("StringBuffer sb = new StringBuffer(); sb.append(\"0123456789abcdefXYZ\"); return \"x\";")
+        );
+    }
+
+    public void testAppendableAppendCharged() {
+        // Through the Appendable type the builder still reports its own growth.
+        String text = "abcdefghijklmnopqrstuvwxyz";
+        assertEquals(
+            AllocationEstimators.stringBuilderShellBytes() + AllocationEstimators.appendableAppendBytes(new StringBuilder(), text, 0, 26),
+            allocatedBytes("Appendable a = new StringBuilder(); a.append(\"abcdefghijklmnopqrstuvwxyz\", 0, 26); return \"x\";")
+        );
+    }
+
+    public void testAppendChargedThroughDef() {
+        String text = "0123456789abcdefXYZ";
+        assertEquals(
+            AllocationEstimators.stringBuilderShellBytes() + AllocationEstimators.appendBytes(new StringBuilder(), text),
+            allocatedBytes("def sb = new StringBuilder(); sb.append(\"0123456789abcdefXYZ\"); return \"x\";")
+        );
+    }
 }

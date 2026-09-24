@@ -70,4 +70,21 @@ public class AllocationScenarioTests extends AllocationTestCase {
         );
         assertEquals("hello worldHELLO", script.execute());
     }
+
+    public void testRunawayAddAllSelfTripsLimit() {
+        // l.addAll(l) doubles the list each time. Each add is charged, so the doubling is too.
+        assertTripsUnder("List l = new ArrayList(); l.add(1); for (int i = 0; i < 1000; ++i) { l.addAll(l); } return l.size();", "1mb");
+    }
+
+    public void testRunawayBuilderSelfAppendTripsLimit() {
+        // sb.append(sb) doubles the builder each time, and each growth is charged its new array.
+        assertTripsUnder(
+            "StringBuilder sb = new StringBuilder('wat'); for (int i = 0; i < 1000; ++i) { sb.append(sb); } return sb.length();",
+            "1mb"
+        );
+    }
+
+    public void testRunawayMapPutTripsLimit() {
+        assertTripsUnder("Map m = new HashMap(); for (int i = 0; i < 1000000; ++i) { m.put(i, i); } return m.size();", "1mb");
+    }
 }

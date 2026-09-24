@@ -667,9 +667,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/159951
-- class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
-  method: test {p0=search/340_flattened/Test flattened mapped sub-field as index sort field}
-  issue: https://github.com/elastic/elasticsearch/issues/160031
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/155327

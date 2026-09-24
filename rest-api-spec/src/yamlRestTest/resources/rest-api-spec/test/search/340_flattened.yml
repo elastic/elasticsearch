@@ -474,8 +474,10 @@ setup:
         body:
           settings:
             index:
+              number_of_shards: 1
               sort.field: labels.priority
               sort.order: asc
+              routing.rebalance.enable: "none"
           mappings:
             properties:
               labels:
@@ -483,6 +485,13 @@ setup:
                 properties:
                   priority:
                     type: long
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+        wait_for_no_initializing_shards: true
+        wait_for_no_relocating_shards: true
 
   - do:
       bulk:

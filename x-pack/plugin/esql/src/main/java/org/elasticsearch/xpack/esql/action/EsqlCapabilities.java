@@ -681,6 +681,17 @@ public class EsqlCapabilities {
         ST_CENTROID_AGG_SHAPES_DOC_VALUES,
 
         /**
+         * Fix for a bug where {@code TO_STRING} (and other non-spatial functions) applied to a spatial
+         * field like {@code geo_point} would throw a {@code ClassCastException} when the field was also
+         * consumed by a spatial aggregation or spatial function that triggered the doc-values extraction
+         * optimization in {@code SpatialDocValuesExtraction}. The optimization changed the field's block
+         * type from {@code BytesRefBlock} (WKB from source) to {@code LongBlock} (doc-values encoding),
+         * but did not inform non-spatial evaluators like {@code ToStringFromGeoPointEvaluator}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/141300">#141300</a>.
+         */
+        FIX_SPATIAL_DOC_VALUES_NON_SPATIAL_EVAL,
+
+        /**
          * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
          */
         ST_ENVELOPE,
@@ -1672,6 +1683,12 @@ public class EsqlCapabilities {
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
 
         /**
+         * If {@code METADATA} is requested on a view/subquery that itself doesn't produce the requested
+         * fields - null values are injected instead.
+         */
+        OUTER_METADATA_NULL_INJECTION,
+
+        /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
          * crash with "optimized incorrectly due to missing references [_tsid, _timeseries]":
          * (1) a view used inside a {@code TS} command now raises a clear verification exception
@@ -2226,6 +2243,10 @@ public class EsqlCapabilities {
          * V3 fixes a bug on how we handle single-value time buckets for INCREASE with the sole value falling onto the bucket boundary.
          */
         RATE_WITH_INTERPOLATION_V3,
+        /**
+         * Rate and increase interpolate across empty time buckets within a bounded lookback.
+         */
+        RATE_WITH_INTERPOLATION_V4,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -4090,6 +4111,14 @@ public class EsqlCapabilities {
          * See elastic/esql-planning#2052.
          */
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
+
+        /**
+         * Streaming execution on {@code POST /_query}: the {@code streaming} and
+         * {@code batch_size} URL parameters are accepted, and with {@code format=ndjson} the
+         * response streams header / pages / footer as NDJSON as rows are produced.
+         * Snapshot-only while the streaming protocol is still changing.
+         */
+        STREAMING(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

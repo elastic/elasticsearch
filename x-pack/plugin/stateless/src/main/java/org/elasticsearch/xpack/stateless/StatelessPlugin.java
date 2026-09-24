@@ -483,7 +483,9 @@ public class StatelessPlugin extends Plugin
                 prewarmMaxThreads,
                 TimeValue.timeValueMinutes(5),
                 true,
-                PREWARM_THREAD_POOL_SETTING
+                PREWARM_THREAD_POOL_SETTING,
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(0.3).build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             ),
             new ScalingExecutorBuilder(
                 UPLOAD_PREWARM_THREAD_POOL,
@@ -798,7 +800,7 @@ public class StatelessPlugin extends Plugin
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
         IndicesService indicesService = setAndGet(this.indicesService, services.indicesService());
         final MeterRegistry meterRegistry = services.telemetryProvider().getMeterRegistry();
-        final var blobCacheMetrics = setAndGet(this.blobCacheMetrics, new BlobCacheMetrics(meterRegistry));
+        final var blobCacheMetrics = setAndGet(this.blobCacheMetrics, new BlobCacheMetrics(meterRegistry, threadPool));
 
         final Collection<Object> components = new ArrayList<>();
         var objectStoreService = setAndGet(

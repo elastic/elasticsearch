@@ -467,3 +467,61 @@ teardown:
       headers:
         Authorization: "Basic c2Ffbm9ib2R5OngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_nobody
       security.query_service_accounts: {}
+
+---
+"Test query by description":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["query_sa_monitor"],
+            "description": "Nightly deploy of the apps"
+          }
+  - match: { created: false }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "match": { "description": "nightly" } }
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match:
+      service_accounts.0:
+        username: "apps/worker_1"
+        type: user_managed
+        roles: ["query_sa_monitor"]
+        enabled: true
+        description: "Nightly deploy of the apps"
+
+  # Accounts without a description do not report the field.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "apps/worker_2" } }
+          }
+  - match: { total: 1 }
+  - is_false: service_accounts.0.description
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "match": { "description": "weekly" } }
+          }
+  - match: { total: 0 }
+
+  # The description is a text field without fielddata, so it can be searched but not sorted on.
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": ["description"]
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "sorting is not supported for field [description]" }

@@ -597,7 +597,8 @@ book_no:keyword | publisher_dense_vector:dense_vector
 // DENSE_VECTOR generates a dense_vector column, and runtime KNN searches over that generated column.
 // The query vector is book 2924's own publisher embedding, so 2924 is the exact nearest match.
 dense vector command output feeds runtime knn filter
-required_capability: dense_vector_command
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
 pragma: knn_runtime_field=true
 
@@ -618,7 +619,8 @@ book_no:keyword | vec:dense_vector
 // Runtime KNN over a DENSE_VECTOR-generated column, ranking by _score. The query vector is book 2924's
 // own embedding, so 2924 scores highest and sorts first.
 dense vector command output feeds runtime knn with score
-required_capability: dense_vector_command
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
 pragma: knn_runtime_field=true
 
@@ -640,7 +642,8 @@ book_no:keyword
 // A high similarity threshold on runtime KNN keeps only the row whose generated vector matches the query
 // vector exactly. The query vector is book 2924's publisher embedding, so only 2924 clears the threshold.
 dense vector command output feeds runtime knn with similarity threshold
-required_capability: dense_vector_command
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
 pragma: knn_runtime_field=true
 
@@ -658,7 +661,8 @@ book_no:keyword
 // The boost option scales the KNN _score. The query vector is book 2924's own embedding, so 2924 is the
 // exact match and takes the highest boosted score.
 dense vector command output feeds runtime knn with boost and score
-required_capability: dense_vector_command
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
 pragma: knn_runtime_field=true
 
@@ -679,6 +683,7 @@ book_no:keyword
 // generated column.
 dense vector command suffix output feeds runtime knn
 required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
 pragma: knn_runtime_field=true
 
@@ -699,6 +704,7 @@ book_no:keyword | publisher_v:dense_vector
 // With several fields embedded in one command, runtime KNN targets one specific generated column.
 dense vector command multi field output feeds runtime knn on one column
 required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
 pragma: knn_runtime_field=true
 
@@ -715,7 +721,8 @@ book_no:keyword
 
 // The EVAL then DENSE_VECTOR then KNN pipeline: a computed column is embedded, then searched by runtime KNN.
 dense vector command over an eval column feeds runtime knn
-required_capability: dense_vector_command
+required_capability: dense_vector_command_v3
+required_capability: dense_vector_field_type_released
 required_capability: knn_runtime_field
 pragma: knn_runtime_field=true
 

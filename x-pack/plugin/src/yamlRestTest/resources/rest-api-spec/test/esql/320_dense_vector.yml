@@ -33,6 +33,13 @@ setup:
 
 ---
 "invalid type option value is rejected":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ dense_vector_command_v2 ]
+      reason: "the type option arrived with DENSE_VECTOR v2"
   - do:
       catch: bad_request
       esql.query:
@@ -45,6 +52,13 @@ setup:
 
 ---
 "image type without inference_id is rejected":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ dense_vector_command_v2 ]
+      reason: "the type option arrived with DENSE_VECTOR v2"
   - do:
       catch: bad_request
       esql.query:
@@ -57,6 +71,13 @@ setup:
 
 ---
 "suffix clause without ON is rejected":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ dense_vector_command_v3 ]
+      reason: "the suffix clause arrived with DENSE_VECTOR v3"
   - do:
       catch: bad_request
       esql.query:

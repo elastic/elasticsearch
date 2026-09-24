@@ -2199,6 +2199,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredBinding,
             effective,
             object.path().toString(),
+            object.path(),
             cacheable ? object : null,
             cacheable ? stream : null,
             pinnedMtimeMillis,
@@ -3439,6 +3440,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final DateFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
         private final String sourceLocation;
+        private final StoragePath objectPath;
         private final SkipWarnings skipWarnings;
         /** The read context's informational sink; the read-time null-marker hint goes here. */
         @Nullable
@@ -3707,6 +3709,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             @Nullable DeclaredBinding declaredBinding,
             ErrorPolicy errorPolicy,
             String sourceLocation,
+            StoragePath objectPath,
             StorageObject cacheableObject,
             CountingInputStream byteCounter,
             long pinnedMtimeMillis,
@@ -3738,6 +3741,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
+            this.objectPath = objectPath;
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;
@@ -6865,7 +6869,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     : "; set error_mode=null_field to null-fill the bad field instead of failing";
                 ExternalClientException parseEx = new ExternalClientException(
                     ExternalException.Condition.MALFORMED_DATA,
-                    StoragePath.NONE,
+                    objectPath,
                     "",
                     "",
                     cause
@@ -6930,7 +6934,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // user-configured tolerance), not a server bug — surface as HTTP 400.
                 ExternalClientException budgetRtEx = new ExternalClientException(
                     ExternalException.Condition.MALFORMED_DATA,
-                    StoragePath.NONE,
+                    objectPath,
                     "",
                     "",
                     cause

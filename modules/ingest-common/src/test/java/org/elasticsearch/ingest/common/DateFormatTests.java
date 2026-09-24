@@ -199,6 +199,18 @@ public class DateFormatTests extends ESTestCase {
         }
     }
 
+    public void testParseISO8601FailureHasEmptyStackTrace() {
+        Function<String, ZonedDateTime> function = DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null);
+        DateTimeException e = expectThrows(DateTimeException.class, () -> function.apply("not-a-date"));
+        assertThat(e.getStackTrace().length, equalTo(0));
+    }
+
+    public void testParseJavaFormatFailureHasEmptyStackTrace() {
+        Function<String, ZonedDateTime> function = DateFormat.Java.getFunction("uuuu-MM-dd", ZoneOffset.UTC, Locale.ROOT);
+        DateTimeException e = expectThrows(DateTimeException.class, () -> function.apply("not-a-date"));
+        assertThat(e.getStackTrace().length, equalTo(0));
+    }
+
     public void testTAI64NParse() {
         String input = "4000000050d506482dbdf024";
         String expected = "2012-12-22T03:00:46.767+02:00";

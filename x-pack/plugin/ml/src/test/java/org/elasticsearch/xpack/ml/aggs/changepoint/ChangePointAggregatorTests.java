@@ -135,6 +135,80 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testMostSignificantEventIsSelectedWhenPValuesUnderflow() throws IOException {
+        // The daily doc counts of the Kibana "sample data logs" data set: an essentially constant series with a
+        // partial (over-full) first bucket, a partial last bucket, a one day dip and, at index 41, the spike the
+        // series is there to exercise. All four are so significant that their p-values underflow to 0.0, so the
+        // representative event must be chosen on the log p-value; otherwise they tie at zero and the boundary
+        // artifact at index 0 is reported instead of the spike.
+        double[] bucketValues = new double[] {
+            249,
+            231,
+            230,
+            236,
+            230,
+            230,
+            229,
+            231,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            229,
+            231,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            229,
+            231,
+            173,
+            230,
+            230,
+            230,
+            229,
+            231,
+            230,
+            229,
+            231,
+            230,
+            230,
+            329,
+            231,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            230,
+            205 };
+        testChangeType(bucketValues, (changeType, msg) -> {
+            assertThat(msg, changeType, instanceOf(ChangeType.Spike.class));
+            assertThat(msg, changeType.changePoint(), equalTo(41));
+        });
+    }
+
     public void testStepChange() throws IOException {
         NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         double[] bucketValues = DoubleStream.concat(

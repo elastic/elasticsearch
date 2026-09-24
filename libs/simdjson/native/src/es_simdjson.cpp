@@ -18,8 +18,6 @@
  * Pinned to simdjson v4.6.9 (amalgamated single-header distribution).
  */
 
-// <iterator> is required for std::inserter used inside simdjson.h; libstdc++
-// pulls it in transitively, libc++ (used by llvm-mingw on Windows) does not.
 #include <iterator>
 
 #include "simdjson.h"

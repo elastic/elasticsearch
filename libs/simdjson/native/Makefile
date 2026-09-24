@@ -5,16 +5,17 @@
 # your election, the "Elastic License 2.0", the "GNU Affero General Public
 # License v3.0 only", or the "Server Side Public License, v 1".
 
-# Builds libsimdjson for all three targets:
-#   build/libs/simdjson/shared/aarch64/libsimdjson.dylib  (darwin-aarch64)
-#   build/libs/simdjson/shared/aarch64/libsimdjson.so     (linux-aarch64)
-#   build/libs/simdjson/shared/amd64/libsimdjson.so       (linux-x64)
+# Builds libsimdjson for all four targets:
+#   build/libs/simdjson/shared/aarch64/libsimdjson.dylib     (darwin-aarch64)
+#   build/libs/simdjson/shared/aarch64/libsimdjson.so        (linux-aarch64)
+#   build/libs/simdjson/shared/amd64/libsimdjson.so          (linux-x64)
+#   build/libs/simdjson/shared/windows-x64/simdjson.dll      (windows-x64)
 #
 # simdjson handles ISA selection internally (AVX-512 vs AVX2 vs NEON etc.),
 # so we compile a single source file per platform — no tier-1/tier-2 split.
 #
 # Intended to be run inside the shared cross-compilation toolchain container
-# (es-native-cross-toolchain:6 — clang-21 plus GCC 8 libstdc++ cross libs and
+# (es-native-cross-toolchain:7 — clang-21, GCC 8 libstdc++ cross libs, and llvm-mingw;
 # the open-source Darwin sysroot baked in). See publish_simdjson_binaries.sh.
 #
 # Linux cross builds pin libstdc++ to GCC 8 (GLIBCXX_3.4.25) while keeping
@@ -75,12 +76,14 @@ LINUX_LDFLAGS_X64 = -L/usr/lib/gcc-cross/x86_64-linux-gnu/$(LINUX_STDCXX_MAJOR) 
 
 CXX_ARM     = $(CLANG_CXX) --target=aarch64-linux-gnu $(LINUX_CXXFLAGS_ARM)
 CXX_X64     = $(CLANG_CXX) --target=x86_64-linux-gnu $(LINUX_CXXFLAGS_X64)
+CXX_WIN     = x86_64-w64-mingw32-clang++
 
 # Strip and debug-info commands per target platform
 DARWIN_STRIP    = llvm-strip$(LLVM_SUFFIX) --strip-debug
 LINUX_STRIP     = llvm-strip$(LLVM_SUFFIX) --strip-unneeded
 LINUX_OBJCOPY   = llvm-objcopy$(LLVM_SUFFIX)
 DARWIN_DSYMUTIL = $(shell llvm-config$(LLVM_SUFFIX) --bindir)/dsymutil
+LLVM_PDBUTIL    = llvm-pdbutil$(LLVM_SUFFIX)
 
 # Source files
 SRC = src/es_simdjson.cpp src/simdjson.cpp
@@ -89,19 +92,27 @@ SRC = src/es_simdjson.cpp src/simdjson.cpp
 OBJ_DARWIN  = build/obj/darwin-aarch64
 OBJ_LIN_ARM = build/obj/linux-aarch64
 OBJ_LIN_X64 = build/obj/linux-x64
+OBJ_WIN_X64 = build/obj/windows-x64
 
 # Output files
 OUT_DIR_AARCH64 = build/libs/simdjson/shared/aarch64
 OUT_DIR_AMD64   = build/libs/simdjson/shared/amd64
-DYLIB  = $(OUT_DIR_AARCH64)/libsimdjson.dylib
-SO_ARM = $(OUT_DIR_AARCH64)/libsimdjson.so
-SO_X64 = $(OUT_DIR_AMD64)/libsimdjson.so
+OUT_DIR_WIN_X64 = build/libs/simdjson/shared/windows-x64
+DYLIB   = $(OUT_DIR_AARCH64)/libsimdjson.dylib
+SO_ARM  = $(OUT_DIR_AARCH64)/libsimdjson.so
+SO_X64  = $(OUT_DIR_AMD64)/libsimdjson.so
+DLL_WIN = $(OUT_DIR_WIN_X64)/simdjson.dll
+PDB_WIN = $(OUT_DIR_WIN_X64)/simdjson.pdb
 
 .PHONY: all clean local local-install install verify-linux-abi
 
 # --- local: build for the current platform using the native compiler ---
+# On Windows (MSYS/MinGW/Cygwin shell), reuses the same llvm-mingw driver as
+# the docker path; requires x86_64-w64-mingw32-clang++ on PATH.
 
-ifeq ($(shell uname -s),Darwin)
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)
   LOCAL_PLATFORM = darwin-aarch64
   LOCAL_OUTPUT   = $(DYLIB)
   local: CLANG = clang++
@@ -109,6 +120,10 @@ ifeq ($(shell uname -s),Darwin)
   local: DARWIN_STRIP = strip -x
   local: DARWIN_DSYMUTIL = dsymutil
   local: $(DYLIB)
+else ifneq (,$(or $(findstring MINGW,$(UNAME_S)),$(findstring MSYS,$(UNAME_S)),$(findstring CYGWIN,$(UNAME_S))))
+  LOCAL_PLATFORM = windows-x64
+  LOCAL_OUTPUT   = $(DLL_WIN)
+  local: $(DLL_WIN)
 else ifeq ($(shell uname -m),aarch64)
   LOCAL_PLATFORM = linux-aarch64
   LOCAL_OUTPUT   = $(SO_ARM)
@@ -139,9 +154,9 @@ install: local
 	mkdir -p $(INSTALL_DIR)
 	cp $(LOCAL_OUTPUT) $(INSTALL_DIR)/$(notdir $(LOCAL_OUTPUT))
 
-# --- all: cross-compile all three targets (inside Docker) ---
+# --- all: cross-compile all four targets (inside Docker) ---
 
-all: $(DYLIB) $(SO_ARM) $(SO_X64)
+all: $(DYLIB) $(SO_ARM) $(SO_X64) $(DLL_WIN)
 
 # --- darwin-aarch64 ---
 
@@ -184,9 +199,28 @@ $(SO_X64): $(OBJ_LIN_X64)/es_simdjson.o $(OBJ_LIN_X64)/simdjson.o | $(OUT_DIR_AM
 	$(LINUX_STRIP) $@
 	$(LINUX_OBJCOPY) --add-gnu-debuglink=$@.debug $@
 
+# --- windows-x64 ---
+# -gcodeview emits CodeView debug info; -Wl,--pdb= writes the corresponding
+# PDB next to the DLL; -Wl,-S strips the residual DWARF sections but keeps
+# the COFF symbol table. See the "PDB support" section of mstorsjo/llvm-mingw's
+# README for the officially documented recipe
+$(OBJ_WIN_X64)/es_simdjson.o: src/es_simdjson.cpp src/simdjson.h | $(OBJ_WIN_X64)
+	$(CXX_WIN) $(CXXFLAGS) -gcodeview -c $< -o $@
+
+$(OBJ_WIN_X64)/simdjson.o: src/simdjson.cpp src/simdjson.h | $(OBJ_WIN_X64)
+	$(CXX_WIN) $(CXXFLAGS) -gcodeview -c $< -o $@
+
+$(DLL_WIN): $(OBJ_WIN_X64)/es_simdjson.o $(OBJ_WIN_X64)/simdjson.o | $(OUT_DIR_WIN_X64)
+	$(CXX_WIN) -shared -static -Wl,--pdb=$(PDB_WIN) -Wl,-S $^ -o $@
+	@if command -v $(LLVM_PDBUTIL) >/dev/null 2>&1; then \
+	    $(LLVM_PDBUTIL) dump -summary $(PDB_WIN) > /dev/null; \
+	else \
+	    echo "note: $(LLVM_PDBUTIL) not on PATH; skipping PDB sanity check"; \
+	fi
+
 # --- directories ---
 
-$(OBJ_DARWIN) $(OBJ_LIN_ARM) $(OBJ_LIN_X64) $(OUT_DIR_AARCH64) $(OUT_DIR_AMD64):
+$(OBJ_DARWIN) $(OBJ_LIN_ARM) $(OBJ_LIN_X64) $(OBJ_WIN_X64) $(OUT_DIR_AARCH64) $(OUT_DIR_AMD64) $(OUT_DIR_WIN_X64):
 	mkdir -p $@
 
 # Fail the build if Linux .so files require GLIBCXX > 3.4.25 or GLIBC > 2.28

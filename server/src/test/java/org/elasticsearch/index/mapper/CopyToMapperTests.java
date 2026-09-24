@@ -812,4 +812,38 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertEquals(2, doc.rootDoc().getFields("du._all").size());
 
     }
+
+
+    public void testCopyToFalseDynamicNonExistentField() {
+        var e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            {
+                b.startObject("test_field");
+                {
+                    b.field("type", "text");
+                    b.field("copy_to", "missing_field");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), Matchers.containsString("Cannot copy to field [missing_field] since it is a non existent field"));
+    }
+
+    public void testCopyToTrueDynamicNonExistentField() throws IOException {
+        createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", true);
+            b.startObject("properties");
+            {
+                b.startObject("test_field");
+                {
+                    b.field("type", "text");
+                    b.field("copy_to", "missing_field");
+                }
+                b.endObject();
+            }
+            b.endObject();}));
+    }
+
 }

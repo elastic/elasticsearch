@@ -2633,7 +2633,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             : nextStandard(rowsToRead, firstRowOfBatchInRG);
         int droppedRows = useLateMaterialization == false && rowDropHelper != null ? rowDropHelper.failedCount() : 0;
         try {
-            listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
+            listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
         } catch (RuntimeException e) {
             result.releaseBlocks();
             throw e;

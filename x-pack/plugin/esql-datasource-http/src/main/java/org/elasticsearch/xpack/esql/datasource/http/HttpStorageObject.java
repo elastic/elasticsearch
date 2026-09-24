@@ -683,7 +683,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      */
     private Exception mapAsyncSendFailure(Throwable throwable) {
         // unwrapBreakerTrip renders the path it is handed into its message, so it gets the redacted form.
-        CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", StoragePath.of(HttpUrls.redact(path)));
+        CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", HttpUrls.redact(path));
         if (breakerTrip != null) {
             return breakerTrip;
         }

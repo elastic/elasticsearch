@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -104,6 +105,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -4022,6 +4024,87 @@ public class ExternalSourceResolverTests extends ESTestCase {
             e.getMessage(),
             containsString("[1] of [1] files under [s3://bucket/vpcflow/] skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])")
         );
+    }
+
+    /**
+     * A comma list whose segments each list only excluded objects raises one exclusion notice per segment, each naming
+     * its own prefix, so exact-text deduplication alone would deliver one warning per segment. The listing channel is
+     * capped like the metadata channel, with a single overflow marker after everything else. One segment matches a
+     * file, so the resolve succeeds and the notices are delivered. Prefix globs imply no format, so parquet is declared
+     * the same way a PUT of {@code pN/*} would have to.
+     */
+    public void testListingNoticesAreCapped() throws Exception {
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        List<String> segments = excludedOnlySegments(listingsByPrefix);
+        schemasByPath.put("s3://bucket/data/a.parquet", List.of(attr("id", DataType.INTEGER)));
+        listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/a.parquet", 100)));
+        segments.add("s3://bucket/data/*");
+
+        ExternalSourceResolution resolution = resolveResourceWithConfig(
+            String.join(",", segments),
+            schemasByPath,
+            listingsByPrefix,
+            Map.of("format", "parquet")
+        );
+
+        List<String> warnings = resolution.warnings();
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, warnings.size());
+        for (String warning : warnings.subList(0, SkipWarnings.MAX_ADDED_WARNINGS)) {
+            assertThat(warning, containsString("skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])"));
+        }
+        assertEquals(SkipWarnings.overflowMessage(), warnings.get(SkipWarnings.MAX_ADDED_WARNINGS));
+    }
+
+    /**
+     * Listing notices and schema notices are separate channels: a comma list with more excluded-only segments than the
+     * cap raises one exclusion notice per segment, and the notice that the user's numbers came back as strings must
+     * still be delivered.
+     */
+    public void testListingNoticesDoNotStarveSchemaNotices() throws Exception {
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        List<String> segments = excludedOnlySegments(listingsByPrefix);
+        // The matching segment's two files disagree on the type, so reconciliation widens [id] to keyword.
+        schemasByPath.put("s3://bucket/data/a.parquet", List.of(attr("id", DataType.INTEGER)));
+        schemasByPath.put("s3://bucket/data/b.parquet", List.of(attr("id", DataType.KEYWORD)));
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 100))
+        );
+        segments.add("s3://bucket/data/*");
+
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+        config.put("format", "parquet");
+        ExternalSourceResolution resolution = resolveResourceWithConfig(
+            String.join(",", segments),
+            schemasByPath,
+            listingsByPrefix,
+            config
+        );
+
+        List<String> warnings = resolution.warnings();
+        assertThat(warnings, hasItem(containsString("Columns whose type differs between files are read as [keyword]")));
+        assertEquals(
+            "the listing channel is still capped on its own",
+            SkipWarnings.MAX_ADDED_WARNINGS,
+            warnings.stream().filter(w -> w.contains("skipped by [file_exclusions]")).count()
+        );
+        assertEquals(SkipWarnings.overflowMessage(), warnings.get(warnings.size() - 1));
+    }
+
+    /**
+     * More segments than {@link SkipWarnings#MAX_ADDED_WARNINGS}, each under its own prefix and listing only an excluded
+     * {@code _SUCCESS} marker, so each carries a distinct exclusion notice on its empty listing.
+     */
+    private static List<String> excludedOnlySegments(Map<String, List<StorageEntry>> listingsByPrefix) {
+        List<String> segments = new ArrayList<>();
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
+            String prefix = "s3://bucket/p" + i + "/";
+            listingsByPrefix.put(prefix, List.of(entry(prefix + "_SUCCESS", 0)));
+            segments.add(prefix + "*");
+        }
+        return segments;
     }
 
     /**

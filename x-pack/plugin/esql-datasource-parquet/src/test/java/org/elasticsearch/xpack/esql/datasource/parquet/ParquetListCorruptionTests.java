@@ -235,7 +235,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         assertEquals("orphan charges 1 error", 1L, budget.errorCount());
 
         // completeBatch(100, 0): ensureRowsAtLeast(100) → max(100, 100) = 100; addErrors(0) is a no-op
-        handler.completeBatch(100, 0, SkipWarnings.NOOP);
+        handler.completeBatch(100, 0);
         assertEquals("completeBatch must not double-count rowCount", 100L, budget.rowCount());
         assertEquals("no dropped rows so error count unchanged", 1L, budget.errorCount());
     }
@@ -250,7 +250,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
         );
 
         handler.recoveredOrphan("x", 0, 1, 1, 1);
-        ParsingException e = expectThrows(ParsingException.class, () -> handler.completeBatch(2, 1, SkipWarnings.NOOP));
+        ParsingException e = expectThrows(ParsingException.class, () -> handler.completeBatch(2, 1));
         assertThat(e.getMessage(), containsString("[2] errors"));
     }
 

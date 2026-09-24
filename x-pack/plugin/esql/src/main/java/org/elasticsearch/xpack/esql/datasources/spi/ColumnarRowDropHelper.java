@@ -44,7 +44,7 @@ import java.util.Arrays;
  *       failures on the same row count as one dropped row).</li>
  *   <li>At the emit point: call {@link #filterBlocks(Block[], BlockFactory)} to compact the blocks and
  *       remove all failed rows; call {@link #addToTotals(int, int)} to update the cumulative budget
- *       counters; call {@link #checkBudget(SkipWarnings)} to throw a
+ *       counters; call {@link #checkBudget()} to throw a
  *       {@link org.elasticsearch.xpack.esql.parser.ParsingException} (HTTP 400) if the configured
  *       error budget is exceeded.</li>
  * </ol>
@@ -298,11 +298,8 @@ public final class ColumnarRowDropHelper {
      * {@link org.elasticsearch.xpack.esql.parser.ParsingException} (HTTP 400 — client-data problem)
      * if so. The exception is the only channel: a warning added just before the throw would never reach
      * the client, since driver warnings travel only with a successful response.
-     *
-     * @param warnings the reader's per-value coercion-warning collector, or {@code null}; unused, kept so
-     *                 callers need not change
      */
-    public void checkBudget(@Nullable SkipWarnings warnings) {
-        budget.checkBudget(warnings, "dropped rows");
+    public void checkBudget() {
+        budget.checkBudget("dropped rows");
     }
 }

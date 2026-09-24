@@ -6959,6 +6959,19 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue("expected skip_row hint, got: " + e.getMessage(), e.getMessage().contains("skip_row"));
     }
 
+    public void testRowErrorReasonRendersJacksonFieldTooLong() {
+        String jackson = "String value length (12) exceeds the maximum allowed (10, "
+            + "from `StreamReadConstraints.getMaxStringLength()`)";
+        assertEquals("field of [12] characters exceeds [10]", CsvFormatReader.rowErrorReason(jackson));
+    }
+
+    public void testRowErrorReasonFallbackDropsJacksonConstraintReference() {
+        // A reworded Jackson message misses JACKSON_FIELD_TOO_LONG; the fallback must still not name the Jackson class.
+        String reworded = CsvFormatReader.READ_RECORD_FAILURE
+            + ": String length (12) is over the limit (10, from `StreamReadConstraints.getMaxStringLength()`)";
+        assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded));
+    }
+
     public void testCsvErrorMessagesSummarizeShortValuePassesThrough() {
         assertEquals("hello", CsvErrorMessages.summarize("hello"));
         assertEquals("null", CsvErrorMessages.summarize((String) null));

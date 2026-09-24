@@ -1986,7 +1986,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
 
         CloseableIterator<Page> pages = null;
-        SharedErrorBudget splitBudget = SharedErrorBudget.forPolicy(errorPolicy, fileSplit.path().toString());
+        SharedErrorBudget splitBudget = SharedErrorBudget.forPolicy(
+            errorPolicy,
+            ExternalFailures.redactHttpUrl(fileSplit.path().toString())
+        );
         // true on text-reader path: reader owns its parse-error budget separately; adapter must own rowCount
         // so max_error_ratio applies to reconciliation-cast drops (parse-error drops stay in reader's budget).
         boolean adapterOwnsRowCount = false;
@@ -2292,7 +2295,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 ),
                 filePath.objectName()
             );
-            SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, filePath.toString());
+            SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, ExternalFailures.redactHttpUrl(filePath.toString()));
             pages = openWithParallelism(
                 fileReader,
                 obj,

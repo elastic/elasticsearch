@@ -181,7 +181,9 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         Files.writeString(dir.resolve("a.csv"), "_id,emp_no\nrow-a,1\n", StandardCharsets.UTF_8);
         String dataset = registerDataset("metadata_shadow", StoragePath.fileUri(dir.resolve("a.csv")), Map.of("format", "csv"));
 
-        String notice = "Column [_id] in dataset [" + dataset + "] is shadowed by METADATA; rename it in the dataset mapping to read both";
+        String notice = "Column [_id] in dataset ["
+            + dataset
+            + "] is shadowed by METADATA; the METADATA value is used; rename it in the dataset mapping to read both";
         assertThat(warningsOf("FROM " + dataset + " METADATA _id | KEEP emp_no"), hasItem(containsString(notice)));
         assertThat(warningsOf("FROM " + dataset + " | KEEP emp_no"), not(hasItem(containsString("shadowed by METADATA"))));
     }

@@ -28,6 +28,7 @@ id:integer | tags:keyword         | cnt:integer
 
 csvNoneOnMultiValueDataFailsColumnMismatch
 required_capability: dataset_in_from_command
+required_capability: external_dataset_messages
 dataset: mv_sample_none: "{{mv_sample}}" WITH {"multi_value_syntax": "none", "error_mode": "skip_row"}
 
 FROM mv_sample_none

@@ -172,7 +172,7 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         helper.markFailed(0);
         helper.markFailed(1); // 2 errors, budget is 1
         helper.addToTotals(3, 2);
-        ParsingException e = expectThrows(ParsingException.class, () -> helper.checkBudget(SkipWarnings.NOOP));
+        ParsingException e = expectThrows(ParsingException.class, () -> helper.checkBudget());
         assertThat(e.getErrorMessage(), equalTo("[2] dropped rows in [3] rows of [test.parquet]; over [max_errors] of [1]"));
     }
 
@@ -186,7 +186,7 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         helper.markFailed(0);
         helper.markFailed(1);
         helper.addToTotals(3, 2);
-        ParsingException e = expectThrows(ParsingException.class, () -> helper.checkBudget(null));
+        ParsingException e = expectThrows(ParsingException.class, () -> helper.checkBudget());
         assertThat(e.getErrorMessage(), equalTo("[2] dropped rows in [3] rows of [test.parquet]; over [max_error_ratio] of [0.1]"));
     }
 
@@ -198,7 +198,7 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         helper.markFailed(0);
         helper.markFailed(1);
         helper.addToTotals(3, 2);
-        expectThrows(ParsingException.class, () -> helper.checkBudget(null));
+        expectThrows(ParsingException.class, () -> helper.checkBudget());
     }
 
     public void testBudgetNotExceededDoesNotThrow() {
@@ -206,7 +206,7 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         helper.beginBatch(3);
         helper.markFailed(0);
         helper.addToTotals(3, 1);
-        helper.checkBudget(SkipWarnings.NOOP); // should not throw
+        helper.checkBudget(); // should not throw
     }
 
     // ---- beginBatch resets state between batches ----

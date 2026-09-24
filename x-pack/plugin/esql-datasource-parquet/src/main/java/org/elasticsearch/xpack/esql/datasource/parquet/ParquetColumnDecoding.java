@@ -264,6 +264,8 @@ final class ParquetColumnDecoding {
     static void warnTimestampOutOfRange(ColumnInfo info, @Nullable Consumer<String> warningSink) {
         ColumnDescriptor descriptor = info.descriptor();
         String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
+        // The outcome is the same in every error_mode: no caller charges the budget or drops the row. A scalar is
+        // nulled; a LIST element is dropped, and the list is null only when every element is out of range.
         String warning = "column [" + column + "]: timestamps outside the [date_nanos] range (1677-09-21 to 2262-04-11); returning null";
         if (warningSink != null) {
             warningSink.accept(warning);
@@ -330,7 +332,7 @@ final class ParquetColumnDecoding {
                     try {
                         builder.appendLong(DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter));
                     } catch (IllegalArgumentException | DateTimeException e) {
-                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
+                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
                         if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                     }
@@ -347,7 +349,7 @@ final class ParquetColumnDecoding {
                         try {
                             parsed[v] = DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter);
                         } catch (IllegalArgumentException | DateTimeException e) {
-                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
+                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
                             failed = true;
                         }
                     }
@@ -660,7 +662,7 @@ final class ParquetColumnDecoding {
                 sharedBudget.addErrors(1);
                 sharedBudget.ensureRowsAtLeast(Math.max(1L, rowsSeen));
             }
-            checkBudget(warnings);
+            checkBudget();
             // The response detail omits the file (the summary names it); the log line has no summary, so it names it here.
             logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, "Malformed list data in [" + fileLocation + "]: " + detail);
         }
@@ -668,7 +670,7 @@ final class ParquetColumnDecoding {
         /**
          * Completes one decoded batch and charges row drops to the same counter as recovered LIST fragments.
          */
-        void completeBatch(int sourceRows, int droppedRows, @Nullable SkipWarnings droppedRowWarnings) {
+        void completeBatch(int sourceRows, int droppedRows) {
             completedRows += sourceRows;
             rowsSeen = Math.max(rowsSeen, completedRows);
             errorCount += droppedRows;
@@ -680,10 +682,10 @@ final class ParquetColumnDecoding {
                 sharedBudget.ensureRowsAtLeast(completedRows);
                 sharedBudget.addErrors(droppedRows);
             }
-            checkBudget(recoveredListErrorCount > 0 ? warnings : droppedRowWarnings);
+            checkBudget();
         }
 
-        private void checkBudget(@Nullable SkipWarnings budgetWarnings) {
+        private void checkBudget() {
             String errorKind;
             if (droppedRowErrorCount == 0) {
                 errorKind = "structural errors";
@@ -693,23 +695,20 @@ final class ParquetColumnDecoding {
                 errorKind = "errors";
             }
             if (sharedBudget != null) {
-                sharedBudget.checkBudget(budgetWarnings, errorKind);
+                sharedBudget.checkBudget(errorKind);
                 return;
             }
             if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen) == false) {
                 return;
             }
-            // Name only the limit that tripped, checked in the order ErrorPolicy.isBudgetExceeded checks them.
-            boolean overMaxErrors = errorCount > errorPolicy.maxErrors();
             throw new ParsingException(
                 Source.EMPTY,
-                "[{}] {} in [{}] rows of [{}]; over [{}] of [{}]",
+                "[{}] {} in [{}] rows of [{}]; {}",
                 errorCount,
                 errorKind,
                 rowsSeen,
                 fileLocation,
-                overMaxErrors ? "max_errors" : "max_error_ratio",
-                overMaxErrors ? String.valueOf(errorPolicy.maxErrors()) : String.valueOf(errorPolicy.maxErrorRatio())
+                errorPolicy.trippedLimit(errorCount)
             );
         }
 
@@ -1367,14 +1366,7 @@ final class ParquetColumnDecoding {
                             try {
                                 parsed[count++] = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
                             } catch (IllegalArgumentException | DateTimeException e) {
-                                DeclaredTypeCoercions.onCoercionFailure(
-                                    columnName,
-                                    DataType.KEYWORD,
-                                    DataType.DATETIME,
-                                    e,
-                                    warnings,
-                                    skipRow
-                                );
+                                DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
                                 failed = true;
                             }
                         }

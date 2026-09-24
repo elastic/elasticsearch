@@ -103,35 +103,22 @@ public final class SharedErrorBudget {
     }
 
     /**
-     * Checks the budget and throws a {@link ParsingException} (HTTP 400) if exceeded. Nothing is added to
-     * {@code warnings} first: a warning added just before a throw never reaches the client, since driver
-     * warnings travel only with a successful response.
+     * Checks the budget and throws a {@link ParsingException} (HTTP 400) if exceeded. Nothing is added to a warnings
+     * collector first: a warning added just before a throw never reaches the client, since driver warnings travel
+     * only with a successful response.
      *
-     * @param warnings   the caller's collector; unused, kept so callers need not change
      * @param errorKind  describes what the error count covers, in plural form (e.g. {@code "dropped rows"})
      */
-    public void checkBudget(@Nullable SkipWarnings warnings, String errorKind) {
+    public void checkBudget(String errorKind) {
         if (policy.isBudgetExceeded(errorCount, rowCount)) {
-            // Name only the limit that tripped, checked in the order ErrorPolicy.isBudgetExceeded checks them: an
-            // unset limit holds a sentinel (Long.MAX_VALUE, 0.0) that must not be printed as if it were one.
-            // The limit is boxed on each branch separately: one conditional over a long and a double would widen
-            // the count to a double and print [10] as [10.0].
-            boolean overMaxErrors = errorCount > policy.maxErrors();
-            Object limit;
-            if (overMaxErrors) {
-                limit = policy.maxErrors();
-            } else {
-                limit = policy.maxErrorRatio();
-            }
             throw new ParsingException(
                 Source.EMPTY,
-                "[{}] {} in [{}] rows of [{}]; over [{}] of [{}]",
+                "[{}] {} in [{}] rows of [{}]; {}",
                 errorCount,
                 errorKind,
                 rowCount,
                 fileLocation,
-                overMaxErrors ? ErrorPolicy.CONFIG_MAX_ERRORS : ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
-                limit
+                policy.trippedLimit(errorCount)
             );
         }
     }

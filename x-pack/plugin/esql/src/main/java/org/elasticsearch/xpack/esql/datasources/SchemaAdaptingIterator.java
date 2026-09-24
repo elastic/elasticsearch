@@ -332,7 +332,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                         schemaReleased = true;
                         filtered = dropHelper.filterBlocks(filtered, blockFactory);
                         dropHelper.addToTotals(originalPositions, dropped);
-                        dropHelper.checkBudget(castWarnings);
+                        dropHelper.checkBudget();
                         return new Page(originalPositions - dropped, filtered);
                     } catch (Throwable e) {
                         Releasables.closeExpectNoException(filtered);

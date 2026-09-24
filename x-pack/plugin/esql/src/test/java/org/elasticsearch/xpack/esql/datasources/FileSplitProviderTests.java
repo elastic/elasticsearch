@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
@@ -15,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -2102,7 +2104,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         List<ExternalSplit> splits = withSplitLog(
             () -> discoverPlainCsvSplits(payloads, stride, null, null),
-            shortfallLogged("[3] file(s) were cut into fewer splits than a [" + ByteSizeValue.ofBytes(stride) + "] split size gives, *")
+            new LoggedOnce("[3] file(s) were cut into fewer splits than a [" + ByteSizeValue.ofBytes(stride) + "] split size gives, *")
         );
 
         assertEquals("each file with no usable boundary is read whole", payloads.size(), splits.size());
@@ -2428,7 +2430,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         assertEquals(
             "[split_probe_window] of [8mb] times [max_split_probes] of [1024] exceeds [4gb]; "
-                + "lower either, at [1024] the window can be at most [4mb]",
+                + "lower either (at [1024] probes the window can be at most [4mb])",
             e.getMessage()
         );
     }
@@ -2448,6 +2450,33 @@ public class FileSplitProviderTests extends ESTestCase {
     /** The split shortfall line, matched as a {@code *} wildcard pattern. */
     private static MockLog.LoggingExpectation shortfallLogged(String pattern) {
         return new MockLog.SeenEventExpectation("split shortfall", FileSplitProvider.class.getCanonicalName(), Level.WARN, pattern);
+    }
+
+    /**
+     * A {@link FileSplitProvider} WARN line matching {@code pattern} logged exactly once. {@link MockLog.SeenEventExpectation}
+     * is satisfied by the first match and does not count, so it cannot tell one line from one per file.
+     */
+    private static final class LoggedOnce implements MockLog.LoggingExpectation {
+        private final String pattern;
+        private final AtomicInteger seen = new AtomicInteger();
+
+        LoggedOnce(String pattern) {
+            this.pattern = pattern;
+        }
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel().equals(Level.WARN)
+                && event.getLoggerName().equals(FileSplitProvider.class.getCanonicalName())
+                && Regex.simpleMatch(pattern, event.getMessage().getFormattedMessage())) {
+                seen.incrementAndGet();
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            assertEquals("times [" + pattern + "] was logged", 1, seen.get());
+        }
     }
 
     /** The line logged when the probe budget widened the requested split size. */

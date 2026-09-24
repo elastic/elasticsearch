@@ -213,17 +213,18 @@ public final class ExternalFailures {
      * directly rather than re-deriving it from the cause.
      */
     public static String locate(String prefix, String location, @Nullable String detail) {
+        String shown = redactHttpUrl(location);
         if (detail == null) {
             // A message-less throwable reaches here from the arms that pass getMessage() straight in --
             // EsRejectedExecutionException has a no-argument constructor. Name the location and stop, rather
             // than appending the word "null".
-            return prefix + " [" + redactHttpUrl(location) + "]";
+            return prefix + " [" + shown + "]";
         }
-        // contains() is deliberately loose: it is inherited from resolutionFailureMessage, and a location that is a
-        // strict prefix of the one named in the detail would suppress the prefix wrongly. No path produces that
-        // today -- both come from the same StoragePath -- so tightening it is not worth a behaviour change here.
-        String shown = redactHttpUrl(location);
-        return detail.contains(shown) ? detail : prefix + " [" + shown + "]: " + detail;
+        // Redact every occurrence of the raw location before deciding: a pre-signed URL's redacted form is a prefix of
+        // the raw one, so a detail naming the raw URL also "contains" the redacted form and would pass the signature
+        // through. A detail built from the redacted form (the HTTP store's own messages) already names the location.
+        String safeDetail = detail.replace(location, shown);
+        return safeDetail.contains(shown) ? safeDetail : prefix + " [" + shown + "]: " + safeDetail;
     }
 
     /**
@@ -289,13 +290,9 @@ public final class ExternalFailures {
             return location;
         }
         String rest = location.substring(schemeEnd + 3);
-        int end = rest.length();
-        for (char c : new char[] { '?', '#' }) {
-            int i = rest.indexOf(c);
-            if (i >= 0 && i < end) {
-                end = i;
-            }
-        }
+        int query = rest.indexOf('?');
+        int fragment = rest.indexOf('#');
+        int end = Math.min(query < 0 ? rest.length() : query, fragment < 0 ? rest.length() : fragment);
         rest = rest.substring(0, end);
         int pathStart = rest.indexOf('/');
         int at = rest.lastIndexOf('@', pathStart < 0 ? rest.length() - 1 : pathStart - 1);

@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
@@ -583,7 +584,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+            ExternalFailures.redactHttpUrl(object.path().toString()),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -731,7 +733,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+            ExternalFailures.redactHttpUrl(object.path().toString()),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -1665,7 +1668,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (rowDropHelper != null) {
                 rowDropHelper.addToTotals(batch.size, rowDropHelper.failedCount());
                 try {
-                    rowDropHelper.checkBudget(coercionWarnings());
+                    rowDropHelper.checkBudget();
                 } catch (Exception e) {
                     page.releaseBlocks();
                     throw e;
@@ -2243,8 +2246,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings(),
-                                    skipRow
+                                    coercionWarnings()
                                 );
                                 failed = true;
                             }
@@ -2506,8 +2508,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings(),
-                                    skipRow
+                                    coercionWarnings()
                                 );
                                 if (skipRow) failedPositionSink.accept(i);
                                 builder.appendNull();

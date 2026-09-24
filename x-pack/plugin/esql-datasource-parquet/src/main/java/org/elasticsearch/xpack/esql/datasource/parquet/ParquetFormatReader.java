@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -2354,7 +2355,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 blockFactory,
                 rowLimit,
                 createdBy,
-                object.path().toString(),
+                // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+                ExternalFailures.redactHttpUrl(object.path().toString()),
                 hasRecordFilter,
                 rangeBlockGlobalOffsets,
                 counters,
@@ -2397,7 +2399,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         String[] absentColumnWarnings = buildAbsentColumnWarnings(projectedAttributes, columnInfos);
         validatePlannerTypesAgainstFile(
             logger,
-            storageObject.path().toString(),
+            ExternalFailures.redactHttpUrl(storageObject.path().toString()),
             reader,
             projectedAttributes,
             columnInfos,
@@ -2539,7 +2541,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 blockFactory,
                 rowLimit,
                 createdBy,
-                storageObject.path().toString(),
+                // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+                ExternalFailures.redactHttpUrl(storageObject.path().toString()),
                 columnInfos,
                 preloadedMetadata,
                 storageObject,
@@ -3920,7 +3923,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // drops share this one counter for the iterator.
             int droppedRows = rowDropHelper != null ? rowDropHelper.failedCount() : 0;
             try {
-                listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
+                listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
             } catch (RuntimeException e) {
                 ParquetReadFailures.closePreservingCause(e, blocks);
                 throw e;
@@ -4245,14 +4248,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     try {
                         values[i] = DeclaredTypeCoercions.parseDatetimeMillis(cr.getBinary().toStringUsingUTF8(), info.dateFormatter());
                     } catch (IllegalArgumentException | DateTimeException e) {
-                        DeclaredTypeCoercions.onCoercionFailure(
-                            columnName,
-                            DataType.KEYWORD,
-                            DataType.DATETIME,
-                            e,
-                            coercionWarnings(),
-                            skipRow
-                        );
+                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, coercionWarnings());
                         if (skipRow) failedPositionSink.accept(i);
                         isNull.set(i);
                         noNulls = false;

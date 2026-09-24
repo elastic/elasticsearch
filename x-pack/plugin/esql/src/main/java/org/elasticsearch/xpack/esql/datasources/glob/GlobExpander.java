@@ -582,13 +582,14 @@ public final class GlobExpander {
                         if (walkTypesConsistent(walk, walkedMetadata)) {
                             // Counted pre-_file.*-filter, as the flat path counts.
                             if (walk.excludedCount() > 0) {
-                                String exclusionNotice = logExclusions(
+                                String exclusionNotice = exclusionNotice(
                                     walk.excludedCount(),
                                     walk.matched().size(),
                                     prefix.toString(),
                                     walk.excludedExample(),
                                     walk.excludedExampleEntry()
                                 );
+                                logger.debug("{}", exclusionNotice);
                                 if (walked.isEmpty()) {
                                     walkNotices.add(exclusionNotice);
                                 }
@@ -679,9 +680,11 @@ public final class GlobExpander {
         // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
         // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
         List<String> listingWarnings = new ArrayList<>();
-        String exclusionNotice = excludedCount > 0
-            ? logExclusions(excludedCount, globKeptCount, prefixStr, excludedExample, excludedExampleEntry)
-            : null;
+        String exclusionNotice = null;
+        if (excludedCount > 0) {
+            exclusionNotice = exclusionNotice(excludedCount, globKeptCount, prefixStr, excludedExample, excludedExampleEntry);
+            logger.debug("{}", exclusionNotice);
+        }
 
         if (matched.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
             matched.add(fileHintAnchor);
@@ -719,26 +722,27 @@ public final class GlobExpander {
     private static final String EXCLUSION_NOTICE = "[{}] of [{}] files under [{}] skipped by [{}], e.g. [{}] (matched [{}])";
 
     /**
-     * Logs one line per listing, however many objects it drops, at INFO because it fires for the default exclusion
-     * list too. Counted against everything the resource pattern selected (kept plus dropped). Returns the same text
-     * for the caller to attach to an empty listing, where it is the reason the resolver's error gives.
+     * The one line a listing reports for everything {@code file_exclusions} dropped from it, however many objects that
+     * is, counted against everything the resource pattern selected (kept plus dropped). Callers log it at DEBUG, since
+     * the default exclusion list makes it fire on every folder a Spark or Hadoop job wrote, and attach it to an empty
+     * listing, where it is the reason the resolver's "matched no files" error gives.
      */
-    private static String logExclusions(
+    private static String exclusionNotice(
         int excludedCount,
         int matchedCount,
         String prefix,
         String excludedExample,
         String excludedExampleEntry
     ) {
-        Object[] args = {
+        return LoggerMessageFormat.format(
+            EXCLUSION_NOTICE,
             excludedCount,
             matchedCount + excludedCount,
             prefix,
             ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
             excludedExample,
-            excludedExampleEntry };
-        logger.info(EXCLUSION_NOTICE, args);
-        return LoggerMessageFormat.format(EXCLUSION_NOTICE, args);
+            excludedExampleEntry
+        );
     }
 
     /**

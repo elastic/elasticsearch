@@ -2954,7 +2954,7 @@ public class FileSplitProvider implements SplitProvider {
         long widestWindow = MAX_PROBE_BUDGET_BYTES / maxSplitProbes;
         Check.clientError(
             splitProbeWindowBytes <= widestWindow,
-            "[{}] of [{}] times [{}] of [{}] exceeds [{}]; lower either, at [{}] the window can be at most [{}]",
+            "[{}] of [{}] times [{}] of [{}] exceeds [{}]; lower either (at [{}] probes the window can be at most [{}])",
             CONFIG_SPLIT_PROBE_WINDOW,
             ByteSizeValue.ofBytes(splitProbeWindowBytes),
             CONFIG_MAX_SPLIT_PROBES,

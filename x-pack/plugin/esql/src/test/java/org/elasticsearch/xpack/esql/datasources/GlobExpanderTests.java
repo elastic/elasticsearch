@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
@@ -2808,6 +2809,10 @@ public class GlobExpanderTests extends ESTestCase {
      * how many of the objects the resource selected were dropped, one of them, and the entry responsible, in a
      * single line however many objects were dropped. A listing with files carries no notice.
      */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.glob.GlobExpander:DEBUG",
+        reason = "the exclusion notice fires for the default exclusion list, so it is logged at DEBUG"
+    )
     public void testExclusionLogsCountsAndTheEntryResponsible() throws IOException {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/_SUCCESS", 0),
@@ -2822,7 +2827,7 @@ public class GlobExpanderTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "exclusion",
                     GlobExpander.class.getCanonicalName(),
-                    Level.INFO,
+                    Level.DEBUG,
                     "[2] of [4] files under [s3://bucket/data/] skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])"
                 )
             );

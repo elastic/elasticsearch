@@ -19,6 +19,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
@@ -37,6 +38,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
@@ -54,6 +56,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
@@ -83,6 +86,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
@@ -105,6 +109,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
@@ -125,6 +130,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "file_sort_by": "name", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null

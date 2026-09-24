@@ -15,6 +15,7 @@
 // the error policy are therefore not independent, and this pins the pair.
 strictDeclaredStringReadsAsDoubleOnParquetUnderNullFieldPolicy
 required_capability: dataset_in_from_command
+required_capability: external_dataset_messages
 dataset: employees_declared_parse: "{{employees_no_mv}}" WITH {"error_mode": "null_field", "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "change": {"type": "double", "path": "salary_change.keyword"}}}}
 
 FROM employees_declared_parse

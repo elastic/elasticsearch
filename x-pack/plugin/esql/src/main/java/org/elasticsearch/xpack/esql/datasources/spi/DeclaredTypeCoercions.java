@@ -344,7 +344,7 @@ public final class DeclaredTypeCoercions {
                     try {
                         coerced = coercer.apply(read.apply(first));
                     } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
-                        onCoercionFailure(columnName, from, to, e, warnings, skipRow);
+                        onCoercionFailure(columnName, from, to, e, warnings);
                         if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                         continue;
@@ -362,7 +362,7 @@ public final class DeclaredTypeCoercions {
                         try {
                             scratch[v] = coercer.apply(read.apply(first + v));
                         } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
-                            onCoercionFailure(columnName, from, to, e, warnings, skipRow);
+                            onCoercionFailure(columnName, from, to, e, warnings);
                             failed = true;
                         }
                     }
@@ -411,22 +411,6 @@ public final class DeclaredTypeCoercions {
         DataType to,
         RuntimeException e,
         @Nullable SkipWarnings warnings
-    ) {
-        onCoercionFailure(columnName, from, to, e, warnings, false);
-    }
-
-    /**
-     * Overload of {@link #onCoercionFailure} for callers that track {@code skip_row}. The flag no longer
-     * changes the text, since the caller's summary states the outcome; it is kept so those call sites need
-     * not change.
-     */
-    public static void onCoercionFailure(
-        @Nullable String columnName,
-        DataType from,
-        DataType to,
-        RuntimeException e,
-        @Nullable SkipWarnings warnings,
-        boolean skipRow
     ) {
         String detail = "column ["
             + (columnName == null ? "<unknown>" : columnName)

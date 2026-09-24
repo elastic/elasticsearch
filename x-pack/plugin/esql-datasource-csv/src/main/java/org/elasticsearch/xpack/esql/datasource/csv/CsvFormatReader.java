@@ -425,6 +425,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         "String value length \\((\\p{Nd}+)\\) exceeds the maximum allowed \\((\\p{Nd}+),"
     );
 
+    /**
+     * Jackson's reference to the constraint that tripped, such as {@code , from `StreamReadConstraints.getMaxStringLength()`}.
+     * {@link #rowErrorReason} strips it from any message {@link #JACKSON_FIELD_TOO_LONG} does not match, so a reworded
+     * Jackson message still does not name a Jackson class.
+     */
+    private static final Pattern JACKSON_CONSTRAINT_REFERENCE = Pattern.compile(",?\\s*from\\s+`?StreamReadConstraints[\\w.()]*`?");
+
     /** Mode [escaped] plus an explicit [quote]: the PUT-time error and the read-time warning say the same thing. */
     static final String ESCAPED_WITH_QUOTE_MESSAGE =
         "[quote] turns off the [escaped] mode's \\N and \\t decoding; remove [quote] to decode them";
@@ -1340,7 +1347,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
-        String sourceLocation = object.path().toString();
+        // Only messages read this, so redact once here: a pre-signed URL's query string is a credential.
+        String sourceLocation = ExternalFailures.redactHttpUrl(object.path().toString());
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -1868,28 +1876,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             .append("] errors in [")
             .append(rowCount)
             .append("] rows, ")
-            .append(budgetLimitTripped(errorCount, policy))
+            .append(policy.trippedLimit(errorCount))
             .append("; first errors: ");
         appendCapturedErrors(details, capturedErrors);
         return new ExternalClientException(cause, "{}", details.toString());
     }
 
     /**
-     * The limit an exceeded error budget tripped, as {@code over [max_errors] of [N]} or
-     * {@code over [max_error_ratio] of [R]}. Checks {@code errors > maxErrors} first, the same order as
-     * {@link ErrorPolicy#isBudgetExceeded}, so an unset limit's sentinel is never printed.
-     */
-    static String budgetLimitTripped(long errorCount, ErrorPolicy policy) {
-        return errorCount > policy.maxErrors()
-            ? "over [max_errors] of [" + policy.maxErrors() + "]"
-            : "over [max_error_ratio] of [" + policy.maxErrorRatio() + "]";
-    }
-
-    /**
      * The reason clause of a row the reader could not parse: the cause message without the
      * {@link #READ_RECORD_FAILURE} prefix the record iterator adds, capped by {@link CsvErrorMessages#summarize}.
      * Jackson's over-{@code max_field_size} message is rendered as {@link #fieldSizeExceededDetail}, so the
-     * Jackson arm and the house tokenizer report an over-long field in the same words.
+     * Jackson arm and the house tokenizer report an over-long field in the same words. Any other message loses its
+     * {@link #JACKSON_CONSTRAINT_REFERENCE}.
      */
     static String rowErrorReason(String message) {
         String prefix = READ_RECORD_FAILURE + ": ";
@@ -1899,6 +1897,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (tooLong.lookingAt()) {
                 return fieldSizeExceededDetail(Integer.parseInt(tooLong.group(1)), Integer.parseInt(tooLong.group(2)));
             }
+            reason = JACKSON_CONSTRAINT_REFERENCE.matcher(reason).replaceAll("");
         }
         return CsvErrorMessages.summarize(reason);
     }
@@ -3421,6 +3420,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final DateFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
         private final String sourceLocation;
+        /**
+         * {@link #sourceLocation} as messages render it, with an HTTP location's query string and user info removed.
+         * {@link #sourceLocation} itself keys stats and cache entries, so it keeps the location verbatim.
+         */
+        private final String messageLocation;
         private final SkipWarnings skipWarnings;
         /** The read context's informational sink; the read-time null-marker hint goes here. */
         @Nullable
@@ -3720,6 +3724,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
+            this.messageLocation = ExternalFailures.redactHttpUrl(sourceLocation);
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;
@@ -3739,8 +3744,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD
-                    ? "Some values in [" + sourceLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed"
-                    : "Some rows in [" + sourceLocation + "] cannot be read; skipping them",
+                    ? "Some values in [" + messageLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed"
+                    : "Some rows in [" + messageLocation + "] cannot be read; skipping them",
                 this.warningSink
             );
         }
@@ -4434,7 +4439,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return null;
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
+            maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             boolean[] sawUndecodableTemporal = new boolean[columnNames.length];
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
@@ -4462,7 +4467,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return null;
             }
             SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
+            maybeHintUndecodedNullMarker(sample.rows(), messageLocation, warningSink);
             boolean[] sawUndecodableTemporal = new boolean[syntheticColumnCount(sample.rows())];
             List<Attribute> schema = inferSyntheticSchema(
                 sample.rows(),
@@ -6847,15 +6852,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw new ExternalClientException(
                     cause,
                     "{}",
-                    "Row ["
-                        + totalRowCount
-                        + "] of ["
-                        + ExternalFailures.redactHttpUrl(sourceLocation)
-                        + "]: "
-                        + message
-                        + "; row: "
-                        + rowExcerpt
-                        + hint
+                    "Row [" + totalRowCount + "] of [" + messageLocation + "]: " + message + "; row: " + rowExcerpt + hint
                 );
             }
             if (structural == false) {
@@ -6905,8 +6902,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "[{}] errors in [{}] rows of [{}]; {}",
                     errorCount,
                     totalRowCount,
-                    ExternalFailures.redactHttpUrl(sourceLocation),
-                    budgetLimitTripped(errorCount, errorPolicy)
+                    messageLocation,
+                    errorPolicy.trippedLimit(errorCount)
                 );
             }
         }

@@ -5536,7 +5536,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertThat(e.getMessage(), containsString("over [max_errors] of [1]"));
             }
             // The trip is not also added as a warning: driver warnings reach the client only when the query succeeds.
-            assertThat(drainWarnings(), everyItem(not(containsString("max_errors"))));
+            // The per-cell details prove the list non-empty, so the negative assertion cannot pass vacuously.
+            List<String> warnings = drainWarnings();
+            assertThat(warnings, hasItem(allOf(containsString("column [x]"), containsString("cannot read ["))));
+            assertThat(warnings, everyItem(not(containsString("max_errors"))));
         }
     }
 

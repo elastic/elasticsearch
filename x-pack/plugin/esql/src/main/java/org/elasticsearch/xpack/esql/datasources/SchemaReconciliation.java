@@ -109,6 +109,8 @@ import java.util.function.Consumer;
  */
 public final class SchemaReconciliation {
 
+    private static final String STRICT_MISMATCH_FIX = "; set [schema_resolution] to [union_by_name] to merge schemas";
+
     private SchemaReconciliation() {}
 
     /**
@@ -223,8 +225,6 @@ public final class SchemaReconciliation {
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
     }
-
-    private static final String STRICT_MISMATCH_FIX = "; set [schema_resolution] to [union_by_name] to merge schemas";
 
     private static void validateStrictMatch(
         StoragePath refPath,

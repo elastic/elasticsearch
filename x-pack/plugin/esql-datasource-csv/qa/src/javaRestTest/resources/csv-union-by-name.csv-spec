@@ -148,6 +148,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_union_by_name_keyword_fallback
 required_capability: datasource_file_readers_no_text_type
+required_capability: external_dataset_messages
 dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
 
 FROM employees_type_drift_union

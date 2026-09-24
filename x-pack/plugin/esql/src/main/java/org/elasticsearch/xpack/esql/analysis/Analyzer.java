@@ -3852,7 +3852,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         String listed = String.join(", ", bracketed);
         boolean one = names.size() == 1;
         String where = dataset != null ? "dataset [" + dataset + "]" : "this source";
-        String warning = Strings.format("Column%s %s in %s %s shadowed by METADATA", one ? "" : "s", listed, where, one ? "is" : "are");
+        String warning = Strings.format(
+            "Column%s %s in %s %s shadowed by METADATA; the METADATA value is used",
+            one ? "" : "s",
+            listed,
+            where,
+            one ? "is" : "are"
+        );
         if (dataset != null) {
             warning += Strings.format("; rename %s in the dataset mapping to read both", one ? "it" : "them");
         }

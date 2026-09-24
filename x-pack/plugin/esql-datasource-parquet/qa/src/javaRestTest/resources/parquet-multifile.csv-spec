@@ -160,6 +160,7 @@ lo:date_nanos | hi:date_nanos
 parquetUbnMixedRepresentationMinMax
 required_capability: external_command
 required_capability: external_source_read_schema
+required_capability: external_dataset_messages
 dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_type_drift_union
@@ -177,6 +178,7 @@ lo:keyword | hi:keyword
 parquetUbnFilterTypeDriftedColumn
 required_capability: external_command
 required_capability: external_source_read_schema
+required_capability: external_dataset_messages
 dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_type_drift_union
@@ -491,6 +493,7 @@ parquetFfwAllRows
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
@@ -510,6 +513,7 @@ parquetFfwCount
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw
@@ -525,6 +529,7 @@ parquetFfwFilterAnchorOnly
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 required_capability: external_source_file_order_options
+required_capability: external_dataset_messages
 dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_ubn_ffw

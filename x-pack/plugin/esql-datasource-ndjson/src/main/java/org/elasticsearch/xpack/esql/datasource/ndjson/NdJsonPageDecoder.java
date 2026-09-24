@@ -264,6 +264,8 @@ public class NdJsonPageDecoder implements Closeable {
     @Nullable
     private Consumer<String> absentColumnWarningSink;
     private final ErrorPolicy errorPolicy;
+    /** The file as messages name it; callers pass it already redacted. */
+    private final String sourceLocation;
     private final SkipWarnings skipWarnings;
     private final NdJsonReaderCounters counters;
     private long totalRowCount;
@@ -679,6 +681,7 @@ public class NdJsonPageDecoder implements Closeable {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         Check.isTrue(counters != null, "counters must not be null");
         this.errorPolicy = errorPolicy;
+        this.sourceLocation = sourceLocation;
         this.counters = counters;
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
@@ -957,15 +960,13 @@ public class NdJsonPageDecoder implements Closeable {
     private void checkErrorBudgetOrThrow() {
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
             // Client-class for the same reason as the whole-line failure above: the budget was set by the user
-            // and exhausted by the user's data. Only the limit that tripped is named, checked in the order
-            // ErrorPolicy.isBudgetExceeded checks them; the unset one holds a sentinel that is no limit.
-            boolean overMaxErrors = errorCount > errorPolicy.maxErrors();
+            // and exhausted by the user's data.
             throw new ParsingException(
-                "[{}] errors in [{}] rows; over [{}] of [{}]",
+                "[{}] errors in [{}] rows of [{}]; {}",
                 errorCount,
                 totalRowCount,
-                overMaxErrors ? "max_errors" : "max_error_ratio",
-                overMaxErrors ? String.valueOf(errorPolicy.maxErrors()) : String.valueOf(errorPolicy.maxErrorRatio())
+                sourceLocation,
+                errorPolicy.trippedLimit(errorCount)
             );
         }
     }

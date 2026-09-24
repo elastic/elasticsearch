@@ -2029,7 +2029,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
         ErrorPolicy noBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, noBudget));
-        assertThat(e.getMessage(), Matchers.containsString("[1] errors in [2] rows; over [max_errors] of [0]"));
+        assertThat(e.getMessage(), Matchers.containsString("[1] errors in [2] rows of [test://ul]; over [max_errors] of [0]"));
     }
 
     /**

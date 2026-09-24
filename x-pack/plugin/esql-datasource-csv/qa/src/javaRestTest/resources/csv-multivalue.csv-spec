@@ -34,8 +34,8 @@ FROM mv_sample_none
 | KEEP id, tags
 | SORT id
 ;
-warningRegex:CSV read from \[.+\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] error: CSV row has \[5\] columns but schema defines \[3\] columns.*
+warningRegex:Some rows in \[.+\] cannot be read; skipping them
+warningRegex:row \[\d+\]: \[5\] columns, the schema has \[3\]
 
 id:integer | tags:keyword
 2          | solo

@@ -197,9 +197,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
         )
             .withDeprecatedDatasourceKey(
                 "region",
-                "[region] on a data source is deprecated and will be ignored; "
-                    + "set [region] on the dataset instead, or [sts_region] for the STS endpoint region on a federated source, "
-                    + "or omit it to have the bucket region detected automatically"
+                "[region] on a data source is ignored; set it on the dataset ([sts_region] on a federated source) or omit it to auto-detect"
             )
             .withResourceCheck(S3ResourceCheck::validate)
             // The cast holds because this same builder is given S3Configuration::fromMap as its config

@@ -3434,31 +3434,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false && declaredCoercible == false) {
                 if (skipWarnings == null) {
                     skipWarnings = new SkipWarnings(
-                        "Parquet file ["
-                            + fileLocation
-                            + "] has columns whose on-disk type is incompatible with planner type; "
-                            + "they are returned as null",
+                        "Some columns in [" + fileLocation + "] have a type the query cannot read; returning null",
                         warningSink
                     );
                 }
                 skipWarnings.add(
-                    "Column ["
+                    "column ["
                         + attr.name()
-                        + "] in file ["
-                        + fileLocation
-                        + "] has type ["
-                        + actualInFile
-                        + "] incompatible with planner type ["
-                        + attr.dataType()
-                        + "]; returning nulls for this column"
+                        + "]: ["
+                        + actualInFile.typeName()
+                        + "] in the file, ["
+                        + attr.dataType().typeName()
+                        + "] in the query"
                 );
                 logger.warn(
-                    "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}] after widening; "
-                        + "returning nulls for this column",
+                    "Column [{}] in [{}] is [{}] in the file, [{}] in the query; returning null",
                     attr.name(),
                     fileLocation,
-                    actualInFile,
-                    attr.dataType()
+                    actualInFile.typeName(),
+                    attr.dataType().typeName()
                 );
                 columnInfos[i] = null;
             }
@@ -3564,11 +3558,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 return null;
             }
             if (coercionWarnings == null) {
-                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                    ? "their entire row is dropped"
-                    : "they are returned as null";
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
                 coercionWarnings = new SkipWarnings(
-                    "Parquet file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                    "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
                     warningSink
                 );
             }

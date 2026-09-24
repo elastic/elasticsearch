@@ -3188,9 +3188,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return null;
         }
         if (coercionWarnings == null) {
-            String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "their entire row is dropped" : "they are returned as null";
+            String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
             coercionWarnings = new SkipWarnings(
-                "Parquet file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
                 warningSink
             );
         }

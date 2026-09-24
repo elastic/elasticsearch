@@ -670,8 +670,22 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     public void testShadowWarningIncludesMappingAdviceForDataset() {
         String warning = Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id"));
-        assertThat(warning, containsString("dataset [" + DATASET_NAME + "]"));
-        assertThat(warning, containsString("dataset mapping"));
+        assertEquals(
+            "Column [_id] in dataset [" + DATASET_NAME + "] is shadowed by METADATA; rename it in the dataset mapping to read both",
+            warning
+        );
+    }
+
+    public void testShadowWarningPluralisesSeveralColumns() {
+        String warning = Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id", FileMetadataColumns.PATH));
+        assertEquals(
+            "Columns [_id], ["
+                + FileMetadataColumns.PATH
+                + "] in dataset ["
+                + DATASET_NAME
+                + "] are shadowed by METADATA; rename them in the dataset mapping to read both",
+            warning
+        );
     }
 
     /**

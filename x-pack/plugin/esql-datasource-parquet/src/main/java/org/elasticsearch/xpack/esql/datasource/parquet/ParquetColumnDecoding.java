@@ -32,7 +32,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
@@ -265,10 +264,7 @@ final class ParquetColumnDecoding {
     static void warnTimestampOutOfRange(ColumnInfo info, @Nullable Consumer<String> warningSink) {
         ColumnDescriptor descriptor = info.descriptor();
         String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
-        String warning = "Parquet timestamp column ["
-            + column
-            + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
-            + "such values are returned as null";
+        String warning = "column [" + column + "]: timestamps outside the [date_nanos] range (1677-09-21 to 2262-04-11); returning null";
         if (warningSink != null) {
             warningSink.accept(warning);
         } else {
@@ -629,11 +625,7 @@ final class ParquetColumnDecoding {
             this.fileLocation = fileLocation;
             this.chargedRows = deduplicateRecoveries ? new HashMap<>() : null;
             this.sharedBudget = sharedBudget;
-            this.warnings = SkipWarnings.of(
-                errorPolicy,
-                "Parquet file [" + fileLocation + "] has malformed LIST repetition levels; invalid fragments were skipped",
-                warningSink
-            );
+            this.warnings = SkipWarnings.of(errorPolicy, "Malformed list data in [" + fileLocation + "]; skipping it", warningSink);
         }
 
         boolean isStrict() {
@@ -651,17 +643,15 @@ final class ParquetColumnDecoding {
             }
             errorCount++;
             recoveredListErrorCount++;
-            String detail = "Parquet column ["
+            String detail = "column ["
                 + columnName
-                + "] in file ["
-                + fileLocation
-                + "] row group ["
+                + "], row group ["
                 + (rowGroupOrdinal + 1)
-                + "] started row ["
+                + "], row ["
                 + rowOrdinal
-                + "] at a non-zero repetition level; discarded ["
+                + "]: ["
                 + discardedValues
-                + "] orphan values";
+                + "] list values dropped";
             warnings.add(detail);
             // Structural corruption is discovered while streaming. As with the text readers, a
             // ratio can trip before later good rows have a chance to dilute it.
@@ -671,7 +661,8 @@ final class ParquetColumnDecoding {
                 sharedBudget.ensureRowsAtLeast(Math.max(1L, rowsSeen));
             }
             checkBudget(warnings);
-            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, detail);
+            // The response detail omits the file (the summary names it); the log line has no summary, so it names it here.
+            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, "Malformed list data in [" + fileLocation + "]: " + detail);
         }
 
         /**
@@ -708,18 +699,17 @@ final class ParquetColumnDecoding {
             if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen) == false) {
                 return;
             }
-            if (budgetWarnings != null) {
-                budgetWarnings.add(ColumnarRowDropHelper.budgetExceededWarning(errorPolicy, fileLocation, errorCount, rowsSeen, errorKind));
-            }
+            // Name only the limit that tripped, checked in the order ErrorPolicy.isBudgetExceeded checks them.
+            boolean overMaxErrors = errorCount > errorPolicy.maxErrors();
             throw new ParsingException(
                 Source.EMPTY,
-                "Error budget exceeded: [{}] {} in [{}] decoded rows in [{}]; maximum allowed is [{}] errors or [{}] ratio",
+                "[{}] {} in [{}] rows of [{}]; over [{}] of [{}]",
                 errorCount,
                 errorKind,
                 rowsSeen,
                 fileLocation,
-                errorPolicy.maxErrors(),
-                errorPolicy.maxErrorRatio()
+                overMaxErrors ? "max_errors" : "max_error_ratio",
+                overMaxErrors ? String.valueOf(errorPolicy.maxErrors()) : String.valueOf(errorPolicy.maxErrorRatio())
             );
         }
 
@@ -939,8 +929,7 @@ final class ParquetColumnDecoding {
      * one non-deduplicable line per file on a glob read. Shared with the read paths that own the collector so the
      * text has one source of truth.
      */
-    static final String NULL_LIST_ELEMENTS_SUMMARY = "Parquet lists with null elements were read with those elements "
-        + "omitted; an ES|QL multivalued field cannot hold null";
+    static final String NULL_LIST_ELEMENTS_SUMMARY = "Lists hold null elements, which a multivalued field cannot; dropping them";
 
     /**
      * The per-column detail for a LIST read that dropped null elements. {@code columnName} is the attribute name the
@@ -953,9 +942,7 @@ final class ParquetColumnDecoding {
      * batches, row groups, or files hit it.
      */
     static String nullListElementsMessage(String columnName) {
-        return "Parquet list column ["
-            + columnName
-            + "] contains lists with null elements; the column returns fewer values than the file holds";
+        return "column [" + columnName + "]: lists with null elements";
     }
 
     /**

@@ -404,9 +404,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 // already emitted the client-facing partial-results warning.
                 if (pageDecoder.truncated()) {
                     logger.warn(
-                        "NDJSON read of [{}] truncated at byte [{}]: a record exceeded external_max_record_size; results are partial",
-                        sourceLocation,
-                        pageDecoder.truncatedAtByte()
+                        "Record at byte [{}] in [{}] exceeds the record limit; results are partial",
+                        pageDecoder.truncatedAtByte(),
+                        sourceLocation
                     );
                 } else {
                     naturallyExhausted = true;

@@ -20,8 +20,8 @@ dataset: employees_declared_parse: "{{employees_no_mv}}" WITH {"error_mode": "nu
 FROM employees_declared_parse
 | SORT id
 | LIMIT 3;
-warningRegex:Column \[salary_change.keyword\]: cannot coerce value from \[keyword\] to declared type \[double\]: empty String; returning null
-warningRegex:.* has values that could not be coerced to the declared column type; they are returned as null
+warningRegex:column \[salary_change.keyword\]: cannot read \[keyword\] as \[double\]: empty String
+warningRegex:Some values in \[.*\] cannot be read as their declared type; returning null
 warningRegex:\.\.\. further warnings suppressed .*
 
 id:long | change:double

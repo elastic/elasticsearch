@@ -224,6 +224,8 @@ public final class SchemaReconciliation {
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
     }
 
+    private static final String STRICT_MISMATCH_FIX = "; set [schema_resolution] to [union_by_name] to merge schemas";
+
     private static void validateStrictMatch(
         StoragePath refPath,
         List<Attribute> refSchema,
@@ -233,16 +235,16 @@ public final class SchemaReconciliation {
     ) {
         if (refSchema.size() != fileSchema.size()) {
             throw new IllegalArgumentException(
-                "Schema mismatch in ["
+                "["
                     + filePath
-                    + "]: expected "
-                    + refSchema.size()
-                    + " columns (from reference file ["
-                    + refPath
-                    + "]) but found "
+                    + "] has ["
                     + fileSchema.size()
-                    + " columns."
-                    + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+                    + "] columns, ["
+                    + refPath
+                    + "] has ["
+                    + refSchema.size()
+                    + "]"
+                    + STRICT_MISMATCH_FIX
             );
         }
         if (compareByName) {
@@ -254,18 +256,18 @@ public final class SchemaReconciliation {
             Attribute fileAttr = fileSchema.get(i);
             if (refAttr.name().equals(fileAttr.name()) == false) {
                 throw new IllegalArgumentException(
-                    "Schema mismatch in ["
+                    "["
                         + filePath
                         + "]: column "
                         + i
                         + " is ["
                         + fileAttr.name()
-                        + "] but reference file ["
+                        + "], in ["
                         + refPath
-                        + "] has ["
+                        + "] it is ["
                         + refAttr.name()
-                        + "]."
-                        + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+                        + "]"
+                        + STRICT_MISMATCH_FIX
                 );
             }
             validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
@@ -286,14 +288,7 @@ public final class SchemaReconciliation {
             Attribute fileAttr = fileAttributes.get(refAttr.name());
             if (fileAttr == null) {
                 throw new IllegalArgumentException(
-                    "Schema mismatch in ["
-                        + filePath
-                        + "]: column ["
-                        + refAttr.name()
-                        + "] from reference file ["
-                        + refPath
-                        + "] is missing."
-                        + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+                    "[" + filePath + "] has no column [" + refAttr.name() + "], which [" + refPath + "] has" + STRICT_MISMATCH_FIX
                 );
             }
             validateStrictTypeMatch(refPath, refAttr, filePath, fileAttr);
@@ -303,18 +298,18 @@ public final class SchemaReconciliation {
     private static void validateStrictTypeMatch(StoragePath refPath, Attribute refAttr, StoragePath filePath, Attribute fileAttr) {
         if (refAttr.dataType() != fileAttr.dataType()) {
             throw new IllegalArgumentException(
-                "Schema mismatch in ["
+                "["
                     + filePath
                     + "]: column ["
                     + fileAttr.name()
-                    + "] has type ["
+                    + "] is ["
                     + fileAttr.dataType().typeName()
-                    + "] but reference file ["
+                    + "], in ["
                     + refPath
-                    + "] has type ["
+                    + "] it is ["
                     + refAttr.dataType().typeName()
-                    + "]."
-                    + " Hint: use schema_resolution = \"union_by_name\" to automatically merge different schemas."
+                    + "]"
+                    + STRICT_MISMATCH_FIX
             );
         }
     }
@@ -596,12 +591,11 @@ public final class SchemaReconciliation {
         }
         // The local is not stored anywhere; the side effect of add() is the emit.
         SkipWarnings warnings = new SkipWarnings(
-            "Schema reconciliation widened columns to keyword due to cross-file type disagreement;"
-                + " values are returned as strings. Hint: use schema_resolution = \"strict\" to fail instead.",
+            "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
             warningSink
         );
         for (ColumnContributions fb : warned) {
-            warnings.add(fb.buildDetail(DataType.KEYWORD));
+            warnings.add(fb.buildDetail());
         }
     }
 
@@ -627,12 +621,12 @@ public final class SchemaReconciliation {
             return;
         }
         SkipWarnings warnings = new SkipWarnings(
-            "Schema reconciliation widened long and double columns to double; integers above 2^53"
-                + " are not exact. Hint: use schema_resolution = \"strict\" to fail instead.",
+            "Columns mixing [long] and [double] across files are read as [double], losing precision above 2^53; "
+                + "set [schema_resolution] to [strict] to fail instead",
             warningSink
         );
         for (ColumnContributions fb : warned) {
-            warnings.add(fb.buildDetail(DataType.DOUBLE));
+            warnings.add(fb.buildDetail());
         }
     }
 
@@ -679,14 +673,11 @@ public final class SchemaReconciliation {
             return sawLong && sawDouble;
         }
 
-        String buildDetail(DataType unifiedType) {
-            // Pair each file with its inferred type so users can tell which file disagreed.
-            // Long file lists are truncated with a "+N more" suffix; the distinct-type roll-up
-            // at the end keeps an at-a-glance type picture even when files are truncated.
-            StringBuilder sb = new StringBuilder("Column [").append(columnName)
-                .append("] widened to ")
-                .append(unifiedType.typeName())
-                .append(": ");
+        String buildDetail() {
+            // Pair each file with its inferred type so users can tell which file disagreed; the type the
+            // column is read as is in the summary. Long file lists are truncated with a "+N more" suffix;
+            // the distinct-type roll-up at the end keeps an at-a-glance type picture even when files are truncated.
+            StringBuilder sb = new StringBuilder("column [").append(columnName).append("]: ");
             int shown = 0;
             int total = contributions.size();
             for (Map.Entry<StoragePath, DataType> e : contributions.entrySet()) {
@@ -702,7 +693,7 @@ public final class SchemaReconciliation {
             }
             LinkedHashSet<DataType> distinctTypes = new LinkedHashSet<>(contributions.values());
             if (distinctTypes.size() > 1) {
-                sb.append("; distinct types: [");
+                sb.append("; types [");
                 int t = 0;
                 for (DataType type : distinctTypes) {
                     if (t > 0) {

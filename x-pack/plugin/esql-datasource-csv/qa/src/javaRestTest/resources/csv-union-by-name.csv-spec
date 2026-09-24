@@ -154,8 +154,8 @@ FROM employees_type_drift_union
 | SORT id ASC
 | LIMIT 10
 ;
-warningRegex:Schema reconciliation widened columns to keyword
-warningRegex:Column \[col\].*widened to keyword
+warningRegex:Columns whose type differs between files are read as \[keyword\]
+warningRegex:column \[col\]: .*; types \[
 
 id:integer | col:keyword | note:keyword
 1          | 123         | alpha

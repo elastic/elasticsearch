@@ -63,7 +63,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -105,7 +104,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -243,17 +241,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         List<String> warnings = resolution.warnings();
         assertEquals("summary + one detail", 2, warnings.size());
-        assertThat(warnings.get(0), containsString("declared with the withdrawn [text] type and are read as [keyword]"));
-        assertThat(warnings.get(0), containsString("TO_TEXT"));
-        // Both functions accept options on a runtime-search field only at type TEXT, so a query passing any fails
-        // verification — an error the user would otherwise meet with no explanation.
-        assertThat(warnings.get(0), containsString("passes options on one now fails verification"));
-        // Match#toScorer routes only TEXT without options to the matched-term-weight scorer, so the same rows come
-        // back ordered differently. Silent without this clause.
-        assertThat(warnings.get(0), containsString("scores 1.0 instead of by matched terms"));
-        // The declared type is named per column rather than in the summary, so a second withdrawn type would be
-        // described with its own name instead of inheriting this one.
-        assertThat(warnings.get(1), containsString("column [msg] is declared [text] and is read as [keyword]"));
+        assertEquals("Columns declared as [text] are read as [keyword]; declare them as [keyword]", warnings.get(0));
+        assertEquals("column [msg] is declared [text] and is read as [keyword]", warnings.get(1));
     }
 
     /** No declared text column, no warning — the common case stays silent. */
@@ -510,48 +499,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(notice),
             inferredFuture.actionGet().warnings()
         );
-    }
-
-    /**
-     * Listing notices and schema notices are separate channels: a comma list with more segments than the cap raises one
-     * exclusion notice per segment, and the notice that the user's numbers came back as strings must still be delivered.
-     * Each segment is a prefix glob ({@code pN/*}) with no implied format, so the dataset must declare parquet
-     * — the same requirement a prefix glob has at PUT.
-     */
-    public void testListingNoticesDoNotStarveSchemaNotices() throws Exception {
-        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
-        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
-        List<String> segments = new ArrayList<>();
-        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
-            String prefix = "s3://bucket/p" + i + "/";
-            schemasByPath.put(prefix + "a.parquet", List.of(attr("id", DataType.INTEGER)));
-            listingsByPrefix.put(prefix, List.of(entry(prefix + "a.parquet", 100), entry(prefix + "_SUCCESS", 0)));
-            segments.add(prefix + "*");
-        }
-        // One segment disagrees on the type, so reconciliation widens [id] to keyword.
-        schemasByPath.put("s3://bucket/p0/b.parquet", List.of(attr("id", DataType.KEYWORD)));
-        listingsByPrefix.put(
-            "s3://bucket/p0/",
-            List.of(entry("s3://bucket/p0/a.parquet", 100), entry("s3://bucket/p0/b.parquet", 100), entry("s3://bucket/p0/_SUCCESS", 0))
-        );
-
-        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
-        config.put("format", "parquet");
-        ExternalSourceResolution resolution = resolveResourceWithConfig(
-            String.join(",", segments),
-            schemasByPath,
-            listingsByPrefix,
-            config
-        );
-
-        List<String> warnings = resolution.warnings();
-        assertThat(warnings, hasItem(containsString("widened columns to keyword")));
-        assertEquals(
-            "the listing channel is still capped on its own",
-            SkipWarnings.MAX_ADDED_WARNINGS,
-            warnings.stream().filter(w -> w.contains("was excluded by the [file_exclusions] dataset setting")).count()
-        );
-        assertEquals(SkipWarnings.overflowMessage(), warnings.get(warnings.size() - 1));
     }
 
     /**
@@ -3376,8 +3323,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // Shadowing the physical 'year' column emits a one-time client warning (summary + one detail).
         List<String> warnings = resolution.warnings();
         assertEquals(2, warnings.size());
-        assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
-        assertThat(warnings.get(1), containsString("physical column [year] is shadowed"));
+        assertEquals(
+            "Columns named like a partition key are read from the path, not the file; set [partition_detection] to [none] to read the file",
+            warnings.get(0)
+        );
+        assertEquals("column [year]: also a partition key", warnings.get(1));
     }
 
     /**
@@ -3455,7 +3405,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertThat(
                 "[" + strategy + "] detail names the shadowed column",
                 warnings.get(1),
-                containsString("physical column [year] is shadowed")
+                containsString("column [year]: also a partition key")
             );
         }
     }
@@ -3627,8 +3577,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // A one-time summary plus one detail per shadowed column is recorded on the response headers.
         List<String> warnings = drainWarnings();
         assertEquals(2, warnings.size());
-        assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
-        assertThat(warnings.get(1), containsString("physical column [year] is shadowed"));
+        assertEquals(
+            "Columns named like a partition key are read from the path, not the file; set [partition_detection] to [none] to read the file",
+            warnings.get(0)
+        );
+        assertEquals("column [year]: also a partition key", warnings.get(1));
     }
 
     public void testEnrichSchemaWithPartitionColumnsNoCollisionEmitsNoWarning() {
@@ -4065,40 +4018,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Glob pattern matched no files"));
         assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/*"));
         // A failed resolve delivers no notices, so the one that explains the empty listing rides the message.
-        assertThat(e.getMessage(), containsString("[_SUCCESS] which matched entry [**/_*]"));
-    }
-
-    /**
-     * A comma list raises one exclusion notice per segment, each naming its own prefix, so exact-text deduplication
-     * alone would deliver one header per segment. The listing channel is capped like the metadata channel, with a
-     * single overflow marker after everything else. Prefix globs imply no format, so parquet is declared the same
-     * way a PUT of {@code pN/*} would have to.
-     */
-    public void testListingNoticesAreCapped() throws Exception {
-        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
-        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
-        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
-        List<String> segments = new ArrayList<>();
-        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
-            String prefix = "s3://bucket/p" + i + "/";
-            schemasByPath.put(prefix + "a.parquet", schema);
-            listingsByPrefix.put(prefix, List.of(entry(prefix + "a.parquet", 100), entry(prefix + "_SUCCESS", 0)));
-            segments.add(prefix + "*");
-        }
-
-        ExternalSourceResolution resolution = resolveResourceWithConfig(
-            String.join(",", segments),
-            schemasByPath,
-            listingsByPrefix,
-            Map.of("format", "parquet")
+        assertThat(
+            e.getMessage(),
+            containsString("[1] of [1] files under [s3://bucket/vpcflow/] skipped by [file_exclusions], e.g. [_SUCCESS] (matched [**/_*])")
         );
-
-        List<String> warnings = resolution.warnings();
-        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, warnings.size());
-        for (String warning : warnings.subList(0, SkipWarnings.MAX_ADDED_WARNINGS)) {
-            assertThat(warning, containsString("was excluded by the [file_exclusions] dataset setting"));
-        }
-        assertEquals(SkipWarnings.overflowMessage(), warnings.get(SkipWarnings.MAX_ADDED_WARNINGS));
     }
 
     /**
@@ -4832,13 +4755,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Cached inferred listings must replay {@code file_exclusions} headers. Expand used to warn only while
-     * listing; a warm UNION_BY_NAME hit skipped that. First resolve consumes the warning, second must
-     * emit it again with no extra LIST.
+     * A {@code file_exclusions} drop from a listing with files is logged where the listing is made and reaches the
+     * response on neither the cold resolve nor the cached one.
      */
-    public void testListingCacheReplaysExclusionWarningOnSecondResolve() throws Exception {
-        String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the "
-            + "[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+    public void testListingCacheCarriesNoExclusionNoticeOnEitherResolve() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
         Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/data/a.parquet", schema);
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/_SUCCESS", 0));
@@ -4855,8 +4775,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), pathConfigs, first);
             ExternalSourceResolution res1 = first.actionGet();
             assertEquals(1, res1.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(warning), res1.resolvedSource(glob).fileList().listingWarnings());
-            assertEquals("the exclusion notice rides the resolution object", List.of(warning), res1.warnings());
+            assertEquals(List.of(), res1.resolvedSource(glob).fileList().listingWarnings());
+            assertEquals("the exclusion is not a response warning", List.of(), res1.warnings());
             int listCallsAfterFirst = countingProvider.listCallCount.get();
             assertTrue("first resolve must list", listCallsAfterFirst > 0);
 
@@ -4864,9 +4784,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), pathConfigs, second);
             ExternalSourceResolution res2 = second.actionGet();
             assertEquals(1, res2.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(warning), res2.resolvedSource(glob).fileList().listingWarnings());
+            assertEquals(List.of(), res2.resolvedSource(glob).fileList().listingWarnings());
             assertEquals("second resolve must be a listing cache hit", listCallsAfterFirst, countingProvider.listCallCount.get());
-            assertEquals("a cached listing must replay the notice onto the resolution object", List.of(warning), res2.warnings());
+            assertEquals("nor on a cached listing", List.of(), res2.warnings());
         }
     }
 
@@ -6342,11 +6262,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             List<String> warnings = resolution.warnings();
             assertEquals("summary + one detail", 2, warnings.size());
-            assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
+            assertThat(warnings.get(0), containsString("Columns named like a partition key are read from the path"));
             assertThat(
                 "the shadow warning must ride the resolution object even though reconciliation ran off the calling thread",
                 warnings.get(1),
-                containsString("physical column [year] is shadowed")
+                containsString("column [year]: also a partition key")
             );
         } finally {
             resolverExecutor.shutdownNow();

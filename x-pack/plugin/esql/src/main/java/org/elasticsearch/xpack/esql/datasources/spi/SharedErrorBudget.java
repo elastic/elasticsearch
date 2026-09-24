@@ -103,47 +103,36 @@ public final class SharedErrorBudget {
     }
 
     /**
-     * Checks the budget and throws a {@link ParsingException} (HTTP 400) if exceeded.
+     * Checks the budget and throws a {@link ParsingException} (HTTP 400) if exceeded. Nothing is added to
+     * {@code warnings} first: a warning added just before a throw never reaches the client, since driver
+     * warnings travel only with a successful response.
      *
-     * @param warnings   optional warning sink; receives the budget-exceeded line before the exception is thrown
+     * @param warnings   the caller's collector; unused, kept so callers need not change
      * @param errorKind  describes what the error count covers, in plural form (e.g. {@code "dropped rows"})
      */
     public void checkBudget(@Nullable SkipWarnings warnings, String errorKind) {
         if (policy.isBudgetExceeded(errorCount, rowCount)) {
-            if (warnings != null) {
-                warnings.add(budgetExceededWarning(policy, fileLocation, errorCount, rowCount, errorKind));
+            // Name only the limit that tripped, checked in the order ErrorPolicy.isBudgetExceeded checks them: an
+            // unset limit holds a sentinel (Long.MAX_VALUE, 0.0) that must not be printed as if it were one.
+            // The limit is boxed on each branch separately: one conditional over a long and a double would widen
+            // the count to a double and print [10] as [10.0].
+            boolean overMaxErrors = errorCount > policy.maxErrors();
+            Object limit;
+            if (overMaxErrors) {
+                limit = policy.maxErrors();
+            } else {
+                limit = policy.maxErrorRatio();
             }
             throw new ParsingException(
                 Source.EMPTY,
-                "Error budget exceeded: [{}] {} in [{}] decoded rows in [{}]; maximum allowed is [{}] errors or [{}] ratio",
+                "[{}] {} in [{}] rows of [{}]; over [{}] of [{}]",
                 errorCount,
                 errorKind,
                 rowCount,
                 fileLocation,
-                policy.maxErrors(),
-                policy.maxErrorRatio()
+                overMaxErrors ? ErrorPolicy.CONFIG_MAX_ERRORS : ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
+                limit
             );
         }
-    }
-
-    /**
-     * Formats the budget-exceeded warning line. Shared with
-     * {@link ColumnarRowDropHelper#budgetExceededWarning} for backward compatibility with call
-     * sites that still use the helper's static method.
-     */
-    public static String budgetExceededWarning(ErrorPolicy policy, String fileLocation, long errorCount, long rowCount, String errorKind) {
-        return "Columnar error budget exceeded at ["
-            + fileLocation
-            + "]: ["
-            + errorCount
-            + "] "
-            + errorKind
-            + " in ["
-            + rowCount
-            + "] decoded rows, maximum ["
-            + policy.maxErrors()
-            + "] errors or ratio ["
-            + policy.maxErrorRatio()
-            + "]";
     }
 }

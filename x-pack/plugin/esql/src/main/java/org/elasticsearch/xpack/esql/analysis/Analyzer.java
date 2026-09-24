@@ -3850,16 +3850,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             bracketed.add("[" + name + "]");
         }
         String listed = String.join(", ", bracketed);
+        boolean one = names.size() == 1;
         String where = dataset != null ? "dataset [" + dataset + "]" : "this source";
-        String warning = Strings.format(
-            "Physical column%s %s in %s %s shadowed by METADATA; the engine-generated value is used.",
-            names.size() == 1 ? "" : "s",
-            listed,
-            where,
-            names.size() == 1 ? "is" : "are"
-        );
+        String warning = Strings.format("Column%s %s in %s %s shadowed by METADATA", one ? "" : "s", listed, where, one ? "is" : "are");
         if (dataset != null) {
-            warning += " Rename the physical column in the dataset mapping to keep both.";
+            warning += Strings.format("; rename %s in the dataset mapping to read both", one ? "it" : "them");
         }
         return warning;
     }

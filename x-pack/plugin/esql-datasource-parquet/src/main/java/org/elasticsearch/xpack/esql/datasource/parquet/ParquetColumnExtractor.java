@@ -730,15 +730,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 );
             }
             coercionWarnings().add(
-                "Column ["
-                    + columnName
-                    + "] in file ["
-                    + storageObject.path()
-                    + "] has type ["
-                    + fileType
-                    + "] incompatible with planner type ["
-                    + target
-                    + "]; returning nulls for this column"
+                "column [" + columnName + "]: [" + fileType.typeName() + "] in the file, [" + target.typeName() + "] in the query"
             );
             return factory.newConstantNullBlock(count);
         } finally {
@@ -760,9 +752,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     private SkipWarnings coercionWarnings() {
         if (coercionWarnings == null) {
             coercionWarnings = new SkipWarnings(
-                "Parquet file ["
-                    + storageObject.path()
-                    + "] has values that could not be coerced to the declared column type; they are returned as null",
+                "Some values in [" + storageObject.path() + "] cannot be read as the column type; returning null",
                 warningSink
             );
         }

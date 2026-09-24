@@ -3765,8 +3765,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     }
                 }
                 assertEquals(5, expectedRow);
-                assertThat(warnings, hasItem(containsString("invalid fragments were skipped")));
-                assertThat(warnings, hasItem(allOf(containsString("column [x]"), containsString("discarded [1] orphan values"))));
+                assertThat(warnings, hasItem(containsString("Malformed list data in [")));
+                assertThat(warnings, hasItem(allOf(containsString("column [x]"), containsString("[1] list values dropped"))));
             }
         }
     }
@@ -3786,7 +3786,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 )
             ) {
                 ParsingException e = expectThrows(ParsingException.class, iterator::next);
-                assertThat(e.getMessage(), allOf(containsString("structural errors"), containsString("maximum allowed is [0]")));
+                assertThat(e.getMessage(), allOf(containsString("structural errors"), containsString("over [max_errors] of [0]")));
             }
         }
     }
@@ -3818,7 +3818,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 page.releaseBlocks();
                 assertFalse(iterator.hasNext());
             }
-            assertThat(warnings, hasItem(containsString("discarded [1] orphan values")));
+            assertThat(warnings, hasItem(containsString("[1] list values dropped")));
         }
     }
 
@@ -5043,7 +5043,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
         List<String> warnings = drainWarnings();
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
-        assertTrue("Summary should mention coercion, got: " + warnings.get(0), warnings.get(0).contains("coerced"));
+        assertTrue("Summary should mention coercion, got: " + warnings.get(0), warnings.get(0).contains("cannot be read as"));
         assertTrue("Detail should name the column, got: " + warnings.get(1), warnings.get(1).contains("[x]"));
         assertTrue("Detail should name the declared type, got: " + warnings.get(1), warnings.get(1).contains("[long]"));
     }
@@ -5341,8 +5341,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // null" next to a row that is gone. Both readers word it identically, as does ORC
             // (OrcFormatReaderTests.testSkipRowDropsBadRow).
             List<String> warnings = drainWarnings();
-            assertThat(warnings, hasItem(containsString("their entire row is dropped")));
-            assertThat(warnings, hasItem(allOf(containsString("[x]"), containsString("; row will be dropped"))));
+            assertThat(warnings, hasItem(containsString("skipping their rows")));
+            assertThat(warnings, hasItem(allOf(containsString("column [x]"), containsString("cannot read ["))));
             assertThat("no null-fill wording under skip_row", warnings, everyItem(not(containsString("returning null"))));
         }
     }
@@ -5533,10 +5533,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 });
                 // The thrown message is the one the client actually sees, so it must name the counts and the file.
                 assertThat(e.getMessage(), containsString("dropped rows"));
-                assertThat(e.getMessage(), containsString("maximum allowed is [1] errors"));
+                assertThat(e.getMessage(), containsString("over [max_errors] of [1]"));
             }
-            // checkBudget also records the trip into the same collector, ahead of the throw.
-            assertThat(drainWarnings(), hasItem(containsString("Columnar error budget exceeded")));
+            // The trip is not also added as a warning: driver warnings reach the client only when the query succeeds.
+            assertThat(drainWarnings(), everyItem(not(containsString("max_errors"))));
         }
     }
 
@@ -5735,7 +5735,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertFalse("inferred incompatibility must emit a response Warning", warnings.isEmpty());
         assertTrue(
             "warning must name the incompatibility, got: " + warnings,
-            warnings.toString().contains("incompatible with planner type")
+            warnings.toString().contains("column [x]: [long] in the file, [integer] in the query")
         );
     }
 
@@ -5786,7 +5786,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     it.next().releaseBlocks();
                 }
             }
-            long coercionDetails = sink.stream().filter(w -> w.contains("cannot coerce value")).count();
+            long coercionDetails = sink.stream().filter(w -> w.contains("cannot read [")).count();
             assertThat("per-value coercion warnings must reach the supplied sink", coercionDetails, greaterThan(0L));
             assertThat(
                 "each reader instance caps its per-value coercion details at MAX_ADDED_WARNINGS",
@@ -5796,7 +5796,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             List<String> leaked = drainWarnings();
             assertTrue(
                 "no coercion warning may leak to this thread's HeaderWarning context when a sink is supplied, got: " + leaked,
-                leaked.stream().noneMatch(w -> w.contains("cannot coerce value"))
+                leaked.stream().noneMatch(w -> w.contains("cannot read ["))
             );
         }
     }
@@ -6015,10 +6015,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     private static String timestampOutOfRangeWarning(String column) {
-        return "Parquet timestamp column ["
-            + column
-            + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
-            + "such values are returned as null";
+        return "column [" + column + "]: timestamps outside the [date_nanos] range (1677-09-21 to 2262-04-11); returning null";
     }
 
     /**
@@ -6422,12 +6419,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
         assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("s3://bucket/warn.parquet"));
-        assertTrue("Detail should mention column [x], got: " + warnings.get(1), warnings.get(1).contains("Column [x]"));
-        assertTrue("Detail should mention the planner type, got: " + warnings.get(1), warnings.get(1).contains("IP"));
-        assertTrue(
-            "Detail should mention the on-disk type, got: " + warnings.get(1),
-            warnings.get(1).contains("INTEGER") || warnings.get(1).contains("LONG")
-        );
+        assertEquals("column [x]: [integer] in the file, [ip] in the query", warnings.get(1));
     }
 
     private List<String> drainWarnings() {
@@ -6471,7 +6463,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + sunk, 2, sunk.size());
         assertTrue("Summary should mention the file path, got: " + sunk.get(0), sunk.get(0).contains("s3://bucket/warn.parquet"));
-        assertTrue("Detail should mention column [x], got: " + sunk.get(1), sunk.get(1).contains("Column [x]"));
+        assertTrue("Detail should mention column [x], got: " + sunk.get(1), sunk.get(1).contains("column [x]"));
         assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
     }
 

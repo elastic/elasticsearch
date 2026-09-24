@@ -14,7 +14,7 @@ The `_ignored` field indexes and stores the names of every field in a document t
 * When a `keyword` field’s value exceeds its optional [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md) setting.
 * When `index.mapping.total_fields.limit` has been reached and `index.mapping.total_fields.ignore_dynamic_beyond_limit` is set to `true`.
 * {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` When a field in a [`columnar`](/reference/elasticsearch/columnar/index.md) index configured with [`doc_values.on_failure: ignore`](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure) receives a document that violates its `multi_value: false` or `nullability: false` constraint.
-* {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` When a field in a [`columnar`](/reference/elasticsearch/columnar/index.md) index was malformed and `ignore_malformed` was turned on. Note that `ignore_above` never adds a field to `_ignored` in columnar indices, since no value is dropped.
+* {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` When a field in a [`columnar`](/reference/elasticsearch/columnar/index.md) index was malformed and `ignore_malformed` was turned on. In columnar indices, `ignore_above` never adds a field to `_ignored`, because no value is dropped.
 
 For more index setting details, refer to [](/reference/elasticsearch/index-settings/mapping-limit.md).
 

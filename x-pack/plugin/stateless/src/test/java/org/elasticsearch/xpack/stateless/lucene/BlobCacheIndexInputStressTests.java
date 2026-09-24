@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -148,7 +148,7 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
         }
 
         final long primaryTerm = randomNonNegativeLong();
-        final String compoundFileName = StatelessCompoundCommit.blobNameFromGeneration(primaryTerm);
+        final String compoundFileName = BatchedCompoundCommit.blobNameFromGeneration(primaryTerm);
         long offset = 0;
         final Map<BlobCacheIndexInput, String> blobCacheIndexInputs = new HashMap<>();
         for (ChecksumAndLength checksumAndLength : checksumAndLengthList) {

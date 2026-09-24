@@ -324,9 +324,6 @@ tests:
 - class: org.elasticsearch.client.RestClientSingleHostIntegTests
   method: testRequestResetAndAbort
   issue: https://github.com/elastic/elasticsearch/issues/156177
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationIT
-  method: test {csv-spec:approximation.Inline stats by}
-  issue: https://github.com/elastic/elasticsearch/issues/156264
 - class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
   method: testDistributionChange
   issue: https://github.com/elastic/elasticsearch/issues/156294
@@ -566,12 +563,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/159773
-- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/159774
 - class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleTranslogsGCIT
   method: testTranslogGCDoesNotDeleteLeftNodeWhenRecovering
   issue: https://github.com/elastic/elasticsearch/issues/159790
@@ -638,21 +629,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=search/397_match_only_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
-- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
-  method: testEsqlTermsAggregationByMethod
-  issue: https://github.com/elastic/elasticsearch/issues/159868
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlTermsAggregationByMethod
-  issue: https://github.com/elastic/elasticsearch/issues/159816
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
-  method: testEsqlTermsAggregationByMethod
-  issue: https://github.com/elastic/elasticsearch/issues/159869
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecNullIT
-  method: test {csv-spec:null.nullFieldArgInMultiInputAggs}
-  issue: https://github.com/elastic/elasticsearch/issues/159877
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecNullIT
-  method: test {csv-spec:null.nullLiteralArgInMultiInputAggs}
-  issue: https://github.com/elastic/elasticsearch/issues/159878
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/159890
@@ -667,18 +643,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitUploadMetrics
   issue: https://github.com/elastic/elasticsearch/issues/159904
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/159906
-- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/159925
 - class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
   method: testLimitSkipsUnstartedNestedMergeAndQueuedSiblingLeaves
   issue: https://github.com/elastic/elasticsearch/issues/159932
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testUnhollowOnUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/159939
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/159947
@@ -688,8 +655,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/159951
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  issue: https://github.com/elastic/elasticsearch/issues/159953
 - class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
   method: test {p0=search/340_flattened/Test flattened mapped sub-field as index sort field}
   issue: https://github.com/elastic/elasticsearch/issues/160031
@@ -699,9 +664,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
   method: testPreExistingBufferFilesDrainAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/160054
-- class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
-  method: testReadLatestBccPopulatesCache
-  issue: https://github.com/elastic/elasticsearch/issues/160077
 - class: org.elasticsearch.xpack.esql.action.ExternalRequestFilterRowGroupPruningIT
   method: testWhereAndRequestFilterPruneIdentically
   issue: https://github.com/elastic/elasticsearch/issues/160084
@@ -714,9 +676,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification byte vector type}
   issue: https://github.com/elastic/elasticsearch/issues/160126
-- class: org.elasticsearch.indices.recovery.RecoveryMetricsIT
-  method: testDirectCancellationMetricsQueuedAndStarted
-  issue: https://github.com/elastic/elasticsearch/issues/160130
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
   issue: https://github.com/elastic/elasticsearch/issues/160160
@@ -725,3 +684,8 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testDeleteAndRecreateIndexDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/160169
+- class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
+  method: testStopSkipsQueuedNestedLeaves
+  issue: https://github.com/elastic/elasticsearch/issues/160201
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounterTests
+  issue: https://github.com/elastic/elasticsearch/issues/160233

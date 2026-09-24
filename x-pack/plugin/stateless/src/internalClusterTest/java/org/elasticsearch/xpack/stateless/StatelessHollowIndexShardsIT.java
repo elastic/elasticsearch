@@ -159,6 +159,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.lang.Math.min;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
@@ -2165,10 +2166,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 .mapToObj(i -> findIndexShard(index, i).indexingStats().getTotal().getIndexCount())
                 .toList();
             var ingestLatch = new CountDownLatch(ingestingThreads);
-            final var shuffledDocIds = shuffledList(docsIds.toArray(String[]::new));
+            // need enough updates to be sure to hollow every shard
+            final var docsToIngest = randomSubsetOf(min(100, docsIds.size()), docsIds);
             final var ingestFutures = new ArrayList<Future<?>>(ingestingThreads);
-            final var nextDocIndex = new AtomicInteger();
             for (int i = 0; i < ingestingThreads; i++) {
+                final int threadIndex = i;
                 Runnable ingestRunnable = switch (ingestionType) {
                     // Index docs
                     case Index -> () -> {
@@ -2181,11 +2183,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     // Update doc or Upsert new doc
                     case Update -> () -> {
                         try {
-                            int docIndex;
-                            // need enough updates to be sure to hollow every shard
-                            while ((docIndex = nextDocIndex.getAndIncrement()) < Math.min(docsIds.size(), 100)) {
+                            for (int docIndex = threadIndex; docIndex < docsToIngest.size(); docIndex += ingestingThreads) {
                                 final var upsertOrUpdate = randomBoolean();
-                                final var docId = upsertOrUpdate ? docIdSupplier.get() : shuffledDocIds.get(docIndex);
+                                final var docId = upsertOrUpdate ? docIdSupplier.get() : docsToIngest.get(docIndex);
                                 final var response = client().prepareUpdate(indexName, docId)
                                     .setDoc(frequently() ? "field" : "field_" + docId, randomUnicodeOfLength(10))
                                     .setDocAsUpsert(upsertOrUpdate)
@@ -2205,10 +2205,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                         try {
                             var client = client();
                             var bulkUpdates = client.prepareBulk();
-                            int docIndex;
-                            // need enough updates to be sure to hollow every shard
-                            while ((docIndex = nextDocIndex.getAndIncrement()) < Math.min(docsIds.size(), 100)) {
-                                var docId = shuffledDocIds.get(docIndex);
+                            for (int docIndex = threadIndex; docIndex < docsToIngest.size(); docIndex += ingestingThreads) {
+                                var docId = docsToIngest.get(docIndex);
                                 bulkUpdates.add(client.prepareUpdate(indexName, docId).setDoc("field", randomUnicodeOfLength(10)));
                             }
                             assertNoFailures(bulkUpdates.get());
@@ -2446,16 +2444,16 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
     /// un-hollowing scenario:
     ///
     /// - A single-shard index holding N documents is built on index node A and relocated to index node B as a
-    ///   hollow shard (the shard's data lives in the object store; B keeps only a stub that still reports N docs).
+    /// hollow shard (the shard's data lives in the object store; B keeps only a stub that still reports N docs).
     /// - N further documents are indexed directly into B. This forces B to un-hollow: it pulls its N original
-    ///   documents back and applies the N new ones, so the shard is expected to hold 2N documents. B's upload of
-    ///   the resulting un-hollow commit is stalled, and B is then isolated from the cluster and dropped.
+    /// documents back and applies the N new ones, so the shard is expected to hold 2N documents. B's upload of
+    /// the resulting un-hollow commit is stalled, and B is then isolated from the cluster and dropped.
     /// - Because B left before publishing its un-hollow commit, the shard is re-assigned to A, which recovers
-    ///   from the newest commit visible on the object store (still the hollow one) and becomes the new primary.
-    ///   The isolated B is then allowed to finish un-hollowing and to upload its newer commits (the un-hollow
-    ///   commit and the commit carrying the new documents) to the object store.
+    /// from the newest commit visible on the object store (still the hollow one) and becomes the new primary.
+    /// The isolated B is then allowed to finish un-hollowing and to upload its newer commits (the un-hollow
+    /// commit and the commit carrying the new documents) to the object store.
     /// - A search shard is added for the index. During its recovery it registers the newest commit it finds on
-    ///   the object store - the one uploaded by B - which is newer than the commit A is serving.
+    /// the object store - the one uploaded by B - which is newer than the commit A is serving.
     ///
     /// The test asserts that this registration causes A's primary to be failed and to reload the newer un-hollow
     /// commit from the object store: A ends up un-hollow, at a primary term greater than that of B's un-hollow
@@ -2977,7 +2975,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     if (subsetOfInsertedDocs.isEmpty()) {
                         continue;
                     }
-                    List<String> docIds = randomSubsetOf(Math.min(8, subsetOfInsertedDocs.size()), subsetOfInsertedDocs);
+                    List<String> docIds = randomSubsetOf(min(8, subsetOfInsertedDocs.size()), subsetOfInsertedDocs);
                     try {
                         if (randomBoolean()) {
                             var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
@@ -3017,7 +3015,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 if (subsetOfInsertedDocs.isEmpty()) {
                     continue;
                 }
-                List<String> docIds = randomSubsetOf(Math.min(subsetOfInsertedDocs.size(), 64), subsetOfInsertedDocs);
+                List<String> docIds = randomSubsetOf(min(subsetOfInsertedDocs.size(), 64), subsetOfInsertedDocs);
                 if (docIds.isEmpty()) {
                     continue;
                 }

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DenseVectorEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
@@ -3397,9 +3398,27 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testResolveDenseVector() {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
-                List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build())))
+                List.of(
+                    fieldCapabilitiesIndexResponse(
+                        "foo",
+                        Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").isSearchable(true).build())
+                    )
+                )
             )
             .build();
+        {
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                false,
+                new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, true, true, false, true),
+                false,
+                IndexResolver.DO_NOT_GROUP
+            );
+            var plan = analyzer().addIndex(resolution).query("FROM foo");
+            assertThat(plan.output(), hasSize(1));
+            assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
+            assertThat(((DenseVectorEsField) ((FieldAttribute) plan.output().getFirst()).field()).isIndexed(), equalTo(true));
+        }
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
@@ -3409,8 +3428,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyzer().addIndex(resolution).query("FROM foo");
-            assertThat(plan.output(), hasSize(1));
-            assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
+            assertEquals(EsField.class, ((FieldAttribute) plan.output().getFirst()).field().getClass());
         }
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
@@ -3424,6 +3442,58 @@ public class AnalyzerTests extends AnalyzerTestCase {
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
+    }
+
+    public void testResolveUnindexedDenseVector() {
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(
+                    fieldCapabilitiesIndexResponse(
+                        "foo",
+                        Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").isSearchable(false).build())
+                    )
+                )
+            )
+            .build();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo",
+            false,
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, true, true, false, true),
+            false,
+            IndexResolver.DO_NOT_GROUP
+        );
+
+        var plan = analyzer().addIndex(resolution).query("FROM foo");
+        DenseVectorEsField field = (DenseVectorEsField) ((FieldAttribute) plan.output().getFirst()).field();
+        assertThat(field.isIndexed(), equalTo(false));
+    }
+
+    public void testResolveDenseVectorWithMixedIndexing() {
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(
+                    fieldCapabilitiesIndexResponse(
+                        "foo-indexed",
+                        Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").isSearchable(true).build())
+                    ),
+                    fieldCapabilitiesIndexResponse(
+                        "foo-unindexed",
+                        Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").isSearchable(false).build())
+                    )
+                )
+            )
+            .build();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo-*",
+            false,
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, true, true, false, true),
+            false,
+            IndexResolver.DO_NOT_GROUP
+        );
+
+        var plan = analyzer().addIndex(resolution).query("FROM foo-*");
+        DenseVectorEsField field = (DenseVectorEsField) ((FieldAttribute) plan.output().getFirst()).field();
+        assertThat(field.isIndexed(), equalTo(false));
     }
 
     public void testResolveAggregateMetricDouble() {

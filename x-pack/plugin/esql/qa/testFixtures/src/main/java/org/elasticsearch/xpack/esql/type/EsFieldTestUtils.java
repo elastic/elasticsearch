@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.type;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.type.DenseVectorEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
@@ -48,15 +49,31 @@ public class EsFieldTestUtils {
      * to keep the unrestricted behavior.
      */
     public static EsField randomSerializableEsField(int maxDepth, TransportVersion supportedOn) {
-        return switch (between(0, 5)) {
+        int maxType = supportedOn == null || supportedOn.supports(DenseVectorEsField.ESQL_DENSE_VECTOR_FIELD_INDEXED) ? 6 : 5;
+        return switch (between(0, maxType)) {
             case 0 -> randomEsField(maxDepth, supportedOn);
             case 1 -> randomDateEsField(maxDepth, supportedOn);
             case 2 -> randomKeywordEsField(maxDepth, supportedOn);
             case 3 -> randomTextEsField(maxDepth, supportedOn);
             case 4 -> randomPotentiallyUnmappedKeywordEsField(maxDepth, supportedOn);
             case 5 -> randomUnsupportedEsField(maxDepth, supportedOn);
+            case 6 -> randomDenseVectorEsField(maxDepth, supportedOn);
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    /**
+     * Returns a random {@link DenseVectorEsField} instance with properties nested up to {@code maxPropertiesDepth}.
+     */
+    public static DenseVectorEsField randomDenseVectorEsField(int maxPropertiesDepth, TransportVersion supportedOn) {
+        return new DenseVectorEsField(
+            randomAlphaOfLength(4),
+            randomProperties(maxPropertiesDepth, supportedOn),
+            randomBoolean(),
+            randomBoolean(),
+            randomFrom(EsField.TimeSeriesFieldType.values()),
+            randomBoolean()
+        );
     }
 
     /**

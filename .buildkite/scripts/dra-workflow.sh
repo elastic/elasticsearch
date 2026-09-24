@@ -114,7 +114,10 @@ DRA_WORKFLOW="$WORKFLOW" \
 
 echo --- Consolidating distribution artifacts for DRA staging
 mkdir -p artifacts
-find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec cp {} artifacts/ \;
+find "$WORKSPACE" -type f -path "*/build/distributions/*" \
+  \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.deb" -o -name "*.rpm" \
+     -o -name "*.msi" -o -name "*.taco" -o -name "*.csv" \) \
+  -exec cp {} artifacts/ \;
 
 echo "Artifacts to be staged:"
 ls -1 artifacts/

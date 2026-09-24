@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -214,6 +215,22 @@ public class WeightedRoundRobinStrategyTests extends ESTestCase {
         assertTrue(plan.distributed());
         assertEquals(Set.of("search-1"), plan.nodeAssignments().keySet());
         assertEquals(2, plan.nodeAssignments().get("search-1").size());
+    }
+
+    public void testPlanDistributionRotatesLargestSplitBySiblingIndex() {
+        ExternalSplit largest = createSplit("large.parquet", 9000);
+        List<ExternalSplit> splits = List.of(createSplit("small.parquet", 100), largest);
+        DiscoveryNodes nodes = createNodes(3);
+        SiblingPlacement placement = new SiblingPlacement(1, 3, true);
+        ExternalDistributionContext context = new ExternalDistributionContext(createPlan(), splits, nodes, QueryPragmas.EMPTY, placement);
+
+        ExternalDistributionPlan plan = strategy.planDistribution(context);
+
+        List<DiscoveryNode> eligible = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes);
+        int stride = placement.stride(splits.size(), eligible.size());
+        assertTrue(plan.distributed());
+        assertTrue(plan.nodeAssignments().get(eligible.get(stride).getId()).contains(largest));
+        assertFalse(plan.nodeAssignments().get(eligible.get(0).getId()).contains(largest));
     }
 
     public void testIndexOnlyClusterReturnsLocal() {

@@ -183,9 +183,8 @@ The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.
 follows the same rules as observed for [`METADATA` in subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
 Inside the view it generates columns, just like other fields, and these can be used for filtering and as output columns.
 
-Outside the view it generates `null` values.
-Note that this is a known limitation of the current tech-preview, and is anticipated to be addressed in a future update,
-at which point `METADATA _index` will contain the name of the view.
+Outside the view, a `METADATA` field produces `null` values unless the view body itself already declares that field.
+When the view body declares a `METADATA` field, the outer query can also request it and will receive the actual values unchanged.
 
 ## How views execute
 

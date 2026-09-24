@@ -93,10 +93,11 @@ Embeddings produced by different models generally do not share the same vector
 space. Specify `inference_id` when generated vectors must remain comparable
 across queries or deployments.
 
-In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md#ccq-inference-endpoints),
-`DENSE_VECTOR` runs on the cluster that receives the query. The inference
-endpoint must exist on that cluster, even when the documents come from a remote
-cluster.
+In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md#ccq-inference-endpoints)
+or a [cross-project query](/reference/query-languages/esql/esql-cross-serverless-projects.md#limitations),
+`DENSE_VECTOR` runs on the cluster or project that receives the query. The
+inference endpoint must exist there, even when the documents come from a remote
+cluster or a linked project.
 
 ## Resource controls
 

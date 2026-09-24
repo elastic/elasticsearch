@@ -9,6 +9,8 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.Nullable;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -87,11 +89,11 @@ public final class TimeAllocationEstimators {
 
     /** A new {@link String} of {@code chars} characters: the object plus its array. */
     private static long newStringBytes(long chars) {
-        return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.mulSat(2L, Math.max(0L, chars));
+        return AllocSizes.addSat(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD, AllocSizes.mulSat(2L, Math.max(0L, chars)));
     }
 
     /** Length of {@code text}. A {@code null} counts as empty; the real call rejects it. */
-    private static long textLength(CharSequence text) {
+    private static long textLength(@Nullable CharSequence text) {
         return text == null ? 0 : text.length();
     }
 

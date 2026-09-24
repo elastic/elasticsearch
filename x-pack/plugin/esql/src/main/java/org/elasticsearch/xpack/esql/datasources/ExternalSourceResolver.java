@@ -1524,8 +1524,17 @@ public class ExternalSourceResolver {
             maxDiscoveredFiles.getAsInt(),
             maxGlobExpansion.getAsInt(),
             maxListedObjects.getAsInt(),
-            listingBound
+            listingBound,
+            listingConcurrency(),
+            this::isCancelled
         );
+    }
+
+    private int listingConcurrency() {
+        int permits = ExternalSourceSettings.blobStoreConcurrency(settings);
+        return permits > 0
+            ? Math.min(FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY, permits)
+            : FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY;
     }
 
     /**
@@ -3714,7 +3723,9 @@ public class ExternalSourceResolver {
                 maxDiscoveredFiles.getAsInt(),
                 maxGlobExpansion.getAsInt(),
                 maxListedObjects.getAsInt(),
-                listingBound
+                listingBound,
+                listingConcurrency(),
+                this::isCancelled
             );
         } else if (isCacheable(provider) && listingBound == Integer.MAX_VALUE) {
             listing = cachedListing(path, storagePath, provider, hints, config);

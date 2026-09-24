@@ -466,7 +466,8 @@ public class SnapshotResiliencyTestHelper {
 
         public class TestClusterNode {
             private static final Set<NodeFeature> SUPPORTED_FEATURES = Set.of(
-                DataStream.DATA_STREAM_FAILURE_STORE_FEATURE, RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE
+                DataStream.DATA_STREAM_FAILURE_STORE_FEATURE,
+                RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE
             );
 
             protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;

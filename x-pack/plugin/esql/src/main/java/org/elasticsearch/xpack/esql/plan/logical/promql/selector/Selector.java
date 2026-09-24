@@ -11,15 +11,28 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.project;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapFinite;
 
 /**
  * Base class representing a PromQL vector selector.
@@ -100,5 +113,41 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException("should not serialize");
+    }
+
+    /**
+     * Translates a source-backed selector (instant or range) reading {@code value} per series; label matchers lower to a
+     * pending filter predicate. Shared by the selectors that read the source relation; each still declares its own
+     * {@link #translate} so a new selector cannot inherit this lowering by accident.
+     */
+    protected final IntermediateResult translateSeries(TranslationContext context, Expression value) {
+        LogicalPlan input = context.cmd().child();
+        LogicalPlan foldedPlan = PromqlLogicalPlanBuilder.tryFoldRelation(context.cmd(), input);
+        Expression matcher = labelMatchers().predicate(source(), labels(), context.configuration());
+
+        if (foldedPlan != null) {
+            var empty = new LocalRelation(
+                context.cmd().source(),
+                List.of(context.cmd().valueAttribute(), context.cmd().stepAttribute()),
+                EmptyLocalSupplier.EMPTY
+            );
+            return new IntermediateResult(
+                empty,
+                TranslationConstraint.EMPTY,
+                Literal.NULL,
+                context.cmd().stepAttribute(),
+                null,
+                Kind.CONSTANT
+            );
+        }
+
+        List<Attribute> dimensions = input.output()
+            .stream()
+            .filter(attribute -> attribute instanceof FieldAttribute field && field.isDimension())
+            .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
+            .toList();
+        // Expose only required labels that exist on the relation. Consumers null-fill any required label that is absent.
+        TranslationConstraint header = project(context.required(), mapFinite(dimensions));
+        return new IntermediateResult(input, header, value, context.stepAttr(), matcher);
     }
 }

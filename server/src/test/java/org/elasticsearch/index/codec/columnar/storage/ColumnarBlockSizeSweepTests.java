@@ -29,7 +29,11 @@ public class ColumnarBlockSizeSweepTests extends ColumnarNumericStorageTestBase 
     private static final Logger logger = LogManager.getLogger(ColumnarBlockSizeSweepTests.class);
     private static final int[] ES95_BLOCK_SIZES = { 128, 512 };
     private static final long SMALL_WORKLOAD_THRESHOLD_BYTES = 16_384L;
-    private static final long SMALL_WORKLOAD_ABS_DELTA_BYTES = 512L;
+    /**
+     * How far a small workload may sit above ES95 in bytes. It includes a fixed cost ES95 does not pay: ColumNAR
+     * writes six files a segment to its two, each with its own header and footer.
+     */
+    private static final long SMALL_WORKLOAD_ABS_DELTA_BYTES = 768L;
 
     private record Ceiling(double bs128, double bs512) {}
 

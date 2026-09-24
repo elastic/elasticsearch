@@ -41,6 +41,16 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     }
 
     /**
+     * Compiles {@code source} under {@code limit} with script parameters, recording no metrics. A mutable object in
+     * {@code params} is how a test observes what a script did before it was stopped.
+     */
+    protected PainlessTestScript compile(String source, String limit, Map<String, Object> params) {
+        Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> null, false);
+        return engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of()).newInstance(params);
+    }
+
+    /**
      * Compiles {@code source} recording into {@code metrics}, with no limit: the counter runs and each execution is
      * recorded, but nothing can fail the script. Supplying an instance is what enables recording, so no test needs the
      * system property, which tests sharing a JVM must treat as immutable.

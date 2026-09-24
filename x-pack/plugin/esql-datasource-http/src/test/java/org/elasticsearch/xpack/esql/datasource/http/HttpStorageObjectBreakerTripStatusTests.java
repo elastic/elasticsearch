@@ -49,6 +49,37 @@ import static org.mockito.Mockito.when;
 public class HttpStorageObjectBreakerTripStatusTests extends ESTestCase {
 
     public void testBreakerTripInsideBodyHandlerSurfacesWithBreakerStatus() throws Exception {
+        StoragePath path = StoragePath.of("https://example.com/data.parquet");
+        Exception error = readWithRefusingBreaker(path);
+
+        // The rejection must still be in the cause chain, whatever the wrapping did.
+        assertNotNull(
+            "the CircuitBreakingException must survive in the cause chain",
+            ExceptionsHelper.unwrap(error, CircuitBreakingException.class)
+        );
+
+        // The mapped failure must carry the breaker's status, not be buried under a
+        // status-neutral IOException (status 500 here, and classified 400 by the external
+        // read boundary).
+        assertThat(
+            "a breaker rejection must surface with breaker status, not as an I/O failure",
+            ExceptionsHelper.status(error),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+        // ... and still name the object that tripped it, like every other mapped read failure.
+        assertThat(error, instanceOf(CircuitBreakingException.class));
+        assertThat(error.getMessage(), containsString(path.toString()));
+    }
+
+    /** The breaker-trip message is built outside this module from the path it is handed, which is the redacted URL. */
+    public void testBreakerTripRedactsUrl() throws Exception {
+        Exception error = readWithRefusingBreaker(StoragePath.of(HttpUrlsTests.SECRET_URL));
+        assertThat(error, instanceOf(CircuitBreakingException.class));
+        HttpUrlsTests.assertRedacted(error.getMessage());
+    }
+
+    /** Reads {@code path} through the native async path with a breaker that refuses the destination buffer. */
+    private static Exception readWithRefusingBreaker(StoragePath path) throws Exception {
         CircuitBreaker refusing = new NoopCircuitBreaker("test") {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
@@ -65,7 +96,6 @@ public class HttpStorageObjectBreakerTripStatusTests extends ESTestCase {
         HttpClient mockClient = mock(HttpClient.class);
         doAnswer(invocation -> driveLikeTheHttpClient(invocation.getArgument(1))).when(mockClient).sendAsync(any(), any());
 
-        StoragePath path = StoragePath.of("https://example.com/data.parquet");
         HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -83,24 +113,7 @@ public class HttpStorageObjectBreakerTripStatusTests extends ESTestCase {
             }
         });
         assertTrue(latch.await(5, TimeUnit.SECONDS));
-
-        // The rejection must still be in the cause chain, whatever the wrapping did.
-        assertNotNull(
-            "the CircuitBreakingException must survive in the cause chain",
-            ExceptionsHelper.unwrap(error.get(), CircuitBreakingException.class)
-        );
-
-        // The mapped failure must carry the breaker's status, not be buried under a
-        // status-neutral IOException (status 500 here, and classified 400 by the external
-        // read boundary).
-        assertThat(
-            "a breaker rejection must surface with breaker status, not as an I/O failure",
-            ExceptionsHelper.status(error.get()),
-            equalTo(RestStatus.TOO_MANY_REQUESTS)
-        );
-        // ... and still name the object that tripped it, like every other mapped read failure.
-        assertThat(error.get(), instanceOf(CircuitBreakingException.class));
-        assertThat(error.get().getMessage(), containsString(path.toString()));
+        return error.get();
     }
 
     /**

@@ -3790,6 +3790,12 @@ public class EsqlCapabilities {
         HIGHLIGHT_MAPPING_ANALYZER,
 
         /**
+         * When the queried indices disagree on an ON field's analyzer, HIGHLIGHT tokenizes each row with the analyzer
+         * of the index it came from instead of falling back to {@code standard}.
+         */
+        HIGHLIGHT_PER_INDEX_ANALYZER,
+
+        /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
          */
         PROMQL_HISTOGRAM_QUANTILE,

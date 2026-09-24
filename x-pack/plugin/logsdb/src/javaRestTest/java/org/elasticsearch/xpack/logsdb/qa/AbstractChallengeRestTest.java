@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -255,7 +256,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     private Response query(final SearchSourceBuilder search, final Supplier<String> dataStreamNameSupplier) throws IOException {
         final Request request = new Request("GET", "/" + dataStreamNameSupplier.get() + "/_search");
         request.setJsonEntity(Strings.toString(search));
-        return client.performRequest(request);
+        return performRequestLogged(request, "search [" + dataStreamNameSupplier.get() + "]");
     }
 
     public Response esqlBaseline(final String query) throws IOException {
@@ -268,8 +269,9 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     private Response esql(final String query, final Supplier<String> dataStreamNameSupplier) throws IOException {
         final Request request = new Request("POST", "/_query");
-        request.setJsonEntity("{\"query\": \"" + query.replace("$index", dataStreamNameSupplier.get()) + "\"}");
-        return client.performRequest(request);
+        final String resolvedQuery = query.replace("$index", dataStreamNameSupplier.get());
+        request.setJsonEntity("{\"query\": \"" + resolvedQuery + "\"}");
+        return performRequestLogged(request, "esql [" + resolvedQuery + "]");
     }
 
     public Response fieldCapsBaseline() throws IOException {
@@ -282,7 +284,28 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     private Response fieldCaps(final Supplier<String> dataStreamNameSupplier) throws IOException {
         final Request request = new Request("GET", "/" + dataStreamNameSupplier.get() + "/_field_caps?fields=*");
-        return client.performRequest(request);
+        return performRequestLogged(request, "field_caps [" + dataStreamNameSupplier.get() + "]");
+    }
+
+    /**
+     * Performs a request and logs how long it took. These tests fail in CI with socket timeouts, and the stack trace alone cannot
+     * tell us whether the cluster slowed down gradually over the preceding requests or stalled on a single one. Every request that
+     * carries test traffic (indexing, searching, field caps) should go through here so that the timeline is visible in the test output.
+     */
+    protected Response performRequestLogged(final Request request, final String description) throws IOException {
+        final long startNanos = System.nanoTime();
+        logger.info("--> {} [{} {}]", description, request.getMethod(), request.getEndpoint());
+        try {
+            final Response response = client.performRequest(request);
+            logger.info("<-- {} took [{}]", description, TimeValue.timeValueNanos(System.nanoTime() - startNanos));
+            return response;
+        } catch (IOException e) {
+            logger.error(
+                () -> Strings.format("<-- %s failed after [%s]", description, TimeValue.timeValueNanos(System.nanoTime() - startNanos)),
+                e
+            );
+            throw e;
+        }
     }
 
     public String getBaselineDataStreamName() {

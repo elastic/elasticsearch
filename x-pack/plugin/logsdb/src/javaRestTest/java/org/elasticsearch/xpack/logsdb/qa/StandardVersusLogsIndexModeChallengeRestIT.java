@@ -64,6 +64,8 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     private final int numShards = randomBoolean() ? randomIntBetween(2, 4) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
     protected final DataGenerationHelper dataGenerationHelper;
+    private int baselineBulkBatches = 0;
+    private int contenderBulkBatches = 0;
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
         this(new DataGenerationHelper(builder -> builder.withMaxFieldCountPerLevel(30)));
@@ -426,7 +428,19 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         var request = new Request("POST", "/" + (isBaseline ? getBaselineDataStreamName() : getContenderDataStreamName()) + "/_bulk");
         request.setEntity(getHttpEntity(json));
         request.addParameter("refresh", "true");
-        var response = client.performRequest(request);
+        final int batch = isBaseline ? ++baselineBulkBatches : ++contenderBulkBatches;
+        // Each document takes two lines: the action line and the source line.
+        final long documentCount = json.chars().filter(c -> c == '\n').count() / 2;
+        var response = performRequestLogged(
+            request,
+            Strings.format(
+                "bulk %s batch [%d] with [%d] documents, [%d] chars",
+                isBaseline ? "baseline" : "contender",
+                batch,
+                documentCount,
+                json.length()
+            )
+        );
         assertOK(response);
         var responseBody = entityAsMap(response);
         assertThat(

@@ -606,6 +606,31 @@ public class AnalysisRegistryTests extends ESTestCase {
         indexAnalyzers.close();
     }
 
+    /**
+     * Regression test for the double-close race between the AnalysisRegistry.close() safety net and
+     * a concurrent (or late) IndexAnalyzers.close(). The race window: AnalysisRegistry.close()
+     * iterates the live cache and collects evictable analyzers into a toClose list, then a
+     * releaseFromCache() call (from an IndexAnalyzers.close() running concurrently) closes the same
+     * evictable before the registry's IOUtils.close(toClose) fires — causing a second close that
+     * NPEs inside CloseableThreadLocal because storedValue was already nulled by the first close.
+     * The fix uses ConcurrentHashMap.remove(key, entry) in the registry close path so that exactly
+     * one caller atomically claims ownership of the evictable close.
+     */
+    public void testNoDoubleCloseWhenRegistryClosedBeforeIndexAnalyzers() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        AnalysisRegistry registry = emptyAnalysisRegistry(settings);
+        IndexAnalyzers indexAnalyzers = registry.build(
+            IndexCreationContext.CREATE_INDEX,
+            indexSettingsOfCurrentVersion(Settings.builder())
+        );
+        // Simulate the race: registry closes first (safety-net path), then the IndexAnalyzers
+        // releases its reference (late-release path). Without the fix this second close would
+        // NPE inside CloseableThreadLocal.
+        registry.close();
+        indexAnalyzers.close(); // must not throw
+    }
+
     public void testEnsureCloseInvocationProperlyDelegated() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         PreBuiltAnalyzerProviderFactory mock = mock(PreBuiltAnalyzerProviderFactory.class);

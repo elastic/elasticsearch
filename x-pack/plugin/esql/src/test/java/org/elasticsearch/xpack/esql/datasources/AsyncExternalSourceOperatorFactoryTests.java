@@ -65,6 +65,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -920,7 +921,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             operator.close();
         }
         driverContext.finish();
-        assertThat(driverContext.warnings(), contains(SkipWarnings.absentDeclaredColumnMessage("city")));
+        assertThat(driverContext.warnings(), contains(SkipWarnings.absentColumnMessage("city")));
         Releasables.close(driverContext.getSnapshot());
     }
 
@@ -1997,6 +1998,80 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertEquals(2000, range2.offset());
         assertEquals(500, range2.length());
         assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(2));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    /**
+     * Every split past the file's first byte is handed the file's header columns, read once per file: a second
+     * consecutive split of the same file takes them from the producer's cache instead of reading the header again.
+     */
+    public void testConsecutiveSplitsOfOneFileReadItsHeaderColumnsOnce() throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> readSchema = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        List<ExternalSplit> splits = List.of(
+            FileSplit.withReadSchema(
+                "test",
+                path,
+                0,
+                1000,
+                "csv",
+                Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true"),
+                Map.of(),
+                null,
+                readSchema
+            ),
+            FileSplit.withReadSchema("test", path, 1000, 1000, "csv", Map.of(), Map.of(), null, readSchema),
+            FileSplit.withReadSchema(
+                "test",
+                path,
+                2000,
+                500,
+                "csv",
+                Map.of(FileSplitProvider.LAST_SPLIT_KEY, "true"),
+                Map.of(),
+                null,
+                readSchema
+            )
+        );
+        HeaderCountingFormatReader formatReader = new HeaderCountingFormatReader(List.of("value"));
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            path,
+            readSchema,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(new ArrayList<>(splits))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(Arrays.asList(null, List.of("value"), List.of("value")), formatReader.capturedHeaderColumns);
+        assertEquals("the second split past the first byte must reuse the header columns", 1, formatReader.headerReads);
 
         for (Page p : pages) {
             p.releaseBlocks();
@@ -4605,6 +4680,30 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that captures the StorageObject and skipFirstLine flag passed to readSplit.
      * Used to verify that RangeStorageObject wrapping and skipFirstLine logic are correct.
      */
+    /** Counts {@link FormatReader#fileHeaderColumns} reads and records the header columns each split's read is handed. */
+    private static class HeaderCountingFormatReader extends SplitCapturingFormatReader {
+        private final List<String> headerColumns;
+        private final List<List<String>> capturedHeaderColumns = new ArrayList<>();
+        private int headerReads;
+
+        HeaderCountingFormatReader(List<String> headerColumns) {
+            super(new ArrayList<>(), new ArrayList<>());
+            this.headerColumns = headerColumns;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) {
+            headerReads++;
+            return headerColumns;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            capturedHeaderColumns.add(context.fileHeaderColumns());
+            return super.read(object, context);
+        }
+    }
+
     private static class SplitCapturingFormatReader implements NoConfigFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {

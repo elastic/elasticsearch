@@ -35,7 +35,7 @@ FROM mv_sample_none
 | SORT id
 ;
 warningRegex:CSV read from \[.+\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] error: CSV row has \[5\] columns but schema defines \[3\] columns.*
+warningRegex:Row \[\d+\] error: CSV row has \[5\] columns but (schema|the file's header) defines \[3\] columns.*
 
 id:integer | tags:keyword
 2          | solo

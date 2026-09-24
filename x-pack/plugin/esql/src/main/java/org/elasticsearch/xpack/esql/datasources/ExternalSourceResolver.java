@@ -3561,7 +3561,7 @@ public class ExternalSourceResolver {
      * (rows overflowing the declared width), which a foreign declaration's warm count would then mask. The premise
      * is false: a DECLARED schema binds by name, and the row-width limit it carries is the FILE's own column count,
      * never the declaration's ({@code CsvFormatReader#initProjection} takes the bound from the bound file's header,
-     * or lifts it entirely for a headerless file, which supplies no width) — so declaring FEWER columns than the file
+     * or for a headerless file from its first data record) — so declaring FEWER columns than the file
      * does not shrink how wide a row may be, and no row overflows a narrower declaration. A declared column the file
      * lacks null-fills with a warning, and declared-type/date-pattern conversion touches
      * only projected columns, of which an ungrouped {@code COUNT(*)} has none. NDJSON binds by key with no width
@@ -3577,7 +3577,7 @@ public class ExternalSourceResolver {
      * which then answers where its own scan errors. A masked abort, not a wrong number, and it flaps with cache
      * state. The gap is narrower than it was: a headered declared read now aborts on any row wider than that file's
      * own header, so the two diverge only where the pinned width differs from the file's header (a glob whose later
-     * files are wider than the first), or for a HEADERLESS declared read, which carries no width bound at all. Withdrawing the licence
+     * files are wider than the first). Withdrawing the licence
      * would close it and stop every strict dataset warming; scoping it to the binding mode that produced the count
      * would close it without that cost, and is the shape of the fix if this is ever worth closing.
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict

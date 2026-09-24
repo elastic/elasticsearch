@@ -877,8 +877,8 @@ public final class StreamingParallelParsingCoordinator {
          * wins on type, so the inference cannot retype a column — it only contributes columns the projection
          * does not name, which some readers need in order to decode the ones it does.
          * <p>
-         * A header-bearing file whose declared schema binds by name additionally has to tell later chunks what
-         * its columns are called, since only chunk 0 can see the header.
+         * A header-bearing file bound against a pinned schema additionally has to tell later chunks what its
+         * columns are called, since only chunk 0 can see the header.
          */
         private void prepareFromFirstChunk(byte[] buffer, int length) throws IOException {
             // Capture before binding: the header names must come from the reader as the planner configured it,
@@ -915,26 +915,21 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * Reads the file's column names from chunk 0 so chunks 1..N can bind a declared schema by name.
+         * Reads the file's header column names from chunk 0 so chunks 1..N can bind the pinned schema by name.
          * <p>
-         * Only a header-bearing format whose declared schema binds by name needs this, and only when the
-         * planner bound a schema — otherwise the reader either has no names to match or reads its own header.
-         * Chunk 0 always reads its own header and ignores what is captured here.
+         * Only when the planner bound a schema; otherwise the reader reads its own header. Chunk 0 always reads its own
+         * header and ignores what is captured here.
          * <p>
          * Runs on the segmentator thread before any chunk is dispatched, so every parser sees a fully
          * populated value. Failure is not fatal: chunks 1..N then find no names and fail loudly rather than
          * binding by position, which would shift every column silently.
          */
         private void captureFileHeaderColumns(byte[] buffer, int length) {
-            if (fileHeaderColumns != null || reader.declaredNameBindingNeedsFileStart() == false) {
+            if (fileHeaderColumns != null) {
                 return;
             }
             try {
-                SourceMetadata metadata = reader.metadata(chunkStorageObject(0, buffer, 0, length));
-                List<Attribute> schema = metadata == null ? null : metadata.schema();
-                if (schema != null && schema.isEmpty() == false) {
-                    fileHeaderColumns = schema.stream().map(Attribute::name).toList();
-                }
+                fileHeaderColumns = reader.fileHeaderColumns(chunkStorageObject(0, buffer, 0, length));
             } catch (IOException | RuntimeException e) {
                 // Every later chunk will now fail with "no header columns", which says nothing about why they
                 // are missing. Log the real cause at WARN so the two can be connected — this is the only place

@@ -3011,6 +3011,12 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_DECLARED_SCHEMA_ROW_WIDTH_VALIDATION,
 
         /**
+         * Every headered CSV/TSV file binds its columns by its own header, whether the schema was declared or
+         * inferred. Older nodes bind an inferred schema by position against the first file.
+         */
+        EXTERNAL_TEXT_BINDS_BY_FILE_HEADER,
+
+        /**
          * CompressionDelegatingFormatReader forwards the wrapped reader's typed profile status.
          * Older nodes still execute compressed reads but expose an empty {@code format_reader}
          * object in the external-source operator profile.

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -182,7 +183,7 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         BooleanSupplier isCancelled
     ) {
-        return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes, isCancelled, List.of());
+        return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes, isCancelled, List.of(), TransportVersion.current());
     }
 
     /**
@@ -198,21 +199,33 @@ public final class SplitDiscoveryPhase {
      * <p>The seed is not blindly trusted: {@link #resolveExternalSource} binds each conjunct to the relation's output by
      * {@link NameId} before it may prune, so a filter over a downstream-generated column that merely shares a partition
      * column's name cannot mis-prune.
+     *
+     * <p>{@code minTransportVersion} is the minimum transport version of the nodes that will read the splits. The
+     * narrower overloads pass {@link TransportVersion#current()}.
      */
     public static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         BooleanSupplier isCancelled,
-        List<Expression> seedFilters
+        List<Expression> seedFilters,
+        TransportVersion minTransportVersion
     ) {
         ScanStats stats = new ScanStats();
-        PhysicalPlan resolved = resolveRecursive(plan, seedFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
+        PhysicalPlan resolved = resolveRecursive(
+            plan,
+            seedFilters,
+            sourceFactories,
+            maxRecordBytes,
+            stats,
+            isCancelled,
+            minTransportVersion
+        );
         return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos);
     }
 
     /**
-     * Async counterpart of {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int, BooleanSupplier, List)}.
+     * Async counterpart of {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int, BooleanSupplier, List, TransportVersion)}.
      * Used by {@code ComputeService} so the inbound {@code SEARCH}/{@code esql_external_io} thread is not
      * held in a gather latch. Sync {@link #resolveExternalSplits} remains for unit tests on the test thread.
      */
@@ -222,6 +235,7 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         BooleanSupplier isCancelled,
         List<Expression> seedFilters,
+        TransportVersion minTransportVersion,
         Executor executor,
         ActionListener<Result> listener
     ) {
@@ -234,6 +248,7 @@ public final class SplitDiscoveryPhase {
                 maxRecordBytes,
                 stats,
                 isCancelled,
+                minTransportVersion,
                 executor,
                 l.map(resolved -> new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos))
             );
@@ -247,11 +262,22 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         ScanStats stats,
         BooleanSupplier isCancelled,
+        TransportVersion minTransportVersion,
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            resolveExternalSourceAsync(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled, executor, listener);
+            resolveExternalSourceAsync(
+                exec,
+                ancestorFilters,
+                sourceFactories,
+                maxRecordBytes,
+                stats,
+                isCancelled,
+                minTransportVersion,
+                executor,
+                listener
+            );
             return;
         }
 
@@ -280,6 +306,7 @@ public final class SplitDiscoveryPhase {
             maxRecordBytes,
             stats,
             isCancelled,
+            minTransportVersion,
             executor,
             listener
         );
@@ -295,6 +322,7 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         ScanStats stats,
         BooleanSupplier isCancelled,
+        TransportVersion minTransportVersion,
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
@@ -324,6 +352,7 @@ public final class SplitDiscoveryPhase {
             maxRecordBytes,
             stats,
             isCancelled,
+            minTransportVersion,
             executor,
             listener.delegateFailureAndWrap((l, resolved) -> {
                 newChildren.add(resolved);
@@ -337,6 +366,7 @@ public final class SplitDiscoveryPhase {
                     maxRecordBytes,
                     stats,
                     isCancelled,
+                    minTransportVersion,
                     executor,
                     l
                 );
@@ -350,10 +380,11 @@ public final class SplitDiscoveryPhase {
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        TransportVersion minTransportVersion
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
+            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled, minTransportVersion);
         }
 
         List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
@@ -373,7 +404,15 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes, stats, isCancelled);
+            PhysicalPlan resolved = resolveRecursive(
+                child,
+                filtersForChildren,
+                sourceFactories,
+                maxRecordBytes,
+                stats,
+                isCancelled,
+                minTransportVersion
+            );
             if (resolved != child) {
                 changed = true;
             }
@@ -396,7 +435,8 @@ public final class SplitDiscoveryPhase {
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        TransportVersion minTransportVersion
     ) {
         ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
@@ -437,7 +477,8 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             exec.declaredReadSpec(),
             metadataColumnNames,
-            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames)
+            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
+            minTransportVersion
         );
 
         SplitDiscoveryResult result;
@@ -456,6 +497,7 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         ScanStats stats,
         BooleanSupplier isCancelled,
+        TransportVersion minTransportVersion,
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
@@ -491,7 +533,8 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             exec.declaredReadSpec(),
             metadataColumnNames,
-            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames)
+            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
+            minTransportVersion
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

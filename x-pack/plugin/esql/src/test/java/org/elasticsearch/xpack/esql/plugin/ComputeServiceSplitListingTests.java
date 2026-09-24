@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -128,7 +129,8 @@ public class ComputeServiceSplitListingTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             null,
             () -> false,
-            registry
+            registry,
+            TransportVersion.current()
         );
     }
 

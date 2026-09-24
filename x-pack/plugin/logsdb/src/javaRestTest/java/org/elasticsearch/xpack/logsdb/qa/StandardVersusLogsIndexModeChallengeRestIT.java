@@ -116,6 +116,19 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         waitForLogs(client());
     }
 
+    /**
+     * Logs the randomized shape of this test run. Shard and replica counts, sort configuration and the generated field types
+     * are all decided by the seed, but none of them are visible in CI output otherwise. When a request times out this is what
+     * tells us whether the run was unusually heavy.
+     */
+    @Override
+    public void beforeEnd() {
+        logger.info("--> Test configuration:");
+        logger.info("---> baseline settings: {}", getBaselineSettings().build());
+        logger.info("---> contender settings: {}", getContenderSettings().build());
+        logger.info("---> data generation: {}", dataGenerationHelper.describe());
+    }
+
     protected boolean autoGenerateId() {
         return routeOnSortFields;
     }

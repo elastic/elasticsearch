@@ -134,6 +134,38 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         };
     }
 
+    /// Same as [createNewBlobStoreCacheDirectoryForWarming] but uses different
+    /// [org.elasticsearch.blobcache.BlobCacheMetrics.CachePopulationReason] so we have better visibility on misses during a BCC-chain walk
+    /// during recovery.
+    public IndexBlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForBccChainWalk() {
+        return new IndexBlobStoreCacheDirectory(
+            cacheService,
+            shardId,
+            totalBytesReadFromObjectStore,
+            totalBytesWarmedFromObjectStore,
+            blobContainer.get()
+        ) {
+            @Override
+            protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                return createCacheBlobReader(
+                    fileName,
+                    getBlobContainer(blobFile.primaryTerm()),
+                    blobFile.blobName(),
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    totalBytesWarmedFromObjectStore,
+                    BlobCacheMetrics.CachePopulationReason.BccChainWalk
+                );
+            }
+
+            // override this method to return the blob-cache directory for BCC-chain walks and hence use the above `getCacheBlobReader`
+            // because otherwise we'll end up with `createNewBlobStoreCacheDirectoryForWarming`
+            @Override
+            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
+                return createNewBlobStoreCacheDirectoryForBccChainWalk();
+            }
+        };
+    }
+
     public static IndexBlobStoreCacheDirectory unwrapDirectory(final Directory directory) {
         Directory dir = directory;
         while (dir != null) {

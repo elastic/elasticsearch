@@ -312,7 +312,6 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return numValues;
     }
 
-    /** The total number of null slots across every document. */
     /** What the consumer counts before writing a column: documents, slots, nulls and the value lengths. */
     protected static StringColumnValues.Totals totals(final BytesRef[][] docSlots) {
         int minLength = -1;
@@ -331,6 +330,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return new StringColumnValues.Totals(numDocsWithField(docSlots), numValues(docSlots), numNullSlots(docSlots), minLength, maxLength);
     }
 
+    /** The total number of null slots across every document. */
     protected static long numNullSlots(final BytesRef[][] docSlots) {
         long numNullSlots = 0;
         for (BytesRef[] slots : docSlots) {

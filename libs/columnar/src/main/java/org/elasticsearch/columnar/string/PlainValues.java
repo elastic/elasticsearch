@@ -33,14 +33,15 @@ import java.io.IOException;
  * The values of a plain column: their bytes one after another in the data, and each one's length as a column
  * of its own in the lengths file.
  *
- * <p>Each slot stores a code: {@link #NULL} for a null, {@link #REPEAT} for the value of the slot before, which
+ * <p>Each slot stores a code: {@link #NULL_CODE} for a null, {@link #REPEAT} for the value of the slot before, which
  * stores no bytes again, and otherwise two more than the value's byte count. The codes are bit-packed a block at a
  * time with runs and outliers taken out first, and a block's first slot is never a repeat, so every block decodes
  * on its own. Where a value begins is the sum of the byte counts before it: the navigation keeps that sum at the
  * start of every block, and a read adds up the ones inside its block.
  *
  * <p>A column whose values all have one length and none of them null keeps neither: a value begins at its
- * address times that length.
+ * address times that length. Having no codes, it marks no repeats either, so a value equal to the one before
+ * it is stored again.
  *
  * <p>Values are read a block of {@code valuesPerBlock} at a time, one span of the byte stream for the block.
  */
@@ -49,7 +50,7 @@ final class PlainValues {
     private PlainValues() {}
 
     /** The code of a null slot. */
-    static final long NULL = 0;
+    static final long NULL_CODE = 0;
     /** The code of a slot holding the same value as the slot before it. */
     static final long REPEAT = 1;
     /** What a value's byte count is stored above. */
@@ -198,7 +199,7 @@ final class PlainValues {
                 throw new IllegalStateException("a null in a column counted as holding none");
             }
             startSlot();
-            lengths.add(NULL);
+            lengths.add(NULL_CODE);
             if (count == 0 || previousNull == false) {
                 runs++;
             }
@@ -261,8 +262,8 @@ final class PlainValues {
         /** Where each slot of the loaded block of lengths begins in the byte stream, and how many bytes it holds. */
         private final long[] slotStarts;
         private final int[] slotLengths;
-        /** The loaded block of codes as stored, which is what says a slot is null. */
-        private long[] stored;
+        /** The loaded block of codes, which is what says a slot is null. */
+        private long[] codes;
         private long loadedLengths = -1;
         private int loadedCount;
 
@@ -305,13 +306,13 @@ final class PlainValues {
             return numValues;
         }
 
-        /** Whether the slot at {@code valueAddress} is null, which its stored length says. */
+        /** Whether the slot at {@code valueAddress} is null, which its code says. */
         boolean isNull(long valueAddress) throws IOException {
             if (constantLength >= 0) {
                 return false;
             }
             loadLengths(valueAddress >>> lengthShift);
-            return stored[(int) (valueAddress & lengthMask)] == NULL;
+            return codes[(int) (valueAddress & lengthMask)] == NULL_CODE;
         }
 
         /** The length in bytes of the value at {@code valueAddress}; zero for a null. */
@@ -372,17 +373,17 @@ final class PlainValues {
             if (lengthBlock == loadedLengths) {
                 return;
             }
-            stored = lengths.block(lengthBlock);
+            codes = lengths.block(lengthBlock);
             loadedCount = (int) Math.min(slotStarts.length, numValues - (lengthBlock << lengthShift));
             long at = starts.get(lengthBlock);
             for (int i = 0; i < loadedCount; i++) {
-                final long code = stored[i];
+                final long code = codes[i];
                 if (code == REPEAT) {
                     // Never a block's first slot, and always right after a value.
                     slotStarts[i] = slotStarts[i - 1];
                     slotLengths[i] = slotLengths[i - 1];
                 } else {
-                    final int length = code == NULL ? 0 : (int) (code - LENGTH_BASE);
+                    final int length = code == NULL_CODE ? 0 : (int) (code - LENGTH_BASE);
                     slotStarts[i] = at;
                     slotLengths[i] = length;
                     at += length;

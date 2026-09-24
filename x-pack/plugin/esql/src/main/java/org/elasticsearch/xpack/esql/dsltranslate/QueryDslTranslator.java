@@ -138,6 +138,7 @@ public final class QueryDslTranslator {
     public TranslationResult translate(QueryBuilder query) {
         List<UnsupportedClause> unsupported = new ArrayList<>();
         Expression applied = collectingDispatch(query, unsupported);
+        assert everyPinnedFunctionIsSupported(applied);
         // A failed top-level leaf returns null; the safe subset of "nothing translated" is no filter at all.
         return new TranslationResult(applied == null ? Literal.TRUE : applied, unsupported);
     }
@@ -846,6 +847,49 @@ public final class QueryDslTranslator {
 
     private static Literal longLit(long value, DataType type) {
         return new Literal(Source.EMPTY, value, type);
+    }
+
+    /**
+     * Asserts that nothing in {@code applied} carries a pin the cluster does not clear. {@link #gated} already refuses
+     * to build such a function, so this fires only when a new emit site skipped the gate — and it fires here, on the
+     * coordinator, naming the function and both versions, instead of surfacing as {@code Unknown NamedWriteable} on
+     * whichever data node happened to receive the plan. Assertion-only: production pays nothing, and any test that
+     * assembles a cluster spanning the window fails at the cause.
+     */
+    private boolean everyPinnedFunctionIsSupported(Expression applied) {
+        if (applied == null) {
+            // A wholly unsupported filter translates to nothing; there is no expression to check.
+            return true;
+        }
+        applied.forEachDown(Expression.class, e -> {
+            TransportVersion pin = declaredPin(e.getClass());
+            if (pin != null && minimumVersion.supports(pin) == false) {
+                throw new AssertionError(
+                    "translated filter carries ["
+                        + e.getClass().getSimpleName()
+                        + "], pinned at ["
+                        + pin
+                        + "], on a cluster whose minimum is ["
+                        + minimumVersion
+                        + "] — it was built without consulting its pin"
+                );
+            }
+        });
+        return true;
+    }
+
+    /** The {@code TransportVersion} constant a function declares for itself, or null when it declares none. */
+    private static TransportVersion declaredPin(Class<?> type) {
+        for (java.lang.reflect.Field f : type.getFields()) {
+            if (f.getType() == TransportVersion.class && java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                try {
+                    return (TransportVersion) f.get(null);
+                } catch (IllegalAccessException e) {
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     /** Why a version-gated construct was skipped, kept out of the construct name. */

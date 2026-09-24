@@ -832,6 +832,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return Literal.timeDuration(source(), step.compareTo(scrapeInterval) >= 0 ? step : scrapeInterval);
     }
 
+    /**
+     * The window a range selector reads: its explicit range, or the {@link #resolveImplicitRangeWindow() implicit window}
+     * when the range is the placeholder an instant vector gets where a range vector is expected.
+     */
+    public Expression resolveRangeWindow(Expression range) {
+        return isImplicitRangePlaceholder(range) ? resolveImplicitRangeWindow() : range;
+    }
+
     public Expression resolveTimeBucketSize() {
         if (isRangeQuery()) {
             return Literal.timeDuration(source(), PromqlLogicalPlanBuilder.foldStep(timestamp(), start(), end(), step(), buckets()));

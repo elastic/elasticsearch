@@ -13,14 +13,18 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.io.IOException;
 import java.util.List;
@@ -143,5 +147,23 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     @Override
     public final PromqlDataType returnType() {
         return functionType().outputType;
+    }
+
+    /**
+     * Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value.
+     * Shared by the function families that need no special lowering; each still declares its own
+     * {@link #translate} so a new family cannot inherit this lowering by accident.
+     */
+    protected final IntermediateResult translateValueFunction(TranslationContext context) {
+        IntermediateResult child = context.translate(child());
+        if (child.kind().constant) {
+            return child;
+        }
+        Expression window = AggregateFunction.NO_WINDOW;
+        if (child() instanceof RangeSelector rangeSelector) {
+            window = context.cmd().resolveRangeWindow(rangeSelector.range());
+        }
+        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration());
+        return context.eval(child, buildEsqlFunction(child.value(), promqlCtx));
     }
 }

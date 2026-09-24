@@ -4,8 +4,8 @@ Elasticsearch is a distributed search and analytics engine, scalable data store 
 
 Use cases enabled by Elasticsearch include:
 
-* https://www.elastic.co/search-labs/blog/articles/retrieval-augmented-generation-rag[Retrieval Augmented Generation (RAG)]
-* https://www.elastic.co/search-labs/blog/categories/vector-search[Vector search]
+* https://www.elastic.co/search-labs/blog/retrieval-augmented-generation-rag[Retrieval Augmented Generation (RAG)]
+* https://www.elastic.co/search-labs/blog/category/vector-search[Vector search]
 * Full-text search
 * Logs
 * Metrics

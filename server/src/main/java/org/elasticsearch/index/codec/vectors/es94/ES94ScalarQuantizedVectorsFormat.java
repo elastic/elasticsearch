@@ -49,21 +49,27 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private final QuantizedByteVectorValues.ScalarEncoding encoding;
 
     public ES94ScalarQuantizedVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, 7, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, 7, false, false);
     }
 
     public ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        this(elementType, 7, false);
+        this(elementType, 7, false, false);
     }
 
-    public ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, int bits, boolean useDirectIO) {
+    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
+    public ES94ScalarQuantizedVectorsFormat(
+        DenseVectorFieldMapper.ElementType elementType,
+        int bits,
+        boolean useDirectIO,
+        boolean onDiskMerge
+    ) {
         super(NAME);
         if (bits < 1 || bits > 8 || (ALLOWED_BITS & (1 << bits)) == 0) {
             throw new IllegalArgumentException("bits must be one of: 1, 2, 4, 7; bits=" + bits);
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO, onDiskMerge);
         this.encoding = switch (bits) {
             case 1 -> QuantizedByteVectorValues.ScalarEncoding.SINGLE_BIT_QUERY_NIBBLE;
             case 2 -> QuantizedByteVectorValues.ScalarEncoding.DIBIT_QUERY_NIBBLE;

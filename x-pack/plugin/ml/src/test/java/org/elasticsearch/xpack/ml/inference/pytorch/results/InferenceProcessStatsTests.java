@@ -15,7 +15,7 @@ import java.io.IOException;
 public class InferenceProcessStatsTests extends AbstractXContentTestCase<InferenceProcessStats> {
 
     public static InferenceProcessStats createRandom() {
-        return new InferenceProcessStats(randomLongBetween(0, Long.MAX_VALUE));
+        return new InferenceProcessStats(randomLongBetween(0, Long.MAX_VALUE), randomLongBetween(0, Long.MAX_VALUE));
     }
 
     @Override

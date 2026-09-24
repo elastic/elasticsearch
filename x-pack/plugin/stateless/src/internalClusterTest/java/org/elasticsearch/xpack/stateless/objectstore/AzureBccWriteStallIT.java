@@ -192,6 +192,7 @@ public class AzureBccWriteStallIT extends AbstractStatelessPluginIntegTestCase {
      * Forwards all requests to the Azure handler, except the first BCC PUT after {@link #arm()}: that one is held open without
      * reading the body or responding, simulating a slow server, until the client times out or {@link #release()} is called.
      */
+    @SuppressForbidden(reason = "uses HttpServer to emulate Azure storage")
     private static class StallFirstBccPutHandler implements HttpHandler {
 
         private static final Logger logger = LogManager.getLogger(StallFirstBccPutHandler.class);

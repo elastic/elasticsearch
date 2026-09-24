@@ -302,6 +302,7 @@ public class AzureBccUploadRefillRaceIT extends AbstractStatelessPluginIntegTest
         return true;
     }
 
+    @SuppressForbidden(reason = "uses HttpServer to emulate Azure storage")
     private static final class BufferedBodyExchange extends HttpExchange {
         private final HttpExchange delegate;
         private final InputStream body;

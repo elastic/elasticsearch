@@ -5,6 +5,7 @@
  * 2.0.
  */
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
@@ -20,6 +21,7 @@ restResources {
 }
 
 dependencies {
+  internalClusterTestImplementation project(':modules:rest-root')
   // the yaml tests index into a bbq_disk field, which only the diskbbq plugin can serve
   clusterModules project(':x-pack:plugin:diskbbq')
 }

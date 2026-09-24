@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -50,7 +51,12 @@ final class RestKnnEvalAction extends BaseRestHandler {
         KnnEvalRequest knnEvalRequest = new KnnEvalRequest(spec, Strings.splitStringByCommaToArray(request.param("index")));
         knnEvalRequest.indicesOptions(IndicesOptions.fromRequest(request, knnEvalRequest.indicesOptions()));
         if (request.paramAsBoolean("wait_for_completion", true)) {
-            return channel -> client.execute(KnnEvalPlugin.KNN_EVAL_ACTION, knnEvalRequest, new RestToXContentListener<>(channel));
+            // a sweep can run for minutes, so a client that gives up must not leave it running
+            return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+                KnnEvalPlugin.KNN_EVAL_ACTION,
+                knnEvalRequest,
+                new RestToXContentListener<>(channel)
+            );
         }
         knnEvalRequest.setShouldStoreResult(true);
         ActionRequestValidationException validationException = knnEvalRequest.validate();

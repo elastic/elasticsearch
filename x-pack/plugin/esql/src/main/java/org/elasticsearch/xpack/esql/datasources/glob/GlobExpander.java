@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -19,8 +20,10 @@ import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.PartitionValueMatcher;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
@@ -73,7 +76,8 @@ public final class GlobExpander {
     /**
      * Expands a glob/comma pattern and compresses the result into a compact representation
      * (DictionaryFileList or DirectoryGroupedFileList). This is the primary entry point for the resolver.
-     * Notices raised while listing ride on the returned {@link FileList#listingWarnings()}; nothing is emitted here.
+     * Notices raised while listing ride on the returned {@link FileList#listingWarnings()}; nothing is emitted here
+     * except the file-exclusion line, which is logged and rides the listing only from a segment that listed nothing.
      */
     public static FileList expandAndCompact(
         String path,
@@ -528,6 +532,10 @@ public final class GlobExpander {
             if (matched.isEmpty()) {
                 return FileList.EMPTY;
             }
+            matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
+            if (matched.isEmpty()) {
+                return FileList.EMPTY;
+            }
             fileOrder.apply(matched);
             List<String> notices = new ArrayList<>();
             PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, notices::add);
@@ -574,15 +582,17 @@ public final class GlobExpander {
                         if (walkTypesConsistent(walk, walkedMetadata)) {
                             // Counted pre-_file.*-filter, as the flat path counts.
                             if (walk.excludedCount() > 0) {
-                                walkNotices.add(
-                                    exclusionWarning(
-                                        walk.excludedCount(),
-                                        walk.matched().size(),
-                                        prefix.toString(),
-                                        walk.excludedExample(),
-                                        walk.excludedExampleEntry()
-                                    )
+                                String exclusionNotice = exclusionNotice(
+                                    walk.excludedCount(),
+                                    walk.matched().size(),
+                                    prefix.toString(),
+                                    walk.excludedExample(),
+                                    walk.excludedExampleEntry()
                                 );
+                                logger.debug("{}", exclusionNotice);
+                                if (walked.isEmpty()) {
+                                    walkNotices.add(exclusionNotice);
+                                }
                             }
                             return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
                         }
@@ -601,11 +611,11 @@ public final class GlobExpander {
         List<StorageEntry> matched = new ArrayList<>();
         StorageEntry fileHintAnchor = null;
         String prefixStr = prefix.toString();
-        // One warning per listing, however many objects it drops. The counts are the useful part: how many of the
-        // objects the resource selected were then dropped tells the user whether they are missing a stray marker or
-        // most of their data. Enumerating them would emit a header per partition on a prefix with a marker in each.
+        // One log line per listing, however many objects it drops. The counts are the useful part: how many of the
+        // objects the resource selected were then dropped tells whether a stray marker or most of the data is
+        // missing. Enumerating them would log a line per partition on a prefix with a marker in each.
         int excludedCount = 0;
-        // Exclusion warning totals are glob matches before _file.* prune, same as the pre-filter count.
+        // Exclusion totals are glob matches before _file.* prune, same as the pre-filter count.
         int globKeptCount = 0;
         String excludedExample = null;
         String excludedExampleEntry = null;
@@ -652,9 +662,9 @@ public final class GlobExpander {
                         globKeptCount++;
                         fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
                     } else {
-                        // Matched what the user asked for and was dropped anyway. Keep the first one so the warning
+                        // Matched what the user asked for and was dropped anyway. Keep the first one so the notice
                         // can name a concrete file and the entry responsible; "some files were excluded" on its own
-                        // leaves the user with nothing to act on.
+                        // leaves nothing to act on.
                         excludedCount++;
                         if (excludedExample == null) {
                             excludedExample = relativePath;
@@ -667,9 +677,13 @@ public final class GlobExpander {
 
         truncated = listed >= listingBound;
 
+        // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
+        // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
         List<String> listingWarnings = new ArrayList<>();
+        String exclusionNotice = null;
         if (excludedCount > 0) {
-            listingWarnings.add(exclusionWarning(excludedCount, globKeptCount, prefixStr, excludedExample, excludedExampleEntry));
+            exclusionNotice = exclusionNotice(excludedCount, globKeptCount, prefixStr, excludedExample, excludedExampleEntry);
+            logger.debug("{}", exclusionNotice);
         }
 
         if (matched.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
@@ -681,9 +695,14 @@ public final class GlobExpander {
             // prefixes still need the exclusion text on a cacheable empty listing.
             // Carries `truncated` even when nothing matched: the shared EMPTY sentinel cannot hold it, so a
             // bounded empty listing takes the GenericFileList branch whether or not there are warnings.
-            return listingWarnings.isEmpty() && truncated == false
-                ? FileList.EMPTY
-                : new GenericFileList(List.of(), pattern, null, listingWarnings, truncated);
+            return emptyListing(pattern, exclusionNotice, truncated);
+        }
+
+        matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
+        if (matched.isEmpty()) {
+            // A bound that then filters to nothing is still truncated. EMPTY cannot carry the flag, and caching
+            // it as a complete empty listing would hide files past the bound that fall inside the range.
+            return emptyListing(pattern, exclusionNotice, truncated);
         }
 
         fileOrder.apply(matched);
@@ -693,30 +712,37 @@ public final class GlobExpander {
         return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated);
     }
 
+    private static FileList emptyListing(String pattern, @Nullable String exclusionNotice, boolean truncated) {
+        if (exclusionNotice == null && truncated == false) {
+            return FileList.EMPTY;
+        }
+        return new GenericFileList(List.of(), pattern, null, exclusionNotice == null ? List.of() : List.of(exclusionNotice), truncated);
+    }
+
+    private static final String EXCLUSION_NOTICE = "[{}] of [{}] files under [{}] skipped by [{}], e.g. [{}] (matched [{}])";
+
     /**
-     * One warning per listing, however many objects it drops. Counted against everything the resource
-     * pattern selected (kept plus dropped). Fires for the default exclusion list too: a user who never
-     * configured exclusion cannot guess why a visible object is missing from results.
+     * The one line a listing reports for everything {@code file_exclusions} dropped from it, however many objects that
+     * is, counted against everything the resource pattern selected (kept plus dropped). Callers log it at DEBUG, since
+     * the default exclusion list makes it fire on every folder a Spark or Hadoop job wrote, and attach it to an empty
+     * listing, where it is the reason the resolver's "matched no files" error gives.
      */
-    private static String exclusionWarning(
+    private static String exclusionNotice(
         int excludedCount,
         int matchedCount,
         String prefix,
         String excludedExample,
         String excludedExampleEntry
     ) {
-        return excludedCount
-            + " of "
-            + (matchedCount + excludedCount)
-            + " objects matching the resource under ["
-            + prefix
-            + (excludedCount == 1 ? "] was excluded by the [" : "] were excluded by the [")
-            + ExclusionConfig.CONFIG_FILE_EXCLUSIONS
-            + "] dataset setting, for example ["
-            + excludedExample
-            + "] which matched entry ["
-            + excludedExampleEntry
-            + "]";
+        return LoggerMessageFormat.format(
+            EXCLUSION_NOTICE,
+            excludedCount,
+            matchedCount + excludedCount,
+            prefix,
+            ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
+            excludedExample,
+            excludedExampleEntry
+        );
     }
 
     /**
@@ -1065,7 +1091,12 @@ public final class GlobExpander {
                 // the identity or a filtered query poisons the cache. Eligibility is judged on the EFFECTIVE
                 // pattern — a keyed data/year=*/** rewrites to data/year=2024/** and the walk prunes under that
                 // prefix. Provider support cannot be known at key time; over-inclusion merely fragments, safely.
-                walkShapeEligible(effectivePattern, partitionConfig) ? encodedHints(partitionPruningHints(hints)) : List.of(),
+                // A closed range does not rewrite the glob (a brace of the integer literals would drop in-range
+                // spellings such as 2.5 and narrow the detected type). It still changes which files the flat
+                // listing keeps, so on a pattern the walk does not already key, those hints join the identity.
+                walkShapeEligible(effectivePattern, partitionConfig)
+                    ? encodedHints(partitionPruningHints(hints))
+                    : encodedHints(closedRangeFilterHints(hints, partitionConfig)),
                 exclusionConfig,
                 fileOrder
             );
@@ -1505,6 +1536,186 @@ public final class GlobExpander {
         return byColumn;
     }
 
+    // A closed integral range is not spelled as a brace. The brace is the integer literals, so rating >= 1 AND
+    // rating <= 3 would drop rating=2.5 and then type the column INTEGER. The listing keeps the original glob
+    // (one listObjects, same prefix) and drops a folder only when PartitionValueMatcher excludes it.
+
+    private static List<PartitionFilterHint> closedRangeFilterHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        if (hints == null || hints.isEmpty() || partitionConfig == null) {
+            return List.of();
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        boolean template = PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(partitionConfig.pathTemplate()).isEmpty() == false;
+        if (hive == false && template == false) {
+            return List.of();
+        }
+        Map<String, PartitionFilterHint> alreadyConcrete = indexRewritableHints(hints);
+        Map<String, List<PartitionFilterHint>> rangesByColumn = null;
+        for (PartitionFilterHint hint : hints) {
+            if (alreadyConcrete.containsKey(hint.columnName()) || rangeOperator(hint.operator()) == false) {
+                continue;
+            }
+            if (rangesByColumn == null) {
+                rangesByColumn = Maps.newHashMapWithExpectedSize(hints.size());
+            }
+            List<PartitionFilterHint> columnHints = rangesByColumn.get(hint.columnName());
+            if (columnHints == null) {
+                columnHints = new ArrayList<>();
+                rangesByColumn.put(hint.columnName(), columnHints);
+            }
+            columnHints.add(hint);
+        }
+        if (rangesByColumn == null) {
+            return List.of();
+        }
+        List<PartitionFilterHint> filterHints = new ArrayList<>();
+        for (List<PartitionFilterHint> columnHints : rangesByColumn.values()) {
+            if (integralClosedSpan(columnHints)) {
+                filterHints.addAll(columnHints);
+            }
+        }
+        return filterHints;
+    }
+
+    private static boolean rangeOperator(Operator operator) {
+        return switch (operator) {
+            case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL -> true;
+            case EQUALS, NOT_EQUALS, IN -> false;
+        };
+    }
+
+    private static boolean integralClosedSpan(List<PartitionFilterHint> bounds) {
+        boolean hasLower = false;
+        boolean hasUpper = false;
+        long lower = 0;
+        long upper = 0;
+        for (PartitionFilterHint hint : bounds) {
+            List<Object> values = hint.values();
+            if (values.size() != 1 || integralBound(values.get(0)) == false) {
+                return false;
+            }
+            long value = ((Number) values.get(0)).longValue();
+            switch (hint.operator()) {
+                case GREATER_THAN_OR_EQUAL -> {
+                    lower = hasLower ? Math.max(lower, value) : value;
+                    hasLower = true;
+                }
+                case GREATER_THAN -> {
+                    if (value == Long.MAX_VALUE) {
+                        return false;
+                    }
+                    long inclusive = value + 1;
+                    lower = hasLower ? Math.max(lower, inclusive) : inclusive;
+                    hasLower = true;
+                }
+                case LESS_THAN_OR_EQUAL -> {
+                    upper = hasUpper ? Math.min(upper, value) : value;
+                    hasUpper = true;
+                }
+                case LESS_THAN -> {
+                    if (value == Long.MIN_VALUE) {
+                        return false;
+                    }
+                    long inclusive = value - 1;
+                    upper = hasUpper ? Math.min(upper, inclusive) : inclusive;
+                    hasUpper = true;
+                }
+                case EQUALS, NOT_EQUALS, IN -> throw new IllegalArgumentException("not a range operator [" + hint.operator() + "]");
+            }
+        }
+        if (hasLower == false || hasUpper == false || upper < lower) {
+            return false;
+        }
+        // upper >= lower, so a negative distance is long subtraction overflow.
+        return upper - lower >= 0;
+    }
+
+    private static boolean integralBound(Object value) {
+        return value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long;
+    }
+
+    private static List<StorageEntry> withoutFoldersOutsideClosedRange(
+        List<StorageEntry> matched,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        List<PartitionFilterHint> rangeHints = closedRangeFilterHints(hints, partitionConfig);
+        if (rangeHints.isEmpty()) {
+            return matched;
+        }
+        Map<String, List<PartitionFilterHint>> byColumn = Maps.newHashMapWithExpectedSize(rangeHints.size());
+        for (PartitionFilterHint hint : rangeHints) {
+            List<PartitionFilterHint> columnHints = byColumn.get(hint.columnName());
+            if (columnHints == null) {
+                columnHints = new ArrayList<>();
+                byColumn.put(hint.columnName(), columnHints);
+            }
+            columnHints.add(hint);
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        String template = hive ? null : partitionConfig.pathTemplate();
+        boolean[] drop = new boolean[matched.size()];
+        for (Map.Entry<String, List<PartitionFilterHint>> entry : byColumn.entrySet()) {
+            String column = entry.getKey();
+            List<String> values = new ArrayList<>();
+            int[] indexes = new int[matched.size()];
+            int present = 0;
+            for (int i = 0; i < matched.size(); i++) {
+                FoundValue found = hive
+                    ? hivePartitionValue(matched.get(i).path(), column)
+                    : templatePartitionValue(matched.get(i).path(), column, template);
+                if (found == null) {
+                    continue;
+                }
+                indexes[present] = i;
+                values.add(found.value);
+                present++;
+            }
+            if (present == 0) {
+                continue;
+            }
+            boolean[] keep = PartitionValueMatcher.matchesFolders(values, entry.getValue());
+            for (int i = 0; i < present; i++) {
+                if (keep[i] == false) {
+                    drop[indexes[i]] = true;
+                }
+            }
+        }
+        List<StorageEntry> kept = new ArrayList<>(matched.size());
+        for (int i = 0; i < matched.size(); i++) {
+            if (drop[i] == false) {
+                kept.add(matched.get(i));
+            }
+        }
+        return kept;
+    }
+
+    // null when this file has no partition value for the column. The Hive default partition is a found null.
+    private record FoundValue(@Nullable String value) {}
+
+    @Nullable
+    private static FoundValue hivePartitionValue(StoragePath path, String column) {
+        String[] segments = path.path().split("/");
+        for (String segment : segments) {
+            String key = PartitionValueMatcher.folderKey(segment);
+            if (column.equals(key)) {
+                return new FoundValue(PartitionValueMatcher.folderValue(segment));
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static FoundValue templatePartitionValue(StoragePath path, String column, String template) {
+        String value = TemplatePartitionDetector.columnValue(path.path(), column, template);
+        return value == null ? null : new FoundValue(value);
+    }
+
     private static String rewriteSegment(String segment, Map<String, PartitionFilterHint> rewritableHints) {
         int eqIdx = segment.indexOf('=');
         if (eqIdx <= 0 || eqIdx >= segment.length() - 1) {
@@ -1696,7 +1907,8 @@ public final class GlobExpander {
                 StoragePath parent = entry.path().parentDirectory();
                 yield parent != null ? evaluateString(parent.toString(), hint) : true;
             }
-            default -> true; // Unknown hint — don't filter (safe fallback)
+            case FileMetadataColumns.RECORD_REF -> true;
+            default -> throw new AssertionError("unexpected file metadata hint [" + hint.columnName() + "]");
         };
     }
 

@@ -234,9 +234,10 @@ public class ExternalSourceResolver {
     private final NoticeBuffer pendingSchemaWarnings = new NoticeBuffer();
 
     /**
-     * Notices raised while listing, carried on {@link FileList#listingWarnings()}: {@code file_exclusions} drops and
-     * reserved partition-name renames. A comma list raises one exclusion notice per segment, each naming its own
-     * prefix, so this channel is capped rather than trusting the listing to stay short.
+     * Notices raised while listing, carried on {@link FileList#listingWarnings()}: reserved partition-name renames.
+     * A {@code file_exclusions} drop is logged instead, and rides the listing only from a glob segment that
+     * listed nothing: alone, that listing fails in {@link #noFilesMatched} before this channel is delivered; beside a
+     * segment that matched, a comma-separated resource delivers it here. Capped rather than trusting the listing to stay short.
      */
     private final NoticeBuffer pendingListingWarnings = new NoticeBuffer();
 
@@ -2051,6 +2052,11 @@ public class ExternalSourceResolver {
                 }
 
                 if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+                    // ReservedPartitionNames.surface renames a layout key that collides with the
+                    // dedicated metadata namespace, so a partition column can never carry a bindable
+                    // metadata name into the schema the analyzer later binds against.
+                    assert partitionNames.stream().noneMatch(ReservedPartitionNames::isReserved)
+                        : "a partition key still carries a reserved metadata name after ReservedPartitionNames.surface";
                     // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
                     // column that collides with a partition key (and emitted the one shadow warning), so the
                     // post-shadow schema must be collision-free before enrich runs its own shadow detection.
@@ -2836,7 +2842,7 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Effective schema resolution for a query or {@code FROM EXTERNAL} config. An explicit
+     * Effective schema resolution for a query or dataset config. An explicit
      * {@code schema_resolution} key wins; otherwise {@link FormatReader#DEFAULT_SCHEMA_RESOLUTION}
      * ({@code first_file_wins}).
      */
@@ -3285,10 +3291,10 @@ public class ExternalSourceResolver {
      * Warns that a column declared {@code text} is read as {@code keyword} — see
      * {@link DeclaredSchemaResolver#declaredTypeAsRead}, which substitutes rather than failing the query.
      * <p>
-     * The bytes match, so the message is about matching: {@code MATCH}/{@code MATCH_PHRASE} do not analyze a
+     * The bytes match, so what changes is matching: {@code MATCH}/{@code MATCH_PHRASE} do not analyze a
      * {@code keyword} column, {@code MATCH} scores it a flat 1.0 rather than by matched terms, and either function
      * rejects options on it, since both accept options on a runtime-search field only at type {@code TEXT}. The
-     * scoring one reorders results in silence and the options one needs the query edited, so all three are named.
+     * message states the substitution and the fix, re-declaring the column as {@code keyword}.
      * <p>
      * {@code warningSink} rather than {@code HeaderWarning}: buffered onto {@link ExternalSourceResolution} (see
      * {@link #pendingSchemaWarnings}) the message reaches the client through
@@ -3315,23 +3321,14 @@ public class ExternalSourceResolver {
         if (substituted.isEmpty()) {
             return;
         }
-        // Both type halves come from what was found rather than from a literal. The read side is `keyword` for
-        // every substitution `noText` can make, so the consequences below hold whatever was declared; the declared
-        // side is named so the line a user reads first carries the type they have to go and change.
+        // The read side is `keyword` for every substitution `noText` can make; the declared side is named so the
+        // line a user reads first carries the type they have to go and change.
         Set<String> declaredTypes = new LinkedHashSet<>();
         for (DeclaredSchemaResolver.Substitution s : substituted.values()) {
             declaredTypes.add("[" + s.declared().typeName() + "]");
         }
-        String withdrawn = declaredTypes.size() == 1
-            ? "the withdrawn " + declaredTypes.iterator().next() + " type"
-            : "the withdrawn types " + String.join(", ", declaredTypes);
         SkipWarnings warnings = new SkipWarnings(
-            "one or more columns are declared with "
-                + withdrawn
-                + " and are read as [keyword]; matching on them is no longer analyzed and scores 1.0 instead of "
-                + "by matched terms, and a MATCH or MATCH_PHRASE that passes options on one now fails "
-                + "verification. Re-declare those columns as [keyword], and apply TO_TEXT in the query where an "
-                + "analyzed column is wanted.",
+            "Columns declared as " + String.join(", ", declaredTypes) + " are read as [keyword]; declare them as [keyword]",
             warningSink
         );
         for (DeclaredSchemaResolver.Substitution s : substituted.values()) {
@@ -3364,13 +3361,11 @@ public class ExternalSourceResolver {
             return;
         }
         SkipWarnings warnings = new SkipWarnings(
-            "one or more physical columns are shadowed by same-named Hive partition keys; "
-                + "the partition (path-derived) value is used. Set partition_detection to none to read the physical "
-                + "column instead.",
+            "Columns named like a partition key are read from the path, not the file; set [partition_detection] to [none] to read the file",
             warningSink
         );
         for (String name : shadowedColumns) {
-            warnings.add("physical column [" + name + "] is shadowed by a same-named Hive partition key");
+            warnings.add("column [" + name + "]: also a partition key");
         }
     }
 
@@ -4196,7 +4191,7 @@ public class ExternalSourceResolver {
             }
         }
 
-        // Merge the config from resolveMetadata (e.g. endpoint for Flight) with query-level params (WITH clause).
+        // Merge the config from resolveMetadata (e.g. endpoint for Flight) with query-level params.
         // Query-level params take precedence so users can override connector-resolved values. _datasource is
         // retained (carrying encrypted secrets) so it can travel to data nodes; ExternalSourceExec.writeTo
         // gates it on the transport version and strips it for older targets.

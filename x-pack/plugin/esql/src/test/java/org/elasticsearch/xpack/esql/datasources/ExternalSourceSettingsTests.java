@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testDefaults() {
@@ -300,9 +302,66 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(14, ExternalSourceSettings.settings().size());
+        assertEquals(15, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
+        // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
+    }
+
+    /** Entries are matched against {@code host:port}, so one naming no port is refused at startup. */
+    public void testAllowedEndpointHostsRequireAPort() {
+        for (String entry : List.of("minio.corp.example.com", "127.0.0.1", "[::1]", "localhost:", "[::1")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(
+                    Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, entry).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString("names no port"));
+        }
+        for (String entry : List.of(":443", ":*")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                entry,
+                () -> ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(
+                    Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, entry).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString("names no host"));
+        }
+    }
+
+    /** A whole URL is the third natural paste, and it admits nothing: the scheme's colon is not a port. */
+    public void testAllowedEndpointHostsRefuseAUrl() {
+        for (String entry : List.of("http://minio.internal:9000", "https://minio.internal:9000", "https://minio.internal")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                entry,
+                () -> ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(
+                    Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, entry).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString("is a URL"));
+        }
+    }
+
+    public void testAllowedEndpointHostsAcceptsPortBearingEntries() {
+        Settings settings = Settings.builder()
+            .putList(
+                ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY,
+                "127.0.0.1:*",
+                "[::1]:*",
+                "localhost:9000",
+                "minio.corp.example.com:443"
+            )
+            .build();
+        assertEquals(4, ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(settings).size());
+    }
+
+    /** The default permits nothing, which is what makes the list the enable rather than a filter. */
+    public void testAllowedEndpointHostsDefaultsToEmpty() {
+        assertTrue(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(Settings.EMPTY).isEmpty());
     }
 
     public void testMaxConcurrentSegmentatorsDefaultDerivesBelowPoolSize() {

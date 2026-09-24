@@ -62,10 +62,8 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
             prepareIndex("system-index").setSource(Map.of("id", randomIdentifier(), "source", "system-index")),
             prepareIndex("regular-index").setSource(Map.of("id", randomIdentifier(), "source", "regular-index"))
         );
-        try (
-            var systemView = createView(".system-view", "FROM system-index", null, false);
-            var regularView = createView("regular-view", "FROM regular-index")
-        ) {
+        var systemView = createView(".system-view", "FROM system-index", null, true);
+        try (var regularView = createView("regular-view", "FROM regular-index")) {
             try (var response = run(syncEsqlQueryRequest("FROM .system-view"))) {
                 assertOk(response);
                 assertResultConcreteIndices(response, "system-index"); // concrete name resolves system view
@@ -140,15 +138,20 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutViewAction.INSTANCE,
-                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query, description, system))
             )
         );
-        return () -> assertAcked(
-            client().execute(
-                DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
-            )
-        );
+        return () -> {
+            // TODO delete system views
+            if (system == false) {
+                assertAcked(
+                    client().execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                    )
+                );
+            }
+        };
     }
 
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {

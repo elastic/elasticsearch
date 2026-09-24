@@ -221,14 +221,18 @@ public class CollectionUtils {
     }
 
     /**
-     * Returns a deep copy of {@code value}. Handles {@link Map}, {@link List}, {@link Set},
-     * {@code byte[]}, {@code double[]}, {@code double[][]}, {@link Date}, and all immutable scalar
-     * types produced by JSON parsing ({@link String}, {@link Boolean}, {@link Integer}, {@link Long},
-     * {@link Float}, {@link Double}, {@link BigInteger}, {@link BigDecimal}, {@link Byte},
-     * {@link Short}, {@link Character}, {@link ZonedDateTime}). For any other type, throws
-     * {@link IllegalArgumentException} by default. Pass {@link DeepCopyOption#LAX} to instead
-     * assert at development time and pass the value through by reference at runtime, which avoids
-     * breaking callers on user-facing data paths when an unexpected type sneaks in.
+     * Returns a deep copy of {@code value}.
+     * <p>
+     * Handles {@link Map}, {@link List}, {@link Set}, and arrays of any supported type
+     * (recursively). Immutable scalar types ({@link String}, {@link Boolean}, {@link Integer},
+     * {@link Long}, {@link Double}, {@link Float}, {@link Byte}, {@link Short}, {@link Character},
+     * {@link BigInteger}, {@link BigDecimal}, {@link ZonedDateTime}) are returned as-is.
+     * {@link Date} is handled via {@link Date#clone()}.
+     * <p>
+     * For any other type, throws {@link IllegalArgumentException} by default. Pass
+     * {@link DeepCopyOption#LAX} to instead assert at development time and pass the value
+     * through by reference at runtime, which avoids breaking callers on user-facing data
+     * paths when an unexpected type sneaks in.
      */
     public static <T> T deepCopy(T value) {
         return deepCopyInternal(value, 0);

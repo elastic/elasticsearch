@@ -14,7 +14,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -37,6 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Results of the {@link TopHitsAggregator}.
@@ -187,13 +187,13 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             } while (topDocsForShard.scoreDocs[position] != scoreDoc);
             SearchHit hit = aggregations.get(shardIndex).searchHits.getAt(position);
             if (scoreDoc instanceof FieldDoc fieldDoc && fieldDoc.fields != null && fieldDoc.fields.length > 0) {
-                Object[] existingFormatted = hit.getSortValues();
-                boolean hasBytesRef = Arrays.stream(fieldDoc.fields).anyMatch(f -> f instanceof BytesRef);
-                if (hasBytesRef && existingFormatted != null && existingFormatted.length == fieldDoc.fields.length) {
-                    // Preserve the shard's formatted values for BytesRef fields (e.g. version, keyword)
-                    // so we don't format them with RAW, which assumes UTF-8 and fails on version encoding.
+                Object[] shardFormatted = hit.getSortValues();
+                if (shardFormatted != null && shardFormatted.length == fieldDoc.fields.length) {
                     hit.sortValues(
-                        SearchSortValues.fromFormattedAndRaw(buildFormattedSortValues(fieldDoc.fields, existingFormatted), fieldDoc.fields)
+                        SearchSortValues.fromFormattedAndRaw(
+                            reduceFormattedSortValues(fieldDoc.fields, shardFormatted, hit.getRawSortValues()),
+                            fieldDoc.fields
+                        )
                     );
                 } else {
                     DocValueFormat[] formats = new DocValueFormat[fieldDoc.fields.length];
@@ -208,17 +208,18 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     /**
-     * Build formatted sort values: use existing formatted value for BytesRef (e.g. version) fields
-     * to avoid re-formatting with RAW (UTF-8), and use RAW for numeric types.
+     * Rebuild the formatted sort values for a hit chosen during the cross-shard merge.
+     * <p>
+     * When a shard applied a non-RAW format its formatted sort value differs from the raw one (e.g. dates render
+     * as strings, versions and keywords keep their original bytes); reuse that value so the format survives the
+     * reduce. When the shard used RAW (formatted equals raw) format the merged raw value with RAW, which also
+     * reflects any numeric type coercion applied while merging incompatible sort types across shards.
      */
-    private static Object[] buildFormattedSortValues(Object[] rawValues, Object[] existingFormatted) {
-        Object[] formatted = new Object[rawValues.length];
-        for (int i = 0; i < rawValues.length; i++) {
-            if (rawValues[i] instanceof BytesRef && existingFormatted != null && i < existingFormatted.length) {
-                formatted[i] = existingFormatted[i];
-            } else {
-                formatted[i] = DocValueFormat.RAW.formatSortValue(rawValues[i]);
-            }
+    private static Object[] reduceFormattedSortValues(Object[] mergedRawValues, Object[] shardFormatted, Object[] shardRaw) {
+        Object[] formatted = new Object[mergedRawValues.length];
+        for (int i = 0; i < mergedRawValues.length; i++) {
+            boolean shardAppliedFormat = shardRaw != null && i < shardRaw.length && Objects.equals(shardFormatted[i], shardRaw[i]) == false;
+            formatted[i] = shardAppliedFormat ? shardFormatted[i] : DocValueFormat.RAW.formatSortValue(mergedRawValues[i]);
         }
         return formatted;
     }

@@ -1128,7 +1128,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 try {
                     RankFeatureShardPhase.processFetch(searchContext);
                 } finally {
-                    searchContext.fetchResult().releaseCircuitBreakerBytes(searchContext.circuitBreaker());
+                    searchContext.fetchResult().releaseCircuitBreakerBytes();
                 }
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
@@ -2007,8 +2007,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Wraps a listener to release circuit breaker bytes from a FetchSearchResult after the response is sent.
      * The fetchResultExtractor function extracts the FetchSearchResult from the response type.
+     * Visible for testing.
      */
-    private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
+    static <T> ActionListener<T> releaseCircuitBreakerOnResponse(
         ActionListener<T> listener,
         Function<T, FetchSearchResult> fetchResultExtractor
     ) {
@@ -2023,7 +2024,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // can observe them and free the reader context via processFailure.
                     FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
                     if (fetchResult != null) {
-                        fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
+                        fetchResult.releaseCircuitBreakerBytes();
                     }
                 }
             }

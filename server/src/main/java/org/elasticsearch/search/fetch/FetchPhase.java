@@ -203,8 +203,9 @@ public final class FetchPhase {
                 ProfileResult profileResult = profiler.finish();
                 context.fetchResult().shardResult(hitsAndBytes.hits, profileResult);
 
-                if (writer == null) {
-                    context.fetchResult().setSearchHitsSizeBytes(hitsAndBytes.searchHitsBytesSize);
+                // Avoids looking up a breaker when nothing was charged.
+                if (writer == null && hitsAndBytes.searchHitsBytesSize > 0L) {
+                    context.fetchResult().setSearchHitsSizeBytes(hitsAndBytes.searchHitsBytesSize, context.circuitBreaker());
                 }
 
                 hitsToRelease = null;

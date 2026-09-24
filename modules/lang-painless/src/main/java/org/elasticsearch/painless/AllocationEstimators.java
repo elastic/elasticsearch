@@ -791,21 +791,19 @@ public final class AllocationEstimators {
         return 24;
     }
 
-    // ---- Growing mutators. These add to a collection or builder that already exists. A collection add is charged a
-    // ---- fixed amortized cost per element, so a loop of adds costs about what it allocates over time. A builder charges
-    // ---- its new backing array only when it has to grow, read from length() and capacity(). A latin1 builder that takes
-    // ---- its first non-latin1 char also reallocates to switch coder; that case is not charged.
+    // ---- Members that grow an existing collection or builder. A collection add costs a fixed amount per element. A
+    // ---- builder is charged its new array only when it must grow. A latin1 builder switching to UTF16 is not charged.
 
-    /** Amortized cost of one element added to a list or deque: an 8-byte slot, its share of growth copies, or a linked node. */
+    /** One element added to a list or deque: a slot plus growth, or a linked node. */
     private static final long LIST_ADD_BYTES = 40;
 
-    /** Amortized cost of one entry put into a map or set: a linked entry plus its share of table growth. */
+    /** One entry put into a map or set: a linked entry plus table growth. */
     private static final long MAP_PUT_BYTES = 80;
 
     /** A {@code StringJoiner} with no elements. */
     private static final long STRING_JOINER_SHELL_BYTES = 48;
 
-    /** Cost of one element added to {@code receiver}. A set is a map underneath; anything else gets a slot or node. */
+    /** One add to {@code receiver}. A set is a map underneath. */
     private static long addBytes(Collection<?> receiver) {
         return receiver instanceof Set ? MAP_PUT_BYTES : LIST_ADD_BYTES;
     }
@@ -815,7 +813,7 @@ public final class AllocationEstimators {
         return addBytes(receiver);
     }
 
-    /** {@code Collection.addAll(source)}: one add per source element, so {@code list.addAll(list)} pays for its doubling. */
+    /** {@code Collection.addAll(source)}: one add per source element. */
     public static long collectionAddAllBytes(Collection<?> receiver, Collection<?> source) {
         return AllocSizes.mulSat(addBytes(receiver), source == null ? 0 : source.size());
     }
@@ -908,12 +906,12 @@ public final class AllocationEstimators {
         return AllocSizes.addSat(STRING_JOINER_SHELL_BYTES, newStringBytes(chars));
     }
 
-    /** {@code StringJoiner.add(element)}: a String copy of the element plus a slot in the element array. */
+    /** {@code StringJoiner.add(element)}: a String copy plus a slot. */
     public static long stringJoinerAddBytes(StringJoiner receiver, CharSequence element) {
         return AllocSizes.addSat(newStringBytes(element == null ? 4 : element.length()), LIST_ADD_BYTES);
     }
 
-    /** {@code StringJoiner.merge(other)}: the other joiner's contents as one String, plus a slot. */
+    /** {@code StringJoiner.merge(other)}: the other joiner as one String, plus a slot. */
     public static long stringJoinerMergeBytes(StringJoiner receiver, StringJoiner other) {
         return AllocSizes.addSat(newStringBytes(other == null ? 0 : other.length()), LIST_ADD_BYTES);
     }
@@ -928,10 +926,7 @@ public final class AllocationEstimators {
         return Math.max(0L, bits + 63) / 64;
     }
 
-    /**
-     * The new word array a {@code BitSet} allocates when it must grow to hold {@code bits} bits, or zero when it already can.
-     * The JDK takes the larger of twice the current array and the needed size.
-     */
+    /** The new word array when a {@code BitSet} must grow to hold {@code bits} bits, else zero. The JDK doubles or fits. */
     private static long bitSetGrowthBytes(BitSet receiver, long bits) {
         long words = receiver.size() / 64L;
         long needed = bitSetWords(bits);
@@ -946,7 +941,7 @@ public final class AllocationEstimators {
         return bitSetGrowthBytes(receiver, index + 1L);
     }
 
-    /** {@code BitSet.set(from, to)} and {@code flip(from, to)}: grows to hold bit {@code to - 1}. */
+    /** {@code BitSet.set(from, to)} and {@code flip(from, to)}. */
     public static long bitSetGrowBytes(BitSet receiver, int from, int to) {
         return bitSetGrowthBytes(receiver, to);
     }
@@ -956,15 +951,12 @@ public final class AllocationEstimators {
         return bitSetGrowthBytes(receiver, to);
     }
 
-    /** {@code BitSet.or(set)} and {@code xor(set)}: grows to the other set's length. */
+    /** {@code BitSet.or(set)} and {@code xor(set)}: grows to the other set. */
     public static long bitSetGrowBytes(BitSet receiver, BitSet set) {
         return bitSetGrowthBytes(receiver, set == null ? 0 : set.length());
     }
 
-    /**
-     * The new backing array a builder holding {@code length} chars with room for {@code capacity} allocates to take
-     * {@code added} more, or zero when they fit. The JDK takes the larger of twice the capacity plus two and the needed size.
-     */
+    /** The new array when a builder must grow to take {@code added} more chars, else zero. The JDK doubles plus two, or fits. */
     private static long builderGrowthBytes(int length, int capacity, long added) {
         long needed = AllocSizes.addSat(length, Math.max(0L, added));
         if (needed <= capacity) {
@@ -978,11 +970,7 @@ public final class AllocationEstimators {
         return value instanceof Number || value instanceof Boolean || value instanceof Character;
     }
 
-    /**
-     * Chars {@code value} adds to a builder: its length for text, four for {@code null}, the exact rendering for a scalar, and a
-     * flat allowance for any other object. The exact scalar length matters: a guess would charge a growth array on nearly every
-     * {@code sb.append(i)} in a loop.
-     */
+    /** Chars {@code value} adds: its length for text, four for null, the exact rendering for a scalar, an allowance otherwise. */
     private static long appendedChars(Object value) {
         if (value == null) {
             return 4;
@@ -994,7 +982,7 @@ public final class AllocationEstimators {
         return AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES / 2;
     }
 
-    /** The temporary String a builder makes of {@code value} when it is not already text. */
+    /** The String a builder makes of {@code value} when it is not text. */
     private static long valueStringBytes(Object value) {
         if (value == null || value instanceof CharSequence) {
             return 0;
@@ -1024,7 +1012,7 @@ public final class AllocationEstimators {
         return builderGrowthBytes(receiver.length(), receiver.capacity(), (long) end - start);
     }
 
-    /** {@code Appendable.append(sequence, start, end)}: a builder grows as usual; any other sink is charged the chars. */
+    /** {@code Appendable.append(sequence, start, end)}: a builder grows as usual; any other sink pays the chars. */
     public static long appendableAppendBytes(Appendable receiver, CharSequence sequence, int start, int end) {
         if (receiver instanceof StringBuilder builder) {
             return appendBytes(builder, sequence, start, end);
@@ -1054,7 +1042,7 @@ public final class AllocationEstimators {
         return AllocSizes.addSat(valueStringBytes(value), builderGrowthBytes(receiver.length(), receiver.capacity(), appendedChars(value)));
     }
 
-    /** Chars {@code replace(start, end, text)} adds: the text minus the range it replaces, clamped to the builder's length. */
+    /** Chars {@code replace(start, end, text)} adds: the text minus the range it replaces. */
     private static long replacedChars(int length, int start, int end, String text) {
         long removed = Math.max(0L, Math.min(end, length) - (long) start);
         return (text == null ? 0L : text.length()) - removed;
@@ -1072,13 +1060,13 @@ public final class AllocationEstimators {
         return builderGrowthBytes(length, receiver.capacity(), replacedChars(length, start, end, text));
     }
 
-    /** {@code StringBuilder.setLength(newLength)}: grows when the new length is past the capacity. */
+    /** {@code StringBuilder.setLength(newLength)}. */
     public static long setLengthBytes(StringBuilder receiver, int newLength) {
         int length = receiver.length();
         return builderGrowthBytes(length, receiver.capacity(), (long) newLength - length);
     }
 
-    /** {@code StringBuffer.setLength(newLength)}: grows when the new length is past the capacity. */
+    /** {@code StringBuffer.setLength(newLength)}. */
     public static long setLengthBytes(StringBuffer receiver, int newLength) {
         int length = receiver.length();
         return builderGrowthBytes(length, receiver.capacity(), (long) newLength - length);

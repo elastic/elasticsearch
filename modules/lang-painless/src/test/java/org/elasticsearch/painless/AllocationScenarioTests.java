@@ -72,12 +72,12 @@ public class AllocationScenarioTests extends AllocationTestCase {
     }
 
     public void testRunawayAddAllSelfTripsLimit() {
-        // l.addAll(l) doubles the list each time. Each add is charged, so the doubling is too.
+        // l.addAll(l) doubles the list each time, and each add is charged.
         assertTripsUnder("List l = new ArrayList(); l.add(1); for (int i = 0; i < 1000; ++i) { l.addAll(l); } return l.size();", "1mb");
     }
 
     public void testRunawayBuilderSelfAppendTripsLimit() {
-        // sb.append(sb) doubles the builder each time, and each growth is charged its new array.
+        // sb.append(sb) doubles the builder each time, and each growth is charged.
         assertTripsUnder(
             "StringBuilder sb = new StringBuilder('wat'); for (int i = 0; i < 1000; ++i) { sb.append(sb); } return sb.length();",
             "1mb"

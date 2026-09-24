@@ -26,10 +26,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 public class AllocationCollectionCopyTests extends AllocationTestCase {
 
-    /** What one {@code add} to a list costs, so test setup that builds a list can account for it. */
+    /** One list add. */
     private static final long ADD = AllocationEstimators.collectionAddBytes(new ArrayList<>(), null);
 
-    /** What one {@code put} to a map costs. */
+    /** One map put. */
     private static final long PUT = AllocationEstimators.mapPutBytes(new HashMap<>(), null, null);
 
     public void testToArrayCharged() {
@@ -49,7 +49,7 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     public void testMapCopyScalesWithSize() {
-        // inner map populated with one charged put, then copied: charge scales with the source size.
+        // one put, then a copy sized from the source.
         Map<String, String> one = new HashMap<>();
         one.put("a", "b");
         long expected = 64L + PUT + AllocationEstimators.mapCopyBytes(one);
@@ -144,7 +144,7 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     private static final long LAMBDA_BYTES = AllocSizes.captureSize(1);
 
     public void testCollectCharged() {
-        // new ArrayList() costs 40, two adds, then the lambda's capture object, then the collect result sized for two elements.
+        // the list, two adds, the lambda's capture object, and the collect result.
         long expected = 40L + 2 * ADD + LAMBDA_BYTES + AllocationEstimators.collectBytes(null, List.of("a", "b"), null);
         assertEquals(expected, allocatedBytes("List l = new ArrayList(); l.add(\"a\"); l.add(\"b\"); l.collect(x -> x); return \"x\";"));
     }
@@ -186,14 +186,14 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
         assertTripsLimit("List l = new ArrayList(); l.collect(x -> x); return \"x\";", "100b");
     }
 
-    // ---- growing mutators: add, put and friends charge a fixed cost per element ----
+    // ---- add, put and friends: a fixed cost per element ----
 
     public void testListAddChargedPerElement() {
         assertEquals(40L + 2 * ADD, allocatedBytes("List l = new ArrayList(); l.add(\"a\"); l.add(\"b\"); return \"x\";"));
     }
 
     public void testSetAddChargedAsMapEntry() {
-        // A set is a map underneath, so one add costs a map entry, more than a list slot.
+        // A set is a map underneath, so an add costs more than a list slot.
         long setAdd = AllocationEstimators.collectionAddBytes(new HashSet<>(), null);
         assertThat(setAdd, greaterThan(ADD));
         assertEquals(
@@ -222,7 +222,7 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     public void testDequeAddsChargedThroughInheritedMethods() {
-        // ArrayDeque has no add entries of its own; the charge comes from the Deque and Queue declarations.
+        // ArrayDeque inherits its adds from Deque.
         long each = AllocationEstimators.dequeAddBytes(new ArrayDeque<>(), null);
         assertEquals(
             AllocationEstimators.arrayDequeShellBytes() + 3 * each,
@@ -231,8 +231,7 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     public void testAddChargedThroughDef() {
-        // The add is charged the same as a typed call. The int is boxed inside the call site's method handle, not by emitted
-        // bytecode, so that box is not charged.
+        // Same charge as a typed call. The int is boxed inside the method handle, so that box is not charged.
         assertEquals(40L + ADD, allocatedBytes("def l = new ArrayList(); l.add(1); return \"x\";"));
     }
 
@@ -242,7 +241,7 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
         assertEquals(expected, allocatedBytes("StringJoiner j = new StringJoiner(\",\"); j.add(\"a\"); j.add(\"bb\"); return \"x\";"));
     }
 
-    // ---- BitSet grows its word array only when a bit lands past it ----
+    // ---- BitSet grows only when a bit lands past its words ----
 
     public void testBitSetSetChargesOnlyWhenItGrows() {
         BitSet one = new BitSet();
@@ -257,7 +256,7 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     public void testBitSetHugeIndexTripsLimit() {
-        // One call asks for a 256mb word array. The pre-check stops it before the JVM tries.
+        // One call asks for a 256mb array. The pre-check stops it first.
         assertTripsLimit("BitSet b = new BitSet(); b.set(Integer.MAX_VALUE - 1); return \"x\";", "1mb");
     }
 }

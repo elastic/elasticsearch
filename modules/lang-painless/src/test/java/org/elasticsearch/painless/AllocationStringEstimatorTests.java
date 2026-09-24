@@ -163,7 +163,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
         assertTripsLimit("/,/.split('a,b'); return \"x\";");
     }
 
-    // ---- StringBuilder and StringBuffer grow only when an append does not fit ----
+    // ---- builders grow only when the text does not fit ----
 
     public void testAppendWithinCapacityChargesNothing() {
         assertEquals(0L, AllocationEstimators.appendBytes(new StringBuilder(), "abc"));
@@ -174,7 +174,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testAppendPastCapacityChargesTheNewArray() {
-        // 19 chars into a 16-char builder: the JDK grows to twice the capacity plus two, 34 chars.
+        // 19 chars into 16: the JDK grows to twice plus two, 34.
         String text = "0123456789abcdefXYZ";
         assertEquals(AllocSizes.arrayBytes(34, 2), AllocationEstimators.appendBytes(new StringBuilder(), text));
         assertEquals(
@@ -184,8 +184,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testAppendNumberChargesItsExactString() {
-        // The int is boxed on the way in, then the builder makes a one-char String of it. Nothing grows, and the number's
-        // length is measured rather than guessed so a loop of appends is not charged growth it never does.
+        // The int is boxed, then rendered to one char. Nothing grows.
         long one = AllocationEstimators.appendBytes(new StringBuilder(), 5);
         assertEquals(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + 2L, one);
         assertEquals(
@@ -195,7 +194,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testAppendOtherObjectChargesAnAllowance() {
-        // An arbitrary object's toString length is unknowable, so it gets the same allowance as a concat operand.
+        // An unknown object's toString gets the concat allowance.
         long list = AllocationEstimators.appendBytes(new StringBuilder(), List.of());
         assertThat(list, greaterThan((long) AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES));
     }
@@ -209,7 +208,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testAppendCodePointAtCapacityGrows() {
-        // setLength(16) fills the default builder exactly; the code point then needs room for two more chars.
+        // setLength(16) fills the builder; the code point needs two more chars.
         StringBuilder full = new StringBuilder();
         full.setLength(16);
         assertEquals(0L, AllocationEstimators.setLengthBytes(new StringBuilder(), 16));
@@ -246,7 +245,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testAppendableAppendCharged() {
-        // Through the Appendable type the builder still reports its own growth.
+        // Through Appendable the builder still charges its growth.
         String text = "abcdefghijklmnopqrstuvwxyz";
         assertEquals(
             AllocationEstimators.stringBuilderShellBytes() + AllocationEstimators.appendableAppendBytes(new StringBuilder(), text, 0, 26),

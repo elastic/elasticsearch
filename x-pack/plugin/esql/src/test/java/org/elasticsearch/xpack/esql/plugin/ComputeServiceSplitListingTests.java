@@ -60,7 +60,7 @@ public class ComputeServiceSplitListingTests extends ESTestCase {
         assertEquals(List.of(split), collected);
     }
 
-    public void testExhaustivePruneClearsFileListAndKeepsSchemaMap() {
+    public void testExhaustivePruneClearsFileListAndSchemaMap() {
         StoragePath path = StoragePath.of("s3://bucket/data/a.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://bucket/data/*.parquet");
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = schemaMap(path);
@@ -72,7 +72,7 @@ public class ComputeServiceSplitListingTests extends ESTestCase {
         FragmentExec fragment = (FragmentExec) rewritten;
         ExternalRelation pruned = (ExternalRelation) fragment.fragment();
         assertSame(FileList.EMPTY, pruned.fileList());
-        assertSame(schemaMap, pruned.schemaMap());
+        assertTrue(pruned.schemaMap().isEmpty());
         assertTrue(collected.isEmpty());
     }
 

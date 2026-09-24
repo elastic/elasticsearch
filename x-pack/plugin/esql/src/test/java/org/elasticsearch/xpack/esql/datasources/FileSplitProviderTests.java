@@ -49,6 +49,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FrameIndex;
+import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
@@ -1270,6 +1272,7 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         assertEquals(fileLength, expectedOffset);
         verify(mockSplitter, atLeastOnce()).findNextRecordBoundary(any());
+        assertSpanSplitsStampFullFileLength(splits, StoragePath.of("s3://b/" + fileName), fileLength);
     }
 
     // CSV's minimum segment size is a fixed 1 MiB, so files must clear ~2 MiB before macro-splitting engages.
@@ -7088,6 +7091,7 @@ public class FileSplitProviderTests extends ESTestCase {
         FileSplit last = (FileSplit) splits.get(splits.size() - 1);
         assertEquals("Last split must cover up to file length", fileLength, last.offset() + last.length());
         assertEquals("Last split is marked last", "true", last.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+        assertSpanSplitsStampFullFileLength(splits, StoragePath.of("s3://b/huge.ndjson.bz2"), fileLength);
     }
 
     /**
@@ -7127,6 +7131,28 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("Single split must carry the last-split marker", "true", only.config().get(FileSplitProvider.LAST_SPLIT_KEY));
     }
 
+    public void testIndexedMacroSplitsStampFullFileLength() {
+        long frame = FileSplitProvider.DEFAULT_MACRO_SPLIT_TARGET;
+        long fileLength = frame * 2;
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(
+            new FakeIndexedCodec(List.of(new FrameIndex.FrameEntry(0, frame, 1), new FrameIndex.FrameEntry(frame, frame, 1)))
+        );
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            createMockStorageRegistry(),
+            new FormatReaderRegistry(codecRegistry),
+            Settings.EMPTY
+        );
+        StoragePath path = StoragePath.of("s3://b/huge.ndjson.zst");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, fileLength, Instant.EPOCH)), "s3://b/*.ndjson.zst");
+        List<ExternalSplit> splits = splitter.discoverSplits(
+            new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of())
+        ).splits();
+        assertSpanSplitsStampFullFileLength(splits, path, fileLength);
+    }
+
     /** Fake SplittableDecompressionCodec returning canned block boundaries, for unit-testing split logic. */
     private static final class FakeSplittableCodec implements SplittableDecompressionCodec {
         private final long[] boundaries;
@@ -7157,6 +7183,45 @@ public class FileSplitProviderTests extends ESTestCase {
 
         @Override
         public InputStream decompressRange(StorageObject object, long blockStart, long nextBlockStart) {
+            return new ByteArrayInputStream(new byte[0]);
+        }
+    }
+
+    /** Fake IndexedDecompressionCodec returning canned frames, for unit-testing the seek-table split path. */
+    private static final class FakeIndexedCodec implements IndexedDecompressionCodec {
+        private final List<FrameIndex.FrameEntry> frames;
+
+        FakeIndexedCodec(List<FrameIndex.FrameEntry> frames) {
+            this.frames = frames;
+        }
+
+        @Override
+        public String name() {
+            return "fake-zst";
+        }
+
+        @Override
+        public List<String> extensions() {
+            return List.of(".zst");
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) {
+            return raw;
+        }
+
+        @Override
+        public boolean hasIndex(StorageObject object) {
+            return true;
+        }
+
+        @Override
+        public FrameIndex readIndex(StorageObject object) {
+            return new FrameIndex(frames);
+        }
+
+        @Override
+        public InputStream decompressFrame(StorageObject object, long compressedOffset, long compressedLength) {
             return new ByteArrayInputStream(new byte[0]);
         }
     }
@@ -7463,6 +7528,28 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new GreaterThanOrEqual(SRC, d, zero, null), Map.of("d", -0.0)));
         // Positive control: an ordinary double outside the range is still a confident prune.
         assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new MvInRange(SRC, d, zero, hundred), Map.of("d", -1.5)));
+    }
+
+    /**
+     * A span discovered by the provider, not a hand-built config. The first split starts at offset 0, so
+     * {@code isFirstInFile} is true and {@code isLastInFile} is false. Without {@code _file_length} the length
+     * hint is null and the read can HEAD. {@link FileSplit#length()} is the view span, not the file.
+     */
+    private static void assertSpanSplitsStampFullFileLength(List<ExternalSplit> splits, StoragePath path, long fileLength) {
+        assertTrue(splits.size() > 1);
+        for (ExternalSplit split : splits) {
+            assertEquals(Long.toString(fileLength), ((FileSplit) split).config().get(FileSplitProvider.FILE_LENGTH_KEY));
+        }
+        FileSplit first = (FileSplit) splits.get(0);
+        assertEquals(0L, first.offset());
+        assertTrue(first.length() < fileLength);
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path, fileLength)).thenReturn(delegate);
+        assertSame(delegate, FileSplitProvider.newObjectForFile(storage, first));
+        verify(storage).newObject(path, fileLength);
+        verify(storage, never()).newObject(path);
+        verify(storage, never()).newObject(eq(path), eq(first.length()));
     }
 
     private static SplitDiscoveryContext retainedContext(

@@ -537,12 +537,13 @@ public final class SplitDiscoveryPhase {
         List<ExternalSplit> splits = result.splits();
         if (splits.isEmpty()) {
             // No splits because every file was eliminated by a row-count-preserving filter contradiction (see
-            // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing; a row
-            // filter still runs downstream, so the answer is unchanged (0 rows) and the scanned counts stay an
-            // honest zero. An empty result that is NOT an exhaustive prune (unresolved glob, SINGLE source, empty
-            // file list, or a provider that could not certify its prune) falls through to the whole read.
+            // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing, and
+            // drop schemaMap: nothing left to read still held the per-file schema on the coordinator. A row filter
+            // still runs downstream, so the answer is unchanged (0 rows) and the scanned counts stay an honest
+            // zero. An empty result that is NOT an exhaustive prune (unresolved glob, SINGLE source, empty file
+            // list, or a provider that could not certify its prune) falls through to the whole read.
             if (result.exhaustivelyPruned()) {
-                return exec.withFileList(FileList.EMPTY);
+                return exec.withFileList(FileList.EMPTY).withSchemaMap(Map.of());
             }
             // The fall-through reads every file in the resolved list, each as one unit, so the accounting must say
             // that: reporting zeros here would describe a full-dataset read as no work at all. An unresolved list

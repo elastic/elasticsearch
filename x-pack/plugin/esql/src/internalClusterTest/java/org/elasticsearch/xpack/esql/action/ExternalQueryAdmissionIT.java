@@ -131,7 +131,8 @@ public class ExternalQueryAdmissionIT extends AbstractExternalDataSourceIT {
 
     /**
      * A request filter makes a failed analysis retry without the filter, which resolves the dataset a second time. The
-     * query must still take one slot, not one per attempt, or the second would never be returned.
+     * query must still ask the gate once, not once per attempt: a second request could wait in the queue behind a slot
+     * the same query already holds.
      */
     @TestLogging(value = "org.elasticsearch.xpack.esql.session.EsqlSession:DEBUG", reason = "asserts the retry without the filter ran")
     public void testAnalysisRetryWithoutTheFilterTakesOneSlot() {

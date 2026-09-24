@@ -145,8 +145,8 @@ import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactor
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.hamcrest.Matcher;

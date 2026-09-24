@@ -1,12 +1,3 @@
-teardown:
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            async_search.max_keep_alive: null
-            async_search.default_keep_alive: null
-
----
 setup:
   - do:
       indices.create:
@@ -46,6 +37,15 @@ setup:
 
   - do:
       indices.refresh: {}
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            async_search.max_keep_alive: null
+            async_search.default_keep_alive: null
 
 ---
 "Submit async-search":

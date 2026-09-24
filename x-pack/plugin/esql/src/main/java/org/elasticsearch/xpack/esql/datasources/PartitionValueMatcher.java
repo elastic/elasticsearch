@@ -87,6 +87,9 @@ public final class PartitionValueMatcher {
             return null;
         }
         if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
+            // compareEquals equates the zeros where the engine's IN does not, so a true here only keeps more than the
+            // engine needs. That is safe because the extractor emits no hint under NOT; a negated IN hint would need
+            // the unknown answer FileSplitProvider gives an opposite-sign zero pair.
             boolean undecidable = false;
             for (Object candidate : hint.values()) {
                 if (candidate == null || kindOf(candidate) != valueKind) {
@@ -223,7 +226,8 @@ public final class PartitionValueMatcher {
         // The query's own evaluators compare primitives, where IEEE 754 equates -0.0 and 0.0; Double.compare orders
         // -0.0 first. The matcher answers for files it drops unread, so it must agree with the evaluator or a file
         // whose every row matches is pruned. NaN, the other place the two disagree, cannot arrive: the partition
-        // detector's parseDouble rejects it and types that column as a keyword.
+        // detector's parseDouble rejects it and types that column as a keyword. IN is the one evaluator that orders
+        // doubles with Double.compare instead; FileSplitProvider leaves an IN over opposite-sign zeros unknown.
         if (da == 0.0 && db == 0.0) {
             return 0;
         }

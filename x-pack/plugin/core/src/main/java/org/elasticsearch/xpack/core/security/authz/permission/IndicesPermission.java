@@ -739,30 +739,28 @@ public final class IndicesPermission {
             if (granted) {
                 grantedResources.add(resourceName);
 
-                // Propagate resource-level permissions to the resource name and all concrete indices.
-                // Using merge (not put) preserves cross-resource accumulation semantics: if a concrete
-                // index appears in multiple resources, their FLS/DLS contributions are unioned.
-                // Guarded on a non-empty resolution because FLS and DLS are propagated over concrete
-                // indices: a name that resolves to no index (i.e. one absent from the cluster) records
-                // neither, and the resulting IndexAccessControl is unrestricted.
+                // Propagate resource-level permissions over the concrete indices. Using merge (not put)
+                // preserves cross-resource accumulation semantics: if a concrete index appears in
+                // multiple resources, their FLS/DLS contributions are unioned.
+                for (String concreteIndex : concreteIndicesViewsAndDatasets) {
+                    mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, concreteIndex, fieldPermissions, docPermissions);
+                    if (hasExplicitDlsFls) {
+                        indicesWithExplicitDlsFls.add(concreteIndex);
+                    }
+                    // If the name appears directly as part of the requested indices, it takes precedence over implicit access
+                    if (resource.canHaveBackingIndices() && false == requestedResources.containsKey(concreteIndex)) {
+                        grantedResources.add(concreteIndex);
+                    }
+                }
+
+                // An alias, data stream or ::failures name is not among its own concrete indices, so
+                // record it too. For a plain index, view or dataset the loop already wrote this key and
+                // the merge is a no-op. A name that resolves to nothing records neither FLS nor DLS,
+                // and its IndexAccessControl stays unrestricted.
                 if (false == concreteIndicesViewsAndDatasets.isEmpty()) {
                     mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, resourceName, fieldPermissions, docPermissions);
                     if (hasExplicitDlsFls) {
                         indicesWithExplicitDlsFls.add(resourceName);
-                    }
-                }
-                for (String concreteIndex : concreteIndicesViewsAndDatasets) {
-                    if (false == concreteIndex.equals(resourceName)) {
-                        mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, concreteIndex, fieldPermissions, docPermissions);
-                        if (hasExplicitDlsFls) {
-                            indicesWithExplicitDlsFls.add(concreteIndex);
-                        }
-                    }
-                    if (resource.canHaveBackingIndices()) {
-                        // If the name appears directly as part of the requested indices, it takes precedence over implicit access
-                        if (false == requestedResources.containsKey(concreteIndex)) {
-                            grantedResources.add(concreteIndex);
-                        }
                     }
                 }
             }

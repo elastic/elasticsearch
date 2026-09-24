@@ -787,57 +787,46 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     }
 
     public void testFeatureGatedParameter() {
-        String mappingWithValue = """
-            {"type":"test_mapper","required":"value","gated":"a"}""";
-        TestMapper mapper = fromMapping(mappingWithValue);
-        assertEquals("a", mapper.gated);
-        assertEquals("{\"field\":" + mappingWithValue + "}", Strings.toString(mapper));
+        for (boolean fromDynamicTemplate : List.of(true, false)) {
+            String mappingWithValue = """
+                {"type":"test_mapper","required":"value","gated":"a"}""";
+            TestMapper mapper = fromMapping(mappingWithValue, fromDynamicTemplate, f -> true);
+            assertEquals("a", mapper.gated);
+            assertEquals("{\"field\":" + mappingWithValue + "}", Strings.toString(mapper));
 
-        MapperParsingException mappingWithValueException = expectThrows(
-            MapperParsingException.class,
-            () -> fromMapping(mappingWithValue, false, f -> false)
-        );
-        assertEquals(
-            "parameter [gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
-            mappingWithValueException.getMessage()
-        );
+            MapperParsingException mappingWithValueException = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(mappingWithValue, fromDynamicTemplate, f -> false)
+            );
+            assertEquals(
+                "parameter [gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
+                mappingWithValueException.getMessage()
+            );
 
-        // the gate only applies to parameters that are actually present in the mapping
-        String mappingWithoutValue = """
-            {"type":"test_mapper","required":"value"}""";
-        mapper = fromMapping(mappingWithoutValue, false, f -> false);
-        assertEquals("default", mapper.gated);
-        assertEquals("{\"field\":" + mappingWithoutValue + "}", Strings.toString(mapper));
+            // the gate only applies to parameters that are actually present in the mapping
+            String mappingWithoutValue = """
+                {"type":"test_mapper","required":"value"}""";
+            mapper = fromMapping(mappingWithoutValue, fromDynamicTemplate, f -> false);
+            assertEquals("default", mapper.gated);
+            assertEquals("{\"field\":" + mappingWithoutValue + "}", Strings.toString(mapper));
 
-        // a parameter gated on several features is only allowed once every one of them is supported
-        String doubleGatedMapping = """
-            {"type":"test_mapper","required":"value","double_gated":true}""";
-        MapperParsingException doubleGatedMappingException = expectThrows(
-            MapperParsingException.class,
-            () -> fromMapping(doubleGatedMapping, false, FEATURE_A::equals)
-        );
-        assertEquals(
-            "parameter [double_gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
-            doubleGatedMappingException.getMessage()
-        );
+            // a parameter gated on several features is only allowed once every one of them is supported
+            String doubleGatedMapping = """
+                {"type":"test_mapper","required":"value","double_gated":true}""";
+            MapperParsingException doubleGatedMappingException = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(doubleGatedMapping, fromDynamicTemplate, FEATURE_A::equals)
+            );
+            assertEquals(
+                "parameter [double_gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster"
+                    + " support it",
+                doubleGatedMappingException.getMessage()
+            );
 
-        mapper = fromMapping(doubleGatedMapping, false, f -> f.equals(FEATURE_A) || f.equals(FEATURE_B));
-        assertTrue(mapper.doubleGated);
-        assertEquals("{\"field\":" + doubleGatedMapping + "}", Strings.toString(mapper));
-    }
-
-    // the gate is still applied when parsing a mapping that originates from a dynamic template
-    public void testFeatureGatedParameterFromDynamicTemplate() {
-        String mapping = """
-            {"type":"test_mapper","required":"value","gated":"a"}""";
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mapping, true, f -> false));
-        assertEquals(
-            "parameter [gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
-            e.getMessage()
-        );
-
-        TestMapper mapper = fromMapping(mapping, true, f -> true);
-        assertEquals("a", mapper.gated);
+            mapper = fromMapping(doubleGatedMapping, fromDynamicTemplate, f -> f.equals(FEATURE_A) || f.equals(FEATURE_B));
+            assertTrue(mapper.doubleGated);
+            assertEquals("{\"field\":" + doubleGatedMapping + "}", Strings.toString(mapper));
+        }
     }
 
     // recovering an existing mapping must never fail on the gate, otherwise an index whose mapping was
@@ -862,36 +851,41 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     // value "a" is always allowed (once the key-level FEATURE_A gate is satisfied); value "b" additionally
     // requires FEATURE_B, enforced inside the parser lambda
     public void testFeatureGatedParameterValue() {
-        // value "a" is allowed with FEATURE_A alone
-        String mappingValueA = """
-            {"type":"test_mapper","required":"value","gated":"a"}""";
-        TestMapper mapper = fromMapping(mappingValueA, false, FEATURE_A::equals);
-        assertEquals("a", mapper.gated);
-        assertEquals("{\"field\":" + mappingValueA + "}", Strings.toString(mapper));
+        for (boolean fromDynamicTemplate : List.of(true, false)) {
+            // value "a" is allowed with FEATURE_A alone
+            String mappingValueA = """
+                {"type":"test_mapper","required":"value","gated":"a"}""";
+            TestMapper mapper = fromMapping(mappingValueA, fromDynamicTemplate, FEATURE_A::equals);
+            assertEquals("a", mapper.gated);
+            assertEquals("{\"field\":" + mappingValueA + "}", Strings.toString(mapper));
 
-        // value "b" is rejected when FEATURE_B is absent
-        String mappingValueB = """
-            {"type":"test_mapper","required":"value","gated":"b"}""";
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mappingValueB, false, FEATURE_A::equals));
-        assertEquals(
-            "value [b] for parameter [gated] on mapper [field] is not supported until all nodes in the cluster support it",
-            e.getMessage()
-        );
+            // value "b" is rejected when FEATURE_B is absent
+            String mappingValueB = """
+                {"type":"test_mapper","required":"value","gated":"b"}""";
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(mappingValueB, fromDynamicTemplate, FEATURE_A::equals)
+            );
+            assertEquals(
+                "value [b] for parameter [gated] on mapper [field] is not supported until all nodes in the cluster support it",
+                e.getMessage()
+            );
 
-        // value "b" is accepted when both features are supported
-        mapper = fromMapping(mappingValueB, false, f -> f.equals(FEATURE_A) || f.equals(FEATURE_B));
-        assertEquals("b", mapper.gated);
-        assertEquals("{\"field\":" + mappingValueB + "}", Strings.toString(mapper));
+            // value "b" is accepted when both features are supported
+            mapper = fromMapping(mappingValueB, fromDynamicTemplate, f -> f.equals(FEATURE_A) || f.equals(FEATURE_B));
+            assertEquals("b", mapper.gated);
+            assertEquals("{\"field\":" + mappingValueB + "}", Strings.toString(mapper));
 
-        // the key-level gate (FEATURE_A) fires before the parser lambda, so supplying only FEATURE_B
-        // produces the key-level error message, not the value-level one
-        MapperParsingException keyLevelError = expectThrows(
-            MapperParsingException.class,
-            () -> fromMapping(mappingValueB, false, FEATURE_B::equals)
-        );
-        assertEquals(
-            "parameter [gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
-            keyLevelError.getMessage()
-        );
+            // the key-level gate (FEATURE_A) fires before the parser lambda, so supplying only FEATURE_B
+            // produces the key-level error message, not the value-level one
+            MapperParsingException keyLevelError = expectThrows(
+                MapperParsingException.class,
+                () -> fromMapping(mappingValueB, fromDynamicTemplate, FEATURE_B::equals)
+            );
+            assertEquals(
+                "parameter [gated] on mapper [field] of type [test_mapper] is not supported until all nodes in the cluster support it",
+                keyLevelError.getMessage()
+            );
+        }
     }
 }

@@ -175,9 +175,6 @@ tests:
 - class: org.elasticsearch.xpack.spatial.common.H3SphericalUtilTests
   method: testRandomBounds
   issue: https://github.com/elastic/elasticsearch/issues/159682
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlTermsAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/159745
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
   issue: https://github.com/elastic/elasticsearch/issues/159788
 - class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
@@ -186,18 +183,12 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
   method: testSignAndVerifyPKCS12orBCFKS
   issue: https://github.com/elastic/elasticsearch/issues/159807
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlTermsAggregationByMethod
-  issue: https://github.com/elastic/elasticsearch/issues/159816
 - class: org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperatorTests
   method: testMultivaluedGroupColumnProducesWarning
   issue: https://github.com/elastic/elasticsearch/issues/152928
 - class: org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperatorTests
   method: testMultivaluedGroupColumnProducesWarning
   issue: https://github.com/elastic/elasticsearch/issues/152929
-- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/160023
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testEvalWhere
   issue: https://github.com/elastic/elasticsearch/issues/160180

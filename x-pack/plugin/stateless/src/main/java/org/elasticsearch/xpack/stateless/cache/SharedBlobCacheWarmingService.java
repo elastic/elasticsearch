@@ -28,6 +28,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -342,6 +343,22 @@ public class SharedBlobCacheWarmingService {
     );
 
     /**
+     * When the recovering shard is a resharding split target and no active shutdown nodes are present, the maximum time to wait for cache
+     * warming before resuming recovery. Should be set at least 5 seconds less than
+     * {@link org.elasticsearch.xpack.stateless.reshard.SplitTargetService#RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT}, which is the
+     * deadline by which the target shard must go GREEN before the SPLIT state is published without it — without warming, searches against
+     * the target immediately after SPLIT are slow until the cache warms on demand. The default (25 s) matches the 30 s online-timeout
+     * default minus 5 s.
+     */
+    public static final Setting<TimeValue> SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING = Setting.timeSetting(
+        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reshard_target",
+        TimeValue.timeValueSeconds(25),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Upper bound on the SIGTERM grace period from shutdown metadata used when computing the shutdown deadline for relocation-source
      * warming timeouts. The effective grace is {@code min(metadata grace, this cap)} so long cluster grace periods do not dominate the
      * calculation (defaults to 14 minutes, i.e. just-in-time for CSP timeout).
@@ -447,6 +464,7 @@ public class SharedBlobCacheWarmingService {
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
+    private volatile TimeValue searchRecoveryWarmingReshardTargetTimeout;
     private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
     private volatile double searchRecoveryWarmingCacheRatio;
@@ -588,6 +606,10 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
             value -> this.searchRecoveryWarmingNonRelocationTimeout = value
+        );
+        clusterSettings.initializeAndWatch(
+            SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
+            value -> this.searchRecoveryWarmingReshardTargetTimeout = value
         );
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
@@ -1094,7 +1116,17 @@ public class SharedBlobCacheWarmingService {
         if (hasAnotherActiveSearchShardCopy(state, indexShard) && hasActiveShutdownForRemovalNodes(state) == false) {
             return new SearchRecoveryTimeout(searchRecoveryWarmingNonRelocationTimeout, "not a relocation, another active shard copy");
         }
+        if (searchRecoveryWarmingReshardTargetTimeout.millis() > 0 && isReshardSplitTarget(state, indexShard.shardId())) {
+            return new SearchRecoveryTimeout(searchRecoveryWarmingReshardTargetTimeout, "reshard split target");
+        }
         return SearchRecoveryTimeout.skip();
+    }
+
+    private static boolean isReshardSplitTarget(ClusterState state, ShardId shardId) {
+        return state.metadata()
+            .findIndex(shardId.getIndex())
+            .map(meta -> IndexReshardingMetadata.isSplitTarget(shardId, meta.getReshardingMetadata()))
+            .orElse(false);
     }
 
     /**

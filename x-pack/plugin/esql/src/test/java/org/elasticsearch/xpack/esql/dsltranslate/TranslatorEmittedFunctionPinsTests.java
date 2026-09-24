@@ -186,6 +186,13 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             Matcher built = CONSTRUCTION.matcher(call);
             assertTrue("a gated() call names no pin: " + call, constant.find());
             assertTrue("a gated() call builds nothing: " + call, built.find());
+            // Per CALL, not per class: keying a map by the constructed class lets a mispaired earlier site be
+            // overwritten by a correct later one, which is how two of the four sites went unchecked.
+            assertEquals(
+                "this gated() call builds " + built.group(1) + " but consults " + constant.group(1),
+                GATED.get(built.group(1)),
+                constant.group(1)
+            );
             pinPerConstructedClass.put(built.group(1), constant.group(1));
         }
 

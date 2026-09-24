@@ -908,6 +908,10 @@ public final class QueryDslTranslator {
             if (isPresent(field) == false) {
                 return Literal.FALSE;
             }
+            // Build it first and throw it away. If the leaf is untranslatable for its own reason — an order
+            // comparison on analyzed text, a type the function cannot resolve — that reason is the honest one, and
+            // reporting a version instead would send the operator to upgrade a cluster where it drops regardless.
+            leaf.get();
             throw new TranslationUnsupportedException(construct, VERSION_REASON);
         }
         return leaf.get();

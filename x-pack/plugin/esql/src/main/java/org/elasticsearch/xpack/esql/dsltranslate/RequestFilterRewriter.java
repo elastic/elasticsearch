@@ -108,7 +108,7 @@ public final class RequestFilterRewriter {
                                 + nf.clause().construct()
                                 + "] on dataset ["
                                 + name(nf.node())
-                                + "], skipped because "
+                                + "], not applied because "
                                 + nf.clause().reason()
                     );
                 }

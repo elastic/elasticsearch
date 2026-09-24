@@ -9,17 +9,17 @@
 
 package org.elasticsearch.columnar.string;
 
-import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.FormatVersion;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,9 +43,8 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
  */
 public abstract class ColumnarStringTestCase extends ESTestCase {
 
-    private static final String DATA_FILE = "str.cnd";
+    private static final String COLUMN_FILES = "str";
     private static final String META_FILE = "str.cnm";
-    private static final String DATA_CODEC = "ColumnarStringTestData";
     private static final String META_CODEC = "ColumnarStringTestMeta";
 
     /** What a test does with the column it asked for. */
@@ -172,22 +171,42 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final int slotCountsBlockSize,
         final ColumnCheck check
     ) throws IOException {
+        // A test that names a byte target is naming how small a chunk should be, not that it must be cut by
+        // bytes alone, so the value bound is randomized under it.
+        final StringColumnOptions.Sizes sizes = new StringColumnOptions.Sizes(
+            blockSize,
+            randomChunkBounds(targetChunkBytes),
+            randomChunkBounds(targetChunkBytes),
+            StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
+            compressedOrdinalBlockSize,
+            StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
+            slotCountsBlockSize,
+            randomLengthBlockSize(blockSize)
+        );
+        withColumn(docSlots, new StringColumnOptions(policy, StringColumnOptions.DEFAULT_SUMMARY, chunkCodec, sizes), check);
+    }
+
+    /**
+     * A block of lengths that is the block of values doubled a random number of times, up to the largest
+     * block the format writes. Sized off the values so a block of them lands on a block of lengths, and
+     * random so the columns these tests write cross a varying number of them.
+     */
+    protected static int randomLengthBlockSize(int valuesPerBlock) {
+        int size = valuesPerBlock;
+        while (size < ColumNARDocValuesFormat.MAX_BLOCK_SIZE && randomBoolean()) {
+            size <<= 1;
+        }
+        return size;
+    }
+
+    /** As above, with every choice named at once, for a test that cares about one the overloads do not reach. */
+    protected void withColumn(final BytesRef[][] docSlots, final StringColumnOptions options, final ColumnCheck check) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(
-                dir,
-                segmentId,
-                docSlots,
-                blockSize,
-                chunkCodec,
-                targetChunkBytes,
-                policy,
-                compressedOrdinalBlockSize,
-                slotCountsBlockSize
-            );
-            try (IndexInput data = openData(dir, segmentId)) {
-                check.check(metadata, StringColumnReader.open(metadata, data));
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, options);
+            try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(dir, COLUMN_FILES, segmentId)) {
+                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs()));
             }
         }
     }
@@ -236,6 +255,17 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return (StringColumnMetadata.Plain) metadata;
     }
 
+    /**
+     * What closes a chunk of {@code targetChunkBytes}: that byte target alone, or a value bound under it.
+     * The value bounds include ones no block size divides, so a chunk closes at the first boundary past the
+     * bound rather than on it.
+     */
+    protected static ChunkBounds randomChunkBounds(int targetChunkBytes) {
+        return randomBoolean()
+            ? ChunkBounds.ofBytes(targetChunkBytes)
+            : new ChunkBounds(targetChunkBytes, randomFrom(1, 100, 128, 200, 1024));
+    }
+
     /** Verbatim or compressed; a value must read back the same either way. */
     protected static ChunkCodec randomChunkCodec() {
         return randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD);
@@ -282,6 +312,24 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return numValues;
     }
 
+    /** What the consumer counts before writing a column: documents, slots, nulls and the value lengths. */
+    protected static StringColumnValues.Totals totals(final BytesRef[][] docSlots) {
+        int minLength = -1;
+        int maxLength = -1;
+        for (BytesRef[] slots : docSlots) {
+            if (slots == null) {
+                continue;
+            }
+            for (BytesRef slot : slots) {
+                if (slot != null) {
+                    minLength = minLength < 0 ? slot.length : Math.min(minLength, slot.length);
+                    maxLength = Math.max(maxLength, slot.length);
+                }
+            }
+        }
+        return new StringColumnValues.Totals(numDocsWithField(docSlots), numValues(docSlots), numNullSlots(docSlots), minLength, maxLength);
+    }
+
     /** The total number of null slots across every document. */
     protected static long numNullSlots(final BytesRef[][] docSlots) {
         long numNullSlots = 0;
@@ -301,35 +349,20 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final Directory dir,
         final byte[] segmentId,
         final BytesRef[][] docSlots,
-        final int blockSize,
-        final ChunkCodec chunkCodec,
-        final int targetChunkBytes,
-        final DictionaryPolicy policy,
-        final int compressedOrdinalBlockSize,
-        final int slotCountsBlockSize
+        final StringColumnOptions options
     ) throws IOException {
         final StringColumnMetadata written;
-        try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
-            ColumnarCodecUtil.writeHeader(out, DATA_CODEC, FormatVersion.CURRENT, segmentId, "");
+        try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, COLUMN_FILES, segmentId)) {
             written = StringColumnWriter.write(
                 docSlots.length,
-                numDocsWithField(docSlots),
-                numValues(docSlots),
-                numNullSlots(docSlots),
+                totals(docSlots),
                 () -> cursor(docSlots),
-                blockSize,
-                chunkCodec,
-                targetChunkBytes,
-                targetChunkBytes,
-                compressedOrdinalBlockSize,
-                slotCountsBlockSize,
-                policy,
+                options,
                 null,
                 dir,
                 IOContext.DEFAULT,
-                out
+                out.outputs()
             );
-            ColumnarCodecUtil.writeFooter(out);
         }
         try (IndexOutput meta = dir.createOutput(META_FILE, IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, META_CODEC, FormatVersion.CURRENT, segmentId, "");
@@ -341,21 +374,6 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             final StringColumnMetadata read = StringColumnMetadata.readFrom(in, docSlots.length, version);
             ColumnarCodecUtil.checkFooter(in);
             return read;
-        }
-    }
-
-    private static IndexInput openData(final Directory dir, final byte[] segmentId) throws IOException {
-        final IndexInput data = dir.openInput(DATA_FILE, IOContext.DEFAULT);
-        boolean success = false;
-        try {
-            CodecUtil.checksumEntireFile(data);
-            ColumnarCodecUtil.checkHeader(data, DATA_CODEC, segmentId, "");
-            success = true;
-            return data;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(data);
-            }
         }
     }
 

@@ -56,6 +56,7 @@ public class TransportPutUserManagedServiceAccountAction extends HandledTranspor
             request.getAccountId(),
             request.getRoles(),
             request.isEnabled(),
+            request.getDescription(),
             request.getRefreshPolicy(),
             listener.map(result -> new PutUserManagedServiceAccountResponse(result == PutResult.CREATED))
         );

@@ -1493,6 +1493,9 @@ public class ExternalSourceResolver {
      * The answer is taken here, where the mode and the mapping are both in hand, and only the extents travel on.
      * Nothing downstream re-reads the mode, so a dataset that reaches "one file" through a non-strict declared
      * overlay is indistinguishable from one that reaches it directly.
+     * <p>
+     * A new resolution mode is classified as spanning every file until it says otherwise, which declines the
+     * bound rather than granting it — the safe direction for a mode nobody has considered here yet.
      */
     private static boolean schemaAnswerableFromAPrefix(@Nullable FormatReader.SchemaResolution schemaResolution) {
         return schemaResolution == null || schemaResolution == FormatReader.SchemaResolution.FIRST_FILE_WINS;

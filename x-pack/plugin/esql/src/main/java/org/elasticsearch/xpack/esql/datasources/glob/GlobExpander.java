@@ -133,7 +133,7 @@ public final class GlobExpander {
     }
 
     /**
-     * As above, stopping after {@code extents.fileSet()} keys have been visited rather than draining the glob.
+     * As above, stopping after {@code extents.maxFiles()} keys have been visited rather than draining the glob.
      * <p>
      * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
      * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
@@ -141,6 +141,10 @@ public final class GlobExpander {
      * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Only a schema discovery
      * resolution may bound the file set; {@link ListingExtents#UNBOUNDED} is the path every reading query takes,
      * byte for byte as before.
+     * <p>
+     * Whether a bound is eligible at all — nothing else already narrowing the listing, no dataset-chosen file
+     * order — is the caller's to establish, and {@code ExternalSourceResolver#listingExtentsFor} is where that
+     * is decided. This class honours the extents it is handed and does not second-guess them.
      */
     public static FileList expandAndCompact(
         String path,
@@ -629,7 +633,7 @@ public final class GlobExpander {
             // establishing that more keys exist - a dataset of exactly the file-set extent is marked truncated when it is
             // not. That costs such a dataset its cache entry and an exact file count, and saves every larger one a
             // request.
-            while (listed < extents.fileSet() && iterator.hasNext()) {
+            while (listed < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
                 checkListedObjectsLimit(listed, maxListedObjects);
@@ -674,7 +678,7 @@ public final class GlobExpander {
             }
         }
 
-        truncated = listed >= extents.fileSet();
+        truncated = listed >= extents.maxFiles();
 
         // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
         // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
@@ -853,20 +857,6 @@ public final class GlobExpander {
             }
         }
         return true;
-    }
-
-    /**
-     * Whether these hints select a subtree of the dataset rather than filtering files by their own metadata.
-     * <p>
-     * A listing bound keeps the first keys the provider reports, which is only a prefix of the same listing when
-     * nothing else narrows it. Partition pruning does narrow it — {@link PartitionPruningWalk} descends only the
-     * directories a hint admits — and the flat listing applies no partition pruning at all, since the hints it
-     * consults ({@link #fileMetadataHints}) are the complement of these. So a bounded listing and an unbounded one
-     * over the same hinted glob enumerate different files, not a prefix and its whole, and would disagree about
-     * which file is first. Callers that must preserve the anchor use this to decline the bound.
-     */
-    public static boolean hasPartitionPruningHints(@Nullable List<PartitionFilterHint> hints) {
-        return partitionPruningHints(hints).isEmpty() == false;
     }
 
     /**

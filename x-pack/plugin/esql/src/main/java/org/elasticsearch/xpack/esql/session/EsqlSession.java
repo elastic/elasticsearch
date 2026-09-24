@@ -2073,7 +2073,7 @@ public class EsqlSession {
         // Always non-null (empty when every relation is read for its rows). A path in this set is one whose rows
         // the query all discards, so its resolution owes a schema and nothing else and may stop listing as soon
         // as it has one. What "having one" means is the dataset's business, not the query's: see
-        // ExternalSourceResolver#listingBoundFor.
+        // ExternalSourceResolver#listingExtentsFor.
         Set<String> pathsReadingNoRows = SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan);
 
         externalSourceResolver.resolve(

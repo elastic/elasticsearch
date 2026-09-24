@@ -2269,6 +2269,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource source = future.actionGet().resolvedSource(glob);
         assertFalse("a pruned listing is not a prefix of the flat one, so the bound must be declined", source.fileList().isTruncated());
+        assertEquals("every file the pattern matched is in the list, not the first key of it", 2, source.fileList().fileCount());
     }
 
     private ExternalSourceResolution resolveForSchemaDiscovery(ExternalSourceResolver resolver, Map<String, Object> config) {

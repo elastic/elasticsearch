@@ -272,7 +272,7 @@ public class Knn extends SingleFieldFullTextFunction
     /** Unlike the lexical search functions, KNN's runtime search is still gated behind a pragma. */
     @Override
     public boolean supportsRuntimeSearch() {
-        return Build.current().isSnapshot() && configuration.pragmas().knnRuntimeField();
+        return Build.current().isSnapshot();
     }
 
     @Override

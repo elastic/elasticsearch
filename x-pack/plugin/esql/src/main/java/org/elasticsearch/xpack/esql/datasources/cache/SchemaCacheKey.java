@@ -115,7 +115,7 @@ public record SchemaCacheKey(
      * no definition to version. Such entries share one version value and are addressed as they were
      * before.
      */
-    static String definitionVersionOf(Map<String, Object> config) {
+    public static String definitionVersionOf(Map<String, Object> config) {
         if (config == null) {
             return "";
         }

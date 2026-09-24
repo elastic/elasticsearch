@@ -16,9 +16,9 @@ import java.util.Map;
  * same canonical path on a different endpoint resolves to a different object, so endpoint and region
  * are part of the identity.
  */
-public record FileMetadataCacheKey(String canonicalPath, String endpoint, String region) {
+public record FileMetadataCacheKey(String canonicalPath, String endpoint, String region, String definitionVersion) {
     public static FileMetadataCacheKey build(String canonicalPath, Map<String, Object> config) {
         EndpointRegion location = EndpointRegion.of(config);
-        return new FileMetadataCacheKey(canonicalPath, location.endpoint(), location.region());
+        return new FileMetadataCacheKey(canonicalPath, location.endpoint(), location.region(), SchemaCacheKey.definitionVersionOf(config));
     }
 }

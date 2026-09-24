@@ -50,7 +50,8 @@ public record ListingCacheKey(
     long credentialHashH1,
     long credentialHashH2,
     long listingDiscriminatorH1,
-    long listingDiscriminatorH2
+    long listingDiscriminatorH2,
+    String definitionVersion
 ) {
     private static final Set<String> CREDENTIAL_PARAMS = Set.of(
         "access_key",
@@ -84,7 +85,8 @@ public record ListingCacheKey(
             hash[0],
             hash[1],
             discriminatorHash[0],
-            discriminatorHash[1]
+            discriminatorHash[1],
+            SchemaCacheKey.definitionVersionOf(config)
         );
     }
 

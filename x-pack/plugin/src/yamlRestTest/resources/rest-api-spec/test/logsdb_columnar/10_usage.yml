@@ -130,7 +130,7 @@
             cluster.columnar.enabled: null
 
 ---
-"logsdb_columnar data stream lifecycle classification":
+"logsdb_columnar data stream lifecycle":
   - requires:
       cluster_features: ["logsdb_columnar.usage"]
       reason: "logsdb_columnar usage tracking requires the logsdb_columnar.usage feature"
@@ -158,6 +158,53 @@
   - do:
       indices.create_data_stream:
         name: columnar-dlm-stream
+
+  # Create an unmanaged logsdb_columnar data stream
+  - do:
+      allowed_warnings:
+        - "index template [columnar-unmanaged-template] has index patterns [columnar-unmanaged-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-unmanaged-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-unmanaged-template
+        body:
+          index_patterns: ["columnar-unmanaged-*"]
+          data_stream: {}
+          template:
+            settings:
+              index.mode: logsdb_columnar
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      indices.create_data_stream:
+        name: columnar-unmanaged-stream
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.data_streams_count: 2 }
+  - match: { logsdb_columnar.data_streams_managed_by_ilm: 0 }
+  - match: { logsdb_columnar.data_streams_managed_by_dlm: 1 }
+  # Each data stream contributes one backing index to indices_count
+  - gte: { logsdb_columnar.indices_count: 2 }
+
+  - do:
+      indices.delete_data_stream:
+        name: columnar-dlm-stream
+  - do:
+      indices.delete_data_stream:
+        name: columnar-unmanaged-stream
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.data_streams_count: 0 }
+  - match: { logsdb_columnar.data_streams_managed_by_ilm: 0 }
+  - match: { logsdb_columnar.data_streams_managed_by_dlm: 0 }
+
+---
+"logsdb_columnar data stream ilm":
+  - requires:
+      cluster_features: ["logsdb_columnar.usage"]
+      reason: "logsdb_columnar usage tracking requires the logsdb_columnar.usage feature"
+      test_runner_features: allowed_warnings
 
   # Create an ILM-managed logsdb_columnar data stream
   - do:
@@ -213,15 +260,12 @@
         name: columnar-unmanaged-stream
 
   - do: {xpack.usage: {}}
-  - match: { logsdb_columnar.data_streams_count: 3 }
+  - match: { logsdb_columnar.data_streams_count: 2 }
   - match: { logsdb_columnar.data_streams_managed_by_ilm: 1 }
-  - match: { logsdb_columnar.data_streams_managed_by_dlm: 1 }
+  - match: { logsdb_columnar.data_streams_managed_by_dlm: 0 }
   # Each data stream contributes one backing index to indices_count
-  - gte: { logsdb_columnar.indices_count: 3 }
+  - gte: { logsdb_columnar.indices_count: 2 }
 
-  - do:
-      indices.delete_data_stream:
-        name: columnar-dlm-stream
   - do:
       indices.delete_data_stream:
         name: columnar-ilm-stream
@@ -233,3 +277,4 @@
   - match: { logsdb_columnar.data_streams_count: 0 }
   - match: { logsdb_columnar.data_streams_managed_by_ilm: 0 }
   - match: { logsdb_columnar.data_streams_managed_by_dlm: 0 }
+

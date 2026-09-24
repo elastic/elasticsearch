@@ -1569,10 +1569,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(encoded("42"), block.getLong(0));
             assertEquals(encoded("1000"), block.getLong(1));
         }
-        expectThrows(
-            Exception.class,
-            () -> decodeOneColumn("{\"v\":42.9}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT).close()
-        );
+        expectThrows(Exception.class, () -> decodeOneColumn("{\"v\":42.9}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT).close());
         try (Page page = decodeOneColumn("{\"v\":42.9}\n{\"v\":5}\n", DataType.UNSIGNED_LONG, ErrorPolicy.PERMISSIVE)) {
             LongBlock block = page.getBlock(0);
             assertTrue("non-whole fraction must null the cell", block.isNull(0));

@@ -371,8 +371,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      * Fractional doubles are refused — unlike {@code ::long}/{@code ::integer}, which round.
      */
     public void testCastDoubleToLongAndIntegerRequiresWholeNumber() {
-        try (Block src = blockFactory.newDoubleArrayVector(new double[] { 1000.0, 2.0 }, 2).asBlock();
-            Block cast = castStrict(src, DataType.DOUBLE, DataType.LONG)) {
+        try (
+            Block src = blockFactory.newDoubleArrayVector(new double[] { 1000.0, 2.0 }, 2).asBlock();
+            Block cast = castStrict(src, DataType.DOUBLE, DataType.LONG)
+        ) {
             LongBlock l = (LongBlock) cast;
             assertEquals(1000L, l.getLong(0));
             assertEquals(2L, l.getLong(1));

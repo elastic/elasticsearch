@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -24,6 +26,18 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
 
     public ScalarConversionFunction(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child, definition, parameters);
+    }
+
+    /** {@code scalar(v)}: collapse to one value per step. The result has no labels, so the child exposes none. */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        // IN: nothing - one value per step
+        TranslationResult child = translation.translate(child(), TranslationConstraint.of());
+        if (child.value().foldable()) {
+            return TranslationResult.scalar(child.plan(), new ToDouble(source(), child.value()), child.step(), child.pendingFilter());
+        }
+        // OUT: nothing
+        return translation.aggregate(child, TranslationConstraint.of(), new Scalar(source(), child.value()));
     }
 
     @Override

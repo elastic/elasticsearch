@@ -23,6 +23,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.any;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.of;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.sub;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
+
 /**
  * Represents a PromQL aggregate function call that operates across multiple time series.
  * <p>
@@ -148,6 +153,40 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), grouping, groupings);
+    }
+
+    /**
+     * {@code by (keys)} keeps exactly the keys, whatever the enclosing node requires. {@code without (dropped)} keeps every
+     * other label, so the child must deliver a packing that excludes the dropped ones - unless it has concrete keys, which
+     * then simply lose them. No clause collapses every series into one.
+     */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        // The keys are the node's output, not its groupings: a grouping that resolved to a metric field or to nothing is
+        // not a label and the command projection never references it.
+        List<String> keys = PromqlLabels.labelNames(output());
+        List<String> dropped = PromqlLabels.labelNames(groupings);
+        TranslationConstraint required = translation.required();
+
+        // IN: by (k) -> k; without (d) -> any + required - d (`without ()` -> required); none -> nothing
+        TranslationConstraint below = switch (grouping) {
+            case BY -> of(keys);
+            case WITHOUT -> dropped.isEmpty() ? required : sub(union(any(), required), of(dropped));
+            case NONE -> of();
+        };
+        TranslationResult child = translation.translate(child(), below);
+        if (child.kind().constant) {
+            return child;
+        }
+
+        // OUT: by (k) -> k, null where the child lacks one; without (d) -> child's labels - d; none -> nothing
+        TranslationConstraint by = switch (grouping) {
+            case BY -> of(keys);
+            case WITHOUT -> sub(child.shape(), of(dropped));
+            case NONE -> of();
+        };
+        Expression function = buildEsqlFunction(child.value(), translation.promqlContext(child));
+        return translation.aggregate(child, by, function, grouping == Grouping.WITHOUT);
     }
 
     @Override

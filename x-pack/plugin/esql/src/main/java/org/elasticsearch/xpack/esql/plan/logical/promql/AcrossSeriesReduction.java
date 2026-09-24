@@ -7,18 +7,28 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.any;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.of;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
 
 /**
  * Across-series reduction such as {@code topk}.
@@ -85,6 +95,50 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), grouping, groupings);
+    }
+
+    /**
+     * {@code topk}/{@code bottomk}: collapse the child to one row per series, then rank and keep the top {@code k}. A
+     * {@code by} clause only partitions the ranking; it does not change the output labels.
+     */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        if (grouping == Grouping.WITHOUT) {
+            // TODO: support function like: topk without(...)
+            throw new VerificationException("function [{}] is not yet supported with [{}]", functionName(), Grouping.WITHOUT.name());
+        }
+        List<String> partitions = PromqlLabels.labelNames(groupings);
+        // IN: any + required, plus the partitions as columns to rank within
+        TranslationConstraint below = union(translation.required(), any(), of(partitions));
+        TranslationResult child = translation.translate(child(), below);
+        if (child.kind().constant) {
+            return child;
+        }
+        // OUT: child's labels + partitions, null where the child lacks one
+        TranslationConstraint keys = union(child.shape(), of(partitions));
+        TranslationResult collapsed = translation.aggregate(child, keys, child.value());
+        return collapsed.with(topNBy(collapsed, partitions, translation.promqlContext(collapsed)), collapsed.value());
+    }
+
+    /** Ranks the already-collapsed per-series rows and keeps the top {@code k} within each step and partition. */
+    private LogicalPlan topNBy(TranslationResult table, List<String> partitions, PromqlContext promqlContext) {
+        var partitionKeys = new ArrayList<Expression>();
+        partitionKeys.add(table.step());
+        if (grouping == Grouping.BY) {
+            for (String partition : partitions) {
+                Attribute partitionExpr = table.label(partition);
+                assert partitionExpr != null : "[INVARIANT]: ranking partition " + partition + " must be produced by the child";
+                partitionKeys.add(partitionExpr);
+            }
+        }
+        var order = (Order) buildEsqlFunction(table.value(), promqlContext);
+        return new TopNBy(
+            source(),
+            table.plan(),
+            order != null ? List.of(order) : List.of(),
+            new ToInteger(source(), parameters().getFirst()),
+            partitionKeys
+        );
     }
 
     @Override

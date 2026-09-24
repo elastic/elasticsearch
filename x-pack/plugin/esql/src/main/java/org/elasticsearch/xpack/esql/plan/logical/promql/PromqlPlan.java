@@ -36,6 +36,14 @@ public interface PromqlPlan {
     PromqlDataType returnType();
 
     /**
+     * Translates this node into an ES|QL plan. {@code translation} carries what the enclosing node
+     * {@link TranslationContext#required() requires} of this node's labels and the shared services: recursion into the child
+     * under a requirement, and the {@link TranslationContext#aggregate aggregate} and {@link TranslationContext#eval eval} primitives
+     * every node composes its result from. Each node owns its translation the way it owns its {@link #output()}.
+     */
+    TranslationResult translate(TranslationContext translation);
+
+    /**
      * Whether this node is transparent to relabel ({@code label_replace}/{@code label_join}) placement: it does NOT form a
      * series-identity grouping/partition/matching boundary, so a relabel appearing below it is consumed by this node's own
      * enclosing consumer rather than by this node.

@@ -1428,8 +1428,12 @@ public final class EsqlTestUtils {
     public static BytesRef randomHistogram() {
         List<Double> values = ESTestCase.randomList(randomIntBetween(0, 1000), ESTestCase::randomDouble);
         values.sort(Double::compareTo);
+        // Bound the individual counts so that their total can never overflow a long: the total value count is tracked as a long
+        // throughout (T-Digest size, exponential histogram value count), and values which are very close together are merged into
+        // a single bucket when converting to an exponential histogram, which sums their counts.
+        long maxCount = Long.MAX_VALUE / Math.max(1, values.size());
         // Note - we need the three parameter version of random list here to ensure it's always the same length as values
-        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
+        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, maxCount));
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         try {
             for (int i = 0; i < values.size(); i++) {

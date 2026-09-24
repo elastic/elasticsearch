@@ -20,6 +20,7 @@ import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedExcept
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
@@ -128,13 +129,16 @@ public abstract class RetryingInputStream<V> extends InputStream {
             }
             // noinspection TryWithIdenticalCatches
             try {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedIOException("Aborting retries due to interrupt");
+                }
                 currentStream = blobStoreServices.getInputStream(
                     currentStream != null ? currentStream.getVersion() : null,
                     Math.addExact(start, offset),
                     end
                 );
                 return;
-            } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
+            } catch (NoSuchFileException | RequestedRangeNotSatisfiedException | InterruptedIOException e) {
                 throw addSuppressedExceptions(e);
             } catch (RuntimeException e) {
                 retryOrAbortOnOpen(e);
@@ -311,6 +315,9 @@ public abstract class RetryingInputStream<V> extends InputStream {
     }
 
     private boolean shouldRetry(StreamAction action, Exception exception, int attempt) {
+        if (exception instanceof InterruptedIOException) {
+            return false;
+        }
         if (blobStoreServices.isRetryableException(action, exception) == false) {
             return false;
         }

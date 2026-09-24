@@ -249,11 +249,10 @@ public class ExternalSourceCacheService implements Closeable {
             return awaitSchemaLoad(inFlight);
         }
         try {
-            cached = schemaCache.get(key);
-            if (cached != null) {
-                newLoad.complete(cached);
-                return cached;
-            }
+            // Do not call schemaCache.get again here: a second miss would inflate
+            // schema_cache.misses (Cache#get counts every absent lookup). A putSchema race in this
+            // window is rare and at worst duplicates a load; putSchemaIfWithinCeiling still admits
+            // or refuses the value we produce.
             SchemaCacheEntry loaded = loader.load(key);
             if (loaded == null) {
                 throw new NullPointerException("schema loader returned null");

@@ -1,0 +1,6 @@
+pr: 155919
+summary: Add the `on_disk_merge` option to `dense_vector` fields, using direct I/O for raw vectors during merges
+area: Vector Search
+type: enhancement
+issues:
+ - 155021

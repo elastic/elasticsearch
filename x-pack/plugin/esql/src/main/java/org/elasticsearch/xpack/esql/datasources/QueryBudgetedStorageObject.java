@@ -80,6 +80,21 @@ class QueryBudgetedStorageObject implements StorageObject {
     }
 
     @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return delegate.lengthForFooterCacheKey();
+    }
+
+    @Override
+    public long knownLength() {
+        return delegate.knownLength();
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }
@@ -223,6 +238,11 @@ class QueryBudgetedStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return delegate.supportsNativeAsync();
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
     }
 
     @Override

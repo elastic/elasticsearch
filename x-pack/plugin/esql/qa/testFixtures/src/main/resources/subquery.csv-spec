@@ -197,7 +197,6 @@ sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
 
 subqueryMetadataIndex
 required_capability: subquery_in_from_command
-skip_columnar: _index_mode metadata correctly reports "columnar" in columnar mode but the csv-spec oracle expects "standard"
 
 // tag::subquery_with_metadata[]
 FROM employees,
@@ -220,7 +219,6 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 
 subqueryMetadataIndexInner
 required_capability: subquery_in_from_command
-skip_columnar: _index_mode metadata correctly reports "columnar" in columnar mode but the csv-spec oracle expects "standard"
 
 // tag::subquery_with_metadata_inner[]
 FROM employees,
@@ -242,7 +240,6 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 
 subqueryMetadataIndexOuter
 required_capability: subquery_in_from_command
-skip_columnar: _index_mode metadata correctly reports "columnar" in columnar mode but the csv-spec oracle expects "standard"
 
 // tag::subquery_with_metadata_outer[]
 FROM employees,
@@ -1624,6 +1621,24 @@ absent(to_string(id_int)):boolean
 false
 ;
 
+// The same conversion applied twice to the same attribute above the subquery union used to make
+// the analyzer loop until the rule execution limit, see elasticsearch-serverless#7693.
+subqueryInFromWithSameConversionAppliedTwice
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_repeated_conversions
+
+FROM (FROM sample_data), (FROM sample_data)
+| WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "172.21.3.15"
+| STATS c = COUNT(*) BY client_ip
+| SORT client_ip
+;
+
+c:long | client_ip:ip
+2      | 172.21.0.5
+2      | 172.21.2.113
+2      | 172.21.2.162
+;
+
 subqueryInFromWithInlineStatsPruning
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_inline_stats_pruning
@@ -1885,4 +1900,48 @@ FROM sample_data, (FROM sample_data_ts_long)
 
 y:long
 1698063303360
+;
+
+// Regression tests: converting a grouping key after STATS above a multi-subquery FROM must succeed.
+
+subqueryInFromConvertGroupKeyAfterStatsEval
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| EVAL g = TO_STRING(gender)
+| SORT gender
+;
+
+max_salary:integer | gender:keyword | g:keyword
+74572              | F              | F
+74999              | M              | M
+73717              | null           | null
+;
+
+subqueryInFromConvertGroupKeyAfterStatsWhere
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| WHERE TO_STRING(gender) == "M"
+;
+
+max_salary:integer | gender:keyword
+74999              | M
+;
+
+subqueryInFromConvertGroupKeyAfterStatsSecondStats
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| STATS c = COUNT(TO_STRING(gender))
+;
+
+c:long
+2
 ;

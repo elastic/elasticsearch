@@ -11,8 +11,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension.TestInferenceService;
 import org.junit.After;
 import org.junit.Before;
@@ -37,10 +39,13 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Integration tests for the ESQL DENSE_VECTOR command's inference-endpoint resolution and command settings.
  * <p>
- * The built-in default endpoint ({@link org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector#DEFAULT_INFERENCE_ID},
- * E5) requires real ML infrastructure that is unavailable in tests, so the "no WITH" path is exercised through the
- * cluster-level default setting ({@code esql.command.dense_vector.default_inference_id}) pointed at a mock endpoint; this
- * covers the same resolution branch. The pure built-in-default injection is covered by the parser-level tests.
+ * Neither endpoint a query with no {@code WITH} falls back to ({@link DenseVector#DEFAULT_INFERENCE_ID_CANDIDATES}) can be
+ * hosted here: one needs ML infrastructure this cluster lacks, and a mock cannot stand in for either because
+ * {@code PutInferenceModelAction} requires an inference id to start with an alphanumeric character, which the candidate ids do
+ * not. So this suite covers the state where no candidate exists, while selecting among available candidates is covered in
+ * {@code AnalyzerTests}, which describes endpoints directly rather than hosting them. The cluster-level default setting
+ * ({@code esql.command.dense_vector.default_inference_id}) points at a mock endpoint to cover the no-{@code WITH} path that
+ * does reach inference.
  */
 public class DenseVectorIT extends InferenceCommandIntegTestCase {
 
@@ -69,6 +74,7 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
         cleanupClusterSettings(
             InferenceSettings.DENSE_VECTOR_ENABLED_SETTING,
             InferenceSettings.DENSE_VECTOR_ROW_LIMIT_SETTING,
+            InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING,
             InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING
         );
     }
@@ -242,6 +248,70 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
         try (var resp = run(query)) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(customLimit));
+        }
+    }
+
+    public void testDenseVectorReportsWhenNoCandidateEndpointExists() {
+        // This cluster hosts neither candidate, which is the state a deployment is in before either is available. The failure
+        // names each candidate with why it was rejected, and the option to set.
+        var query = String.format(Locale.ROOT, """
+            FROM %s
+            | DENSE_VECTOR title
+            """, TEST_INDEX);
+
+        VerificationException e = expectThrows(VerificationException.class, () -> run(query));
+        String message = e.getMessage();
+        assertThat(message, containsString("no inference endpoint is available for the DENSE_VECTOR command:"));
+        assertThat(message, containsString("[" + DenseVector.EIS_JINA_V5_INFERENCE_ID + "]:"));
+        assertThat(message, containsString("[" + DenseVector.DEFAULT_INFERENCE_ID + "]:"));
+        assertThat(message, containsString("Specify an endpoint using the [inference_id] option."));
+    }
+
+    public void testDenseVectorImageRequiresExplicitInferenceId() {
+        // The candidates embed text, so an image input has nothing to fall back to and is rejected while the query is parsed.
+        var query = String.format(Locale.ROOT, """
+            FROM %s
+            | DENSE_VECTOR title WITH { "type": "image" }
+            """, TEST_INDEX);
+
+        ParsingException e = expectThrows(ParsingException.class, () -> run(query));
+        assertThat(e.getMessage(), containsString("Option [type] with value [image] in DENSE_VECTOR requires option [inference_id]"));
+    }
+
+    public void testDenseVectorBatchSizeSetting() throws Exception {
+        // A small batch size forces the query's rows across several inference requests, ending in a partial batch. The query
+        // profile proves the setting reaches the embedding operator (its description carries the batch size); the row assertions
+        // prove batching preserves results — every row still gets its vector, none dropped or duplicated at a batch boundary.
+        int customBatchSize = between(2, 5);
+        updateClusterSettings(Settings.builder().put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), customBatchSize));
+
+        final String largeIndex = "test_dense_vector_batch_size";
+        int rows = customBatchSize * 3 + 1;
+        createAndPopulateTestIndex(largeIndex, rows);
+
+        var query = String.format(Locale.ROOT, """
+            FROM %s
+            | DENSE_VECTOR title WITH { "inference_id": "%s" }
+            | KEEP id, title_dense_vector
+            | LIMIT %d
+            """, largeIndex, DENSE_VECTOR_MODEL_ID, rows);
+
+        try (var resp = run(EsqlQueryRequest.syncEsqlQueryRequest(query).profile(true))) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(rows));
+            for (List<Object> row : values) {
+                assertThat(row.get(1), notNullValue());
+            }
+
+            // The configured batch size reaches the embedding operator: it shows up in that operator's profile description.
+            assertThat(resp.profile(), notNullValue());
+            List<String> operatorDescriptions = resp.profile()
+                .drivers()
+                .stream()
+                .flatMap(driver -> driver.operators().stream())
+                .map(op -> op.operator())
+                .toList();
+            assertThat(operatorDescriptions, hasItem(containsString("batch_size=[" + customBatchSize + "]")));
         }
     }
 

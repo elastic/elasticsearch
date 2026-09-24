@@ -13,7 +13,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,7 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -161,12 +160,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      * Reads individual ignored-source entries from binary doc values (IntegratedCount format).
      */
     private static final class DocValuesIgnoredSourceValueFetcher implements ValueFetcher {
-        private MultiValuedSortedBinaryDocValues docValues;
+        private MultiValuedSortableBinaryDocValues docValues;
 
         @Override
         public void setNextReader(LeafReaderContext context) {
             try {
-                docValues = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), NAME);
+                docValues = MultiValuedSortableBinaryDocValues.fromMultiValued(context.reader(), NAME);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to load doc values for " + NAME, e);
             }
@@ -228,7 +227,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Per-field ignored source is produced only by field (non-metadata) mappers, none of which
         // support columnar parsing yet. postColumnarParse is therefore a no-op for the current
         // empty-doc-only columnar batch scope. When field mappers gain columnar support they will
@@ -427,7 +426,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) {
                 return Map.of();
             }
@@ -453,7 +452,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) {
                 var ignoredStoredValues = storedFields.get(NAME);
                 if (ignoredStoredValues == null) {
@@ -492,7 +491,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) {
                 var ignoredStoredValues = storedFields.get(NAME);
                 if (ignoredStoredValues == null) {
@@ -574,7 +573,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) throws IOException {
                 if (docValues.advanceExact(docId) == false) {
                     return Map.of();
@@ -625,7 +624,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             SourceFilter filter,
             Map<String, List<Object>> storedFields,
             int docId,
-            MultiValuedSortedBinaryDocValues docValues
+            MultiValuedSortableBinaryDocValues docValues
         ) throws IOException;
 
         public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs);
@@ -655,11 +654,13 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         // we need TSDB doc values format to use binary doc values for ignored source, otherwise the source will be uncompressed
 
-        IndexVersion switchToDocValuesFormatVersion = Build.current().isSnapshot()
-            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
-            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
-
-        if (indexCreatedVersion.onOrAfter(switchToDocValuesFormatVersion) && indexSettings.useTimeSeriesDocValuesFormat()) {
+        // Use the GA (non-feature-flag) threshold for all builds. An earlier snapshot-only threshold
+        // (IGNORED_SOURCE_AS_DOC_VALUES = 9_078_0_00) was removed because it overlapped with the max
+        // index version of the 9.4.6 release (9_094_0_00), which wrote _ignored_source using stored
+        // fields. Using the snapshot threshold on a node that is upgrading from 9.4.6 caused a Lucene
+        // field-type conflict ("cannot change field _ignored_source from doc values type NONE to BINARY").
+        if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF)
+            && indexSettings.useTimeSeriesDocValuesFormat()) {
             return IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
         }
 

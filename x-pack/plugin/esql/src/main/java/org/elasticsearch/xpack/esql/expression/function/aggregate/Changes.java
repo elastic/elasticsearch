@@ -81,7 +81,7 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
     }
 
     public Changes(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+        super(source, List.of(field), filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 

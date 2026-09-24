@@ -241,6 +241,37 @@ public class ViewAndDatasetDlsFlsRequestInterceptorTests extends ESTestCase {
         validateNoException(interceptor, request);
     }
 
+    /**
+     * A dataset still reaches this check when only views were asked for, which is the shape ES|QL sends after it stops
+     * asking a remote to resolve datasets. The gate is {@code resolveViews() || resolveDatasets()} and ES|QL always
+     * asks for views, so turning the dataset flag off is not what keeps DLS or FLS on a dataset from being missed here.
+     */
+    public void testRejectsDatasetWithDlsWhenOnlyViewsWereAskedFor() {
+        String datasetName = "test-dataset";
+        ProjectMetadata projectMetadata = mockDatasetProjectMetadata(datasetName);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(
+            threadContext,
+            () -> projectMetadata
+        );
+
+        DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
+        setAccessControl(Map.of(datasetName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
+
+        TestIndicesRequest request = buildIndicesRequestForDataset(datasetName);
+        doReturn(
+            IndicesOptions.builder()
+                .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveViews(true).resolveDatasets(false))
+                .build()
+        ).when(request).indicesOptions();
+
+        RequestInfo requestInfo = new RequestInfo(authentication, request, "indices:data/read/esql", null);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        interceptor.intercept(requestInfo, null, null).addListener(future);
+        ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+
+        validateDatasetException(ex, datasetName);
+    }
+
     public void testRejectsViewAndDatasetWithDls() {
         String viewName = "test-view";
         String datasetName = "test-dataset";

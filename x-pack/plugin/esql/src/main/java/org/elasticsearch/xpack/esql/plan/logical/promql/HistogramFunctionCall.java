@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROM
 /**
  * Base class for PromQL histogram functions that evaluate classic histogram buckets grouped by their {@code le} label.
  */
-public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall permits HistogramQuantile {
+public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall permits HistogramFraction, HistogramQuantile {
     public static final String LE_LABEL = "le";
 
     private List<Attribute> output;

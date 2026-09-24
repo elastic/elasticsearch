@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -55,16 +54,8 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
             .withRole(ShardRouting.Role.INDEX_ONLY)
             .build();
 
-        updateRoutingEntry(indexShard, copyShardRoutingWithIndexOnlyRole);
-
-        indexShard.markAsRecovering(
-            "simulated",
-            new RecoveryState(
-                indexShard.routingEntry(),
-                DiscoveryNodeUtils.builder("index-node-target").build(),
-                DiscoveryNodeUtils.builder("index-node-source").build()
-            )
-        );
+        indexShard = reinitShard(indexShard, copyShardRoutingWithIndexOnlyRole, DiscoveryNodeUtils.create("source-node"));
+        indexShard.markAsRecovering("simulated");
 
         indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
 
@@ -106,16 +97,8 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
             .withRole(ShardRouting.Role.INDEX_ONLY)
             .build();
 
-        updateRoutingEntry(indexShard, copyShardRoutingWithIndexOnlyRole);
-
-        indexShard.markAsRecovering(
-            "simulated",
-            new RecoveryState(
-                indexShard.routingEntry(),
-                DiscoveryNodeUtils.builder("index-node-target").build(),
-                DiscoveryNodeUtils.builder("index-node-source").build()
-            )
-        );
+        indexShard = reinitShard(indexShard, copyShardRoutingWithIndexOnlyRole, DiscoveryNodeUtils.create("source-node"));
+        indexShard.markAsRecovering("simulated");
 
         try (var mockLog = MockLog.capture(IndexShardCacheWarmer.class)) {
             mockLog.addExpectation(

@@ -43,7 +43,7 @@ public class AsyncExternalSourceOperatorWarningsTests extends ESTestCase {
         buffer.recordWarning("a record exceeded external_max_record_size and was truncated");
 
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BLOCK_FACTORY, null);
-        new AsyncExternalSourceOperator(buffer, driverContext, ExternalSourceMetrics.NOOP, "s3").close();
+        new AsyncExternalSourceOperator(buffer, driverContext, ExternalSourceMetrics.NOOP, "s3", "csv").close();
 
         driverContext.finish();
         assertThat(
@@ -59,7 +59,8 @@ public class AsyncExternalSourceOperatorWarningsTests extends ESTestCase {
     /** A read that recorded nothing must leave the sink empty rather than depositing an empty or null entry. */
     public void testCloseWithoutWarningsLeavesTheDriverSinkEmpty() {
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BLOCK_FACTORY, null);
-        new AsyncExternalSourceOperator(new AsyncExternalSourceBuffer(1024), driverContext, ExternalSourceMetrics.NOOP, "s3").close();
+        new AsyncExternalSourceOperator(new AsyncExternalSourceBuffer(1024), driverContext, ExternalSourceMetrics.NOOP, "s3", "csv")
+            .close();
 
         driverContext.finish();
         assertThat(driverContext.warnings(), empty());

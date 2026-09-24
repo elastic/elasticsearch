@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.esql.core.tree;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -15,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -283,18 +286,39 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
+     * Number of descent levels between executor bounces in the async {@link #transformDown}.
+     * Small enough that each stretch of recursion stays well within the default {@code -Xss1m} thread stack,
+     * large enough that ordinary (shallow) plans never bounce.
+     */
+    private static final int ASYNC_TRANSFORM_STACK_DEPTH_LIMIT = 100;
+
+    /**
      * Asynchronous variant of {@link #transformDown(Function)} that allows the transformation rule to perform
      * async I/O operations (e.g., transport actions) without blocking the caller thread.
      * <p>
      * Children are transformed sequentially, not concurrently, one after another in order.
      * This method is intended for cases where async I/O is needed during transformation, not for parallel
      * processing.
+     * <p>
+     * The provided executor is used to bounce the recursion every {@link #ASYNC_TRANSFORM_STACK_DEPTH_LIMIT}
+     * levels to avoid stack overflow.
      */
+    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, ActionListener<T> listener) {
+        transformDown(rule, executor, 0, listener);
+    }
+
     @SuppressWarnings("unchecked")
-    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, ActionListener<T> listener) {
+    void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, int depth, ActionListener<T> listener) {
         rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
             Node<T> node = this.equals(root) ? this : root;
-            node.transformChildren((child, childListener) -> child.transformDown(rule, childListener), originalListener);
+            node.transformChildren((child, childListener) -> {
+                if (depth > 0 && depth % ASYNC_TRANSFORM_STACK_DEPTH_LIMIT == 0) {
+                    ActionListener<T> bounced = new ThreadedActionListener<>(executor, childListener);
+                    executor.execute(ActionRunnable.wrap(bounced, l -> child.transformDown(rule, executor, depth + 1, l)));
+                } else {
+                    child.transformDown(rule, executor, depth + 1, childListener);
+                }
+            }, originalListener);
         }));
     }
 

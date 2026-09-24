@@ -24,8 +24,10 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -100,12 +102,6 @@ public class ViewService {
             validatePutView(metadata, view);
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
-        }
-        // Check for a no-op existing view, in which case we can skip the cluster state update
-        final View existingView = getMetadata(metadata).views().get(view.name());
-        if (view.equals(existingView)) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
@@ -203,8 +199,8 @@ public class ViewService {
                     entry.getValue().getType().getDisplayName()
                 );
             });
-        // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        parser.parseQuery(view.query(), new QueryParams());
+        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
+        parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
     }
 
     /**

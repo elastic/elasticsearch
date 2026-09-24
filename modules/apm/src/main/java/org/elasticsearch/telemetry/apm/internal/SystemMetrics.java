@@ -12,7 +12,6 @@ package org.elasticsearch.telemetry.apm.internal;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.monitor.jvm.SunThreadInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -30,8 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
 /**
  * Emits system and JVM metrics compatible with the Elastic APM Java agent, complementing
@@ -61,9 +58,6 @@ public class SystemMetrics extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        if (Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false) {
-            return;
-        }
         registerJvmMemoryMetrics();
         registerJvmGcMetrics();
         registerJvmThreadMetrics();

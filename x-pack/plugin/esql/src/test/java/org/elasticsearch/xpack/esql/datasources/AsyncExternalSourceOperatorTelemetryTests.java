@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -30,7 +29,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Wiring tests for {@link AsyncExternalSourceOperator}'s node-telemetry bridge: they assert that the production
  * getOutput()/close() call sites actually move the parse / splits / time-to-first-row instruments on a real
- * registry-backed {@link ExternalSourceMetrics}, tagged with the storage scheme. Uses a real
+ * registry-backed {@link ExternalSourceMetrics}, tagged with type and format. Uses a real
  * {@link AsyncExternalSourceBuffer} fed with a real {@link Page} (no mocks).
  */
 public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
@@ -59,10 +58,10 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
     /**
      * Drives one page through getOutput() then closes the operator, and asserts the four instruments the punch
      * list names — time_to_first_row, parse.rows.total, parse.duration and parse.splits_scanned — are all
-     * recorded carrying the canonicalised scheme ("s3a" folds to "s3"). parse.splits_scanned reflects this
+     * recorded carrying type ("s3a" folds to "s3") and format. parse.splits_scanned reflects this
      * operator's OWN processed-split count (splitsProcessed), not the global split total.
      */
-    public void testGetOutputAndCloseRecordParseSplitsAndTtfrWithScheme() {
+    public void testGetOutputAndCloseRecordParseSplitsAndTtfrWithTypeAndFormat() {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
 
@@ -73,12 +72,12 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 5));
-        // Wire a format-reader status with a known readNanos (42 ms) so parse.duration is a deterministic
-        // non-zero value, not just present. recordParseAndSplits() scrapes formatReaderStatus().readNanos()
-        // at close and records it as the parse.duration observation.
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, TimeUnit.MILLISECONDS.toNanos(42L), 0L));
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L));
+        // Inject known read/CPU nanos (42 ms wall, 37 ms CPU) so duration assertions are exact.
+        buffer.readCounters().add(42_000_000L, 37_000_000L);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3a");
+        DriverContext driverContext = driverContext();
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, metrics, "s3a", "ndjson");
 
         Page page = operator.getOutput();
         assertNotNull("the buffered page must be emitted", page);
@@ -89,28 +88,38 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         assertNull(operator.getOutput());
 
         operator.close();
+        driverContext.finish();
 
-        // time_to_first_row recorded exactly once (on the first page), tagged with the canonical scheme. The value is
+        // time_to_first_row recorded exactly once (on the first page), tagged with type and format. The value is
         // the wall gap from operator construction to the first page (sub-ms in-process, so >= 0 rather than a forced
-        // non-zero); the scheme and the presence-with-a-real-value are what the metric guarantees.
+        // non-zero); the attributes and the presence-with-a-real-value are what the metric guarantees.
         Measurement ttfr = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW);
         assertThat(ttfr.getLong(), greaterThanOrEqualTo(0L));
-        assertThat(ttfr.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(ttfr.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(ttfr.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
 
-        // parse.rows.total carries the 5 emitted rows plus the scheme.
+        // parse.rows.total carries the 5 emitted rows plus type and format.
         Measurement rows = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL);
         assertThat(rows.getLong(), equalTo(5L));
-        assertThat(rows.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(rows.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(rows.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
 
-        // parse.duration carries the format reader's readNanos folded to ms (42), plus the canonical scheme.
+        // parse.duration and parse.cpu_duration carry the injected counters folded to ms, plus type and format.
         Measurement parseDuration = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION);
         assertThat(parseDuration.getLong(), equalTo(42L));
-        assertThat(parseDuration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(parseDuration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(parseDuration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
 
-        // parse.splits_scanned carries this operator's processed-split count (3), NOT the global total (10), plus scheme.
+        Measurement parseCpuDuration = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_CPU_DURATION);
+        assertThat(parseCpuDuration.getLong(), equalTo(37L));
+        assertThat(parseCpuDuration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(parseCpuDuration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
+
+        // parse.splits_scanned carries this operator's processed-split count (3), NOT the global total (10), plus type and format.
         Measurement splits = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED);
         assertThat(splits.getLong(), equalTo(3L));
-        assertThat(splits.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(splits.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(splits.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
     }
 
     /**
@@ -132,13 +141,15 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 1));
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3");
+        DriverContext driverContext = driverContext();
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, metrics, "s3", "parquet");
         Page page = operator.getOutput();
         assertNotNull(page);
         page.releaseBlocks();
         buffer.finish(true);
         assertNull(operator.getOutput());
         operator.close();
+        driverContext.finish();
 
         Measurement splits = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED);
         assertThat("must record this operator's processed splits (2), not the global total (10)", splits.getLong(), equalTo(2L));
@@ -157,9 +168,11 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.setSplitsTotal(10);
         buffer.finish(true);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3");
+        DriverContext driverContext = driverContext();
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, metrics, "s3", "parquet");
         assertNull(operator.getOutput());
         operator.close();
+        driverContext.finish();
 
         assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL), hasSize(0));
         assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION), hasSize(0));
@@ -177,9 +190,11 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         buffer.finish(true);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3");
+        DriverContext driverContext = driverContext();
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, metrics, "s3", "parquet");
         assertNull(operator.getOutput());
         operator.close();
+        driverContext.finish();
 
         assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL), hasSize(0));
         assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION), hasSize(0));

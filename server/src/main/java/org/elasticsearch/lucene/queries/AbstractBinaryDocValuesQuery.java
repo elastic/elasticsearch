@@ -47,7 +47,19 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
     AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.matcher = Objects.requireNonNull(matcher);
-        this.binaryFormat = Objects.requireNonNull(binaryFormat);
+        this.binaryFormat = rejectColumnar(binaryFormat, fieldName);
+    }
+
+    /**
+     * A columnar field is answered by its column, through the queries in the columnar library, so one reaching a
+     * scanning query is a caller that routed it wrongly - see BinaryDocValuesQueries, which is what chooses between
+     * the two. Refused here rather than where the scan would run, so it fails when the query is built.
+     */
+    static BinaryDocValuesFormat rejectColumnar(BinaryDocValuesFormat binaryFormat, String fieldName) {
+        if (Objects.requireNonNull(binaryFormat) == BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
+            throw new IllegalArgumentException("field [" + fieldName + "] is a column and is not answered by scanning");
+        }
+        return binaryFormat;
     }
 
     @Override
@@ -96,17 +108,22 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (values == null) {
             return null;
         }
-        final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
         return switch (binaryFormat) {
+            // Refused by the constructor, so a query holding this format does not exist.
+            case COLUMNAR_PAYLOAD -> throw new AssertionError("columnar field [" + fieldName + "]");
             case ARRAY_ORDER_INLINE_NULL -> {
                 // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so
                 // the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
                 assert counts != null : "ArrayOrderInlineNull field [" + fieldName + "] must have a " + COUNT_FIELD_SUFFIX + " companion";
                 yield arrayOrderInlineNullIterator(values, counts, matcher, matchCost);
             }
-            case SEPARATE_COUNT -> counts != null
-                ? multiValuedIterator(values, counts, matcher, matchCost)
-                : singleValuedIterator(values, matcher, matchCost);
+            case SEPARATE_COUNT -> {
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+                yield counts != null
+                    ? multiValuedIterator(values, counts, matcher, matchCost)
+                    : singleValuedIterator(values, matcher, matchCost);
+            }
         };
     }
 

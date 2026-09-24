@@ -51,3 +51,30 @@ id:integer | name:keyword
 12         | aaaaa
 14         | mmmmm
 ;
+
+// The string half of the same rule. employees_no_mv is registered WITHOUT mappings, so every column is
+// inferred -- and a blank cell reads as "" on a string column (keyword), so IS NULL returns nothing here.
+// Use == "" to match the blank gender rows. The 10 rows are emp_no 10010..10019.
+filterInferredBlankKeywordIsEmptyString
+required_capability: dataset_in_from_command
+required_capability: external_csv_blank_cell_empty_string_unless_null_token
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE gender == ""
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10010
+10011
+10012
+10013
+10014
+10015
+10016
+10017
+10018
+10019
+;

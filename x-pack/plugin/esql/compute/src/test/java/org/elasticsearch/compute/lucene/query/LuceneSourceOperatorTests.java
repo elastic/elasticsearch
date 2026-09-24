@@ -9,8 +9,12 @@ package org.elasticsearch.compute.lucene.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
@@ -23,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -82,6 +87,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
@@ -510,6 +516,118 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         SharedMinCompetitive channel = minCompetitiveSupplier.get();
         channel.close();
         channel.close();
+    }
+
+    /**
+     * Two operators share one {@link org.elasticsearch.compute.operator.Limiter}. Operator A buffers fewer than {@code minPageSize}
+     * docs from the sparse {@code [0,100]} slice (already charged to the limiter) while operator B drains the rest of the limit;
+     * A must still emit its buffered docs instead of reporting itself finished, otherwise the query returns fewer rows than LIMIT.
+     */
+    public void testBufferedDocsEmittedWhenSiblingDrainsLimiter() throws IOException {
+        int maxPageSize = 400;
+        int limit = 1103;
+        // segments: {0}, {1..2000}, {2001..3999} - segment 1 is wider than maxPageSize so the 100 matches of [0,100] stay buffered
+        reader = readerWithCommitsAfter(directory, 4000, 0, 2000);
+        ShardContext ctx = new MockShardContext(reader, 0);
+        LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            ignored -> TestCase.LTE_100_GT_100.queryAndExtra(),
+            DataPartitioning.SHARD,
+            DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            2,
+            maxPageSize,
+            limit,
+            scoring,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
+        );
+        assertThat(factory.taskConcurrency(), equalTo(2));
+
+        List<Page> pagesA = new ArrayList<>();
+        List<Page> pagesB = new ArrayList<>();
+        try (SourceOperator a = factory.get(driverContext()); SourceOperator b = factory.get(driverContext())) {
+            Page fromSegment0 = a.getOutput();
+            pagesA.add(fromSegment0);
+            assertThat(fromSegment0.getPositionCount(), equalTo(1));
+            Page buffered = a.getOutput();
+            if (buffered != null) {
+                pagesA.add(buffered);
+            }
+            assertThat(buffered, nullValue());
+            assertThat(a.isFinished(), equalTo(false));
+
+            int fromB = drainLikeDriver(b, pagesB);
+            assertThat(fromB, equalTo(limit - 1 - 100));
+
+            int fromA = fromSegment0.getPositionCount() + drainLikeDriver(a, pagesA);
+            assertThat(fromA + fromB, equalTo(limit));
+            assertThat(fromA, equalTo(101));
+            assertThat(a.isFinished(), equalTo(true));
+
+            assertAllTagged(pagesA, 123);
+            assertAllTagged(pagesB, 456);
+            Page flushed = pagesA.get(pagesA.size() - 1);
+            assertThat(flushed.getPositionCount(), equalTo(100));
+            DocVector docs = ((DocBlock) flushed.getBlock(0)).asVector();
+            assertThat(docs.segments().getInt(0), equalTo(1));
+            for (int p = 0; p < flushed.getPositionCount(); p++) {
+                assertThat(docs.docs().getInt(p), equalTo(p));
+            }
+            if (scoring) {
+                DoubleBlock scores = flushed.getBlock(1);
+                assertThat(scores.getPositionCount(), equalTo(100));
+                for (int p = 0; p < scores.getPositionCount(); p++) {
+                    assertThat(scores.getDouble(p), equalTo(1.0));
+                }
+            }
+        } finally {
+            for (Page page : pagesA) {
+                page.releaseBlocks();
+            }
+            for (Page page : pagesB) {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    private static void assertAllTagged(List<Page> pages, int tag) {
+        for (Page page : pages) {
+            IntBlock tags = page.getBlock(page.getBlockCount() - 1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                assertThat(tags.getInt(p), equalTo(tag));
+            }
+        }
+    }
+
+    private static int drainLikeDriver(SourceOperator op, List<Page> into) {
+        int rows = 0;
+        while (op.isFinished() == false) {
+            Page page = op.getOutput();
+            if (page != null) {
+                into.add(page);
+                rows += page.getPositionCount();
+            }
+        }
+        return rows;
+    }
+
+    private static IndexReader readerWithCommitsAfter(Directory directory, int numDocs, int... commitAfter) throws IOException {
+        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+            for (int d = 0; d < numDocs; d++) {
+                Document doc = new Document();
+                doc.add(new SortedNumericDocValuesField("s", d));
+                writer.addDocument(doc);
+                for (int c : commitAfter) {
+                    if (c == d) {
+                        writer.commit();
+                    }
+                }
+            }
+            writer.commit();
+        }
+        return DirectoryReader.open(directory);
     }
 
     private static SharedMinCompetitive.Supplier timestampDescMinCompetitiveSupplier(BlockFactory blockFactory) {

@@ -11,6 +11,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -43,6 +44,11 @@ public class StorageProviderCacheTests extends ESTestCase {
      * Used to verify that true eviction / invalidate triggers close().
      */
     static class TrackingProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         final AtomicInteger closeCalls = new AtomicInteger();
 
         @Override
@@ -133,6 +139,24 @@ public class StorageProviderCacheTests extends ESTestCase {
         } finally {
             s3Provider.value().close();
             gcsProvider.value().close();
+            cache.close();
+        }
+    }
+
+    public void testDifferentRegionReturnsDifferentProvider() throws Exception {
+        // region is a dataset-level key; two queries over the same bucket on different regions
+        // must get different providers (and therefore different S3 clients with the right signing region).
+        StorageProviderCache cache = new StorageProviderCache();
+        StorageProviderCache.CacheKey keyEast = new StorageProviderCache.CacheKey("s3", Map.of("region", "us-east-1"));
+        StorageProviderCache.CacheKey keyWest = new StorageProviderCache.CacheKey("s3", Map.of("region", "us-west-2"));
+
+        Configured<StorageProvider> east = cache.getOrCreate(keyEast, () -> Configured.empty(new TrackingProvider()));
+        Configured<StorageProvider> west = cache.getOrCreate(keyWest, () -> Configured.empty(new TrackingProvider()));
+        try {
+            assertNotSame("different dataset regions must yield different providers", unwrap(east.value()), unwrap(west.value()));
+        } finally {
+            east.value().close();
+            west.value().close();
             cache.close();
         }
     }

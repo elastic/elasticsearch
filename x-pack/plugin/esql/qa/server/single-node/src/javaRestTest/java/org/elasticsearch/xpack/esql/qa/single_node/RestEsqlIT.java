@@ -146,6 +146,17 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
     }
 
+    public void testStreamingNotAllowed() throws IOException {
+        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
+        Request request = new Request("POST", "/_query");
+        request.addParameter("streaming", "true");
+        request.addParameter("format", "ndjson");
+        request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
+        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("contains unrecognized parameter: [streaming]"));
+    }
+
     public void testDoNotLogWithInfo() throws IOException {
         try {
             setLoggingLevel("INFO");
@@ -1444,9 +1455,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     String name = signature(o);
                     if (name.equals("LuceneSourceOperator")) {
                         // AUTO routes to DOC (docs_threshold_auto_partitioning=20 is below this
-                        // index's 1000 docs), but the DOC partitioner floors slice size at
-                        // MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index must stay on a
-                        // single slice — the previous behavior over-split tiny indices.
+                        // index's 1000 docs), but the DOC partitioner caps slices at
+                        // totalDocs / MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index —
+                        // even when Lucene flushed multiple segments — must stay on a single
+                        // slice rather than opening one bin per segment.
                         MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
                             .extraOk();

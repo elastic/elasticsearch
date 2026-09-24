@@ -10,8 +10,12 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -38,18 +42,22 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 final class CoalescedRangeReader {
 
+    private static final Logger logger = LogManager.getLogger(CoalescedRangeReader.class);
+
     static final long DEFAULT_MAX_COALESCE_GAP = 1024 * 1024;
 
     /**
      * Upper bound on how far coalescing may extend a merged range, so a densely packed wide row
      * group does not become one very large contiguous array and request. This is a coalescing
      * bound, not an allocation bound: a single constituent larger than this keeps its own
-     * oversized range. The 16 MiB value mirrors {@link ParquetStorageObjectAdapter#MAX_WINDOW_SIZE}
-     * as a familiar single-read ceiling, but the two constants govern unrelated paths. Using the
-     * adapter's 4 MiB {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} here would turn a
-     * representative 152 MiB row group from roughly 10 requests into roughly 38.
+     * oversized range. Matches {@link ParquetStorageObjectAdapter#MAX_WINDOW_SIZE} so merge GETs
+     * and window GETs share the same 10 MiB in-flight ceiling. Permits drop when the GET completes;
+     * coalesced buffers stay until that row group is decoded. {@code C × B} budgets concurrent GET
+     * size, not retained prefetch. Using the adapter's 4 MiB
+     * {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} here would turn a representative
+     * 152 MiB row group from roughly 16 requests into roughly 38.
      */
-    static final long MAX_MERGED_RANGE_BYTES = 16L * 1024 * 1024;
+    static final long MAX_MERGED_RANGE_BYTES = ParquetStorageObjectAdapter.MAX_WINDOW_SIZE;
 
     /**
      * A byte range within a file: {@code [offset, offset + length)}.
@@ -113,6 +121,52 @@ final class CoalescedRangeReader {
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
+        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, null, null, executor, listener);
+    }
+
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
+        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, null, null, executor, listener);
+    }
+
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
+        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, admitHold, null, executor, listener);
+    }
+
+    /**
+     * @param footerBytes optional footer-tail cache. When a merged range is a subset of a cached
+     *                    suffix, the bytes are <em>copied</em> into a breaker {@link DirectReadBuffer}
+     *                    and no GET is issued (no watermark / admit-hold GET accounting). {@code null}
+     *                    is today's GET path. Never aliases the LRU {@code byte[]}. A miss, a short
+     *                    cached suffix, or a lookup failure falls through to {@code startReadBytesAsync}.
+     */
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
         if (ranges.isEmpty()) {
             listener.onResponse(new CoalescedRangeResult(Map.of(), () -> {}));
             return () -> {};
@@ -131,11 +185,47 @@ final class CoalescedRangeReader {
         AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
         // Bridge the circuit breaker to the SPI's factory once, here at the boundary, so
-        // backends do not need to know about CircuitBreaker at all.
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        // backends do not need to know about CircuitBreaker at all. The watermark wrapper
+        // charges actual allocated bytes beside REQUEST so footer estimates cannot drift.
+        DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, admitHold);
+        // Cache hits copy into a breaker buffer only: they are not a GET, so they must not
+        // charge the I/O watermark or consume admit-hold GET budget.
+        DirectBufferFactory cacheFactory = DirectBufferFactory.forBreaker(breaker);
 
         for (MergedRange mr : merged) {
-            inflight.add(storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
+            FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
+            if (hit != null) {
+                inflight.add(() -> {});
+                try {
+                    executor.execute(() -> {
+                        try {
+                            DirectReadBuffer copied = copyFooterCacheHit(hit, cacheFactory);
+                            try {
+                                synchronized (results) {
+                                    buffers.add(copied);
+                                    DirectReadBuffer owned = copied;
+                                    copied = null;
+                                    sliceConstituents(owned.buffer(), mr, results);
+                                }
+                            } finally {
+                                if (copied != null) {
+                                    copied.close();
+                                }
+                            }
+                        } catch (Throwable t) {
+                            Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
+                            recordFailure(firstFailure, e, inflight);
+                        } finally {
+                            complete(remaining, firstFailure, buffers, results, listener);
+                        }
+                    });
+                } catch (Exception e) {
+                    recordFailure(firstFailure, e, inflight);
+                    complete(remaining, firstFailure, buffers, results, listener);
+                }
+                continue;
+            }
+            Releasable handle = storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
                     try {
@@ -154,11 +244,9 @@ final class CoalescedRangeReader {
                         // delivered: with the finally below already calling complete(), letting an Error
                         // through instead would deliver a spurious success with truncated slices.
                         Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
-                        if (firstFailure.compareAndSet(null, e) == false) {
-                            firstFailure.get().addSuppressed(e);
-                        }
+                        recordFailure(firstFailure, e, inflight);
                     } finally {
-                        complete();
+                        complete(remaining, firstFailure, buffers, results, listener);
                     }
                 }
 
@@ -166,25 +254,19 @@ final class CoalescedRangeReader {
                 public void onFailure(Exception e) {
                     // The backend has already released its buffer on the failure path; nothing
                     // to clean up for this merged range. Siblings that succeeded are released by
-                    // complete() below.
-                    if (firstFailure.compareAndSet(null, e) == false) {
-                        firstFailure.get().addSuppressed(e);
-                    }
-                    complete();
+                    // complete() below. The first failure also closes remaining inflight handles so
+                    // sibling GETs do not keep Netty slots and storage permits until they finish.
+                    recordFailure(firstFailure, e, inflight);
+                    complete(remaining, firstFailure, buffers, results, listener);
                 }
-
-                private void complete() {
-                    if (remaining.decrementAndGet() == 0) {
-                        Exception failure = firstFailure.get();
-                        if (failure != null) {
-                            Releasables.close(buffers);
-                            listener.onFailure(failure);
-                        } else {
-                            listener.onResponse(new CoalescedRangeResult(results, () -> Releasables.close(buffers)));
-                        }
-                    }
-                }
-            }));
+            });
+            inflight.add(handle);
+            if (firstFailure.get() != null) {
+                // This GET was started after a sibling already failed (typically a synchronous
+                // onFailure from an earlier startReadBytesAsync). Close its handle now: the CAS
+                // abort above ran before this handle was added to inflight.
+                closeQuietly(handle);
+            }
         }
         return () -> Releasables.close(inflight);
     }
@@ -202,6 +284,27 @@ final class CoalescedRangeReader {
         long maxCoalesceGap,
         CircuitBreaker breaker
     ) throws IOException {
+        return readCoalescedSync(storageObject, ranges, maxCoalesceGap, breaker, null);
+    }
+
+    static CoalescedRangeResult readCoalescedSync(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark
+    ) throws IOException {
+        return readCoalescedSync(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, null);
+    }
+
+    static CoalescedRangeResult readCoalescedSync(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
+    ) throws IOException {
         if (ranges.isEmpty()) {
             return new CoalescedRangeResult(Map.of(), () -> {});
         }
@@ -215,9 +318,17 @@ final class CoalescedRangeReader {
 
         Map<ByteRange, ByteBuffer> results = new HashMap<>(ranges.size());
         List<Releasable> buffers = new ArrayList<>(merged.size());
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark);
+        DirectBufferFactory cacheFactory = DirectBufferFactory.forBreaker(breaker);
         try {
             for (MergedRange mr : merged) {
+                FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
+                if (hit != null) {
+                    DirectReadBuffer copied = copyFooterCacheHit(hit, cacheFactory);
+                    buffers.add(copied);
+                    sliceConstituents(copied.buffer(), mr, results);
+                    continue;
+                }
                 int length = (int) mr.length();
                 DirectReadBuffer result = factory.allocateWritableWindow(length);
                 buffers.add(result);
@@ -279,6 +390,116 @@ final class CoalescedRangeReader {
             results.put(original, slice.slice());
         }
     }
+
+    // CAS winner closes remaining inflight GET handles; the batch cannot succeed after firstFailure.
+    private static void recordFailure(AtomicReference<Exception> firstFailure, Exception e, List<Releasable> inflight) {
+        if (firstFailure.compareAndSet(null, e)) {
+            try {
+                abortInflight(inflight);
+            } catch (RuntimeException abortFailure) {
+                e.addSuppressed(abortFailure);
+            }
+        } else {
+            Exception first = firstFailure.get();
+            if (first != null && first != e) {
+                first.addSuppressed(e);
+            }
+        }
+    }
+
+    private static void abortInflight(List<Releasable> inflight) {
+        final Releasable[] handles;
+        synchronized (inflight) {
+            handles = inflight.toArray(Releasable[]::new);
+        }
+        Releasables.close(handles);
+    }
+
+    private static void closeQuietly(Releasable handle) {
+        try {
+            handle.close();
+        } catch (RuntimeException ignored) {
+            // Same as abortInflight: cancel of a just-started handle must not hide firstFailure.
+        }
+    }
+
+    private static void complete(
+        AtomicInteger remaining,
+        AtomicReference<Exception> firstFailure,
+        List<Releasable> buffers,
+        Map<ByteRange, ByteBuffer> results,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
+        if (remaining.decrementAndGet() == 0) {
+            Exception failure = firstFailure.get();
+            if (failure != null) {
+                Releasables.close(buffers);
+                listener.onFailure(failure);
+            } else {
+                listener.onResponse(new CoalescedRangeResult(results, () -> Releasables.close(buffers)));
+            }
+        }
+    }
+
+    /**
+     * Hit iff {@code [fileAbsOffset, fileAbsOffset + len)} sits inside the cached suffix
+     * {@code [fileLength - cached.length, fileLength)}. Coordinates are file-absolute
+     * ({@link StorageObject#offsetForFooterCache} + {@link FooterByteCache.Key#keyFor}).
+     */
+    @Nullable
+    private static FooterCacheHit lookupFooterCacheHit(StorageObject storageObject, MergedRange mr, @Nullable FooterByteCache footerBytes) {
+        if (footerBytes == null || mr.length() <= 0L || mr.length() > Integer.MAX_VALUE) {
+            return null;
+        }
+        final FooterByteCache.Key key;
+        final long fileAbsOffset;
+        try {
+            key = FooterByteCache.Key.keyFor(storageObject);
+            fileAbsOffset = storageObject.offsetForFooterCache(mr.offset());
+        } catch (Exception e) {
+            logger.debug("footer cache lookup skipped", e);
+            return null;
+        }
+        byte[] cached = footerBytes.get(key);
+        if (cached == null || cached.length == 0) {
+            return null;
+        }
+        long fileLength = key.fileLength();
+        if (cached.length > fileLength || fileAbsOffset < 0L) {
+            return null;
+        }
+        long cacheStart = fileLength - cached.length;
+        final long rangeEnd;
+        try {
+            rangeEnd = Math.addExact(fileAbsOffset, mr.length());
+        } catch (ArithmeticException e) {
+            return null;
+        }
+        if (fileAbsOffset < cacheStart || rangeEnd > fileLength) {
+            return null;
+        }
+        return new FooterCacheHit(cached, Math.toIntExact(fileAbsOffset - cacheStart), (int) mr.length());
+    }
+
+    /**
+     * Copies cached bytes into a breaker-accounted buffer. Never aliases the LRU {@code byte[]}.
+     */
+    private static DirectReadBuffer copyFooterCacheHit(FooterCacheHit hit, DirectBufferFactory factory) throws IOException {
+        DirectReadBuffer dest = factory.allocateWritableWindow(hit.copyLen());
+        try {
+            dest.buffer().put(hit.cached(), hit.copyOffset(), hit.copyLen());
+            dest.buffer().flip();
+            DirectReadBuffer delivered = dest;
+            dest = null;
+            return delivered;
+        } finally {
+            if (dest != null) {
+                dest.close();
+            }
+        }
+    }
+
+    private record FooterCacheHit(byte[] cached, int copyOffset, int copyLen) {}
 
     /**
      * Sorts ranges by offset and merges adjacent/overlapping ranges whose gap is within threshold

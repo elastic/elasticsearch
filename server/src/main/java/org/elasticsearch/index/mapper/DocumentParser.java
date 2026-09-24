@@ -665,8 +665,7 @@ public final class DocumentParser {
         }
         Mapper.Builder builderFromTemplate = DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName);
         if (builderFromTemplate == null) {
-            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()
-                && context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1)) {
+            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit() && context.fieldBudgetExhausted()) {
                 try {
                     FallbackPostMapper.capture(
                         context,
@@ -773,7 +772,7 @@ public final class DocumentParser {
                 context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
             } else if (mapper.storesArrayValuesInOrder()) {
                 // In-order values live in the field's own binary doc-values column, so the field name is just its full path.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(context.doc(), mapper.fullPath());
+                mapper.recordEmptyArrayInOrder(context.doc());
             }
         }
         postProcessDynamicArrayMapping(context, lastFieldName, valueElements);

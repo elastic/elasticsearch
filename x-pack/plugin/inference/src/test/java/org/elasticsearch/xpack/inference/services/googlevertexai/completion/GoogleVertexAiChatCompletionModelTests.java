@@ -11,7 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -61,7 +61,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             null
         );
         var requestModelId = "gemini-flash";
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
             requestModelId,
             null,
@@ -96,7 +96,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             null,
             TEST_MAX_TOKENS
         );
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
             null,
             null,
@@ -272,7 +272,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             streamingUri,
             TEST_MAX_TOKENS
         );
-        var request = new UnifiedCompletionRequest(
+        var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
             null,
             null,

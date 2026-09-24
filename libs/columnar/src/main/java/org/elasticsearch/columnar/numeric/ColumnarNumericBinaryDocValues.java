@@ -29,7 +29,7 @@ import java.io.IOException;
  * directly. Those fast paths require a dense single-valued column; otherwise the caller falls back to
  * {@link #binaryValue}. The skip index lives inside the column, not on the Lucene surface.
  */
-public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
+public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implements NumericColumnSource {
 
     private static final float RANGE_MATCH_COST = 2f;
 
@@ -58,7 +58,11 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
         this.reader = reader;
         this.iterator = iterator;
         this.maxDoc = maxDoc;
-        this.singleValued = reader.multiValued() == false;
+        // A column written without the addressing is read by value address, and nothing hands one to this
+        // class; without that, no table would read as one value a document and a rank as its value address.
+        assert reader.hasValueAddresses() || reader.numValues() == reader.numDocsWithField()
+            : "a column of " + reader.numValues() + " values over " + reader.numDocsWithField() + " documents tables no addressing";
+        this.singleValued = reader.hasValueAddresses() == false;
         this.blockShift = Integer.numberOfTrailingZeros(reader.blockSize());
         this.blockMask = reader.blockSize() - 1;
         this.skipperMeta = skipperMeta;
@@ -210,6 +214,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
      * <p>The approximation is the column's own iterator, so only documents that have a value are visited,
      * and the block work is keyed on value addresses. The column may be dense or sparse.
      */
+    @Override
     public DocIdSetIterator rangeIterator(long lowerValue, long upperValue) throws IOException {
         if (singleValued == false) {
             return null;

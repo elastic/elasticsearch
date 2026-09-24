@@ -37,17 +37,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -56,6 +60,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -63,6 +68,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -72,18 +78,25 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.SERVICE_ACCOUNT_DOC_TYPE;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -149,6 +162,9 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(true);
 
@@ -231,6 +247,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         corruptions.put("a role that is not a string", source -> source.put("roles", List.of(ROLE_A, 42)));
         corruptions.put("missing enabled", source -> source.remove("enabled"));
         corruptions.put("enabled that is not a boolean", source -> source.put("enabled", "true"));
+        corruptions.put("description that is not a string", source -> source.put("description", List.of("a", "b")));
 
         corruptions.forEach((description, corruption) -> {
             final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
@@ -239,6 +256,36 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             store.invalidateAll();
             assertThat("document with " + description, getByPrincipal(PRINCIPAL), nullValue());
         });
+    }
+
+    /**
+     * Documents written before the field existed have no description, as do accounts written without one since, and
+     * both read back as an account with none.
+     */
+    public void testAnAbsentOrNullDescriptionReadsBackAsNone() {
+        final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        if (randomBoolean()) {
+            source.put("description", null);
+        }
+        respondToGetWith(source);
+        assertThat(getByPrincipal(PRINCIPAL).description(), nullValue());
+    }
+
+    public void testAStoredDescriptionIsLoaded() {
+        final String description = randomAlphaOfLengthBetween(1, 30);
+        respondToGetWith(accountDocument(PRINCIPAL, List.of(ROLE_A), true, description));
+        assertThat(getByPrincipal(PRINCIPAL).description(), equalTo(description));
+    }
+
+    /**
+     * Like role names, the description's write-time rule is not applied on read: tightening the cap later must not
+     * make an already-stored account unreadable.
+     */
+    public void testAStoredDescriptionThatWouldFailWriteValidationIsStillLoaded() {
+        final String storedDescription = randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1);
+        assertNotNull(Validation.UserManagedServiceAccounts.validateDescription(storedDescription));
+        respondToGetWith(accountDocument(PRINCIPAL, List.of(ROLE_A), true, storedDescription));
+        assertThat(getByPrincipal(PRINCIPAL).description(), equalTo(storedDescription));
     }
 
     public void testAStoredRoleNameThatWouldFailWriteValidationIsStillLoaded() {
@@ -282,7 +329,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithBulkResult(true);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_B, ROLE_A, ROLE_B), false, RefreshPolicy.WAIT_UNTIL, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_B, ROLE_A, ROLE_B), false, "Deploys things", RefreshPolicy.WAIT_UNTIL, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
 
         assertThat(onlyRequestOfType(BulkRequest.class).getRefreshPolicy(), is(RefreshPolicy.WAIT_UNTIL));
@@ -296,15 +343,30 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(source.get("enabled"), is(false));
         // Sorted and de-duplicated, so that the document does not depend on how the caller ordered the roles.
         assertThat(source.get("roles"), equalTo(List.of(ROLE_A, ROLE_B)));
+        assertThat(source.get("description"), equalTo("Deploys things"));
 
         assertThat(clearedCacheKeys, contains(PRINCIPAL));
+    }
+
+    /**
+     * Written as no field at all rather than as a null, so that an account without a description has the same
+     * document as one written before the field existed.
+     */
+    public void testPutAccountLeavesTheDescriptionOutOfTheDocumentWhenThereIsNone() {
+        respondWithBulkResult(true);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, RefreshPolicy.NONE, future);
+        assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
+
+        assertThat(indexedDocument().sourceAsMap(), not(hasKey("description")));
     }
 
     public void testPutAccountReportsAnUpdateOfAnExistingAccount() {
         respondWithBulkResult(false);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
     }
 
@@ -314,22 +376,51 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             new ServiceAccountId(reservedNamespace(), "deploy bot"),
             List.of("a role name that is far too long".repeat(32)),
             true,
+            randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1),
             RefreshPolicy.NONE,
             future
         );
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
-        assertThat(e.validationErrors(), hasSize(3));
+        assertThat(e.validationErrors(), hasSize(4));
         assertThat(e.getMessage(), containsString("the [elastic] namespace is reserved for built-in service accounts"));
         assertThat(e.getMessage(), containsString("service account service name [deploy bot]"));
         assertThat(e.getMessage(), containsString("Role names must be at least"));
+        assertThat(e.getMessage(), containsString("a service account description may not be more than"));
+    }
+
+    public void testPutAccountRejectsAnOverlongDescription() {
+        final int max = Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH;
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomAlphaOfLength(max + 1), RefreshPolicy.NONE, future);
+
+        final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
+        assertThat(
+            e.validationErrors(),
+            contains("a service account description may not be more than " + max + " characters long, but [" + (max + 1) + "] were given")
+        );
+    }
+
+    public void testPutAccountRejectsMoreRolesThanAnAccountMayHold() {
+        final int max = Validation.UserManagedServiceAccounts.MAX_ROLES;
+        final List<String> tooMany = randomBoolean()
+            ? IntStream.range(0, max + 1).mapToObj(i -> "role-" + i).toList()
+            : Collections.nCopies(max + 1, "role-a");
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, tooMany, true, randomDescription(), RefreshPolicy.NONE, future);
+
+        final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
+        assertThat(
+            e.validationErrors(),
+            contains("a service account may not have more than " + max + " roles, but [" + (max + 1) + "] were given")
+        );
     }
 
     public void testPutAccountRequiresEveryNodeToSupportUserManagedServiceAccounts() {
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(false);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), RefreshPolicy.NONE, future);
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(
@@ -349,21 +440,22 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
 
-    public void testDeleteAccountReportsWhenThereWasNothingToDelete() {
+    public void testDeleteAccountClearsTheCacheEvenWhenThereWasNothingToDelete() {
         respondWithDeleteResult(false);
 
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         store.deleteAccount(ACCOUNT_ID, RefreshPolicy.IMMEDIATE, future);
         assertThat(future.actionGet(), is(false));
 
-        assertThat(clearedCacheKeys, empty());
+        assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
 
     public void testDeleteAccountFailsWhenTheCacheCannotBeCleared() {
         final ElasticsearchException failure = new ElasticsearchException("node unreachable");
+        final boolean found = randomBoolean();
         responseProvider.set((request, listener) -> {
             if (request instanceof DeleteRequest) {
-                listener.onResponse(deleteResponse(true));
+                listener.onResponse(deleteResponse(found));
             } else if (request instanceof ClearSecurityCacheRequest) {
                 listener.onFailure(failure);
             } else {
@@ -428,6 +520,25 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
                     .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE))
                     .filter(QueryBuilders.prefixQuery("username", "engineering/"))
             )
+        );
+    }
+
+    public void testListAccountsSelectsANamespaceWhenExpensiveQueriesAreDisabled() {
+        store = newStore(Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), false).build());
+        // The prefix cannot run, so the search returns every service-account document and the store
+        // keeps only the ones in the namespace.
+        respondToSearchWith(
+            List.of(
+                accountDocument(PRINCIPAL, List.of(ROLE_A), true),
+                accountDocument("engineering/other_bot", List.of(ROLE_B), false),
+                accountDocument("operations/pager-bot", List.of(ROLE_B), true)
+            )
+        );
+
+        assertThat(listAccounts("engineering", null), hasSize(2));
+        assertThat(
+            searchedQuery(),
+            equalTo(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE)))
         );
     }
 
@@ -496,6 +607,55 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(listAccounts(null, null), empty());
     }
 
+    public void testQueryAccountsReportsOnePageWithTheTotalAndSortValuesOfTheWholeResult() {
+        final Map<String, Object> first = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        final Map<String, Object> second = accountDocument("engineering/other_bot", List.of(ROLE_B), false);
+        // The page holds two hits, but the query matched more than that.
+        respondToSearchWith(List.of(first, second), 7, source -> new Object[] { source.get("username") });
+
+        final SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource()
+            .query(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE))
+            .size(2)
+            .sort("username");
+        final UserManagedServiceAccountStore.QueryResult result = queryAccounts(searchSource);
+
+        assertThat(result.total(), equalTo(7L));
+        assertThat(result.items(), hasSize(2));
+        assertThat(result.items().get(0).account().id(), equalTo(ACCOUNT_ID));
+        assertThat(result.items().get(0).account().roles(), contains(ROLE_A));
+        assertThat(result.items().get(0).account().enabled(), is(true));
+        assertThat(result.items().get(0).sortValues(), arrayContaining(PRINCIPAL));
+        assertThat(result.items().get(1).account().id(), equalTo(ServiceAccountId.fromPrincipal("engineering/other_bot")));
+        assertThat(result.items().get(1).sortValues(), arrayContaining("engineering/other_bot"));
+
+        // The search runs as given: the caller has already shaped it for the security index.
+        final SearchRequest searchRequest = onlyRequestOfType(SearchRequest.class);
+        assertThat(searchRequest.indices(), arrayContaining(SECURITY_MAIN_ALIAS));
+        assertThat(searchRequest.source(), is(searchSource));
+    }
+
+    public void testQueryAccountsFindsNothingWhenTheQueryMatchesNothing() {
+        respondToSearchWith(List.of(), 0, source -> null);
+        final UserManagedServiceAccountStore.QueryResult result = queryAccounts(SearchSourceBuilder.searchSource());
+        assertThat(result.items(), empty());
+        assertThat(result.total(), equalTo(0L));
+    }
+
+    public void testQueryAccountsDropsHitsThatDoNotParse() {
+        final Map<String, Object> damaged = accountDocument("engineering/other_bot", List.of(ROLE_B), false);
+        damaged.put("roles", ROLE_B);
+        final Map<String, Object> reserved = accountDocument(reservedNamespace() + "/fleet-server", List.of(ROLE_A), true);
+        respondToSearchWith(List.of(accountDocument(PRINCIPAL, List.of(ROLE_A), true), damaged, reserved), 3, source -> null);
+
+        final UserManagedServiceAccountStore.QueryResult result = queryAccounts(SearchSourceBuilder.searchSource());
+
+        // The total still counts the dropped hits: it is the search's count, not the parse's.
+        assertThat(result.total(), equalTo(3L));
+        assertThat(result.items(), hasSize(1));
+        assertThat(result.items().get(0).account().id(), equalTo(ACCOUNT_ID));
+        assertThat(result.items().get(0).sortValues(), emptyArray());
+    }
+
     public void testAccountsAreReadFromTheIndexEveryTimeWhenCachingIsDisabled() {
         store = newStore(Settings.builder().put(UserManagedServiceAccountStore.CACHE_TTL_SETTING.getKey(), TimeValue.ZERO).build());
         respondToGetWith(accountDocument(PRINCIPAL, List.of(ROLE_A), true));
@@ -518,10 +678,12 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
         assertThat(getByPrincipal(PRINCIPAL), nullValue());
         assertThat(listAccounts(null, null), empty());
+        assertThat(queryAccounts(SearchSourceBuilder.searchSource()), is(UserManagedServiceAccountStore.QueryResult.EMPTY));
 
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         store.deleteAccount(ACCOUNT_ID, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(false));
+        assertThat(requests, empty());
     }
 
     public void testAnUnavailableSecurityIndexFailsTheRequest() {
@@ -538,6 +700,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         final PlainActionFuture<List<UserManagedServiceAccount>> list = new PlainActionFuture<>();
         store.listAccounts(null, null, list);
         assertThat(expectThrows(ElasticsearchException.class, list::actionGet), is(unavailable));
+
+        final PlainActionFuture<UserManagedServiceAccountStore.QueryResult> query = new PlainActionFuture<>();
+        store.queryAccounts(SearchSourceBuilder.searchSource(), query);
+        assertThat(expectThrows(ElasticsearchException.class, query::actionGet), is(unavailable));
 
         final PlainActionFuture<Boolean> delete = new PlainActionFuture<>();
         store.deleteAccount(ACCOUNT_ID, RefreshPolicy.NONE, delete);
@@ -583,6 +749,12 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     private List<UserManagedServiceAccount> listAccounts(String namespace, String serviceName) {
         final PlainActionFuture<List<UserManagedServiceAccount>> future = new PlainActionFuture<>();
         store.listAccounts(namespace, serviceName, future);
+        return future.actionGet();
+    }
+
+    private UserManagedServiceAccountStore.QueryResult queryAccounts(SearchSourceBuilder searchSourceBuilder) {
+        final PlainActionFuture<UserManagedServiceAccountStore.QueryResult> future = new PlainActionFuture<>();
+        store.queryAccounts(searchSourceBuilder, future);
         return future.actionGet();
     }
 
@@ -661,9 +833,17 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     private void respondToSearchWith(List<Map<String, Object>> sources) {
+        respondToSearchWith(sources, sources.size(), source -> null);
+    }
+
+    /**
+     * Answers the next search with the given page. {@code total} may exceed the page, as it does for a paginated
+     * query, and {@code sortValues} supplies each hit's sort values, as a sorted query would.
+     */
+    private void respondToSearchWith(List<Map<String, Object>> sources, long total, Function<Map<String, Object>, Object[]> sortValues) {
         responseProvider.set((request, listener) -> {
             if (request instanceof SearchRequest) {
-                ActionListener.respondAndRelease(listener, searchResponse(sources));
+                ActionListener.respondAndRelease(listener, searchResponse(sources, total, sortValues));
             } else if (request instanceof SearchScrollRequest) {
                 // Reached only when a hit did not parse, since the scroll runs until as many results as hits
                 // have been collected. An empty page ends it.
@@ -677,6 +857,14 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     private static SearchResponse searchResponse(List<Map<String, Object>> sources) {
+        return searchResponse(sources, sources.size(), source -> null);
+    }
+
+    private static SearchResponse searchResponse(
+        List<Map<String, Object>> sources,
+        long total,
+        Function<Map<String, Object>, Object[]> sortValues
+    ) {
         final SearchHit[] hits = new SearchHit[sources.size()];
         for (int i = 0; i < hits.length; i++) {
             final Map<String, Object> source = sources.get(i);
@@ -686,8 +874,12 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
+            final Object[] hitSortValues = sortValues.apply(source);
+            if (hitSortValues != null) {
+                hits[i].sortValues(hitSortValues, new DocValueFormat[] { DocValueFormat.RAW });
+            }
         }
-        final SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f);
+        final SearchHits searchHits = new SearchHits(hits, new TotalHits(total, TotalHits.Relation.EQUAL_TO), 0f);
         try {
             return SearchResponseUtils.successfulResponse(searchHits);
         } finally {
@@ -712,13 +904,29 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     private static Map<String, Object> accountDocument(String principal, List<String> roles, boolean enabled) {
+        return accountDocument(principal, roles, enabled, null);
+    }
+
+    private static Map<String, Object> accountDocument(
+        String principal,
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description
+    ) {
         final Map<String, Object> source = new HashMap<>();
         source.put("doc_type", SERVICE_ACCOUNT_DOC_TYPE);
         source.put("version", UserManagedServiceAccount.Version.CURRENT.id());
         source.put("username", principal);
         source.put("roles", roles);
         source.put("enabled", enabled);
+        if (description != null) {
+            source.put("description", description);
+        }
         return source;
+    }
+
+    private static String randomDescription() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
     }
 
     @SuppressWarnings("unchecked")

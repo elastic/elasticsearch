@@ -334,6 +334,7 @@ bundle:
       # output: "elasticsearch/elasticsearch-{version}.yaml"
     #   # Optional: override the products array written to the bundle output.
       output_products: "elasticsearch {version}"
+      output_directory: docs/releases/elasticsearch
     #   # Optional: profile-specific description (overrides bundle.description)
     #   # description: |
     #   #   Download the release binaries: https://github.com/{owner}/{repo}/releases/tag/v{version}
@@ -342,6 +343,7 @@ bundle:
     serverless-release:
       # output: "cloud-serverless/elasticsearch-{version}.yaml"
       output_products: "cloud-serverless {version}"
+      output_directory: docs/releases/cloud-serverless
       # Feature IDs to hide when bundling with this profile (accepts string or list)
       hide_features:
         - data-federation

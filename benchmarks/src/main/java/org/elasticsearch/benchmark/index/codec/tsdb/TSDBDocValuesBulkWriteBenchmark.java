@@ -21,7 +21,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -157,7 +157,7 @@ public class TSDBDocValuesBulkWriteBenchmark {
     }
 
     private static Codec wrapCodec(final DocValuesFormat dvFormat) {
-        return new Elasticsearch93Lucene104Codec() {
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dvFormat;
@@ -170,7 +170,7 @@ public class TSDBDocValuesBulkWriteBenchmark {
         // call, mirroring what would happen without the per-supplier cache in
         // `PerFieldFormatSupplier`. The other ES95 variant in this benchmark reuses
         // one format instance across all calls (the production behavior).
-        return new Elasticsearch93Lucene104Codec() {
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return ES95TSDBDocValuesFormatFactory.create(false, false, false, null);

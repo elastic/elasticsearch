@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 
 public class ManageRolesPrivilegeIT extends SecurityInBasicRestTestCase {
@@ -102,6 +104,76 @@ public class ManageRolesPrivilegeIT extends SecurityInBasicRestTestCase {
                 containsString("this action is granted by the cluster privileges [manage_security,all]")
             );
         }
+    }
+
+    public void testManageRolesCannotDelegateRestrictedIndicesAccess() throws Exception {
+        createManageRolesRole("manage-roles-role", new String[0], Set.of("*"), Set.of("all"));
+        createUser("test-user", Set.of("manage-roles-role"));
+
+        final String authHeader = basicAuthHeaderValue("test-user", TEST_PASSWORD);
+
+        assertSearchSecurityIndexForbidden(authHeader);
+
+        final ResponseException responseException = assertThrows(
+            ResponseException.class,
+            () -> createRole(authHeader, roleWithIndexPrivileges("manage-roles-role", "*", "all", true))
+        );
+
+        assertThat(
+            responseException.getMessage(),
+            containsString("this action is granted by the cluster privileges [manage_security,all]")
+        );
+
+        assertSearchSecurityIndexForbidden(authHeader);
+    }
+
+    public void testManageRolesRejectsAllowRestrictedIndicesWithinAllowedPattern() throws Exception {
+        createManageRolesRole("manage-logs-roles-role", new String[0], Set.of("logs-*"), Set.of("read"));
+        createUser("logs-role-admin", Set.of("manage-logs-roles-role"));
+
+        final String authHeader = basicAuthHeaderValue("logs-role-admin", TEST_PASSWORD);
+
+        createRole(authHeader, roleWithIndexPrivileges("logs-reader", "logs-*", "read", false));
+
+        final ResponseException responseException = assertThrows(
+            ResponseException.class,
+            () -> createRole(authHeader, roleWithIndexPrivileges("logs-reader", "logs-*", "read", true))
+        );
+
+        assertThat(
+            responseException.getMessage(),
+            containsString("this action is granted by the cluster privileges [manage_security,all]")
+        );
+    }
+
+    private static RoleDescriptor roleWithIndexPrivileges(
+        String roleName,
+        String indexPattern,
+        String privilege,
+        boolean allowRestrictedIndices
+    ) {
+        return new RoleDescriptor(
+            roleName,
+            new String[0],
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(indexPattern)
+                    .privileges(privilege)
+                    .allowRestrictedIndices(allowRestrictedIndices)
+                    .build() },
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            new ConfigurableClusterPrivilege[0],
+            new String[0],
+            Map.of(),
+            Map.of()
+        );
+    }
+
+    private void assertSearchSecurityIndexForbidden(String authHeader) {
+        final Request request = new Request("GET", "/.security/_search");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+        final ResponseException responseException = assertThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
     public void testManageSecurityNullifiesManageRoles() throws Exception {

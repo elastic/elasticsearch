@@ -23,13 +23,20 @@ import org.elasticsearch.core.Nullable;
 public interface AnalyzedTextExpression {
 
     /**
-     * The declared values analyzer name, or {@code null} when none was declared (the standard analyzer applies).
+     * The analyzer that applies to a text column declaring none. Declaring it explicitly is therefore the same as
+     * declaring nothing, which consumers comparing declarations have to treat as equal.
+     */
+    String STANDARD_ANALYZER = "standard";
+
+    /**
+     * The declared values analyzer name, or {@code null} when none was declared ({@link #STANDARD_ANALYZER} applies).
      */
     @Nullable
     String valuesAnalyzer();
 
     /**
-     * The declared values analyzer of {@code expression}, or {@code null} when it declares none.
+     * The values analyzer {@code expression} declares, or {@code null} when it declares none, in which case
+     * {@link #STANDARD_ANALYZER} applies.
      */
     @Nullable
     static String valuesAnalyzerOf(Expression expression) {

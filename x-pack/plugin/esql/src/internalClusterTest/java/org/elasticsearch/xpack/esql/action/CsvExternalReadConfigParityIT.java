@@ -69,7 +69,7 @@ public class CsvExternalReadConfigParityIT extends AbstractExternalReadConfigPar
             Files.writeString(dir.resolve("data.csv"), sb.toString());
         }
         String glob = StoragePath.fileUri(root) + "/*" + "*/*.csv";
-        Map<String, Object> hive = Map.of("hive_partitioning", true);
+        Map<String, Object> hive = Map.of("partition_detection", "hive");
         String inferred = register("shadow_inferred", glob, null, hive);
         String declared = register("shadow_declared", glob, mappingOf("age", new DatasetFieldMapping("keyword", null)), hive);
 

@@ -85,7 +85,7 @@ public final class QueryDslTranslator {
      * name. Reported at leaf granularity: if {@code C OR D} fails because {@code D} is a wildcard, the clause is
      * {@code D}, not {@code C OR D}.
      */
-    public record UnsupportedClause(org.elasticsearch.index.query.QueryBuilder clause, String construct, String reason) {}
+    public record UnsupportedClause(QueryBuilder clause, String construct, String reason) {}
 
     /**
      * The result of a full translation. {@link #applied()} is the translatable subset of the filter — equal to or
@@ -854,16 +854,18 @@ public final class QueryDslTranslator {
     }
 
     /**
-     * Asserts that nothing in {@code applied} carries a pin the cluster does not clear. {@link #gated} already refuses
-     * to build such a function, so this fires only when an emit site skipped the gate — and it fires here, on the
-     * coordinator, naming the function, instead of surfacing as {@code Unknown NamedWriteable} on whichever data node
-     * received the plan. Assertion-only: production pays nothing.
+     * Asserts that nothing in {@code applied} was built without going through {@link #gated}. It runs under {@code -ea}
+     * only, so this is coverage for the test suite rather than a runtime guard — production compiles it out and the
+     * gate itself is what protects a real cluster. In a test it fails here, on the coordinator, naming the function,
+     * rather than as {@code Unknown NamedWriteable} on whichever data node received the plan. The
+     * {@link AssertionError} is an {@link Error}, so {@code EsqlSession}'s {@code catch (Exception)} does not route it
+     * to the listener; a skipped gate should surface loudly rather than fail a query politely.
      * <p>
-     * The gated families are listed explicitly rather than discovered by reflection. A {@code TransportVersion} on an
+     * The gated families are walked explicitly rather than discovered by reflection. A {@code TransportVersion} on an
      * expression class usually pins an OPTION rather than the function's existence — {@code Bucket} declares three,
      * {@code AggregateFunction} one that every aggregate inherits — so treating any such constant as an availability
-     * pin would refuse plans for reasons that have nothing to do with deserialization. Add a family here when it is
-     * gated; the census is what makes sure that happens.
+     * pin would refuse plans for reasons that have nothing to do with deserialization. Add a family to this walk when
+     * it is gated; {@code TranslatorEmittedFunctionPinsTests} fails the build when a gated family is missing from it.
      */
     // Package-private so the suite can exercise the backstop directly; nothing outside calls it.
     boolean everyPinnedFunctionIsSupported(Expression applied) {

@@ -21,9 +21,11 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -226,6 +228,43 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         return calls;
     }
 
+    /**
+     * The runtime backstop walks a fixed list of gated families. Nothing stops that list drifting behind {@link #GATED}
+     * — a family gated at its emit site but missing from the walk is unguarded, and the backstop's javadoc claims this
+     * test prevents exactly that. This is that claim, executed.
+     */
+    public void testTheBackstopWalksEveryGatedFamily() throws IOException {
+        String source = codeOnly(Files.readString(esqlModuleRoot().resolve(TRANSLATOR)));
+        // Scoped to the backstop's OWN body: recordApproved walks the same family, so scanning the whole file would
+        // pass on a backstop that walks nothing at all.
+        int start = source.indexOf("boolean everyPinnedFunctionIsSupported(");
+        assertThat("the backstop method was renamed; this test scans for it by name", start, greaterThan(-1));
+        int end = source.indexOf("\n    }", start);
+        String body = source.substring(start, end < 0 ? source.length() : end);
+
+        Set<String> walked = new TreeSet<>();
+        Matcher m = Pattern.compile("forEachDown\\(\\s*([A-Z]\\w+)\\.class").matcher(body);
+        while (m.find()) {
+            walked.add(m.group(1));
+        }
+
+        // Each gated class is guarded either by its own name or by a base the walk covers.
+        for (String gated : GATED.keySet()) {
+            assertTrue(
+                "the runtime backstop does not walk " + gated + "; it walks " + walked,
+                walked.contains(gated) || walked.stream().anyMatch(w -> baseOf(gated).equals(w))
+            );
+        }
+    }
+
+    /** The declared base a gated function is reached through in the backstop's walk. */
+    private static String baseOf(String gatedClass) {
+        return switch (gatedClass) {
+            case "MvGreater", "MvLess" -> "MvCompare";
+            default -> gatedClass;
+        };
+    }
+
     /** The census has to fail on a new undeclared construction, or it is decoration. */
     public void testCensusFailsOnAnUndeclaredConstruction() {
         String fake = """
@@ -293,9 +332,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
      */
     private static Set<String> packageFiles() throws IOException {
         try (var files = Files.list(esqlModuleRoot().resolve(PACKAGE))) {
-            return files.map(Path::toString)
-                .filter(f -> f.endsWith(".java"))
-                .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
+            return files.map(Path::toString).filter(f -> f.endsWith(".java")).collect(Collectors.toCollection(TreeSet::new));
         }
     }
 

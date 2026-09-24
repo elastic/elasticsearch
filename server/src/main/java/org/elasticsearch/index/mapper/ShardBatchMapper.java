@@ -118,7 +118,9 @@ public final class ShardBatchMapper {
             return null;
         }
 
-        for (MetadataFieldMapper mapper : lookup.getMapping().getSortedMetadataMappers()) {
+        final MetadataFieldMapper[] metadataMappers = lookup.getMapping().getSortedMetadataMappers();
+
+        for (MetadataFieldMapper mapper : metadataMappers) {
             if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",

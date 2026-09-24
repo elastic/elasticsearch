@@ -608,7 +608,7 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
             Request request = new Request("POST", "/_query");
             request.setJsonEntity("{\"query\": \"FROM " + dataset + " | KEEP id\", \"filter\": " + Strings.toString(filter) + "}");
             Response response = getRestClient().performRequest(request);
-            boolean warned = response.getWarnings().stream().anyMatch(w -> w.contains("were skipped"));
+            boolean warned = response.getWarnings().stream().anyMatch(w -> w.contains("Request filter not fully applied"));
             Function<String, Expression> binder = name -> {
                 DataType type = types.get(name);
                 return type == null ? Literal.NULL : new ReferenceAttribute(Source.EMPTY, name, type);

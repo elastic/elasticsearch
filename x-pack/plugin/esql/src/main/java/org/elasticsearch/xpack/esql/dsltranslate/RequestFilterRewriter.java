@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -79,7 +80,7 @@ public final class RequestFilterRewriter {
             return analyzed;
         }
         if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {
-            warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
+            warnNotApplied(analyzed);
             return analyzed;
         }
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
@@ -133,20 +134,22 @@ public final class RequestFilterRewriter {
                 skipped.add(where);
             }
         }
-        StringBuilder message = new StringBuilder("The request filter could not be fully applied to external dataset(s)");
+        // "not fully applied" is accurate whether some conjuncts were installed or none were.
+        StringBuilder message = new StringBuilder("Request filter not fully applied to external datasets");
         if (skipped.isEmpty() == false) {
-            // "could not be fully applied" is accurate whether some conjuncts were installed or none were.
-            message.append("; the following Query DSL constructs are not supported and were skipped: ").append(String.join("; ", skipped));
+            message.append("; unsupported: ").append(String.join(", ", skipped));
         }
         if (gated.isEmpty() == false) {
-            message.append("; the following were skipped: ").append(String.join("; ", gated));
+            message.append("; skipped: ").append(String.join(", ", gated));
         }
-        message.append(". Use a WHERE clause to filter rows from external datasets instead.");
-        HeaderWarning.addWarning(message.toString());
+        HeaderWarning.addWarning(message.append("; use WHERE instead").toString());
     }
 
-    /** Warns that the filter was not applied to the plan's dataset leaves, naming them, when there are any. */
-    private static void warnNotApplied(LogicalPlan plan, String reason) {
+    /**
+     * Warns that the filter was not applied to the plan's dataset leaves because a node is too old to evaluate it,
+     * naming them, when there are any.
+     */
+    private static void warnNotApplied(LogicalPlan plan) {
         List<String> datasets = plan.collect(ExternalRelation.class::isInstance)
             .stream()
             .map(RequestFilterRewriter::name)
@@ -154,10 +157,8 @@ public final class RequestFilterRewriter {
             .toList();
         if (datasets.isEmpty() == false) {
             HeaderWarning.addWarning(
-                "The request filter was not applied to external dataset(s) [{}] because {}; they were read unfiltered. "
-                    + "Use a WHERE clause to filter rows from external datasets instead",
-                String.join(", ", datasets),
-                reason
+                "Request filter not applied to external datasets [{}], a node is too old to evaluate it; use WHERE instead",
+                String.join(", ", datasets)
             );
         }
     }
@@ -169,7 +170,7 @@ public final class RequestFilterRewriter {
      */
     private static String name(LogicalPlan node) {
         if (node instanceof ExternalRelation relation) {
-            return relation.datasetName() != null ? relation.datasetName() : relation.sourcePath();
+            return relation.datasetName() != null ? relation.datasetName() : ExternalFailures.redactHttpUrl(relation.sourcePath());
         }
         return node.nodeName();
     }

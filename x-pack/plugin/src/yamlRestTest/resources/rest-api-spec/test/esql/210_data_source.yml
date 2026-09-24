@@ -199,12 +199,12 @@ teardown:
       capabilities:
         - method: POST
           path: /_query/data_source/_test
-          capabilities: [data_source_test_connection]
+          capabilities: [data_source_test_connection, external_dataset_messages]
       test_runner_features: [capabilities, allowed_warnings]
       reason: "region must be stripped from probe settings without causing a validation error"
   - do:
       allowed_warnings:
-        - "[region] on a data source is deprecated and will be ignored; set [region] on the dataset instead, or [sts_region] for the STS endpoint region on a federated source, or omit it to have the bucket region detected automatically"
+        - "[region] on a data source is ignored; set it on the dataset ([sts_region] on a federated source) or omit it to auto-detect"
       esql.test_data_source_connection:
         body:
           type: "s3"
@@ -241,13 +241,13 @@ teardown:
       capabilities:
         - method: PUT
           path: /_query/data_source/{name}
-          capabilities: [dataset_region]
+          capabilities: [dataset_region, external_dataset_messages]
       test_runner_features: [capabilities, warnings]
       reason: "region deprecation warning on data-source PUT"
 
   - do:
       warnings:
-        - "[region] on a data source is deprecated and will be ignored; set [region] on the dataset instead, or [sts_region] for the STS endpoint region on a federated source, or omit it to have the bucket region detected automatically"
+        - "[region] on a data source is ignored; set it on the dataset ([sts_region] on a federated source) or omit it to auto-detect"
       esql.put_data_source:
         name: ds_region_warn
         body:

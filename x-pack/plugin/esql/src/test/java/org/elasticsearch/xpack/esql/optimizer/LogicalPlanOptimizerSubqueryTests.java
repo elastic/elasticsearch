@@ -28,7 +28,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Negative tests for FROM subqueries at the logical-optimizer stage; the positive coverage is in
  * {@code LogicalPlanOptimizerSubqueryGoldenTests}.
- *
  */
 public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimizerTests {
 

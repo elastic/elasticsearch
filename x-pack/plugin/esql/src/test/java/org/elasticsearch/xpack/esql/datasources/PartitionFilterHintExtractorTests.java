@@ -12,6 +12,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -34,10 +36,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class PartitionFilterHintExtractorTests extends ESTestCase {
 
@@ -386,6 +391,41 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
     private static UnresolvedExternalRelation externalRelation(String path) {
         return new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, path), Map.of());
+    }
+
+    /**
+     * {@code FROM ds METADATA _file.size | WHERE _file.size > 10}: the parser wraps the relation in an
+     * {@link UnresolvedMetadata} node. Directly above the relation the wrapper adds no columns, so the filter still
+     * describes the file and must reach the listing layer as a hint (see ExternalFileMetadataPruningIT).
+     */
+    public void testMetadataWrapperAboveExternalRelationIsTransparent() {
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, "s3://bucket/data/*.parquet"), Map.of());
+        LogicalPlan wrapped = new UnresolvedMetadata(SRC, rel, List.of(MetadataAttribute.create(SRC, "_file.size")));
+        LogicalPlan plan = new Filter(SRC, wrapped, new GreaterThan(SRC, unresolved("_file.size"), intLiteral(10)));
+
+        Map<String, List<PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(plan);
+
+        List<PartitionFilterHint> pathHints = hints.get("s3://bucket/data/*.parquet");
+        assertNotNull(pathHints);
+        assertEquals(1, pathHints.size());
+        assertEquals("_file.size", pathHints.get(0).columnName());
+        assertEquals(Operator.GREATER_THAN, pathHints.get(0).operator());
+    }
+
+    /**
+     * Above a subquery or union the Analyzer may null-fill the requested names when the body does not produce them,
+     * so a filter on such a name no longer describes the file. The wrapper must then shadow those names, exactly as an
+     * {@code EVAL} redefining the column would; directly above a source relation it adds nothing and shadows nothing.
+     */
+    public void testMetadataWrapperShadowsRequestedNamesOnlyAboveNonSourcePlans() {
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, "s3://bucket/data/*.parquet"), Map.of());
+        List<NamedExpression> requested = List.of(MetadataAttribute.create(SRC, "_file.size"));
+
+        assertEquals(Set.of(), PartitionPruningRule.shadowedNames(new UnresolvedMetadata(SRC, rel, requested)));
+        assertEquals(
+            Set.of("_file.size"),
+            PartitionPruningRule.shadowedNames(new UnresolvedMetadata(SRC, new Subquery(SRC, rel), requested))
+        );
     }
 
     private static LogicalPlan filterAboveExternal(Expression condition, String path) {

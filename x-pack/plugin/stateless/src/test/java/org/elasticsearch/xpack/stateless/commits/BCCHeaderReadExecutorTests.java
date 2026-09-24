@@ -46,8 +46,10 @@ public class BCCHeaderReadExecutorTests extends ESTestCase {
     }
 
     public void testNonPositiveOverrideMeansDerive() {
-        // -1 is the documented "unset" value; 0 would be rejected by the task runner, so it must not be passed through
+        // -1 is the documented "unset" value
         assertThat(maxConcurrency(-1, 32, 10), equalTo(32));
+        // 0 is an invalid value (only checked through assertions), and thus we should clamp to the
+        // max(prewarmMaxThreads, shardReadMaxThreads)
         assertThat(maxConcurrency(0, 32, 10), equalTo(32));
     }
 

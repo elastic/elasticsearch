@@ -18,16 +18,16 @@
 # Environment:
 #   TOOLCHAIN_IMAGE      Docker image for cross-compilation
 #                        (default: es-native-cross-toolchain:local with --local, built on demand;
-#                         or docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6)
+#                         or docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7)
 #   ARTIFACTORY_API_KEY  Required for upload (non --local, or --force-upload)
 
 set -euo pipefail
 
-VERSION="0.2.0"
+VERSION="0.3.0"
 ARTIFACT_ID="libsimdjson"
 VEC_NATIVE_DIR="$(cd "$(dirname "$0")/../../simdvec/native" && pwd)"
 LOCAL_TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
-REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6"
+REMOTE_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7"
 
 LOCAL=false
 FORCE_UPLOAD=false
@@ -97,23 +97,27 @@ if [ "$UPLOAD" = true ]; then
   fi
 fi
 
-echo 'Building all binaries (darwin-aarch64 + linux-aarch64 + linux-x64)...'
+echo 'Building all binaries (darwin-aarch64 + linux-aarch64 + linux-x64 + windows-x64)...'
 run_make_all_in_toolchain
 
 mkdir -p "$TEMP/darwin-aarch64"
 mkdir -p "$TEMP/linux-aarch64"
 mkdir -p "$TEMP/linux-x64"
-cp build/libs/simdjson/shared/aarch64/libsimdjson.dylib "$TEMP/darwin-aarch64/"
-cp build/libs/simdjson/shared/aarch64/libsimdjson.so    "$TEMP/linux-aarch64/"
-cp build/libs/simdjson/shared/amd64/libsimdjson.so      "$TEMP/linux-x64/"
+mkdir -p "$TEMP/windows-x64"
+cp build/libs/simdjson/shared/aarch64/libsimdjson.dylib   "$TEMP/darwin-aarch64/"
+cp build/libs/simdjson/shared/aarch64/libsimdjson.so      "$TEMP/linux-aarch64/"
+cp build/libs/simdjson/shared/amd64/libsimdjson.so        "$TEMP/linux-x64/"
+cp build/libs/simdjson/shared/windows-x64/simdjson.dll    "$TEMP/windows-x64/"
 
 TEMP_DBG=$(mktemp -d)
 mkdir -p "$TEMP_DBG/darwin-aarch64"
 mkdir -p "$TEMP_DBG/linux-aarch64"
 mkdir -p "$TEMP_DBG/linux-x64"
-cp -r build/libs/simdjson/shared/aarch64/libsimdjson.dylib.dSYM  "$TEMP_DBG/darwin-aarch64/"
-cp    build/libs/simdjson/shared/aarch64/libsimdjson.so.debug   "$TEMP_DBG/linux-aarch64/"
-cp    build/libs/simdjson/shared/amd64/libsimdjson.so.debug     "$TEMP_DBG/linux-x64/"
+mkdir -p "$TEMP_DBG/windows-x64"
+cp -r build/libs/simdjson/shared/aarch64/libsimdjson.dylib.dSYM "$TEMP_DBG/darwin-aarch64/"
+cp    build/libs/simdjson/shared/aarch64/libsimdjson.so.debug  "$TEMP_DBG/linux-aarch64/"
+cp    build/libs/simdjson/shared/amd64/libsimdjson.so.debug    "$TEMP_DBG/linux-x64/"
+cp    build/libs/simdjson/shared/windows-x64/simdjson.pdb      "$TEMP_DBG/windows-x64/"
 
 if [ "$UPLOAD" = true ]; then
   echo 'Uploading to Artifactory...'

@@ -162,7 +162,13 @@ public final class StringColumnWriter {
             totals.constantLength(),
             outputs
         );
-        final AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, sizes.slotCountsBlockSize(), outputs);
+        final AddressingWriter slots = AddressingWriter.open(
+            numDocsWithField,
+            numValues,
+            totals.oneSlotADocument(),
+            sizes.slotCountsBlockSize(),
+            outputs
+        );
         long nulls = 0;
         long valueAddress = 0;
         StringColumnValues values = cursors.get();
@@ -353,7 +359,13 @@ public final class StringColumnWriter {
             final SlotAddressing addressing;
             final MonotonicWriter ranks = new MonotonicWriter(outputs.navigation());
             // Nulls are named by a reserved ordinal below, so this layout keeps no null-slot table.
-            final AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, sizes.slotCountsBlockSize(), outputs);
+            final AddressingWriter slots = AddressingWriter.open(
+                numDocsWithField,
+                numValues,
+                totals.oneSlotADocument(),
+                sizes.slotCountsBlockSize(),
+                outputs
+            );
             // Opened one at a time, each named before the next is asked for: a temporary file that the
             // one after it fails to open is still a file to delete, and only its name says which.
             try (IndexOutput ordinalTemp = directory.createTempOutput(data.getName(), "columnar-ordinals", context)) {

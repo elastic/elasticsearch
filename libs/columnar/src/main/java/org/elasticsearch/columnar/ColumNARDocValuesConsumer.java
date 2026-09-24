@@ -487,6 +487,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         int minLength = -1;
         int maxLength = -1;
         boolean recorded = true;
+        boolean oneSlotADocument = true;
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             DocValuesProducer producer = mergeState.docValuesProducers[i];
             if (producer == null) {
@@ -513,6 +514,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 final StringColumnReader reader = columnar.reader();
                 numDocsWithField += reader.numDocsWithField();
                 numValues += reader.numValues();
+                // A column keeping an addressing table has a document out of step with its slots somewhere.
+                oneSlotADocument &= reader.hasValueAddresses() == false;
                 numNullSlots += reader.numNullSlots();
                 if (reader.minLength() >= 0) {
                     minLength = minLength < 0 ? reader.minLength() : Math.min(minLength, reader.minLength());
@@ -532,7 +535,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         DocIDMerger<ColumnMergeSub<StringColumnValues>> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
         long finalCost = cost;
         StringColumnValues.Totals totals = recorded
-            ? new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength)
+            ? new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength, oneSlotADocument)
             : null;
         return new StringColumnValues() {
             private ColumnMergeSub<StringColumnValues> current;
@@ -651,9 +654,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             long numNullSlots = 0;
             int minLength = -1;
             int maxLength = -1;
+            boolean oneSlotADocument = true;
             for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
                 numDocsWithField++;
                 final int count = counter.valueCount();
+                oneSlotADocument &= count == 1;
                 numValues += count;
                 numNullSlots += counter.nullCount();
                 // A cursor over one of our own plain columns answers a length without resolving the value;
@@ -667,7 +672,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                     }
                 }
             }
-            totals = new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength);
+            totals = new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength, oneSlotADocument);
         }
 
         final StringColumnOptions options = stringSelector.select(field.name, type);

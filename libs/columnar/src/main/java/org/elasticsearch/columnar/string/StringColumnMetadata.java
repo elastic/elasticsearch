@@ -109,18 +109,22 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         return summary() != null;
     }
 
-    /** True when at least one document has more than one slot. */
+    /**
+     * True when a document holds more than one slot. The counts alone do not answer it — a document holding
+     * none cancels out one holding two — so the addressing records it as the documents are written.
+     */
     default boolean multiValued() {
-        return numValues() > numDocsWithField();
+        return addressing().someDocumentHoldsSeveral();
     }
 
     /**
      * Whether a document's value address has to be looked up rather than being its rank. That is any column
      * where the slots and the documents are not in step, which a document holding several slots causes and a
-     * document holding none — an empty array — causes just as much.
+     * document holding none — an empty array — causes just as much. The two cancel out in the counts, so the
+     * column records it rather than deriving it: the addressing is kept exactly where it is needed.
      */
     default boolean hasValueAddresses() {
-        return numValues() != numDocsWithField();
+        return addressing() != SlotAddressing.NONE;
     }
 
     /** True when at least one slot in the column is null. */
@@ -380,6 +384,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         // Written ahead of the layout because finding a document's slots is the same question whichever
         // layout follows, and gated on counts already on the wire above. How the nulls among those slots are
         // recorded is not shared, so that goes in the body.
+        out.writeByte((byte) (hasValueAddresses() ? 1 : 0));
         if (hasValueAddresses()) {
             addressing().writeTo(out);
         }
@@ -423,7 +428,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         int minLength = in.readVInt() - 1;
         int maxLength = in.readVInt() - 1;
         boolean valuesSorted = in.readByte() == SORTED;
-        SlotAddressing addressing = numValues != numDocsWithField ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
+        SlotAddressing addressing = in.readByte() != 0 ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
             case PLAIN -> {

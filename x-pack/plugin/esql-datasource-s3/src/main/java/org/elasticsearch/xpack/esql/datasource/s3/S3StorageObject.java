@@ -259,11 +259,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof S3Exception clockSkew
             && clockSkew.awsErrorDetails() != null
             && "RequestTimeTooSkewed".equals(clockSkew.awsErrorDetails().errorCode())) {
-            return new IOException(
-                "S3 request rejected due to clock skew: "
-                    + "the server clock differs too much from S3. Check that the host clock is NTP-synchronized.",
-                cause
-            );
+            return new ExternalClientException(ExternalClientException.Condition.CLOCK_SKEW, path, "", "");
         }
         ExternalCredentialsExpiredException expired = S3FailureDetail.expired(cause, "reading object");
         if (expired != null) {

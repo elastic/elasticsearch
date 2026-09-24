@@ -2331,22 +2331,7 @@ public class LocalExecutionPlanner {
         if (datasetName == null && datasourceName == null) {
             return;
         }
-        StringBuilder sb = new StringBuilder();
-        if (datasetName != null && datasetName.isEmpty() == false) {
-            sb.append("in dataset [").append(datasetName).append("]");
-        }
-        if (datasourceName != null && datasourceName.isEmpty() == false) {
-            if (sb.length() > 0) {
-                sb.append(" ");
-            }
-            sb.append("from data source [").append(datasourceName).append("]");
-            if (datasourceType != null && datasourceType.isEmpty() == false) {
-                sb.append(" (").append(datasourceType).append(")");
-            }
-        }
-        if (sb.length() > 0) {
-            asyncFactory.setDatasetLabel(sb.toString());
-        }
+        asyncFactory.setDatasetContext(datasetName, datasourceName, datasourceType);
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {

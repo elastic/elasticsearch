@@ -296,18 +296,18 @@ public class ExternalFailuresTests extends ESTestCase {
             "connection reset"
         );
         assertFalse(ExternalFailures.noStoragePathLeaked(withCause));
-        // Azure HTTPS storage endpoint in exception message fails.
+        // Any http:// or https:// URL in an exception message fails — covers HTTP-native and HTTPS storage endpoints.
         assertFalse(
             ExternalFailures.noStoragePathLeaked(
                 new ExternalClientException("GET https://account.blob.core.windows.net/container/blob → 403")
             )
         );
-        // GCS HTTPS storage endpoint in exception message fails.
         assertFalse(
             ExternalFailures.noStoragePathLeaked(new ExternalClientException("GET https://storage.googleapis.com/bucket/object → 404"))
         );
-        // A plain https:// documentation URL is not a storage path.
-        assertTrue(ExternalFailures.noStoragePathLeaked(new ExternalClientException("Access denied. See https://docs.example.com")));
+        assertFalse(
+            ExternalFailures.noStoragePathLeaked(new ExternalClientException("HEAD http://storage.example.com/bucket/file.parquet → 404"))
+        );
     }
 
     public void testDatasetContextAppendsToMessage() {

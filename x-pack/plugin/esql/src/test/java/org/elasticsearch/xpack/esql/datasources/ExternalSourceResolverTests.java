@@ -4214,8 +4214,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
             RestStatus.BAD_REQUEST,
             ExceptionsHelper.status(mapped)
         );
-        assertThat(mapped.getMessage(), containsString("External data object not found"));
+        // The IOException message is stripped from the user-facing message to prevent URI leaks;
+        // only the safe METADATA_UNAVAILABLE condition message appears.
+        assertThat(mapped.getMessage(), containsString("Failed to get external data metadata"));
         assertThat(mapped.getMessage(), not(containsString("s3://b/x.parquet")));
+        assertThat(mapped.getMessage(), not(containsString("External data object not found")));
         // Chaining the cache wrapper rather than its cause is what puts "java.io.IOException: ..." in caused_by.
         for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
             assertThat(String.valueOf(c.getMessage()), not(containsString("java.io.")));

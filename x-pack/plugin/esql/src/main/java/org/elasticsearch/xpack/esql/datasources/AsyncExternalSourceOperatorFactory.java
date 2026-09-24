@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -827,6 +828,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.thresholdAscending = ascending;
         this.thresholdNullsFirst = nullsFirst;
         closeDynamicThreshold();
+    }
+
+    /**
+     * Assembles and sets the dataset label from its components. Delegates to
+     * {@link ExternalException#buildDatasetLabel(String, String, String)} for the label format.
+     * Must be called during planning, before the first {@link #get(DriverContext)} call.
+     */
+    public void setDatasetContext(String datasetName, String datasourceName, String datasourceType) {
+        this.datasetLabel = ExternalException.buildDatasetLabel(datasetName, datasourceName, datasourceType);
     }
 
     /**

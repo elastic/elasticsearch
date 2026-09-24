@@ -24,11 +24,11 @@ public final class ExternalClientException extends ExternalException {
         super(message, cause);
     }
 
-    ExternalClientException(Throwable cause, String message, Object... args) {
+    public ExternalClientException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    ExternalClientException(String message, Object... args) {
+    public ExternalClientException(String message, Object... args) {
         super(message, args);
     }
 

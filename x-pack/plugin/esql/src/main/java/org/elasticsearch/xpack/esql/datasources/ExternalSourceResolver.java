@@ -842,7 +842,7 @@ public class ExternalSourceResolver {
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (clientError != null) {
             recordDiscoveryFailure();
-            LOGGER.error("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
             return clientError;
         }
         // Recover a typed client exception from behind a transparent wrapper for the same reason the IAE arm above
@@ -853,7 +853,7 @@ public class ExternalSourceResolver {
         ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
         if (clientException != null) {
             recordDiscoveryFailure();
-            LOGGER.error("Failed to resolve external source [{}]: {}", path, clientException.getMessage(), e);
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientException.getMessage(), e);
             return clientException;
         }
         // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
@@ -867,11 +867,12 @@ public class ExternalSourceResolver {
         IOException ioError = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
         if (ioError != null) {
             recordDiscoveryFailure();
-            String detail = ExternalFailures.rootDetail(ioError);
-            LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, ExternalFailures.rootDetail(ioError), e);
             // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
             // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
-            return new ExternalClientException(ExternalException.Condition.METADATA_UNAVAILABLE, StoragePath.NONE, detail, "", ioError);
+            // Pass empty detailCode: rootDetail(ioError) may contain a storage URI from an un-migrated
+            // throw site; the log line above preserves it for diagnosis.
+            return new ExternalClientException(ExternalException.Condition.METADATA_UNAVAILABLE, StoragePath.NONE, "", "", ioError);
         }
         recordDiscoveryFailure();
         // rootDetail: the file-metadata rail raises a plain IOException that arrives inside the

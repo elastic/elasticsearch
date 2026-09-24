@@ -19,6 +19,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -187,7 +188,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             ex.setDetail("HTTP " + statusCode + suffix);
             return ex;
         }
-        return new IOException(context + " " + path + ", HTTP status: " + statusCode + suffix);
+        ExternalClientException ex = new ExternalClientException("{} [{}], HTTP status: {}", context, path.objectName(), statusCode);
+        if (detail != null && detail.isEmpty() == false) {
+            ex.setDetail("body: " + detail);
+        }
+        return ex;
     }
 
     /**
@@ -731,7 +736,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 cachedLength = 0L;
                 cachedLastModified = null;
             } else {
-                throw new IOException("HEAD request failed for " + path + ", HTTP status: " + statusCode);
+                throw new ExternalClientException("HEAD request failed [{}], HTTP status: {}", path.objectName(), statusCode);
             }
             return null;  // Void return
         });

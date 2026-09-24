@@ -96,10 +96,8 @@ public final class ExternalFailures {
         "gs://",
         "wasb://",
         "wasbs://",
-        // Azure Blob Storage HTTPS endpoint (https://account.blob.core.windows.net/container/blob)
-        ".blob.core.windows.net/",
-        // GCS HTTPS endpoint (https://storage.googleapis.com/bucket/object)
-        "storage.googleapis.com/" };
+        "http://",
+        "https://" };
 
     /**
      * Returns {@code true} when no message in {@code e}'s full cause chain contains a known
@@ -209,13 +207,19 @@ public final class ExternalFailures {
         if (failure instanceof Error error) {
             throw error;
         }
+        RuntimeException result;
         if (failure instanceof IOException || failure instanceof UncheckedIOException) {
-            return new ExternalClientException(failure, "{}: {}", fallbackMessage, detail(failure));
-        }
-        if (failure instanceof RuntimeException re) {
+            result = new ExternalClientException(failure, "{}: {}", fallbackMessage, detail(failure));
+        } else if (failure instanceof RuntimeException re) {
             return re;
+        } else {
+            result = new ExternalServerException(failure, "{}: {}", fallbackMessage, detail(failure));
         }
-        return new ExternalServerException(failure, "{}: {}", fallbackMessage, detail(failure));
+        // Only check the failure's own message — it is the part that can embed a URI from a third-party
+        // or un-migrated throw site. fallbackMessage is our own controlled code and is not checked here.
+        assert containsStoragePath(detail(failure)) == false
+            : "storage path leaked via IOException message in surface(): " + detail(failure);
+        return result;
     }
 
     private static boolean isMalformedDataException(Throwable t) {

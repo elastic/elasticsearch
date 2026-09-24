@@ -197,8 +197,8 @@ public abstract class ExternalException extends QlException {
         CLOCK_SKEW {
             @Override
             public String render(String objectName, String detailCode, String remedy) {
-                return "S3 request rejected due to clock skew: "
-                    + "the server clock differs too much from S3. Check that the host clock is NTP-synchronized.";
+                return "Request rejected due to clock skew: "
+                    + "the host clock differs too much from the storage service. Check that the host clock is NTP-synchronized.";
             }
         },
         /** An unexpected internal failure in our own reading code — likely a bug. */
@@ -316,12 +316,12 @@ public abstract class ExternalException extends QlException {
     }
 
     /**
-     * Annotates the exception with the dataset, data source name, and data source type, producing a
-     * suffix such as {@code "in dataset [tmax] from data source [noaa] (s3)"}. Omits any component
-     * that is {@code null} or empty. Appended to {@link #getMessage()} after any {@link #setDetail detail}.
-     * Must be called on the same node as the throw, before the exception crosses any boundary.
+     * Builds the dataset label string from its components, producing a suffix such as
+     * {@code "in dataset [tmax] from data source [noaa] (s3)"}. Returns {@code null} when all
+     * components are null or empty. Shared with the operator factory's {@code setDatasetContext}
+     * to keep the format in one place.
      */
-    public void setDatasetContext(String datasetName, String datasourceName, String datasourceType) {
+    public static String buildDatasetLabel(String datasetName, String datasourceName, String datasourceType) {
         StringBuilder sb = new StringBuilder();
         if (datasetName != null && datasetName.isEmpty() == false) {
             sb.append("in dataset [").append(datasetName).append("]");
@@ -335,7 +335,17 @@ public abstract class ExternalException extends QlException {
                 sb.append(" (").append(datasourceType).append(")");
             }
         }
-        this.datasetContext = sb.length() > 0 ? sb.toString() : null;
+        return sb.length() > 0 ? sb.toString() : null;
+    }
+
+    /**
+     * Annotates the exception with the dataset, data source name, and data source type, producing a
+     * suffix such as {@code "in dataset [tmax] from data source [noaa] (s3)"}. Omits any component
+     * that is {@code null} or empty. Appended to {@link #getMessage()} after any {@link #setDetail detail}.
+     * Must be called on the same node as the throw, before the exception crosses any boundary.
+     */
+    public void setDatasetContext(String datasetName, String datasourceName, String datasourceType) {
+        this.datasetContext = buildDatasetLabel(datasetName, datasourceName, datasourceType);
     }
 
     /**

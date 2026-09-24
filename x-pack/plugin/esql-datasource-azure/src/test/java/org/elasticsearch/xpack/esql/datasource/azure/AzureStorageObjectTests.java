@@ -26,6 +26,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -330,9 +331,9 @@ public class AzureStorageObjectTests extends ESTestCase {
             StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.parquet");
             AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.parquet", path);
 
-            // length() throws IOException because the blob does not exist; that's fine — we only
-            // care that no metrics counter incremented.
-            expectThrows(IOException.class, obj::length);
+            // length() throws ExternalClientException (OBJECT_NOT_FOUND) because the blob does not exist;
+            // that's fine — we only care that no metrics counter incremented.
+            expectThrows(ExternalClientException.class, obj::length);
             assertFalse(obj.exists());
             assertNull(obj.lastModified());
 

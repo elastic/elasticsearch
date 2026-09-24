@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -31,6 +32,16 @@ public record PutMappingClusterStateUpdateRequest(
         Objects.requireNonNull(ackTimeout);
         Objects.requireNonNull(source);
         Objects.requireNonNull(indices);
+    }
+
+    public PutMappingClusterStateUpdateRequest(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        BytesReference source,
+        boolean autoUpdate,
+        Index... indices
+    ) throws IOException {
+        this(masterNodeTimeout, ackTimeout, new CompressedXContent(source), autoUpdate, indices);
     }
 
     public PutMappingClusterStateUpdateRequest(

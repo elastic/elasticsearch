@@ -48,14 +48,6 @@ elif (( gradle_exit != 0 )); then
 fi
 
 if command -v buildkite-agent >/dev/null 2>&1; then
-  info_annotation=$(cat <<EOF
-### Gradle isolated projects threshold
-
-Calculated problems: $violation_count / Max allowed: $MAX_ISOLATED_PROJECTS_VIOLATIONS
-EOF
-)
-  printf '%s\n' "$info_annotation" | buildkite-agent annotate --context "$ANNOTATION_INFO_CONTEXT" --style info
-
   annotation=$(cat <<EOF
 ### Gradle isolated projects validation
 

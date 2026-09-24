@@ -233,6 +233,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.segmentatorAdmission = new StreamingSegmentatorAdmission(ExternalSourceSettings.maxConcurrentSegmentators(this.settings));
     }
 
+    /**
+     * Node-level block factory whose breaker tracks request memory, or {@code null} in tests that never charge it.
+     * The external-source resolver reads this to reserve planning memory; it is the same factory
+     * {@link DataSourceModule} installs under the {@code "file"} source.
+     */
+    @Nullable
+    BlockFactory blockFactory() {
+        return blockFactory;
+    }
+
     @Override
     public String type() {
         return "file";

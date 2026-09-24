@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -411,6 +412,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
+                releaseExternalPlanningBytes(executionInfo, computeService.requestBreaker());
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 collectMetrics(result.inner());
@@ -429,11 +431,27 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
+                releaseExternalPlanningBytes(executionInfo, computeService.requestBreaker());
                 recordCCSTelemetry(task, executionInfo, request, ex);
                 listener.onFailure(ex);
             })
         );
 
+    }
+
+    /**
+     * Returns external-planning bytes reserved on the request breaker. Both the success and failure listeners of
+     * {@link #innerExecute} call this; {@code getAndSet(0)} makes a second completion a no-op. Timeout callbacks
+     * must not call it — the query is still running.
+     */
+    static void releaseExternalPlanningBytes(EsqlExecutionInfo executionInfo, @Nullable CircuitBreaker breaker) {
+        if (executionInfo == null || breaker == null) {
+            return;
+        }
+        long held = executionInfo.planningBytes().getAndSet(0);
+        if (held > 0) {
+            breaker.addWithoutBreaking(-held, EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL);
+        }
     }
 
     private boolean hasExternalSources(Result result) {

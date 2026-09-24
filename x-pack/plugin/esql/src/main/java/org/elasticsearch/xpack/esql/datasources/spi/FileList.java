@@ -169,6 +169,20 @@ public interface FileList {
     }
 
     /**
+     * Heap reserved while planning this listing. {@link #estimatedBytes()} stays the listing-cache weight and does
+     * not include per-file partition maps; this adds that allowance so planning can charge it before the schema map
+     * is built. When {@link #partitionMetadata()} is missing or empty, the result is {@link #estimatedBytes()}.
+     * Otherwise it adds 560 bytes for each file in {@link PartitionMetadata#filePartitionValues()}.
+     */
+    default long planningBytes() {
+        PartitionMetadata metadata = partitionMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return estimatedBytes();
+        }
+        return estimatedBytes() + 560L * metadata.filePartitionValues().size();
+    }
+
+    /**
      * The 128-bit fingerprint identifying the resolved file SET: a commutative fold over every file's
      * {@code (path, mtime, size)} plus the file count, computed once when the listing is built. The same
      * set listed in any order yields the same fingerprint; any file added, removed, or modified (mtime

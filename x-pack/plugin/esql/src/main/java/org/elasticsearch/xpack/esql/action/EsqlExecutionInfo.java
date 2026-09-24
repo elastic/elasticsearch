@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -69,6 +70,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField DETAILS_FIELD = new ParseField("details");
     public static final ParseField TOOK = new ParseField("took");
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
+
+    /**
+     * Request-breaker label for coordinator memory reserved while planning an external data source.
+     * Admit and release must share it so the held-memory gauge balances.
+     */
+    public static final String EXTERNAL_PLANNING_LABEL = "esql-external-planning";
 
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
@@ -113,6 +120,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     // Project routing telemetry — coordinator-only, not serialized
     private transient ProjectRoutingRequestInfo projectRoutingInfo;
+    /**
+     * Bytes currently held on the request breaker for external-datasource planning. Coordinator-only, like the
+     * other transient fields on this class: {@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)}
+     * does not read it. Released once when the query finishes.
+     */
+    private final transient AtomicLong planningBytes = new AtomicLong();
     private transient boolean hasLinkedProjects;
 
     private final EsqlQueryProfile queryProfile;
@@ -220,6 +233,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public EsqlQueryProfile queryProfile() {
         return queryProfile;
+    }
+
+    /**
+     * Ledger of external-planning bytes admitted on the request breaker for this query. Not serialized.
+     */
+    public AtomicLong planningBytes() {
+        return planningBytes;
     }
 
     /**

@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 
+import java.io.IOException;
 import java.util.List;
 
 public class EsqlExecutionInfoTests extends ESTestCase {
@@ -62,6 +64,17 @@ public class EsqlExecutionInfoTests extends ESTestCase {
             return builder.build();
         });
         assertTrue(info.hasMetadataToReport());
+    }
+
+    public void testPlanningBytesAreNotSerialized() throws IOException {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
+        info.planningBytes().set(1234L);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            info.writeTo(out);
+            EsqlExecutionInfo copy = new EsqlExecutionInfo(out.bytes().streamInput());
+            assertEquals(0L, copy.planningBytes().get());
+        }
+        assertEquals(1234L, info.planningBytes().get());
     }
 
     public static EsqlExecutionInfo createEsqlExecutionInfo(boolean includeCCSMetadata) {

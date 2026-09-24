@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -32,9 +33,12 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING;
+import static org.elasticsearch.search.SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING;
 import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 // TODO: test CRUD operations
@@ -413,6 +417,103 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             );
             updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
             assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
+        }
+    }
+
+    public void testResolveKeepAlive() {
+        // null → default (5d)
+        TimeValue resolved = indexService.resolveKeepAlive(null);
+        assertEquals(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getDefault(Settings.EMPTY), resolved);
+
+        // explicit value is returned as-is when max is unbounded
+        TimeValue oneDay = TimeValue.timeValueDays(1);
+        assertEquals(oneDay, indexService.resolveKeepAlive(oneDay));
+    }
+
+    public void testResolveKeepAliveMaxEnforced() {
+        // apply a 7d max via cluster settings
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        req.transientSettings(Settings.builder().put(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey(), "7d"));
+        assertAcked(clusterAdmin().updateSettings(req).actionGet());
+        try {
+            // value equal to max is accepted (inclusive)
+            assertEquals(TimeValue.timeValueDays(7), indexService.resolveKeepAlive(TimeValue.timeValueDays(7)));
+
+            // null resolves to 5d which is within the 7d max
+            TimeValue resolved = indexService.resolveKeepAlive(null);
+            assertEquals(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getDefault(Settings.EMPTY), resolved);
+
+            // value exceeding max is rejected
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexService.resolveKeepAlive(TimeValue.timeValueDays(8))
+            );
+            assertThat(e.getMessage(), containsString("is too large"));
+            assertThat(e.getMessage(), containsString("7d"));
+        } finally {
+            ClusterUpdateSettingsRequest reset = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+            reset.transientSettings(Settings.builder().putNull(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey()));
+            assertAcked(clusterAdmin().updateSettings(reset).actionGet());
+        }
+    }
+
+    public void testEnsureValidKeepAliveExtension() {
+        // null and non-positive values are no-ops
+        indexService.ensureValidKeepAliveExtension(null);
+        indexService.ensureValidKeepAliveExtension(TimeValue.MINUS_ONE);
+        indexService.ensureValidKeepAliveExtension(TimeValue.ZERO);
+
+        // positive value is accepted when max is unbounded
+        indexService.ensureValidKeepAliveExtension(TimeValue.timeValueDays(30));
+    }
+
+    public void testEnsureValidKeepAliveExtensionMaxEnforced() {
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        req.transientSettings(Settings.builder().put(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey(), "7d"));
+        assertAcked(clusterAdmin().updateSettings(req).actionGet());
+        try {
+            // exactly max is accepted
+            indexService.ensureValidKeepAliveExtension(TimeValue.timeValueDays(7));
+
+            // exceeding max is rejected
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexService.ensureValidKeepAliveExtension(TimeValue.timeValueDays(8))
+            );
+            assertThat(e.getMessage(), containsString("is too large"));
+        } finally {
+            ClusterUpdateSettingsRequest reset = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+            reset.transientSettings(Settings.builder().putNull(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey()));
+            assertAcked(clusterAdmin().updateSettings(reset).actionGet());
+        }
+    }
+
+    public void testKeepAliveSettingsDynamicUpdate() {
+        // set a 2d default and 3d max
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        req.transientSettings(
+            Settings.builder()
+                .put(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey(), "2d")
+                .put(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey(), "3d")
+        );
+        assertAcked(clusterAdmin().updateSettings(req).actionGet());
+        try {
+            // null resolves to the new default
+            assertEquals(TimeValue.timeValueDays(2), indexService.resolveKeepAlive(null));
+
+            // 3d is exactly the max → allowed
+            assertEquals(TimeValue.timeValueDays(3), indexService.resolveKeepAlive(TimeValue.timeValueDays(3)));
+
+            // 4d exceeds the max → rejected
+            expectThrows(IllegalArgumentException.class, () -> indexService.resolveKeepAlive(TimeValue.timeValueDays(4)));
+        } finally {
+            ClusterUpdateSettingsRequest reset = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+            reset.transientSettings(
+                Settings.builder()
+                    .putNull(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey())
+                    .putNull(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey())
+            );
+            assertAcked(clusterAdmin().updateSettings(reset).actionGet());
         }
     }
 

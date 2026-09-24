@@ -11,11 +11,13 @@ import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,7 +36,8 @@ public class SubmitAsyncSearchRequest extends UntypedActionRequest {
 
     private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
     private boolean keepOnCompletion = false;
-    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    @Nullable
+    private TimeValue keepAlive = null;
 
     private final SearchRequest request;
 
@@ -59,7 +62,11 @@ public class SubmitAsyncSearchRequest extends UntypedActionRequest {
     public SubmitAsyncSearchRequest(StreamInput in) throws IOException {
         this.request = new SearchRequest(in);
         this.waitForCompletionTimeout = in.readTimeValue();
-        this.keepAlive = in.readTimeValue();
+        if (in.getTransportVersion().supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING)) {
+            this.keepAlive = in.readOptionalTimeValue();
+        } else {
+            this.keepAlive = in.readTimeValue();
+        }
         this.keepOnCompletion = in.readBoolean();
     }
 
@@ -67,7 +74,11 @@ public class SubmitAsyncSearchRequest extends UntypedActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         request.writeTo(out);
         out.writeTimeValue(waitForCompletionTimeout);
-        out.writeTimeValue(keepAlive);
+        if (out.getTransportVersion().supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING)) {
+            out.writeOptionalTimeValue(keepAlive);
+        } else {
+            out.writeTimeValue(keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE);
+        }
         out.writeBoolean(keepOnCompletion);
     }
 
@@ -115,13 +126,15 @@ public class SubmitAsyncSearchRequest extends UntypedActionRequest {
     }
 
     /**
-     * Sets the amount of time after which the result will expire (defaults to 5 days).
+     * Sets the amount of time after which the result will expire. A {@code null} value means the transport
+     * action will substitute the current value of the {@code async_search.default_keep_alive} cluster setting.
      */
-    public SubmitAsyncSearchRequest setKeepAlive(TimeValue keepAlive) {
+    public SubmitAsyncSearchRequest setKeepAlive(@Nullable TimeValue keepAlive) {
         this.keepAlive = keepAlive;
         return this;
     }
 
+    @Nullable
     public TimeValue getKeepAlive() {
         return keepAlive;
     }
@@ -154,7 +167,7 @@ public class SubmitAsyncSearchRequest extends UntypedActionRequest {
         if (request.isSuggestOnly()) {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
         }
-        if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
+        if (keepAlive != null && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
             validationException = addValidationError(
                 "[keep_alive] must be greater or equals than 1 second, got:" + keepAlive.toString(),
                 validationException
@@ -199,7 +212,7 @@ public class SubmitAsyncSearchRequest extends UntypedActionRequest {
         SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
         return keepOnCompletion == request1.keepOnCompletion
             && waitForCompletionTimeout.equals(request1.waitForCompletionTimeout)
-            && keepAlive.equals(request1.keepAlive)
+            && Objects.equals(keepAlive, request1.keepAlive)
             && request.equals(request1.request);
     }
 

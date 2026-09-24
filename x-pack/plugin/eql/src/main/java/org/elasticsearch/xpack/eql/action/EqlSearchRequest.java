@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -29,6 +30,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,7 +75,8 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
-    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    @Nullable
+    private TimeValue keepAlive = null;
     private boolean keepOnCompletion;
 
     static final String KEY_FILTER = "filter";
@@ -417,11 +420,12 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
         return this;
     }
 
+    @Nullable
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public EqlSearchRequest keepAlive(TimeValue keepAlive) {
+    public EqlSearchRequest keepAlive(@Nullable TimeValue keepAlive) {
         this.keepAlive = keepAlive;
         return this;
     }
@@ -519,7 +523,11 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
         out.writeString(query);
         out.writeBoolean(ccsMinimizeRoundtrips);
         out.writeOptionalTimeValue(waitForCompletionTimeout);
-        out.writeOptionalTimeValue(keepAlive);
+        if (out.getTransportVersion().supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING)) {
+            out.writeOptionalTimeValue(keepAlive);
+        } else {
+            out.writeOptionalTimeValue(keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE);
+        }
         out.writeBoolean(keepOnCompletion);
         out.writeString(resultPosition);
         out.writeBoolean(fetchFields != null);
@@ -606,7 +614,18 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new EqlSearchTask(id, type, action, getDescription(), parentTaskId, headers, null, null, keepAlive);
+        // Sync tasks are never stored. Use DEFAULT_KEEP_ALIVE as fallback so StoredAsyncTask doesn't NPE.
+        return new EqlSearchTask(
+            id,
+            type,
+            action,
+            getDescription(),
+            parentTaskId,
+            headers,
+            null,
+            null,
+            keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE
+        );
     }
 
     @Override

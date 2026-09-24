@@ -1,3 +1,12 @@
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            async_search.max_keep_alive: null
+            async_search.default_keep_alive: null
+
+---
 setup:
   - do:
       indices.create:
@@ -87,3 +96,67 @@ setup:
   - match:  { completion_status:                  200 }
   - match:  { _shards.total:                        6 }
   - match:  { _shards.successful:                   6 }
+
+---
+"Max keep alive enforcement":
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            async_search.max_keep_alive: "7d"
+
+  # submit with keep_alive exceeding the max → 400
+  - do:
+      catch: /.*is too large.*/
+      async_search.submit:
+        index: test-*
+        keep_alive: 8d
+        wait_for_completion_timeout: 1s
+        body: { "query" : { "match_all" : {} } }
+
+  # submit with keep_alive equal to the max → accepted
+  - do:
+      async_search.submit:
+        index: test-*
+        keep_alive: 7d
+        keep_on_completion: true
+        wait_for_completion_timeout: 10s
+        body: { "query" : { "match_all" : {} } }
+
+  - set: { id: async_id }
+
+  # GET with keep_alive exceeding the max → 400
+  - do:
+      catch: /.*is too large.*/
+      async_search.get:
+        id: "$async_id"
+        keep_alive: 8d
+
+  # GET with keep_alive equal to the max → accepted
+  - do:
+      async_search.get:
+        id: "$async_id"
+        keep_alive: 7d
+
+  # status with keep_alive exceeding the max → 400
+  - do:
+      catch: /.*is too large.*/
+      async_search.status:
+        id: "$async_id"
+        keep_alive: 8d
+
+  # setting default_keep_alive above max is rejected by the settings validator
+  - do:
+      catch: /.*must not exceed.*/
+      cluster.put_settings:
+        body:
+          persistent:
+            async_search.default_keep_alive: "8d"
+
+  # reset
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            async_search.max_keep_alive: null

@@ -95,6 +95,7 @@ import static org.elasticsearch.search.SearchService.isTransientRejection;
 import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -795,5 +796,59 @@ public class SearchServiceTests extends IndexShardTestCase {
                 return null;
             }
         };
+    }
+
+    public void testAsyncKeepAliveSettingsValidator() {
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // max == -1 means unbounded; any default is allowed
+        cs.applySettings(
+            Settings.builder()
+                .put(SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey(), "-1")
+                .put(SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey(), "30d")
+                .build()
+        );
+
+        // default == max is allowed (inclusive)
+        cs.applySettings(
+            Settings.builder()
+                .put(SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey(), "7d")
+                .put(SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey(), "7d")
+                .build()
+        );
+
+        // default < max is allowed
+        cs.applySettings(
+            Settings.builder()
+                .put(SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey(), "7d")
+                .put(SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey(), "1d")
+                .build()
+        );
+
+        // default > max is rejected
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cs.applySettings(
+                Settings.builder()
+                    .put(SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey(), "7d")
+                    .put(SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey(), "8d")
+                    .build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("async_search.default_keep_alive"));
+        assertThat(e.getMessage(), containsString("async_search.max_keep_alive"));
+    }
+
+    public void testAsyncDefaultKeepAliveMinimum() {
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // values below 1m are rejected for default_keep_alive
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> cs.applySettings(Settings.builder().put(SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey(), "30s").build())
+        );
+
+        // 1m is the minimum allowed
+        cs.applySettings(Settings.builder().put(SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey(), "1m").build());
     }
 }

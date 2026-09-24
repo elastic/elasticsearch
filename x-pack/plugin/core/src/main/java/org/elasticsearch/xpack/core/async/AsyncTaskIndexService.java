@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -72,6 +73,8 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.search.SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING;
+import static org.elasticsearch.search.SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING;
 import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
@@ -156,6 +159,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
     private volatile long maxResponseSize;
+    private volatile TimeValue defaultKeepAlive;
+    private volatile TimeValue maxKeepAlive;
     private final ClusterService clusterService;
     private final CircuitBreaker circuitBreaker;
 
@@ -185,6 +190,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.maxResponseSize = MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING, (v) -> maxResponseSize = v.getBytes());
+        this.defaultKeepAlive = ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING, (v) -> defaultKeepAlive = v);
+        this.maxKeepAlive = ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING, (v) -> maxKeepAlive = v);
         this.clusterService = clusterService;
         this.circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
@@ -205,6 +214,54 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
     public AsyncSearchSecurity getSecurity() {
         return security;
+    }
+
+    /**
+     * Resolves the effective keep-alive duration for a new async request across all four async APIs
+     * ({@code _async_search}, EQL, ES|QL, SQL). A {@code null} input means the caller did not supply a
+     * value, so the current value of {@code async_search.default_keep_alive} is returned. If a maximum
+     * is configured ({@code async_search.max_keep_alive} ≥ 0) and the resolved value exceeds it, an
+     * {@link IllegalArgumentException} is thrown.
+     *
+     * @param requested the keep-alive the caller explicitly requested, or {@code null} to use the default
+     * @return the effective keep-alive; never {@code null}
+     * @throws IllegalArgumentException if the resolved value exceeds the configured maximum
+     */
+    public TimeValue resolveKeepAlive(@Nullable TimeValue requested) {
+        TimeValue resolved = requested != null ? requested : defaultKeepAlive;
+        checkMaxKeepAlive(resolved);
+        return resolved;
+    }
+
+    /**
+     * Validates a keep-alive extension on a GET request. A value of {@code null} or ≤ 0 means "no
+     * extension" (the caller is just polling) and is always accepted. Positive values are subject to
+     * the same maximum as submit: when {@code async_search.max_keep_alive} is configured, an extension
+     * that exceeds it is rejected with an {@link IllegalArgumentException}.
+     *
+     * @param keepAlive the extension requested by the GET caller; {@code null} or ≤ 0 means no-op
+     * @throws IllegalArgumentException if the value is positive and exceeds the configured maximum
+     */
+    public void ensureValidKeepAliveExtension(@Nullable TimeValue keepAlive) {
+        if (keepAlive != null && keepAlive.millis() > 0) {
+            checkMaxKeepAlive(keepAlive);
+        }
+    }
+
+    /**
+     * Throws {@link IllegalArgumentException} if {@code value} exceeds the configured maximum keep-alive.
+     * No-op when the maximum is negative (unbounded). The check is inclusive: exactly equal to the
+     * maximum is allowed.
+     * <p>
+     * The error message deliberately does not name the cluster setting; in Elastic Cloud Serverless the
+     * setting is not user-configurable, so calling it out would confuse those users.
+     */
+    private void checkMaxKeepAlive(TimeValue value) {
+        if (maxKeepAlive.millis() >= 0 && value.millis() > maxKeepAlive.millis()) {
+            throw new IllegalArgumentException(
+                "Keep alive for request (" + value + ") is too large. It must be less than or equal to (" + maxKeepAlive + ")."
+            );
+        }
     }
 
     /**

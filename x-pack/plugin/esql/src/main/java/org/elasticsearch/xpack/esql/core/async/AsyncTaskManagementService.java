@@ -74,7 +74,8 @@ public class AsyncTaskManagementService<
             TaskId parentTaskId,
             Map<String, String> headers,
             Map<String, String> originHeaders,
-            AsyncExecutionId asyncExecutionId
+            AsyncExecutionId asyncExecutionId,
+            TimeValue keepAlive
         );
 
         void execute(Request request, T task, ActionListener<Response> listener);
@@ -95,11 +96,13 @@ public class AsyncTaskManagementService<
         private final Request request;
         private final String doc;
         private final String node;
+        private final TimeValue keepAlive;
 
-        AsyncRequestWrapper(Request request, String node) {
+        AsyncRequestWrapper(Request request, String node, TimeValue keepAlive) {
             this.request = request;
             this.doc = UUIDs.randomBase64UUID();
             this.node = node;
+            this.keepAlive = keepAlive;
         }
 
         @Override
@@ -136,7 +139,8 @@ public class AsyncTaskManagementService<
                 parentTaskId,
                 headers,
                 originHeaders,
-                new AsyncExecutionId(doc, new TaskId(node, id))
+                new AsyncExecutionId(doc, new TaskId(node, id)),
+                keepAlive
             );
         }
 
@@ -182,13 +186,25 @@ public class AsyncTaskManagementService<
     public void asyncExecute(
         Request request,
         TimeValue waitForCompletionTimeout,
+        @org.elasticsearch.core.Nullable TimeValue keepAlive,
         boolean keepOnCompletion,
         ActionListener<Response> listener
     ) {
+        final TimeValue resolvedKeepAlive;
+        try {
+            resolvedKeepAlive = asyncTaskIndexService.resolveKeepAlive(keepAlive);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         String nodeId = clusterService.localNode().getId();
         try (var ignored = threadPool.getThreadContext().newTraceContext()) {
             @SuppressWarnings("unchecked")
-            T searchTask = (T) taskManager.register("transport", action + ASYNC_ACTION_SUFFIX, new AsyncRequestWrapper(request, nodeId));
+            T searchTask = (T) taskManager.register(
+                "transport",
+                action + ASYNC_ACTION_SUFFIX,
+                new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive)
+            );
             boolean operationStarted = false;
             try {
                 operation.execute(

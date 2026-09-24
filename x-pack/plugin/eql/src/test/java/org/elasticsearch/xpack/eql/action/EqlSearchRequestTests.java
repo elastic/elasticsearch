@@ -16,6 +16,7 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
@@ -76,7 +77,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .query(randomAlphaOfLength(10))
                 .ccsMinimizeRoundtrips(ccsMinimizeRoundtrips)
                 .waitForCompletionTimeout(randomTimeValue())
-                .keepAlive(randomTimeValue())
+                .keepAlive(randomBoolean() ? randomTimeValue() : null)
                 .keepOnCompletion(randomBoolean())
                 .allowPartialSearchResults(randomBoolean())
                 .allowPartialSequenceResults(randomBoolean())
@@ -131,7 +132,12 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.query(instance.query());
         mutatedInstance.ccsMinimizeRoundtrips(instance.ccsMinimizeRoundtrips());
         mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
-        mutatedInstance.keepAlive(instance.keepAlive());
+        if (version.supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING) == false) {
+            // old wire format cannot represent null; a null keepAlive is written as DEFAULT_KEEP_ALIVE
+            mutatedInstance.keepAlive(instance.keepAlive() != null ? instance.keepAlive() : EqlSearchRequest.DEFAULT_KEEP_ALIVE);
+        } else {
+            mutatedInstance.keepAlive(instance.keepAlive());
+        }
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
         mutatedInstance.fetchFields(instance.fetchFields());
         mutatedInstance.runtimeMappings(instance.runtimeMappings());

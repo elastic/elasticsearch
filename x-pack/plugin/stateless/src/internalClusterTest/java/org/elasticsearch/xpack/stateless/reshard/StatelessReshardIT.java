@@ -146,7 +146,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.hamcrest.Matcher;
@@ -3903,7 +3903,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .values()
             .stream()
             .map(BlobMetadata::name)
-            .max(Comparator.comparingLong(StatelessCompoundCommit::parseGenerationFromBlobName))
+            .max(Comparator.comparingLong(BatchedCompoundCommit::parseGenerationFromBlobName))
             .orElseThrow();
         blobToBlock.set(latestBlob);
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.VersionId;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -24,6 +25,9 @@ import java.util.Objects;
  * built here. That routing is selected by {@link ServiceAccountSettings#USER_MANAGED_SERVICE_ACCOUNT_FIELD} in the
  * user's metadata: without the marker the authorization layer would look for a built-in account of the same name
  * instead, so every instance must set it.
+ * <p>
+ * The description is free text carried for whoever administers the account. It means nothing to Elasticsearch and
+ * so is deliberately kept out of the {@link User}, which is what authorization and audit see.
  */
 final class UserManagedServiceAccount implements ServiceAccount {
 
@@ -44,12 +48,15 @@ final class UserManagedServiceAccount implements ServiceAccount {
     private final ServiceAccountId id;
     private final List<String> roles;
     private final boolean enabled;
+    @Nullable
+    private final String description;
     private final User user;
 
-    UserManagedServiceAccount(ServiceAccountId id, List<String> roles, boolean enabled) {
+    UserManagedServiceAccount(ServiceAccountId id, List<String> roles, boolean enabled, @Nullable String description) {
         this.id = Objects.requireNonNull(id, "service account id cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
         this.enabled = enabled;
+        this.description = description;
         this.user = new User(
             id.asPrincipal(),
             this.roles.toArray(String[]::new),
@@ -78,8 +85,13 @@ final class UserManagedServiceAccount implements ServiceAccount {
         return enabled;
     }
 
+    @Nullable
+    String description() {
+        return description;
+    }
+
     @Override
     public String toString() {
-        return "UserManagedServiceAccount{id=" + id + ", roles=" + roles + ", enabled=" + enabled + '}';
+        return "UserManagedServiceAccount{id=" + id + ", roles=" + roles + ", enabled=" + enabled + ", description=" + description + '}';
     }
 }

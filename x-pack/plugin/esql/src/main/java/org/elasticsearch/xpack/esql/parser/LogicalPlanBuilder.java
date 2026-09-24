@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -397,7 +398,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
-            return unresolvedRelation;
+            if (metadataFields.isEmpty()) {
+                return unresolvedRelation;
+            }
+            return new UnresolvedMetadata(source, unresolvedRelation, metadataFields);
         } else {
             // subquery is not supported with time-series indices at the moment
             if (command == SourceCommand.TS) {
@@ -410,13 +414,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             mainQueryAndSubqueries.addAll(subqueries);
 
+            LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
                 // if there is only one child, return it directly, no need for UnionAll
-                return table.indexPattern().isEmpty() ? subqueries.get(0).plan() : unresolvedRelation;
+                inner = subqueries.get(0).plan();
             } else {
                 // the output of UnionAll is resolved by analyzer
-                return new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
+                inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
             }
+
+            if (metadataFields.isEmpty()) {
+                return inner;
+            }
+            return new UnresolvedMetadata(source(ctxs.getFirst(), ctxs.getLast()), inner, metadataFields);
         }
     }
 
@@ -1025,16 +1035,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        // TEMPORARY SHIM — delete when the inline EXTERNAL command is retired in favour of
-        // FROM <dataset>. External metadata is otherwise purely request-driven: a column appears
-        // only when the user names it in a METADATA clause (the FROM path) and surfaces only when
-        // KEEP'd by name. The legacy EXTERNAL command has no METADATA clause, so to preserve its
-        // historical behaviour (_file.* resolvable in WHERE / STATS BY / KEEP) we inject the
-        // _file.* names as if the user had written `METADATA _file.path, _file.name, ...`.
+        // TEMPORARY SHIM: delete when the inline EXTERNAL command is retired in favour of
+        // FROM <dataset>. External metadata is otherwise request-driven: a column appears only
+        // when the user names it in a METADATA clause (the FROM path). That path surfaces the
+        // column in default output and in KEEP *. The legacy EXTERNAL command has no METADATA
+        // clause, so to preserve its historical behaviour (_file.* resolvable in WHERE / STATS BY
+        // / KEEP) we inject the _file.* names as if the user had written
+        // `METADATA _file.path, _file.name, ...`.
         // ResolveExternalRelations.bindMetadataFields binds them to ExternalMetadataAttributes; the
-        // surfacing rule still hides them from default output unless explicitly KEEP'd. The schema
-        // auto-attach that used to glue _file.* onto every external source is gone (it leaked the
-        // columns through DROP / wildcard).
+        // EXTERNAL surfacing rule still hides them from default output unless a Keep lists them.
+        // There is no schema auto-attach of _file.* on every external source: that leaked
+        // columns through DROP / wildcard.
         List<NamedExpression> metadataFields = new ArrayList<>(FileMetadataColumns.NAMES.size());
         for (String name : FileMetadataColumns.NAMES) {
             // _file.record_ref is a FROM-only, request-driven column (it drives _id and forces the

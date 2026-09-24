@@ -157,9 +157,9 @@ public class BlobCacheMetrics {
          */
         PreFetchingNewCommit,
         /**
-         * When the data we need for a BCC-chain walk is not in the cache
+         * When the data we need for a BCC-chain walk (that takes place during a relocation) is not in the cache
          */
-        BccChainWalk
+        BccChainWalkDuringRelocation
     }
 
     /**

@@ -199,7 +199,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             }
 
             ObjectStoreService.readIndexingShardState(
-                directory.createNewBlobStoreCacheDirectoryForBccChainWalk(),
+                directory.createNewBlobStoreCacheDirectoryForBccChainWalkDuringRelocation(),
                 IOContext.DEFAULT,
                 shardContainer,
                 indexShard.getOperationPrimaryTerm(),

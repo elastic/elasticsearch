@@ -31,17 +31,23 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -59,12 +65,18 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.mockito.MockingDetails;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Stubbing;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -1210,6 +1222,90 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
         verify(shard, times(1)).markSeqNoAsNoop(1, 1, exception.toString());
         closeShards(shard);
+    }
+
+    public void testBatchRowSourcesAreParsedInPlace() throws Exception {
+        final String mapping = """
+            {
+              "properties": {
+                "title": { "type": "keyword" },
+                "count": { "type": "long" },
+                "meta": { "properties": { "tag": { "type": "keyword" } } }
+              }
+            }""";
+        IndexShard primary = newShard(shardId, true, "n1", indexMetadata(mapping), null);
+        recoverShardFromStore(primary);
+        IndexShard replica = newShard(shardId, false, "n2", indexMetadata(mapping), null);
+        recoveryEmptyReplica(replica, true);
+
+        // build initial documents
+        int numDocs = 10;
+        Map<String, Map<String, Object>> expectedById = new HashMap<>();
+        List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.startObject().field("title", "doc-" + i).field("count", i);
+                if (randomBoolean()) {
+                    // heterogeneous rows: the nested object is absent from some of the documents
+                    builder.startObject("meta").field("tag", "tag-" + i).endObject();
+                }
+                builder.endObject();
+                BytesReference source = BytesReference.bytes(builder);
+                sources.add(source);
+                expectedById.put("id_" + i, XContentHelper.convertToMap(source, false, XContentType.JSON).v2());
+            }
+        }
+
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            BulkItemRequest[] items = new BulkItemRequest[numDocs];
+            for (int i = 0; i < numDocs; i++) {
+                IndexRequest indexRequest = new IndexRequest("index").id("id_" + i);
+                // the shape BulkShardRequest(StreamInput) produces on the receiving node: a row reference and no bytes
+                indexRequest.indexSource().setSourceRow(batch, i, XContentType.JSON);
+                items[i] = new BulkItemRequest(i, indexRequest);
+            }
+            BulkShardRequest request = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+            request.setBulkShardBatch(new BulkShardBatch(batch));
+
+            // Test the sequential path
+            BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
+            while (context.hasMoreOperationsToExecute()) {
+                TransportShardBulkAction.executeBulkItemRequest(
+                    context,
+                    null,
+                    threadPool::absoluteTimeInMillis,
+                    new NoopMappingUpdatePerformer(),
+                    (listener, mappingVersion) -> {},
+                    ASSERTING_DONE_LISTENER,
+                    DocumentParsingProvider.EMPTY_INSTANCE
+                );
+            }
+            // Assert that documents were indexed
+            assertNotNull(context.getLocationToSync());
+
+            for (int i = 0; i < numDocs; i++) {
+                BulkItemResponse response = items[i].getPrimaryResponse();
+                assertFalse(response.toString(), response.isFailed());
+                assertThat(response.getId(), equalTo("id_" + i));
+                IndexRequest indexRequest = (IndexRequest) items[i].request();
+                assertTrue("the sequential path must not inline the row", indexRequest.indexSource().hasSourceRow());
+                assertThat(indexRequest.source().length(), equalTo(0));
+            }
+            assertStoredSources(primary, expectedById);
+
+            // Perform the same on the replica
+            TransportShardBulkAction.performOnReplica(request, replica);
+            assertStoredSources(replica, expectedById);
+        }
+        closeShards(primary, replica);
+    }
+
+    private void assertStoredSources(IndexShard shard, Map<String, Map<String, Object>> expectedById) throws IOException {
+        Map<String, Map<String, Object>> storedById = new HashMap<>();
+        for (DocIdSeqNoAndSource doc : getDocIdAndSeqNos(shard)) {
+            storedById.put(doc.id(), XContentHelper.convertToMap(new BytesArray(doc.source()), false, XContentType.JSON).v2());
+        }
+        assertThat(storedById, equalTo(expectedById));
     }
 
     public void testRetries() throws Exception {

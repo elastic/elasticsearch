@@ -61,12 +61,10 @@ import static org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter.ES
  * error the moment a view starts matching its pattern. A filter that translates to a supported no-op ({@code match_all})
  * leaves the view unfiltered.
  *
- * <p>The rewrite is <em>version-gated</em>. Both this rewriter and {@link RequestFilterRewriter} (for datasets) use
- * the same {@link QueryDslTranslator}, which can emit {@code mv_in_range} nodes for range queries; older nodes do not
- * know that function and would fail to deserialize a plan containing it. The gate is therefore the same version:
- * {@link RequestFilterRewriter#ESQL_REQUEST_FILTER_ON_DATASET}. Any cluster new enough to apply the dataset rewrite is
- * already new enough to apply the view rewrite — introducing a separate transport version would add no protection and
- * would fragment the version history unnecessarily. Below that version the rewrite is skipped entirely rather than shipping a
+ * <p>The rewrite is <em>version-gated</em> on {@link RequestFilterRewriter#ESQL_REQUEST_FILTER_ON_DATASET}, the same
+ * version the dataset rewriter uses: any cluster new enough for one is new enough for the other. That gate covers the
+ * rewrite's existence only. The functions {@link QueryDslTranslator} may emit are a growing set, so each one that
+ * postdates the gate is checked against its own pin as it is built. Below the gate the rewrite is skipped entirely rather than shipping a
  * plan a peer cannot read, and the query falls back to the pre-feature behavior: the raw DSL is pushed into the view's source
  * scan (see below), with a warning, because that filters computed fields against their raw indexed values. Whether such
  * mixed clusters should instead fail the query outright is an open decision; {@link #supportsRewrite} is the single place
@@ -174,15 +172,16 @@ public final class ViewRequestFilterRewriter {
         // before the outer view's own processing — the very mistake the Lucene push-in path makes — and for a field the
         // outer view computes it would bind to NULL there and silently drop every row.
         Set<String> skipped = new LinkedHashSet<>();
+        Set<String> gated = new LinkedHashSet<>();
         LogicalPlan rewritten = analyzed.transformDownSkipBranch((plan, skipBranch) -> {
             if (plan instanceof ViewUnionAll vua) {
                 skipBranch.set(true);
-                return applyRequestFilterToViewBranches(vua, requestFilter, configuration, skipped, minimumVersion);
+                return applyRequestFilterToViewBranches(vua, requestFilter, configuration, skipped, gated, minimumVersion);
             }
             return plan;
         });
-        if (skipped.isEmpty() == false) {
-            warnUnsupportedClauses(skipped);
+        if (skipped.isEmpty() == false || gated.isEmpty() == false) {
+            warnUnsupportedClauses(skipped, gated);
         }
         // The inserted Filter nodes and the spine rebuilt above them are at stage NEW; the plan was already
         // analyzed, so mark the whole tree analyzed to satisfy the pre-optimizer.
@@ -204,6 +203,7 @@ public final class ViewRequestFilterRewriter {
         QueryBuilder requestFilter,
         Configuration configuration,
         Set<String> skipped,
+        Set<String> gated,
         TransportVersion minimumVersion
     ) {
         LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
@@ -219,7 +219,11 @@ public final class ViewRequestFilterRewriter {
                 for (QueryDslTranslator.UnsupportedClause unsupported : result.unsupported()) {
                     String where = "[" + unsupported.construct() + "] on view [" + key + "]";
                     // Name the version reason, as RequestFilterRewriter does; "not supported" would be wrong.
-                    skipped.add(unsupported.reason() == null ? where : where + " because " + unsupported.reason());
+                    if (unsupported.reason() == null) {
+                        skipped.add(where);
+                    } else {
+                        gated.add(where + " because " + unsupported.reason());
+                    }
                 }
                 Expression condition = result.applied();
                 if (condition == Literal.TRUE) {
@@ -261,13 +265,16 @@ public final class ViewRequestFilterRewriter {
     }
 
     /** Warns, via a response header, which constructs were dropped from the filter and on which views. */
-    private static void warnUnsupportedClauses(Set<String> skipped) {
-        HeaderWarning.addWarning(
-            "The request filter could not be fully applied to view(s); the following Query DSL constructs are not supported and were "
-                + "skipped: "
-                + String.join("; ", skipped)
-                + ". Use a WHERE clause to filter rows from views instead"
-        );
+    private static void warnUnsupportedClauses(Set<String> skipped, Set<String> gated) {
+        StringBuilder message = new StringBuilder("The request filter could not be fully applied to view(s)");
+        if (skipped.isEmpty() == false) {
+            message.append("; the following Query DSL constructs are not supported and were skipped: ").append(String.join("; ", skipped));
+        }
+        if (gated.isEmpty() == false) {
+            message.append("; the following were skipped: ").append(String.join("; ", gated));
+        }
+        message.append(". Use a WHERE clause to filter rows from views instead");
+        HeaderWarning.addWarning(message.toString());
     }
 
     /**

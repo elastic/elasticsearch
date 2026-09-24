@@ -52,7 +52,8 @@ import static org.hamcrest.Matchers.not;
  * of is exactly the one that ships unpinned. It counts classes, not sites, so adding a second unpinned emit site for
  * an already-declared gated class passes here — {@code QueryDslTranslatorTests} covers both paths per function for
  * that. It sees only {@code new X(}, and the shapes it cannot see — a static factory, an {@code X::new} reference —
- * are held shut by {@code testNoExpressionIsBuiltInAShapeTheCensusCannotSee} rather than by a sentence asking nicely.
+ * are held shut by {@code testNoExpressionIsBuiltInAShapeTheCensusCannotSee}, and a fully-qualified construction is
+ * matched on its package path rather than through the imports.
  * It reads every main source in this package, so an emit moved into a helper here stays visible.
  * And it forces the DECLARATION, not its correctness: whether the pin named is the version that function actually
  * arrived in is settled by the behavioural cases in that suite, not here.
@@ -94,6 +95,11 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
     // The shapes this census cannot see. The sibling census guards its own blind spot executably rather than in
     // prose; this does the same, so a new expression built through a factory or a constructor reference cannot
     // slip past by being spelled differently.
+    // A fully-qualified construction has no import line, so the import-intersection misses it and CONSTRUCTION's
+    // capital-after-new does not match the package prefix. Match it directly on the package path instead.
+    private static final Pattern QUALIFIED_CONSTRUCTION = Pattern.compile(
+        "\\bnew\\s+org\\.elasticsearch\\.xpack\\.esql\\.(?:core\\.)?expression\\.[\\w.]*?([A-Z]\\w+)\\s*\\("
+    );
     private static final Pattern PIN_ARGUMENT = Pattern.compile("([A-Z]\\w+\\.[A-Z_][A-Z0-9_]*)");
     private static final Pattern STATIC_FACTORY = Pattern.compile("\\b([A-Z]\\w+)\\s*\\.\\s*([a-z]\\w*)\\s*\\(");
     private static final Pattern CTOR_REFERENCE = Pattern.compile("\\b([A-Z]\\w+)\\s*::\\s*new");
@@ -253,6 +259,17 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         assertThat(constant.group(1), equalTo("MvLess.MV_COMPARE_TRANSPORT_VERSION"));
     }
 
+    /** A fully-qualified construction has no import to intersect with, and must still be counted. */
+    public void testCensusSeesAFullyQualifiedConstruction() {
+        String fake = """
+            class T { Expression f() {
+                return new org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSomethingNew(s, f);
+            } }
+            """;
+        assertThat(emittedExpressionClasses(fake), equalTo(Set.of("MvSomethingNew")));
+        assertThat(undeclaredIn(fake), equalTo(Set.of("MvSomethingNew")));
+    }
+
     /** A constructed class that is not an imported expression is not the census's business. */
     public void testCensusIgnoresNonExpressionConstructions() {
         String fake = """
@@ -318,6 +335,10 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             if (imported.contains(cm.group(1))) {
                 emitted.add(cm.group(1));
             }
+        }
+        Matcher qm = QUALIFIED_CONSTRUCTION.matcher(source);
+        while (qm.find()) {
+            emitted.add(qm.group(1));
         }
         return emitted;
     }

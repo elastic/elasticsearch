@@ -4847,7 +4847,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * emit it again with no extra LIST.
      */
     public void testListingCacheReplaysExclusionWarningOnSecondResolve() throws Exception {
-        String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the "
+        String warning = "1 of 2 objects matching the resource under [data] was excluded by the "
             + "[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
         Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/data/a.parquet", schema);

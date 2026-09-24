@@ -226,7 +226,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 3 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                "1 of 3 objects matching the resource under [data] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
             result.listingWarnings()
@@ -251,7 +251,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [data] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
             ),
             result.listingWarnings()
@@ -273,7 +273,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [data] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_metadata] which matched entry [**/_*]"
             ),
             result.listingWarnings()
@@ -330,7 +330,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [data] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_delta_log/00000000000000000001.json] which matched entry [**/_delta_log/**]"
             ),
             result.listingWarnings()
@@ -354,7 +354,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [data] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_temporary/task_0/part.parquet] which matched entry [**/_temporary/**]"
             ),
             result.listingWarnings()
@@ -383,7 +383,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
+                "2 of 4 objects matching the resource under [data] were excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
             result.listingWarnings()
@@ -426,7 +426,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [data] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_dept=alpha/_SUCCESS] which matched entry [**/_*]"
             ),
             result.listingWarnings()
@@ -455,7 +455,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/logs/year=2024/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [year=2024] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
             result.listingWarnings()
@@ -2123,7 +2123,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [data] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
             withExclusion.listingWarnings()
@@ -2148,7 +2148,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [data] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
             excluded.listingWarnings()
@@ -2180,9 +2180,9 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/a/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [a] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]",
-                "1 of 2 objects matching the resource under [s3://bucket/b/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [b] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [.part-r-00001.parquet.crc] which matched entry [**/.*]"
             ),
             result.listingWarnings()
@@ -2888,7 +2888,7 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("both data files survive", 2, result.fileCount());
         assertEquals(
             List.of(
-                "2 of 4 objects matching the resource under [s3://bucket/data/] were excluded by the [file_exclusions] "
+                "2 of 4 objects matching the resource under [data] were excluded by the [file_exclusions] "
                     + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
             ),
             result.listingWarnings()
@@ -2915,7 +2915,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testExpandAndCompactCarriesExclusionWarningOnTheListing() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
         String pattern = "s3://bucket/data/*";
-        String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+        String warning = "1 of 2 objects matching the resource under [data] was excluded by the [file_exclusions] "
             + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
 
         FileList compacted = GlobExpander.expandAndCompact(pattern, new StubProvider(listing), null, HIVE_OFF, StoragePath.of(pattern));
@@ -3387,7 +3387,7 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse("year=2024 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
         assertEquals(
             List.of(
-                "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+                "1 of 2 objects matching the resource under [data] was excluded by the [file_exclusions] "
                     + "dataset setting, for example [_temporary/x.parquet] which matched entry [**/_temporary/**]"
             ),
             result.listingWarnings()

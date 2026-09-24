@@ -706,8 +706,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertThat(below.unsupported().get(0).construct(), containsString("on double"));
     }
 
-    /** A missing field needs no function: below the pin it still translates, to the same false the leaf would fold to. */
-    /**
+        /**
      * The backstop itself, exercised directly. Every other case reaches it only as a side effect of translating, so
      * none would notice its condition being replaced by a constant — which would make it decoration rather than a
      * gate. These two are what make disabling it break something.
@@ -728,6 +727,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertTrue(translator.everyPinnedFunctionIsSupported(approved));
     }
 
+    /** A missing field needs no function: below the pin it still translates, to the false the leaf would fold to. */
     public void testMissingFieldNeedsNoGatedFunction() {
         QueryDslTranslator.TranslationResult below = translateResult(QueryBuilders.rangeQuery("absent").gt("m"), BELOW_MV_COMPARE);
         assertThat("nothing is degraded for a field the source does not have", below.unsupported(), empty());

@@ -240,7 +240,10 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         int start = source.indexOf("boolean everyPinnedFunctionIsSupported(");
         assertThat("the backstop method was renamed; this test scans for it by name", start, greaterThan(-1));
         int end = source.indexOf("\n    }", start);
-        String body = source.substring(start, end < 0 ? source.length() : end);
+        // Fail closed. Reading to EOF would swallow recordApproved's walk of the same family and pass on a backstop
+        // that walks nothing.
+        assertThat("could not find the end of the backstop method", end, greaterThan(start));
+        String body = source.substring(start, end);
 
         Set<String> walked = new TreeSet<>();
         Matcher m = Pattern.compile("forEachDown\\(\\s*([A-Z]\\w+)\\.class").matcher(body);

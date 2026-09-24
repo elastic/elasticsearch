@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders.DEFAUL
 public final class HighlightAnalyzers {
 
     private static final String INDEX_LOCAL_REASON = "its analyzer is defined in the index settings, which no node can rebuild by name";
+    private static final String NOT_REPORTED_REASON = "the node holding it did not report its analyzer";
 
     private HighlightAnalyzers() {}
 
@@ -47,7 +49,8 @@ public final class HighlightAnalyzers {
      * The per-field analyzers, in ON order, for every combination of analyzers some row needs.
      *
      * @param analysisGroups  {@code analysisGroups.getFirst()} applies to rows whose index is not in {@code groupByIndex}
-     * @param groupByIndex    index name to the position in {@code analysisGroups} its rows use. Empty when all rows share one.
+     * @param groupByIndex    index name to the position in {@code analysisGroups} its rows use, only for indices that do
+     *                        not use the first. Empty when all rows share one.
      */
     public record Resolved(List<Map<String, NamedAnalyzer>> analysisGroups, Map<String, Integer> groupByIndex) {}
 
@@ -74,14 +77,14 @@ public final class HighlightAnalyzers {
             if (commandAnalyzer != null) {
                 defaults.put(name, commandAnalyzer);
             } else if (groups != null) {
-                defaults.put(name, PlannerUtils.resolveAnalyzer(DEFAULT_ANALYZER_NAME, analysisRegistry));
+                defaults.put(name, standard(analysisRegistry));
                 for (IndexAnalyzerGroup group : groups) {
                     NamedAnalyzer analyzer = mappingAnalyzer(
                         name,
-                        " for indices " + new TreeSet<>(group.indices()),
+                        group.indices(),
                         group.analyzerName(),
                         group.positionIncrementGap(),
-                        INDEX_LOCAL_REASON,
+                        group.indexLocal() ? INDEX_LOCAL_REASON : NOT_REPORTED_REASON,
                         analysisRegistry,
                         warnings
                     );
@@ -102,11 +105,13 @@ public final class HighlightAnalyzers {
         overridesByIndex.forEach((index, overrides) -> {
             Map<String, NamedAnalyzer> analyzers = new LinkedHashMap<>(defaults);
             analyzers.putAll(overrides);
-            Integer groupId = groupIds.computeIfAbsent(AnalyzerKey.of(analyzers), k -> {
+            int groupId = groupIds.computeIfAbsent(AnalyzerKey.of(analyzers), k -> {
                 analysisGroups.add(analyzers);
                 return analysisGroups.size() - 1;
             });
-            groupByIndex.put(index, groupId);
+            if (groupId != 0) {
+                groupByIndex.put(index, groupId);
+            }
         });
         return new Resolved(analysisGroups, groupByIndex);
     }
@@ -142,7 +147,7 @@ public final class HighlightAnalyzers {
             };
             return mappingAnalyzer(
                 field.name(),
-                "",
+                Set.of(),
                 text.analyzerName(),
                 text.positionIncrementGap(),
                 fallbackReason,
@@ -156,11 +161,11 @@ public final class HighlightAnalyzers {
 
     /**
      * {@code analyzerName} with the field's {@code gap}, or {@code standard} and a warning when there is no name or this
-     * node cannot resolve it. {@code scope} names the indices the fallback applies to, empty when it applies to every row.
+     * node cannot resolve it. {@code indices} are the ones the fallback applies to, empty when it applies to every row.
      */
     private static NamedAnalyzer mappingAnalyzer(
         String fieldName,
-        String scope,
+        Set<String> indices,
         @Nullable String analyzerName,
         int gap,
         @Nullable String fallbackReason,
@@ -181,12 +186,16 @@ public final class HighlightAnalyzers {
                 "HIGHLIGHT on ["
                     + fieldName
                     + "] falls back to [standard]"
-                    + scope
+                    + (indices.isEmpty() ? "" : " for indices " + new TreeSet<>(indices))
                     + ": "
                     + fallbackReason
                     + ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this."
             );
         }
+        return standard(analysisRegistry);
+    }
+
+    private static NamedAnalyzer standard(@Nullable AnalysisRegistry analysisRegistry) {
         return PlannerUtils.resolveAnalyzer(DEFAULT_ANALYZER_NAME, analysisRegistry);
     }
 }

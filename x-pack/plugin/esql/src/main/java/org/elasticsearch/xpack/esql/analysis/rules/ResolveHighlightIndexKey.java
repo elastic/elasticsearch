@@ -13,18 +13,24 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -36,12 +42,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * <p>
  * The key is a synthetic alias of {@code _index} evaluated right above the relation and carried through every
  * projection up to HIGHLIGHT; being synthetic, {@code UnionTypesCleanup} keeps it out of the final output, and a user
- * {@code METADATA _index} that was renamed or dropped stays renamed or dropped. Rows that STATS, ROW, FORK and the like
- * produce have no single source index, so those plans keep the {@code standard} fallback and its warning.
+ * {@code METADATA _index} that was renamed or dropped stays renamed or dropped. Rows that STATS, ROW, FORK and UNION ALL
+ * produce have no single source index, and DEDUP would group by the key, so those plans keep the {@code standard}
+ * fallback and its warning.
  */
 public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
-    public static final String INDEX_KEY_NAME = "$$_index$highlight";
+    public static final String INDEX_KEY_NAME = Attribute.rawTemporaryName(MetadataAttribute.INDEX, "highlight");
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -59,7 +66,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
     }
 
     private static boolean needsIndexKey(Highlight highlight) {
-        if (highlight.options() != null && highlight.options().get(Highlight.ANALYZER) != null) {
+        if (highlight.hasAnalyzerOption()) {
             return false; // WITH analyzer applies to every row
         }
         return highlight.fields().stream().anyMatch(field -> HighlightAnalyzers.analyzerGroups(field) != null);
@@ -87,14 +94,25 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                 key.set(alias.toAttribute());
                 yield new Eval(relation.source(), relation, List.of(alias));
             }
+            case LeafPlan ignored -> null; // ROW, LocalRelation, ExternalRelation: no source index per row
             case Project project -> {
                 LogicalPlan child = withIndexKey(project.child(), key);
                 if (child == null) {
                     yield null;
                 }
-                List<NamedExpression> projections = new ArrayList<>(project.projections());
-                projections.add(key.get());
-                yield project.replaceChild(child).withProjections(projections);
+                List<NamedExpression> projections = CollectionUtils.combine(project.projections(), key.get());
+                // A user KEEP stays a Keep: UnionTypesCleanup reads the virtual columns it lists off Keep nodes only.
+                yield project instanceof Keep
+                    ? new Keep(project.source(), child, projections)
+                    : new Project(project.source(), child, projections);
+            }
+            // DEDUP groups by every column of its input, so the key would split rows that only differ by index.
+            case Dedup ignored -> null;
+            case InlineStats inlineStats -> {
+                // Every input row survives, so the key goes into the aggregate's input rather than its output.
+                Aggregate aggregate = inlineStats.aggregate();
+                LogicalPlan child = withIndexKey(aggregate.child(), key);
+                yield child == null ? null : inlineStats.replaceChild(aggregate.replaceChild(child));
             }
             case UnaryPlan unary -> {
                 LogicalPlan child = withIndexKey(unary.child(), key);
@@ -105,7 +123,8 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                 LogicalPlan left = withIndexKey(binary.left(), key);
                 yield left == null ? null : binary.replaceChildren(left, binary.right());
             }
-            default -> null; // ROW, FORK, subqueries: no single source index per row
+            case MergePlan ignored -> null; // FORK, UNION ALL: rows come from several branches
+            default -> throw new IllegalStateException("unexpected plan [" + plan.nodeName() + "] under HIGHLIGHT");
         };
         // Aggregations drop the key from the output.
         return result != null && result.outputSet().contains(key.get()) ? result : null;

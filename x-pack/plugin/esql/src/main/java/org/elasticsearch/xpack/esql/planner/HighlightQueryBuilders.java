@@ -197,9 +197,14 @@ public final class HighlightQueryBuilders {
                 .forEach(name -> leafAnalyzers.put(name, PlannerUtils.resolveAnalyzer(name, analysisRegistry)));
         }
         var context = RuntimeSearchExecutionContext.create(fieldAnalyzers, leafAnalyzers, lenientFields);
-        String literal = queryTextIfLiteral(queryExpr);
         Query query = toLuceneQuery(toQueryBuilder(queryExpr, List.copyOf(fieldAnalyzers.keySet())), context);
-        return new TranslatedQuery(literal != null ? literal : queryExpr.sourceText(), query);
+        return new TranslatedQuery(queryText(queryExpr), query);
+    }
+
+    /** The query string of a literal query, otherwise the query's source text. Unlike the Lucene query, independent of analyzers. */
+    public static String queryText(Expression queryExpr) {
+        String literal = queryTextIfLiteral(queryExpr);
+        return literal != null ? literal : queryExpr.sourceText();
     }
 
     /** Runtime query state produced by {@link #translate}. */

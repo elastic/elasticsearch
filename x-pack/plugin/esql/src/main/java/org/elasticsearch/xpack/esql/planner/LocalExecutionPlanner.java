@@ -94,7 +94,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -1642,21 +1641,17 @@ public class LocalExecutionPlanner {
             highlight.indexKey() != null,
             w -> {} // already emitted at verification
         );
-        List<HighlightConfig.AnalysisGroup> analysisGroups = new ArrayList<>(resolved.analysisGroups().size());
-        String queryText = null;
-        for (Map<String, NamedAnalyzer> fieldAnalyzers : resolved.analysisGroups()) {
-            HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
-                queryExpr,
-                fieldAnalyzers,
-                context.analysisRegistry()
-            );
-            queryText = translated.queryText();
-            analysisGroups.add(
-                new HighlightConfig.AnalysisGroup(fieldNames.stream().map(fieldAnalyzers::get).toList(), translated.query())
-            );
-        }
+        List<HighlightConfig.AnalysisGroup> analysisGroups = resolved.analysisGroups()
+            .stream()
+            .map(
+                fieldAnalyzers -> new HighlightConfig.AnalysisGroup(
+                    fieldNames.stream().map(fieldAnalyzers::get).toList(),
+                    HighlightQueryBuilders.translate(queryExpr, fieldAnalyzers, context.analysisRegistry()).query()
+                )
+            )
+            .toList();
         HighlightConfig config = new HighlightConfig(
-            queryText,
+            HighlightQueryBuilders.queryText(queryExpr),
             options.preTag(),
             options.postTag(),
             options.encoder(),

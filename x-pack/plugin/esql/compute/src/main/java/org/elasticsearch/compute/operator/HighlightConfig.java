@@ -14,7 +14,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -73,6 +74,9 @@ public record HighlightConfig(
     /** Encoder name that escapes HTML markup in the highlighted text; any other value uses the default (no escaping). */
     public static final String HTML_ENCODER = "html";
 
+    /** Caps the indices {@link #describe()} names per analysis group, as there can be thousands. */
+    private static final int MAX_DESCRIBED_INDICES = 3;
+
     /**
      * The analyzer each ON field is analyzed and searched with, aligned by index with {@link #fieldNames}, and the
      * Lucene query translated with those analyzers. Indices that analyze every ON field the same way share one group.
@@ -128,6 +132,7 @@ public record HighlightConfig(
         return withExecutionContext(List.of(new AnalysisGroup(fieldAnalyzers, query)), Map.of(), fieldNames);
     }
 
+    /** Multi-group form: {@code groupByIndex} maps an {@code _index} value to the position in {@code analysisGroups} its rows use. */
     public HighlightConfig withExecutionContext(
         List<AnalysisGroup> analysisGroups,
         Map<String, Integer> groupByIndex,
@@ -198,14 +203,25 @@ public record HighlightConfig(
             .collect(Collectors.joining(", ", "{", "}"));
     }
 
-    /** {@code , per_index_analyzer={index=analyzer, ...}} for rows that use another group than the first; empty when none do. */
+    /**
+     * {@code , per_index_analyzer=[analyzer=[index, ...], ...]} for the groups after the first, in group order and naming
+     * at most {@link #MAX_DESCRIBED_INDICES} indices each; empty when every row uses the first group.
+     */
     private String describePerIndexAnalyzers() {
         if (groupByIndex.isEmpty()) {
             return "";
         }
-        Map<String, String> byIndex = new TreeMap<>();
-        groupByIndex.forEach((index, group) -> byIndex.put(index, describeAnalyzers(analysisGroups.get(group))));
-        return ", per_index_analyzer=" + byIndex;
+        List<SortedSet<String>> indicesByGroup = analysisGroups.stream().<SortedSet<String>>map(g -> new TreeSet<>()).toList();
+        groupByIndex.forEach((index, group) -> indicesByGroup.get(group).add(index));
+        return IntStream.range(1, analysisGroups.size())
+            .mapToObj(g -> describeAnalyzers(analysisGroups.get(g)) + "=" + describeIndices(indicesByGroup.get(g)))
+            .collect(Collectors.joining(", ", ", per_index_analyzer=[", "]"));
+    }
+
+    private static String describeIndices(SortedSet<String> indices) {
+        String sample = indices.stream().limit(MAX_DESCRIBED_INDICES).collect(Collectors.joining(", "));
+        int more = indices.size() - MAX_DESCRIBED_INDICES;
+        return "[" + sample + (more > 0 ? ", ...and " + more + " more" : "") + "]";
     }
 
     @Override

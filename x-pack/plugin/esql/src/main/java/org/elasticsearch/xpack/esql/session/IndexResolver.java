@@ -139,6 +139,7 @@ public class IndexResolver {
             false,
             false,
             false,
+            false, /* HIGHLIGHT only reads the analyzer groups of the main indices */
             false,
             null,
             DO_NOT_GROUP,
@@ -176,6 +177,7 @@ public class IndexResolver {
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
+        boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
@@ -188,6 +190,7 @@ public class IndexResolver {
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
+            needsAnalyzerGroups,
             trackUnmappedFieldIndices,
             null,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
@@ -220,6 +223,7 @@ public class IndexResolver {
         // Same as above
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
+        boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         ActionListener<Versioned<IndexResolution>> listener
@@ -233,6 +237,7 @@ public class IndexResolver {
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
+            needsAnalyzerGroups,
             trackUnmappedFieldIndices,
             routingInfoCapture,
             (innerIndexPattern, fieldCapabilitiesResponse) -> Maps.transformValues(
@@ -254,6 +259,7 @@ public class IndexResolver {
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
+        boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         OriginalIndexExtractor originalIndexExtractor,
@@ -280,6 +286,7 @@ public class IndexResolver {
                 useAggregateMetricDoubleWhenNotSupported,
                 useDenseVectorWhenNotSupported,
                 hasTimeSeriesAggregation,
+                needsAnalyzerGroups,
                 flattenedDataTypeEnabled.getAsBoolean()
             );
             LOGGER.debug(
@@ -339,6 +346,9 @@ public class IndexResolver {
      *                                {@code STATS}). When {@code false}, time series field type consistency checks
      *                                (dimension vs metric conflicts across indices) are skipped, avoiding spurious
      *                                {@link InvalidMappedField} errors for queries that don't aggregate time series data.
+     * @param needsAnalyzerGroups whether the query has a HIGHLIGHT that uses the mapping analyzers. When {@code false}, a text
+     *                            field whose indices disagree on the analyzer does not record which index uses which, since
+     *                            only HIGHLIGHT reads it and the index names can be many.
      * @param flattenedDataTypeEnabled whether the {@code flattened} data type is enabled (the {@code esql.query.flattened.enabled}
      *                                 kill switch). When {@code false}, {@code flattened} fields are resolved as
      *                                 {@link DataType#UNSUPPORTED}, reverting to pre-flattened-support behavior.
@@ -350,6 +360,7 @@ public class IndexResolver {
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
+        boolean needsAnalyzerGroups,
         boolean flattenedDataTypeEnabled
     ) {}
 
@@ -568,7 +579,7 @@ public class IndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            return textField(name, fullName, isAlias, timeSeriesFieldType, fcs, fieldsInfo.caps);
+            return textField(name, fullName, isAlias, timeSeriesFieldType, fcs, fieldsInfo);
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;
@@ -588,8 +599,8 @@ public class IndexResolver {
 
     /**
      * Keeps the index analyzer when every index agrees on the name and gap. A mix records which indices use which
-     * analyzer as {@link TextEsField#analyzerGroups()}; only withheld {@code index.analysis} names are recorded on
-     * {@link TextEsField.UnknownAnalyzer}.
+     * analyzer as {@link TextEsField#analyzerGroups()} when {@link FieldsInfo#needsAnalyzerGroups()}; only withheld
+     * {@code index.analysis} names are recorded on {@link TextEsField.UnknownAnalyzer}.
      */
     private static TextEsField textField(
         String name,
@@ -597,7 +608,7 @@ public class IndexResolver {
         boolean isAlias,
         EsField.TimeSeriesFieldType timeSeriesFieldType,
         List<IndexFieldCapabilities> fcs,
-        FieldCapabilitiesResponse fieldCapsResponse
+        FieldsInfo fieldsInfo
     ) {
         String analyzer = fcs.getFirst().indexAnalyzer();
         int gap = fcs.getFirst().indexAnalyzerPositionIncrementGap();
@@ -609,7 +620,7 @@ public class IndexResolver {
             unknown = TextEsField.UnknownAnalyzer.NONE;
         } else if (fcs.stream().anyMatch(fc -> fc.indexAnalyzer() != null)) {
             unknown = TextEsField.UnknownAnalyzer.CONFLICT;
-            groups = analyzerGroups(fullName, fieldCapsResponse);
+            groups = fieldsInfo.needsAnalyzerGroups() ? analyzerGroups(fullName, fieldsInfo.caps()) : null;
         } else if (fcs.stream().anyMatch(IndexFieldCapabilities::indexLocalAnalyzer)) {
             unknown = TextEsField.UnknownAnalyzer.INDEX_LOCAL;
         } else {
@@ -620,18 +631,19 @@ public class IndexResolver {
 
     /** Like {@link #conflictingTypes}, walks every index response since {@code fcs} is deduplicated by mapping hash. */
     private static List<IndexAnalyzerGroup> analyzerGroups(String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
-        Map<IndexAnalyzerGroup, Set<String>> indicesByAnalyzer = new LinkedHashMap<>();
+        record AnalyzerKey(@Nullable String name, boolean indexLocal, int positionIncrementGap) {}
+        Map<AnalyzerKey, Set<String>> indicesByAnalyzer = new LinkedHashMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null) {
                 int gap = fc.indexAnalyzer() == null ? TextEsField.DEFAULT_POSITION_INCREMENT_GAP : fc.indexAnalyzerPositionIncrementGap();
-                indicesByAnalyzer.computeIfAbsent(new IndexAnalyzerGroup(fc.indexAnalyzer(), gap, Set.of()), k -> new TreeSet<>())
+                indicesByAnalyzer.computeIfAbsent(new AnalyzerKey(fc.indexAnalyzer(), fc.indexLocalAnalyzer(), gap), k -> new TreeSet<>())
                     .add(ir.getIndexName());
             }
         }
         return indicesByAnalyzer.entrySet()
             .stream()
-            .map(e -> new IndexAnalyzerGroup(e.getKey().analyzerName(), e.getKey().positionIncrementGap(), e.getValue()))
+            .map(e -> new IndexAnalyzerGroup(e.getKey().name(), e.getKey().indexLocal(), e.getKey().positionIncrementGap(), e.getValue()))
             .toList();
     }
 

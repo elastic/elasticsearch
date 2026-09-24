@@ -33,6 +33,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -52,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
@@ -100,7 +102,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
-            "HighlightOperator[query=content:fox, query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, "
+            "HighlightOperator[lucene_queries=[content:fox], query=fox, pre_tag=<em>, post_tag=</em>, encoder=default, number_of_fragments=5, "
                 + "fragment_size=0, no_match_size=0, word_boundary=false, locale=, order_by_score=false, analyzer=StandardAnalyzer, "
                 + "max_analyzed_offset=-1, fields=[Attribute[channel=0]]]"
         );
@@ -727,15 +729,8 @@ public class HighlightOperatorTests extends OperatorTestCase {
      * {@code rings}. Rows with a null or unknown {@code _index} use the first group.
      */
     public void testPerIndexAnalysisGroups() {
-        HighlightConfig config = config("rings", 5, 0, 0).withExecutionContext(
-            List.of(
-                new HighlightConfig.AnalysisGroup(namedAnalyzers(new StandardAnalyzer(), 1), contentTerm("rings")),
-                new HighlightConfig.AnalysisGroup(namedAnalyzers(new EnglishAnalyzer(), 1), contentTerm("ring"))
-            ),
-            Map.of("books_english", 1),
-            CONTENT
-        );
-        assertThat(config.describe(), containsString("analyzer=StandardAnalyzer, per_index_analyzer={books_english=EnglishAnalyzer}"));
+        HighlightConfig config = perIndexConfig();
+        assertThat(config.describe(), containsString("analyzer=StandardAnalyzer, per_index_analyzer=[EnglishAnalyzer=[books_english]]"));
         BytesRefBlock content = bytesRefs(
             List.of(List.of("Lord of the Ring"), List.of("Lord of the Ring"), List.of("Lord of the Ring"), List.of("Lord of the Rings"))
         );
@@ -759,6 +754,55 @@ public class HighlightOperatorTests extends OperatorTestCase {
                 result.releaseBlocks();
             }
         }
+    }
+
+    /** The operator the factory builds reads each row's group off the {@code _index} evaluator, and releases it on close. */
+    public void testFactoryWiresAndClosesIndexEvaluator() {
+        AtomicBoolean indexEvaluatorClosed = new AtomicBoolean();
+        ExpressionEvaluator.Factory indexEvaluatorFactory = context -> new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                return new LoadFromPageEvaluator(1).eval(page);
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public void close() {
+                indexEvaluatorClosed.set(true);
+            }
+        };
+        HighlightOperator.Factory factory = new HighlightOperator.Factory(
+            perIndexConfig(),
+            List.of(new LoadFromPageEvaluator.Factory(0)),
+            indexEvaluatorFactory
+        );
+        BytesRefBlock content = bytesRefs(List.of(List.of("Lord of the Ring")));
+        BytesRefBlock index = bytesRefsOrNull(List.of("books_english"));
+        try (HighlightOperator operator = (HighlightOperator) factory.get(driverContext())) {
+            Page result = operator.process(new Page(content, index));
+            try {
+                assertThat(value(result.getBlock(2), 0), equalTo("Lord of the <em>Ring</em>"));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+        assertTrue(indexEvaluatorClosed.get());
+    }
+
+    /** {@code books_english} rows use an english analyzer and query, every other row the standard ones. */
+    private static HighlightConfig perIndexConfig() {
+        return config("rings", 5, 0, 0).withExecutionContext(
+            List.of(
+                new HighlightConfig.AnalysisGroup(namedAnalyzers(new StandardAnalyzer(), 1), contentTerm("rings")),
+                new HighlightConfig.AnalysisGroup(namedAnalyzers(new EnglishAnalyzer(), 1), contentTerm("ring"))
+            ),
+            Map.of("books_english", 1),
+            CONTENT
+        );
     }
 
     private static Query contentTerm(String term) {

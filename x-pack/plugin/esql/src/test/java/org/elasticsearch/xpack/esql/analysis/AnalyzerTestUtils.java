@@ -155,7 +155,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true, true);
     }
 
     public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps) {
@@ -174,12 +174,16 @@ public final class AnalyzerTestUtils {
 
     /** Header warning from {@code HighlightAnalyzers} when a named mapping analyzer cannot be built on this node. */
     public static String mappingAnalyzerFallbackWarning(String field, String analyzerName) {
+        return highlightFallbackWarning(field, "analyzer [" + analyzerName + "] is not registered on this node");
+    }
+
+    /** Header warning from {@code HighlightAnalyzers} when every row of {@code field} falls back to {@code standard}. */
+    public static String highlightFallbackWarning(String field, String reason) {
         return "HIGHLIGHT on ["
             + field
-            + "] falls back to [standard]: analyzer ["
-            + analyzerName
-            + "] is not registered on this node. "
-            + "Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this.";
+            + "] falls back to [standard]: "
+            + reason
+            + ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this.";
     }
 
     /** Fallback warning for the {@code english} mapping analyzer, which the test analysis registry cannot build. */

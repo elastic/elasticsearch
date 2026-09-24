@@ -172,17 +172,17 @@ public class EsFieldTestUtils {
         );
     }
 
-    /** Which indices use which analyzer when they disagree; at most one group has no name. */
+    /** Which indices use which analyzer when they disagree. Meant for serialization: unlike the resolver's, groups may repeat an analyzer. */
     public static List<IndexAnalyzerGroup> randomAnalyzerGroups() {
-        return randomList(
-            2,
-            4,
-            () -> new IndexAnalyzerGroup(
-                randomBoolean() ? null : randomAlphaOfLength(6),
+        return randomList(2, 4, () -> {
+            String analyzerName = randomBoolean() ? null : randomAlphaOfLength(6);
+            return new IndexAnalyzerGroup(
+                analyzerName,
+                analyzerName == null && randomBoolean(),
                 between(0, 1000),
                 randomSet(1, 3, () -> randomAlphaOfLength(5))
-            )
-        );
+            );
+        });
     }
 
     public static PotentiallyUnmappedKeywordEsField randomPotentiallyUnmappedKeywordEsField(

@@ -65,24 +65,34 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
     /**
      * A disagreement keeps which indices use which analyzer, so HIGHLIGHT can pick per row. Indices are found by
      * walking every index response: the merge itself only sees one response per mapping hash, and here
-     * {@code idx-b} and {@code idx-c} share one. A withheld name is a group of its own.
+     * {@code idx-b} and {@code idx-c} share one. A withheld name and a name an older node did not report are groups
+     * of their own.
      */
     public void testConflictKeepsAnalyzerGroups() {
         TextEsField field = resolveTitle(
             index("idx-a", "english", 0),
-            index("idx-b", "standard", 100),
-            index("idx-c", "standard", 100),
-            indexLocal("idx-d")
+            index("idx-b", "standard", 100, "shared"),
+            index("idx-c", "standard", 100, "shared"),
+            indexLocal("idx-d"),
+            index("idx-e", null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP)
         );
         assertAnalyzer(field, null, UnknownAnalyzer.CONFLICT);
         assertThat(
             field.analyzerGroups(),
             contains(
-                new IndexAnalyzerGroup("english", 0, Set.of("idx-a")),
-                new IndexAnalyzerGroup("standard", 100, Set.of("idx-b", "idx-c")),
-                new IndexAnalyzerGroup(null, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, Set.of("idx-d"))
+                new IndexAnalyzerGroup("english", false, 0, Set.of("idx-a")),
+                new IndexAnalyzerGroup("standard", false, 100, Set.of("idx-b", "idx-c")),
+                new IndexAnalyzerGroup(null, true, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, Set.of("idx-d")),
+                new IndexAnalyzerGroup(null, false, TextEsField.DEFAULT_POSITION_INCREMENT_GAP, Set.of("idx-e"))
             )
         );
+    }
+
+    /** Only a HIGHLIGHT reads the groups, so without one a disagreement records just the conflict. */
+    public void testConflictSkipsAnalyzerGroupsWhenNotNeeded() {
+        TextEsField field = resolveTitle(false, index("idx-a", "english", 0), index("idx-b", "standard", 100));
+        assertThat(field.unknownAnalyzer(), equalTo(UnknownAnalyzer.CONFLICT));
+        assertThat(field.analyzerGroups(), nullValue());
     }
 
     private static void assertAnalyzer(TextEsField field, String analyzerName, UnknownAnalyzer unknownAnalyzer) {
@@ -100,11 +110,15 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
     }
 
     private static TextEsField resolveTitle(FieldCapabilitiesIndexResponse... indices) {
+        return resolveTitle(true, indices);
+    }
+
+    private static TextEsField resolveTitle(boolean needsAnalyzerGroups, FieldCapabilitiesIndexResponse... indices) {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indices)).build();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, needsAnalyzerGroups, false),
             false,
             IndexResolver.DO_NOT_GROUP
         );
@@ -113,13 +127,17 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
         return (TextEsField) esField;
     }
 
-    /** The mapping hash is derived from the analyzer, so indices that agree share one response in the merge. */
+    /** Each index has its own mapping hash, so the merge compares every index with the first. */
     private static FieldCapabilitiesIndexResponse index(String index, String analyzer, int positionIncrementGap) {
+        return index(index, analyzer, positionIncrementGap, index);
+    }
+
+    /** Indices with the same {@code mappingHash} share one response in the merge. */
+    private static FieldCapabilitiesIndexResponse index(String index, String analyzer, int positionIncrementGap, String mappingHash) {
         var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer(analyzer)
             .indexAnalyzerPositionIncrementGap(positionIncrementGap)
             .build();
-        String hash = analyzer + "/" + positionIncrementGap;
-        return new FieldCapabilitiesIndexResponse(index, hash, Map.of("title", title), true, IndexMode.STANDARD);
+        return new FieldCapabilitiesIndexResponse(index, mappingHash, Map.of("title", title), true, IndexMode.STANDARD);
     }
 
     /** An index that analyzes {@code title} with an {@code index.analysis} name, so it reports no name at all. */

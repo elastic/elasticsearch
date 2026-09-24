@@ -2145,6 +2145,21 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# Bare HIGHLIGHT without METADATA _index: the query and fields come from the WHERE, the row's index from a synthetic _index.
+highlightPerIndexAnalyzerImplicitQueryWithoutMetadata
+required_capability: highlight_per_index_analyzer
+
+FROM books,books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| HIGHLIGHT
+| KEEP title, highlight_title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
 # After STATS a row has no single source index, so HIGHLIGHT uses standard and emits a warning.
 # "ring" matches "Ring", not "Rings".
 highlightPerIndexAnalyzerAfterStatsFallsBackToStandard

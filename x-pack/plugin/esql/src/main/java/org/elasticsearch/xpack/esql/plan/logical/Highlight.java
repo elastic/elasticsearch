@@ -222,6 +222,11 @@ public class Highlight extends UnaryPlan
         return indexKey;
     }
 
+    /** Whether WITH sets {@code analyzer}, which then applies to every row instead of each field's mapping analyzer. */
+    public boolean hasAnalyzerOption() {
+        return options != null && options.get(ANALYZER) != null;
+    }
+
     public static List<String> validOptionNames() {
         return VALID_OPTION_NAMES;
     }
@@ -255,6 +260,7 @@ public class Highlight extends UnaryPlan
 
     /** The key must be in {@code newChild}'s output. */
     public Highlight withIndexKey(LogicalPlan newChild, Attribute key) {
+        assert newChild.outputSet().contains(key) : "HIGHLIGHT index key must be in the child output";
         return new Highlight(source(), newChild, prefix, query, implicitQuery, derivedFields, fields, options, generatedFields, key);
     }
 

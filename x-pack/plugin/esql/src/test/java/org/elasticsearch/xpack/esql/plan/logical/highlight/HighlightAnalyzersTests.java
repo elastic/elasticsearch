@@ -114,8 +114,8 @@ public class HighlightAnalyzersTests extends ESTestCase {
     public void testSameAnalyzerDifferentGapKeepsSeparateAnalysisGroups() {
         FieldAttribute field = textFieldWithGroups(
             "title",
-            new IndexAnalyzerGroup("whitespace", 0, Set.of("a")),
-            new IndexAnalyzerGroup("whitespace", 50, Set.of("b"))
+            new IndexAnalyzerGroup("whitespace", false, 0, Set.of("a")),
+            new IndexAnalyzerGroup("whitespace", false, 50, Set.of("b"))
         );
         Resolved resolved = resolve(List.of(field), null, true, new ArrayList<>());
         assertThat(resolved.groupByIndex(), equalTo(Map.of("a", 1, "b", 2)));
@@ -123,23 +123,32 @@ public class HighlightAnalyzersTests extends ESTestCase {
         assertThat(resolved.analysisGroups().get(2).get("title").getPositionIncrementGap("title"), equalTo(50));
     }
 
-    // Indices whose analyzer was withheld or is not registered here use standard and are named in one warning per group.
+    /**
+     * Indices whose analyzer was withheld, not reported, or is not registered here use standard and are named in one
+     * warning per group. Those end up in the first analysis group, so only {@code books_english} is listed.
+     */
     public void testUnresolvableGroupUsesStandardAndNamesIndices() {
         List<String> warnings = new ArrayList<>();
         FieldAttribute field = textFieldWithGroups(
             "title",
-            new IndexAnalyzerGroup("stop", DEFAULT_POSITION_INCREMENT_GAP, Set.of("books_english")),
-            new IndexAnalyzerGroup(null, DEFAULT_POSITION_INCREMENT_GAP, Set.of("custom_a", "custom_b")),
-            new IndexAnalyzerGroup("my_plugin_analyzer", DEFAULT_POSITION_INCREMENT_GAP, Set.of("plugin"))
+            new IndexAnalyzerGroup("stop", false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("books_english")),
+            new IndexAnalyzerGroup(null, true, DEFAULT_POSITION_INCREMENT_GAP, Set.of("custom_b", "custom_a")),
+            new IndexAnalyzerGroup(null, false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("old_remote:books")),
+            new IndexAnalyzerGroup("my_plugin_analyzer", false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("plugin"))
         );
         Resolved resolved = resolve(List.of(field), null, true, warnings);
-        assertThat(resolved.groupByIndex(), equalTo(Map.of("books_english", 1, "custom_a", 0, "custom_b", 0, "plugin", 0)));
-        assertThat(warnings, hasSize(2));
+        assertThat(resolved.groupByIndex(), equalTo(Map.of("books_english", 1)));
+        assertThat(resolved.analysisGroups(), hasSize(2));
         assertThat(
-            warnings.get(0),
-            containsString("HIGHLIGHT on [title] falls back to [standard] for indices [custom_a, custom_b]: its analyzer is defined in the")
+            warnings,
+            contains(
+                containsString(
+                    "HIGHLIGHT on [title] falls back to [standard] for indices [custom_a, custom_b]: its analyzer is defined in"
+                ),
+                containsString("for indices [old_remote:books]: the node holding it did not report its analyzer"),
+                containsString("for indices [plugin]: analyzer [my_plugin_analyzer] is not registered")
+            )
         );
-        assertThat(warnings.get(1), containsString("for indices [plugin]: analyzer [my_plugin_analyzer] is not registered"));
     }
 
     // The shard withheld an index.analysis name, so resolve falls back to standard and warns.
@@ -169,8 +178,8 @@ public class HighlightAnalyzersTests extends ESTestCase {
     private static FieldAttribute conflictingField(String name) {
         return textFieldWithGroups(
             name,
-            new IndexAnalyzerGroup("whitespace", 0, Set.of("books")),
-            new IndexAnalyzerGroup("stop", DEFAULT_POSITION_INCREMENT_GAP, Set.of("books_english", "books_english_2"))
+            new IndexAnalyzerGroup("whitespace", false, 0, Set.of("books")),
+            new IndexAnalyzerGroup("stop", false, DEFAULT_POSITION_INCREMENT_GAP, Set.of("books_english", "books_english_2"))
         );
     }
 

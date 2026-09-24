@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -178,6 +179,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBED
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.englishFallbackWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.highlightFallbackWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
@@ -3413,7 +3415,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3425,7 +3427,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3450,7 +3452,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3465,7 +3467,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -6612,7 +6614,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true, true);
     }
 
     public void testHighlightCombinesImplicitQueriesFromMultipleWhereCommands() {
@@ -6832,11 +6834,71 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertWarnings();
     }
 
+    /** DEDUP would group by the key, so it keeps the fallback; INLINE STATS keeps every row, so the key goes below it. */
+    public void testHighlightPerIndexAnalyzerThroughDedupAndInlineStats() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        assumeTrue("requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("FROM books* | KEEP title | DEDUP | HIGHLIGHT \"ring\" ON title");
+        assertNull(soleHighlight(plan).indexKey());
+        assertWarnings(analyzerConflictFallbackWarning("title"));
+
+        plan = booksWithConflictingTitleAnalyzer().query(
+            "FROM books* | INLINE STATS c = COUNT(*) BY book_no | HIGHLIGHT \"ring\" ON title"
+        );
+        Attribute key = soleHighlight(plan).indexKey();
+        assertNotNull(key);
+        InlineStats inlineStats = plan.collect(InlineStats.class).getFirst();
+        assertThat(inlineStats.aggregate().child().outputSet(), hasItem(key));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /** A join's rows come from its left side, and a lone FROM subquery is its inner plan, so both carry the key. */
+    public void testHighlightPerIndexAnalyzerThroughLookupJoinAndSubquery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().addLanguagesLookup().query("""
+            FROM books*
+            | EVAL language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | HIGHLIGHT "ring" ON title
+            """);
+        Attribute key = soleHighlight(plan).indexKey();
+        assertNotNull(key);
+        LookupJoin join = plan.collect(LookupJoin.class).getFirst();
+        assertThat(join.left().outputSet(), hasItem(key));
+        assertThat(join.right().outputSet(), not(hasItem(key)));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+
+        assumeTrue("requires subquery in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        plan = booksWithConflictingTitleAnalyzer().query("FROM (FROM books* | WHERE MATCH(title, \"ring\")) | HIGHLIGHT \"ring\" ON title");
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
+    /**
+     * FORK outputs reference attributes, which carry no mapping analyzer, so a HIGHLIGHT after it neither asks for a key
+     * nor warns. Inside a branch the key is threaded, and the branch's alignment projection keeps it out of FORK's output.
+     */
+    public void testHighlightPerIndexAnalyzerAndFork() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = booksWithConflictingTitleAnalyzer().query("""
+            FROM books*
+            | FORK (WHERE book_no == "1") (WHERE book_no == "2")
+            | HIGHLIGHT "ring" ON title
+            """);
+        assertNull(soleHighlight(plan).indexKey());
+
+        plan = booksWithConflictingTitleAnalyzer().query("FROM books* | FORK (HIGHLIGHT \"ring\" ON title) (WHERE book_no == \"2\")");
+        assertNotNull(soleHighlight(plan).indexKey());
+        assertThat(fieldNames(plan.collect(Fork.class).getFirst().output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
+        assertWarnings();
+    }
+
     private static String analyzerConflictFallbackWarning(String field) {
-        return "HIGHLIGHT on ["
-            + field
-            + "] falls back to [standard]: the queried indices disagree on the analyzer for this field. "
-            + "Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this.";
+        return highlightFallbackWarning(field, "the queried indices disagree on the analyzer for this field");
     }
 
     /** {@code books} analyzes {@code title} with {@code whitespace}, {@code books_english} with {@code stop}. */
@@ -6852,8 +6914,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
             gap,
             TextEsField.UnknownAnalyzer.CONFLICT,
             List.of(
-                new IndexAnalyzerGroup("whitespace", gap, Set.of("books")),
-                new IndexAnalyzerGroup("stop", gap, Set.of("books_english"))
+                new IndexAnalyzerGroup("whitespace", false, gap, Set.of("books")),
+                new IndexAnalyzerGroup("stop", false, gap, Set.of("books_english"))
             )
         );
         EsField bookNo = new KeywordEsField("book_no", Map.of(), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE);

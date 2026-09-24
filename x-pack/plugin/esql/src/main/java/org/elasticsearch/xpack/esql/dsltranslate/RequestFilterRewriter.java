@@ -97,8 +97,7 @@ public final class RequestFilterRewriter {
             } else {
                 List<String> messages = new ArrayList<>(result.failures().size());
                 for (FilterRewriter.NodeFailure nf : result.failures()) {
-                    // Same distinction the warning draws: "unsupported" is wrong for a clause the cluster is merely
-                    // too old for, and this arm is what a test reads to check the cause was reported honestly.
+                    // Same distinction the warning draws: "unsupported" is wrong for a version-gated clause.
                     messages.add(
                         nf.clause().reason() == null
                             ? "request filter clause uses ["
@@ -128,8 +127,7 @@ public final class RequestFilterRewriter {
         Set<String> gated = new LinkedHashSet<>();
         for (FilterRewriter.NodeFailure nf : failures) {
             String where = "[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]";
-            // A construct skipped because some node is too old is NOT an unsupported construct, and saying so sends
-            // the operator looking for a capability the cluster already has. It gets its own sentence, naming why.
+            // A clause skipped for a version reason is not an unsupported construct; it gets its own sentence.
             if (nf.clause().reason() != null) {
                 gated.add(where + " because " + nf.clause().reason());
             } else {

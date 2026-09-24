@@ -94,12 +94,10 @@ public final class ViewRequestFilterRewriter {
     private ViewRequestFilterRewriter() {}
 
     /**
-     * Whether the rewrite itself exists on every node the plan targets. It does NOT promise that every function a
-     * translated filter may contain is deserializable there — one constant cannot, because the set of functions
-     * {@link QueryDslTranslator} synthesizes grows as translations are added. Each such function is gated separately,
-     * against its own pin, inside the translator. {@link #rewrite} and
-     * {@code PlannerUtils.integrateEsFilterIntoFragment} both consult this so the logical filter and the Lucene
-     * fallback can never both apply, or both be absent.
+     * Whether the rewrite itself exists on every node the plan targets. It does not promise that every function a
+     * translated filter may contain is deserializable there — {@link QueryDslTranslator} gates those individually.
+     * {@link #rewrite} and {@code PlannerUtils.integrateEsFilterIntoFragment} both consult this so the logical filter
+     * and the Lucene fallback can never both apply, or both be absent.
      */
     public static boolean supportsRewrite(TransportVersion minimumVersion) {
         return minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET);
@@ -220,8 +218,7 @@ public final class ViewRequestFilterRewriter {
                 // The same construct can fail more than once on one view (two wildcard clauses, say); the set keeps the header short.
                 for (QueryDslTranslator.UnsupportedClause unsupported : result.unsupported()) {
                     String where = "[" + unsupported.construct() + "] on view [" + key + "]";
-                    // A clause dropped because a node is too old is not an unsupported construct; say which it was,
-                    // as RequestFilterRewriter does, or the operator hunts for a capability the cluster already has.
+                    // Name the version reason, as RequestFilterRewriter does; "not supported" would be wrong.
                     skipped.add(unsupported.reason() == null ? where : where + " because " + unsupported.reason());
                 }
                 Expression condition = result.applied();

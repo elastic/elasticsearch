@@ -71,8 +71,7 @@ public final class QueryDslFieldNameExtractor {
         },
             fieldList,
             configuration,
-            // The translated expression is discarded here — only the collected names are kept — so nothing built on
-            // this path is ever serialized to another node, and the version gate has no question to answer.
+            // The expression is discarded here — only the names are kept — so nothing built reaches another node.
             TransportVersion.current()
         );
 

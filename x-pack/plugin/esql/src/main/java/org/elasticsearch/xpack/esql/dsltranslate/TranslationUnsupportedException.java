@@ -23,10 +23,8 @@ public class TranslationUnsupportedException extends RuntimeException {
     }
 
     /**
-     * @param reason why this construct could not be translated HERE, when the answer is not "ES|QL cannot express it".
-     *               A version gate is the case that matters: the construct is perfectly supported, just not by every
-     *               node this query targets, and an operator told otherwise goes looking for a capability that is
-     *               already there. Null means the construct has no translation at all.
+     * @param reason why this construct failed HERE rather than being inexpressible — a version gate is the case that
+     *               matters. Null means it has no translation at all.
      */
     public TranslationUnsupportedException(String construct, String reason) {
         super("Query DSL construct [" + construct + "] has no ES|QL translation");

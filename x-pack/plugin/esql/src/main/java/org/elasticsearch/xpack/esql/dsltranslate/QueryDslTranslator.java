@@ -111,10 +111,8 @@ public final class QueryDslTranslator {
      * @param configuration the query configuration — the source of {@code now} for date math (so {@code "now-15m"}
      *                      resolves to the same instant the index path would use for this request) and of the locale
      *                      used to case-fold a {@code case_insensitive} term.
-     * @param minimumVersion the minimum transport version across the nodes this plan targets. The rewrite as a whole
-     *                      is gated well below this class, but that gate is one constant and this translator's output
-     *                      set grows, so each function it synthesizes that postdates the gate is checked against its
-     *                      own pin here before it is built — see {@link #gated}.
+     * @param minimumVersion the minimum transport version across the nodes this plan targets, consulted per emitted
+     *                      function — see {@link #gated}.
      */
     public QueryDslTranslator(
         Function<String, Expression> fieldBinder,
@@ -763,8 +761,7 @@ public final class QueryDslTranslator {
             return checkedLeaf(field, new MvInRange(Source.EMPTY, field, longLit(lo, type), longLit(hi, type)));
         }
         if (hasLower) {
-            // Resolve the bound BEFORE the gate. A bound that cannot be parsed is not a version failure, and
-            // reporting it as one sends the operator to upgrade a cluster where the clause drops just the same.
+            // Resolve the bound before the gate: an unparseable bound is not a version failure.
             long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
             return gated(
                 field,
@@ -851,28 +848,19 @@ public final class QueryDslTranslator {
         return new Literal(Source.EMPTY, value, type);
     }
 
-    /** Why a version-gated construct was skipped. Separate from the construct name so the name stays the name. */
+    /** Why a version-gated construct was skipped, kept out of the construct name. */
     static final String VERSION_REASON = "the cluster contains a node too old to evaluate it";
 
     /**
-     * Refuses to synthesize a function the targeted nodes cannot deserialize. The rewrite's own gate promises only
-     * that the REWRITE exists on every node; it names one constant, chosen once, while the set of functions this
-     * translator emits grows whenever a translation is added — so the two drift apart silently, and an older node
-     * answers {@code Unknown NamedWriteable} for a plan it was sent. Each emitted function that postdates the
-     * rewrite's gate is therefore checked against its own pin here, and a clause needing one the cluster lacks is
-     * untranslatable like any other unsupported construct: in production the clause is dropped with a warning and the
-     * rest of the filter still applies; the strict arm, which fails the query naming the construct, exists only to
-     * keep that policy under test.
-     * <p>
-     * {@code mv_in_range}, {@code mv_contains} and {@code mv_intersects} need no check: all three predate the
-     * rewrite's own gate, so any node that reaches this code at all already has them.
+     * Builds {@code leaf} only if every targeted node can deserialize the function it synthesizes. The rewrite's own
+     * gate is one constant while this translator's output set grows, so each function postdating that gate is checked
+     * against its own pin here; below it the clause is untranslatable and drops like any other. {@code mv_in_range},
+     * {@code mv_contains} and {@code mv_intersects} need no check — all three predate the rewrite's gate.
      */
     private Expression gated(Expression field, TransportVersion required, String construct, Supplier<Expression> leaf) {
         if (minimumVersion.supports(required) == false) {
-            // A MISSING field is null-bound and every leaf folds it to false, so the answer here needs no function at
-            // all. Give that answer rather than degrading: dropping the clause would loosen the filter on the most
-            // ordinary input there is — a filter naming a field this dataset does not have — and would tell the
-            // operator the construct is unsupported when nothing about it is.
+            // A missing field is null-bound and every leaf folds it to false, so no function is needed. Answer
+            // exactly rather than dropping, which would loosen the filter and blame a version for a missing column.
             if (isPresent(field) == false) {
                 return Literal.FALSE;
             }

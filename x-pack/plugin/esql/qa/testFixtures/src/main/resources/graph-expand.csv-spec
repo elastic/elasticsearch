@@ -264,3 +264,33 @@ ROW node_id = "b"
 node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | relation:keyword
 a                 | b               | a                    | 1           | manager
 ;
+
+
+UNTIL subquery WHERE filters the stop set
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+    UNTIL node_reached IN (FROM graph_expand_stops | WHERE active | KEEP id)
+    WITH { "max_hops": 5, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | c               | c                    | 2
+b                 | a               | null                 | 2
+;
+
+
+UNTIL subquery resolves inactive stop id
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+    UNTIL node_reached IN (FROM graph_expand_stops | WHERE id == "b" | KEEP id)
+    WITH { "max_hops": 5, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+;

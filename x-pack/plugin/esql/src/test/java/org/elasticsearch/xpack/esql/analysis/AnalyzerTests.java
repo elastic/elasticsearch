@@ -179,6 +179,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInfe
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
@@ -6792,5 +6793,45 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertTrue(
             graphExpand.aggregateFilter().anyMatch(e -> e instanceof Attribute attr && attr.name().equals("edges") && attr.resolved())
         );
+    }
+
+    public void testGraphExpandUntilInSubqueryAnalyzes() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> edges = Map.of(
+            "source",
+            new EsField("source", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "target",
+            new EsField("target", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Map<String, EsField> stops = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "active",
+            new EsField("active", BOOLEAN, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("edges", IndexResolution.valid(EsIndexGenerator.esIndex("edges", edges)))
+            .addIndex("stops", IndexResolution.valid(EsIndexGenerator.esIndex("stops", stops)));
+        var plan = a.query(
+            """
+                ROW node_id = "a"
+                | GRAPH EXPAND edges ON node_id == source TO target
+                    UNTIL node_reached IN (FROM stops | WHERE active | KEEP id)
+                    WITH { "max_hops": 5, "direction": "out" }
+                """
+        );
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertNotNull(graphExpand.until());
+        var holder = new org.elasticsearch.xpack.esql.core.util.Holder<
+            org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery>();
+        graphExpand.until().forEachDown(org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery.class, holder::set);
+        assertNotNull(holder.get());
+        assertTrue(holder.get().value().resolved());
+        assertThat(holder.get().value().toString(), containsString("node_reached"));
+        assertTrue(holder.get().subquery().resolved());
+        assertTrue(holder.get().subquery().anyMatch(p -> p instanceof EsRelation er && er.indexPattern().equals("stops")));
     }
 }

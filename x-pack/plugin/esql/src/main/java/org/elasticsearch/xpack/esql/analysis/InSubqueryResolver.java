@@ -770,23 +770,27 @@ public class InSubqueryResolver {
                     }
                 }
                 case GraphExpand ge -> {
+                    // UNTIL single-column InSubquery stays on the command — GraphExpandDriver
+                    // resolves it once before hop 1 (do not rewrite to SemiJoin). Multi-column
+                    // and any other GraphExpand InSubquery position stay rejected.
                     if (ge.until() != null) {
                         ge.until().forEachDown(e -> {
-                            if (e instanceof InSubquery || e instanceof MultiColumnInSubquery) {
+                            if (e instanceof MultiColumnInSubquery) {
                                 failures.add(fail(e, "GRAPH EXPAND UNTIL subquery form is not supported yet"));
                             }
                         });
                     }
-                    // Other GraphExpand expressions still get the generic rejection.
                     p.forEachExpression(InSubquery.class, inSub -> {
                         if (ge.until() == null || ge.until().anyMatch(x -> x == inSub) == false) {
                             failures.add(fail(inSub, "IN subquery is not supported in [{}]", p.sourceText()));
                         }
                     });
                     p.forEachExpression(MultiColumnInSubquery.class, mcs -> {
-                        if (ge.until() == null || ge.until().anyMatch(x -> x == mcs) == false) {
-                            failures.add(fail(mcs, "IN subquery is not supported in [{}]", p.sourceText()));
+                        if (ge.until() != null && ge.until().anyMatch(x -> x == mcs)) {
+                            // already reported above as UNTIL multi-column
+                            return;
                         }
+                        failures.add(fail(mcs, "IN subquery is not supported in [{}]", p.sourceText()));
                     });
                 }
                 default -> {

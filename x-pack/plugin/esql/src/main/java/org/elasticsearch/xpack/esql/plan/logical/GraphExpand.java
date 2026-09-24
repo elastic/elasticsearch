@@ -21,14 +21,17 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -256,6 +259,7 @@ public class GraphExpand extends UnaryPlan
     public boolean expressionsResolved() {
         // Edge index + ON/TO + result attrs + optional STATS + both WHERE slots.
         // Aggregate WHERE without STATS never resolves (see postAnalysisVerification).
+        // UNTIL InSubquery plans are analyzed inside the expression (not plan children).
         return edgeRelation.resolved()
             && seedColumn.resolved()
             && matchField.resolved()
@@ -266,7 +270,23 @@ public class GraphExpand extends UnaryPlan
             && (documentFilter == null || documentFilter.resolved())
             && (aggregateFilter == null || (aggregates != null && aggregateFilter.resolved()))
             && (sorts == null || Resolvables.resolved(sorts))
-            && (until == null || until.resolved());
+            && (until == null || (until.resolved() && untilSubqueryPlansResolved(until)));
+    }
+
+    /** {@link InSubquery#subquery()} is not an expression child — require it resolved too. */
+    private static boolean untilSubqueryPlansResolved(Expression until) {
+        Holder<Boolean> holder = new Holder<>(Boolean.TRUE);
+        until.forEachDown(InSubquery.class, inSub -> {
+            if (inSub.subquery().resolved() == false) {
+                holder.set(Boolean.FALSE);
+            }
+        });
+        until.forEachDown(MultiColumnInSubquery.class, mcs -> {
+            if (mcs.subquery().resolved() == false) {
+                holder.set(Boolean.FALSE);
+            }
+        });
+        return holder.get();
     }
 
     @Override
@@ -307,12 +327,38 @@ public class GraphExpand extends UnaryPlan
         }
         if (until != null) {
             until.forEachDown(e -> {
-                if (e instanceof InSubquery || e instanceof MultiColumnInSubquery) {
+                if (e instanceof MultiColumnInSubquery) {
+                    failures.add(fail(this, "GRAPH EXPAND UNTIL subquery form is not supported yet"));
+                } else if (e instanceof InSubquery inSub && untilSubqueryIsCorrelated(inSub)) {
                     failures.add(fail(this, "GRAPH EXPAND UNTIL subquery form is not supported yet"));
                 }
             });
         }
         postAnalysisOptionsVerification(failures);
+    }
+
+    /**
+     * True when the UNTIL subquery references a column from the expand output or seed
+     * input (correlated). The driver only supports an uncorrelated stop-set subquery.
+     */
+    private boolean untilSubqueryIsCorrelated(InSubquery inSub) {
+        Set<String> outerNames = new HashSet<>();
+        outerNames.add(seedColumn.name());
+        for (Attribute a : child().output()) {
+            outerNames.add(a.name());
+        }
+        if (resultAttributes != null) {
+            for (Attribute a : resultAttributes) {
+                outerNames.add(a.name());
+            }
+        }
+        Holder<Boolean> correlated = new Holder<>(Boolean.FALSE);
+        inSub.subquery().forEachExpressionDown(UnresolvedAttribute.class, ua -> {
+            if (outerNames.contains(ua.name())) {
+                correlated.set(Boolean.TRUE);
+            }
+        });
+        return correlated.get();
     }
 
     private void postAnalysisOptionsVerification(Failures failures) {

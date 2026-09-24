@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
@@ -107,6 +108,16 @@ public class PreAnalyzer {
         plan.forEachUp(GraphExpand.class, ge -> {
             if (ge.edgeRelation() instanceof UnresolvedRelation ur && ur.indexMode() != IndexMode.LOOKUP) {
                 indexes.putIfAbsent(ur.indexPattern(), ur.indexMode());
+            }
+            // UNTIL InSubquery plans nest UnresolvedRelation inside the expression — collect those too.
+            if (ge.until() != null) {
+                ge.until().forEachDown(InSubquery.class, inSub -> {
+                    inSub.subquery().forEachUp(UnresolvedRelation.class, sur -> {
+                        if (sur.indexMode() != IndexMode.LOOKUP) {
+                            indexes.putIfAbsent(sur.indexPattern(), sur.indexMode());
+                        }
+                    });
+                });
             }
         });
         List<LookupIndexPattern> lookupIndices = new ArrayList<>();

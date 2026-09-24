@@ -5558,6 +5558,43 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.targetFields(), equalToIgnoringIds(List.of(attribute("manager"), attribute("mentor"))));
     }
 
+    public void testGraphExpandUntilInSubqueryParses() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var plan = as(
+            TEST_PARSER.parseQuery(
+                """
+                    ROW node_id = "a"
+                    | GRAPH EXPAND edges ON node_id == source TO target
+                        UNTIL node_reached IN (FROM stops | WHERE active | KEEP id)
+                        WITH { "max_hops": 5, "direction": "out" }
+                    """
+            ),
+            GraphExpand.class
+        );
+        assertNotNull(plan.until());
+        assertTrue(
+            plan.until()
+                .anyMatch(e -> e instanceof org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery)
+        );
+        assertFalse(
+            plan.until()
+                .anyMatch(e -> e instanceof org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery)
+        );
+    }
+
+    public void testGraphExpandUntilMultiColumnInSubqueryRejected() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectError(
+            """
+                ROW node_id = "a"
+                | GRAPH EXPAND edges ON node_id == source TO target
+                    UNTIL (node_reached, hop) IN (FROM stops | KEEP id, active)
+                    WITH { "max_hops": 5, "direction": "out" }
+                """,
+            "GRAPH EXPAND UNTIL subquery form is not supported yet"
+        );
+    }
+
     public void testInvalidSample() {
         expectError(
             "row a = 1 | sample \"foo\"",

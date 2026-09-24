@@ -2228,7 +2228,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.graphExpandUntil() != null) {
             var untilCtx = ctx.graphExpandUntil();
             until = expression(untilCtx.booleanExpression());
-            if (until.anyMatch(e -> e instanceof InSubquery || e instanceof MultiColumnInSubquery)) {
+            // Single-column InSubquery is resolved once by GraphExpandDriver before hop 1.
+            // Multi-column form stays refused.
+            if (until.anyMatch(e -> e instanceof MultiColumnInSubquery)) {
                 throw new ParsingException(source(untilCtx), "GRAPH EXPAND UNTIL subquery form is not supported yet");
             }
         }

@@ -70,6 +70,9 @@ import java.util.Set;
  * refuse a frontier node (stub row, no budget spend) before the three caps
  * {@code max_edges_per_node}, {@code max_frontier}, {@code max_nodes} — a row
  * removed by a cap cannot satisfy {@code UNTIL} and is not admitted. When
+ * {@code UNTIL} holds an {@link InSubquery}, that subquery is executed once
+ * before hop 1 and rewritten to an ordinary {@link In} of literals; the hop
+ * walk then uses the same Filter-over-hop-rows path as a literal UNTIL. When
  * {@code UNTIL} is present, the remaining hop rows are filtered with that
  * boolean expression (ordinary {@link Filter} over the emit columns); the first
  * matching row and every row before it are admitted, later rows are dropped,
@@ -133,6 +136,17 @@ public final class GraphExpandDriver {
     /** True while {@link #firstSubPlan} should return the UNTIL Filter over {@link #pendingUntilRows}. */
     private boolean awaitingUntilFilter;
 
+    /**
+     * Mutable stop condition. Starts as {@link GraphExpand#until()}; when that holds an
+     * {@link InSubquery}, the driver resolves the subquery once before hop 1 and replaces
+     * this with an ordinary {@link In} of literals.
+     */
+    private Expression until;
+    /** True while {@link #firstSubPlan} should return the UNTIL subquery plan. */
+    private boolean awaitingUntilSubquery;
+    /** True after the UNTIL subquery (if any) has been resolved to literals. */
+    private boolean untilSubqueryDone;
+
     private GraphExpandDriver(
         GraphExpand graphExpand,
         BlockFactory blockFactory,
@@ -154,6 +168,8 @@ public final class GraphExpandDriver {
         this.nodeType = targetFields.get(0).dataType();
         this.nextLeg = initialLeg();
         this.nextFieldIndex = 0;
+        this.until = graphExpand.until();
+        this.untilSubqueryDone = until == null || untilContainsInSubquery(until) == false;
         for (Object seed : seeds) {
             visited.add(seed);
             frontier.add(seed);
@@ -217,7 +233,7 @@ public final class GraphExpandDriver {
 
     /**
      * Next hop (or hop-leg / field-leg) plan to execute, the in-flight {@code UNTIL}
-     * Filter, or {@code null} when the walk is done.
+     * Filter, the pre-walk UNTIL subquery, or {@code null} when the walk is done.
      */
     public LogicalPlan firstSubPlan() {
         if (finished) {
@@ -227,6 +243,13 @@ public final class GraphExpandDriver {
             LogicalPlan untilPlan = buildUntilFilterPlan(pendingUntilRows);
             untilPlan.setOptimized();
             return untilPlan;
+        }
+        // Resolve UNTIL InSubquery once, before hop 1 — not per hop / per row.
+        if (untilSubqueryDone == false) {
+            awaitingUntilSubquery = true;
+            LogicalPlan subqueryPlan = untilSubqueryPlan(until);
+            subqueryPlan.setOptimized();
+            return subqueryPlan;
         }
         if (frontier.isEmpty() || nextHop > maxHops) {
             finished = true;
@@ -238,12 +261,15 @@ public final class GraphExpandDriver {
     }
 
     /**
-     * Consumes a hop {@link Result} (or an {@code UNTIL} Filter result), updates
+     * Consumes a hop {@link Result} (or an {@code UNTIL} Filter / subquery result), updates
      * visited/frontier, and either keeps {@code mainPlan} for another hop (or
      * the inbound leg of {@code both}, or the next TO field, or the UNTIL Filter)
      * or replaces {@link GraphExpand} with the accumulated admission rows.
      */
     public LogicalPlan newMainPlan(LogicalPlan mainPlan, Result hopResult) {
+        if (awaitingUntilSubquery) {
+            return finishUntilSubquery(mainPlan, hopResult);
+        }
         if (awaitingUntilFilter) {
             return finishUntilFilter(mainPlan, hopResult);
         }
@@ -282,7 +308,7 @@ public final class GraphExpandDriver {
         sortHopRows(rows);
         applyHubDegree(rows);
         applyCaps(rows);
-        if (graphExpand.until() != null && rows.isEmpty() == false) {
+        if (until != null && rows.isEmpty() == false) {
             pendingUntilRows = rows;
             awaitingUntilFilter = true;
             return mainPlan;
@@ -298,7 +324,46 @@ public final class GraphExpandDriver {
     private LogicalPlan buildUntilFilterPlan(List<List<Object>> rows) {
         Source source = graphExpand.source();
         LocalRelation local = rowsAsRelation(source, rows);
-        return new Filter(source, local, graphExpand.until());
+        return new Filter(source, local, until);
+    }
+
+    /**
+     * Consumes the pre-walk UNTIL subquery {@link Result}: one column of stop-set
+     * values (nulls dropped). Rewrites {@link #until} to an ordinary {@link In} of
+     * literals on the same left-hand side, then the walk proceeds with hop 1.
+     */
+    private LogicalPlan finishUntilSubquery(LogicalPlan mainPlan, Result subqueryResult) {
+        awaitingUntilSubquery = false;
+        untilSubqueryDone = true;
+        InSubquery inSub = findUntilInSubquery(until);
+        if (inSub == null) {
+            throw new IllegalStateException("GRAPH EXPAND expected an UNTIL InSubquery to resolve");
+        }
+        List<Attribute> schema = subqueryResult.schema();
+        if (schema.size() != 1) {
+            throw new IllegalArgumentException(
+                "GRAPH EXPAND UNTIL subquery must return exactly one column, got [" + schema.size() + "]"
+            );
+        }
+        DataType valueType = schema.get(0).dataType();
+        List<Expression> literals = new ArrayList<>();
+        for (Page page : subqueryResult.pages()) {
+            Block block = page.getBlock(0);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                Object v = BlockUtils.toJavaObject(block, i);
+                if (v != null) {
+                    literals.add(new Literal(graphExpand.source(), v, valueType));
+                }
+            }
+        }
+        if (literals.isEmpty()) {
+            throw new IllegalArgumentException(
+                "GRAPH EXPAND UNTIL subquery returned no values, so the walk would stop at nothing"
+            );
+        }
+        // Preserve the user's LHS (usually node_reached); do not hard-code the name.
+        until = new In(graphExpand.source(), inSub.value(), literals);
+        return mainPlan;
     }
 
     private LogicalPlan finishUntilFilter(LogicalPlan mainPlan, Result filterResult) {
@@ -802,7 +867,9 @@ public final class GraphExpandDriver {
         if (ge.aggregateFilter() != null && ge.aggregates() == null) {
             throw new IllegalArgumentException("GRAPH EXPAND aggregate WHERE requires STATS");
         }
-        if (ge.until() != null && untilContainsSubquery(ge.until())) {
+        // Single-column uncorrelated InSubquery is resolved by the driver before hop 1.
+        // Multi-column form stays refused (analysis should already have caught it).
+        if (ge.until() != null && ge.until().anyMatch(e -> e instanceof MultiColumnInSubquery)) {
             throw new IllegalArgumentException("GRAPH EXPAND UNTIL subquery form is not supported yet");
         }
         MapExpression options = ge.options();
@@ -833,8 +900,26 @@ public final class GraphExpandDriver {
         });
     }
 
-    private static boolean untilContainsSubquery(Expression until) {
-        return until.anyMatch(e -> e instanceof InSubquery || e instanceof MultiColumnInSubquery);
+    private static boolean untilContainsInSubquery(Expression until) {
+        return until.anyMatch(e -> e instanceof InSubquery);
+    }
+
+    private static LogicalPlan untilSubqueryPlan(Expression until) {
+        InSubquery inSub = findUntilInSubquery(until);
+        if (inSub == null) {
+            throw new IllegalStateException("GRAPH EXPAND expected an UNTIL InSubquery plan");
+        }
+        return inSub.subquery();
+    }
+
+    private static InSubquery findUntilInSubquery(Expression until) {
+        var holder = new org.elasticsearch.xpack.esql.core.util.Holder<InSubquery>();
+        until.forEachDown(InSubquery.class, inSub -> {
+            if (holder.get() == null) {
+                holder.set(inSub);
+            }
+        });
+        return holder.get();
     }
 
     private static int maxHops(GraphExpand ge) {

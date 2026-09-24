@@ -140,6 +140,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
@@ -2898,6 +2899,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             // UNTIL resolves against the expand output (same columns SORT sees), not edge docs.
+            // Nested InSubquery plans are analyzed in isolation (uncorrelated stop set).
             Expression until = ge.until();
             boolean untilChanged = false;
             if (until != null && resultAttributes != null) {
@@ -2906,8 +2908,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     UnresolvedAttribute.class,
                     ua -> maybeResolveAttribute(ua, untilScope)
                 );
-                untilChanged = resolvedUntil != until;
-                until = resolvedUntil;
+                Expression withAnalyzedSubqueries = resolvedUntil.transformUp(InSubquery.class, inSub -> {
+                    LogicalPlan analyzedSub = analyzeUntilSubquery(inSub.subquery(), context);
+                    if (analyzedSub != inSub.subquery()) {
+                        return new InSubquery(inSub.source(), inSub.value(), analyzedSub);
+                    }
+                    return inSub;
+                });
+                untilChanged = withAnalyzedSubqueries != until;
+                until = withAnalyzedSubqueries;
             }
 
             if (edgeRelation != ge.edgeRelation()
@@ -2938,6 +2947,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             return ge;
+        }
+
+        /**
+         * Analyzes an UNTIL {@link InSubquery} plan in isolation: resolve the nested
+         * {@link UnresolvedRelation} to an {@link EsRelation}, then resolve expressions
+         * (Filter / Keep / …) against that relation's output. Outer expand columns are
+         * deliberately out of scope — a correlated reference stays unresolved and is
+         * refused in {@link GraphExpand#postAnalysisVerification}.
+         */
+        private LogicalPlan analyzeUntilSubquery(LogicalPlan subquery, AnalyzerContext context) {
+            return subquery.transformUp(p -> {
+                LogicalPlan current = p;
+                if (current instanceof UnresolvedRelation ur) {
+                    IndexResolution indexResolution = context.indexResolution().get(ur.indexPattern());
+                    current = resolveEdgeIndex(ur, indexResolution);
+                }
+                if (current.childrenResolved() == false) {
+                    return current;
+                }
+                List<Attribute> childrenOutput = new ArrayList<>();
+                for (LogicalPlan child : current.children()) {
+                    childrenOutput.addAll(child.output());
+                }
+                return switch (current) {
+                    case Keep k -> resolveKeep(k, context.unmappedResolution());
+                    case Drop d -> resolveDrop(d, context.unmappedResolution());
+                    case Rename r -> resolveRename(r, context.unmappedResolution());
+                    case Aggregate a -> resolveAggregate(a, childrenOutput);
+                    case Eval e -> resolveEval(e, childrenOutput);
+                    default -> resolveExpressions(current, childrenOutput);
+                };
+            });
         }
 
         /**

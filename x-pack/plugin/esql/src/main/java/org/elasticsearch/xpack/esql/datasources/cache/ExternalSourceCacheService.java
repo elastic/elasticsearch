@@ -79,12 +79,11 @@ public class ExternalSourceCacheService implements Closeable {
     /** Byte budget for {@link #schemaCache} (one fifth of {@link #maxTotalBytes}). */
     private final long schemaBudget;
     /**
-     * Per-entry admission ceiling for {@link #schemaCache}: a quarter of {@link #schemaBudget}. Entries
-     * heavier than this are returned to callers but not retained — same role as
-     * {@link FooterByteCache}'s per-entry ceiling, fraction-only (no absolute MiB cap).
+     * Per-entry admission ceiling for {@link #schemaCache}: {@link #perEntryCeiling(long)} of
+     * {@link #schemaBudget}. Entries heavier than this are returned to callers but not retained.
      */
     private final long schemaMaxEntryBytes;
-    /** Per-entry admission ceiling for {@link #datasetAggregateCache}: a quarter of that cache's slice. */
+    /** Per-entry admission ceiling for {@link #datasetAggregateCache}: {@link #perEntryCeiling(long)}. */
     private final long datasetAggregateMaxEntryBytes;
     private volatile boolean enabled;
 
@@ -163,6 +162,29 @@ public class ExternalSourceCacheService implements Closeable {
     private final LongAdder datasetAggregateMisses = new LongAdder();
     private final LongAdder statsAggregateIncomplete = new LongAdder();
 
+    /**
+     * Soft floor for {@link #perEntryCeiling(long)}: when a cache slice is deliberately tiny (warm-fold
+     * regression suites use {@code esql.external.cache.size: 48kb}), a raw quarter of that slice is smaller
+     * than an ordinary schema or dataset-aggregate entry once payloads are weighed, so refuse-before-put
+     * would reject every warm-path write and break {@code COUNT(*)} short-circuit. Cap the floor at the
+     * slice itself; production budgets keep the quarter unchanged.
+     */
+    static final long PER_ENTRY_CEILING_FLOOR_BYTES = 16L * 1024;
+
+    /**
+     * Per-entry admission ceiling for a weight-bounded identity cache: prefer a quarter of {@code sliceBudget}
+     * so several entries share the working set, but never refuse ordinary metadata rows under a tiny slice
+     * (see {@link #PER_ENTRY_CEILING_FLOOR_BYTES}). Never exceeds the slice.
+     */
+    static long perEntryCeiling(long sliceBudget) {
+        if (sliceBudget <= 0L) {
+            return 1L;
+        }
+        long quarter = Math.max(1L, sliceBudget / 4);
+        long floored = Math.max(quarter, Math.min(PER_ENTRY_CEILING_FLOOR_BYTES, sliceBudget));
+        return Math.min(sliceBudget, floored);
+    }
+
     public ExternalSourceCacheService(Settings settings) {
         ByteSizeValue totalBudget = ExternalSourceCacheSettings.CACHE_SIZE.get(settings);
         this.maxTotalBytes = totalBudget.getBytes();
@@ -176,10 +198,10 @@ public class ExternalSourceCacheService implements Closeable {
         this.schemaBudget = maxTotalBytes / 5;               // 20%
         long datasetAggregateBudget = maxTotalBytes / 50;    // 2%
         long listingBudget = maxTotalBytes - schemaBudget - datasetAggregateBudget; // ~78%
-        // Refuse a single entry heavier than a quarter of that cache's budget so one oversized harvest
-        // cannot admit-then-flush the working set (FooterByteCache fraction; no absolute MiB cap).
-        this.schemaMaxEntryBytes = Math.max(1L, schemaBudget / 4);
-        this.datasetAggregateMaxEntryBytes = Math.max(1L, datasetAggregateBudget / 4);
+        // Refuse a single entry heavier than the per-entry ceiling so one oversized harvest cannot
+        // admit-then-flush the working set (FooterByteCache fraction, floored for tiny budgets).
+        this.schemaMaxEntryBytes = perEntryCeiling(schemaBudget);
+        this.datasetAggregateMaxEntryBytes = perEntryCeiling(datasetAggregateBudget);
 
         // No setExpireAfterWrite on schemaCache or datasetAggregateCache: both are identity-keyed (per-file by
         // mtime, dataset by file-set fingerprint), so a changed input already misses. A timer would only

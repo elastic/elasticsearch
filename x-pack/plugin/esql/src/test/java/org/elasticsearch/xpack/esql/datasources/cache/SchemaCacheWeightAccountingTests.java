@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -233,6 +234,31 @@ public class SchemaCacheWeightAccountingTests extends ESTestCase {
                 cache.getSchemaIfPresent(key),
                 nullValue()
             );
+        }
+    }
+
+    /**
+     * The warm many-file fold IT uses a 48kb total budget so LRU pressure is deterministic. Under that
+     * budget a raw quarter-of-slice ceiling refuses ordinary dataset-aggregate and schema rows; the
+     * floor must keep them admissible while still refusing megabyte extrema against a production budget.
+     */
+    public void testTinyBudgetCeilingStillAdmitsOrdinaryDatasetAggregate() throws Exception {
+        Settings settings = Settings.builder().put("esql.external.cache.size", "48kb").build();
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
+            long daCeiling = (Long) cache.usageStats().get("dataset_aggregate_max_entry_bytes");
+            SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
+                "file:///tmp/warm-fold/*.ndjson",
+                new FileSetFingerprint(11, 22),
+                "ndjson",
+                Map.of("format", "ndjson")
+            );
+            cache.putDatasetAggregate(key, 828_090L, "ndjson", "file:///tmp/warm-fold/*.ndjson");
+            assertThat(
+                "48kb total budget must still retain the dataset-aggregate row-count entry (ceiling=" + daCeiling + ")",
+                cache.getDatasetAggregate(key),
+                notNullValue()
+            );
+            assertThat((Integer) cache.usageStats().get("dataset_aggregate_cache.count"), equalTo(1));
         }
     }
 

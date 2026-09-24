@@ -78,9 +78,10 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
             retained,
             lessThanOrEqualTo(schemaBudget)
         );
-        // Megabyte-wide extrema exceed schemaMaxEntryBytes (~1/4 of the schema slice under the current
-        // budget split), so refuse-before-put leaves no per-file schema entries. Retained-weight ≤ budget is
-        // the durable bound; count == 0 is the refuse-path signal for this fixture's ceiling coupling.
+        // Megabyte-wide extrema exceed the per-entry ceiling (quarter of the schema slice at a 2mb
+        // total budget — well above the tiny-budget floor), so refuse-before-put leaves no per-file
+        // schema entries. Retained-weight ≤ budget is the durable bound; count == 0 is the refuse-path
+        // signal for this fixture's ceiling coupling.
         assertThat(
             "oversized long-text extrema must not be retained in the schema cache",
             (Integer) stats.get("schema_cache.count"),

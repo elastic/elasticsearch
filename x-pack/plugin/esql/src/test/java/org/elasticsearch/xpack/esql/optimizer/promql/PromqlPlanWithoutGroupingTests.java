@@ -9,19 +9,26 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -30,8 +37,10 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -46,7 +55,10 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -93,9 +105,10 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     /**
-     * In PromQL {@code without ()} (empty parens) means "group by every label", i.e. the full runtime label set - not
-     * "no grouping". The innermost aggregate must therefore still own a {@code _timeseries} grouping key (with an empty
-     * exclusion set), otherwise the final PromQL projection references a {@code _timeseries} the plan never produced.
+     * In PromQL {@code without ()} (empty parens) means "group by every label but the metric name", i.e. the full runtime
+     * label set minus {@code __name__} - not "no grouping". The innermost aggregate must therefore still own a
+     * {@code _timeseries} grouping key (excluding only {@code __name__}), otherwise the final PromQL projection references
+     * a {@code _timeseries} the plan never produced.
      */
     public void testTopLevelWithoutEmptyProducesTimeSeriesOutput() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
@@ -112,7 +125,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .findFirst()
             .orElse(null);
         assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), empty());
+        assertThat(timeSeriesMetadata.excludedFields(), equalTo(Set.of(LabelMatcher.NAME)));
     }
 
     /**
@@ -271,13 +284,59 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
         var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
         assertThat(tsmaList, hasSize(1));
-        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod"));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod", LabelMatcher.NAME));
         TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(
             packedDims(innerAggregate.aggregates()).stream()
                 .filter(dim -> dim instanceof FieldAttribute field && field.name().equals("cluster"))
                 .toList(),
             hasSize(1)
+        );
+    }
+
+    /**
+     * {@code by (__name__, ...)} keeps the metric name, which every aggregation otherwise drops. The translator must
+     * ask the child for the {@code __name__} column like any other listed label - never remove it from the child
+     * requirement as the "dropped" metric name - or the aggregate would group the metric name under a null-fill.
+     * The k8s mapping has no {@code __name__} dimension, so this uses a remote-write shaped index that does.
+     */
+    public void testByOnMetricNameCarriesTheNameToTheAggregate() {
+        var index = new EsIndex(
+            "remote_write",
+            Map.of(
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                LabelMatcher.NAME,
+                new EsField(LabelMatcher.NAME, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+                "cluster",
+                new EsField("cluster", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+                "requests",
+                new EsField("requests", DataType.COUNTER_LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+            ),
+            Map.of("remote_write", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
+        LogicalPlan analyzed = analyzerWithEnrichPolicies().addIndex(index)
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .query("PROMQL index=remote_write step=1h result=(sum by (__name__, cluster) (requests))");
+
+        // The collapse carries the relation's own __name__ column as a dimension, next to cluster. How the dimension is
+        // carried depends on the transport version (a grouping key, a per-dimension aggregate or a packed one), so
+        // look at which relation fields the collapse reads rather than at its shape.
+        TimeSeriesAggregate collapse = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        Set<String> fields = new TreeSet<>();
+        Stream.concat(collapse.groupings().stream(), collapse.aggregates().stream())
+            .forEach(e -> e.forEachDown(FieldAttribute.class, field -> fields.add(field.name())));
+        assertThat(fields, hasItems(LabelMatcher.NAME, "cluster"));
+        // no Eval defines __name__ as a null: the relation's own column is grouped
+        assertThat(
+            analyzed.collect(Eval.class).stream().flatMap(eval -> eval.fields().stream()).map(Alias::name).toList(),
+            not(hasItem(LabelMatcher.NAME))
+        );
+        assertThat(
+            analyzed.output().stream().map(Attribute::name).toList(),
+            equalTo(List.of("result", "step", LabelMatcher.NAME, "cluster"))
         );
     }
 
@@ -412,10 +471,11 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
                 .toList(),
             hasSize(1)
         );
-        // TimeSeriesMetadataAttribute shouldn't be getting created if without has no label
+        // without () drops nothing but the metric name, so the packing excludes exactly __name__
         EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
         var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
-        assertThat(tsmaList, hasSize(0));
+        assertThat(tsmaList, hasSize(1));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of(LabelMatcher.NAME));
     }
 
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {

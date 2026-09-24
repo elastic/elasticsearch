@@ -65,7 +65,9 @@ public final class VectorBinaryComparison extends VectorBinaryOperator {
         boolean boolMode,
         ComparisonOp op
     ) {
-        super(source, left, right, match, boolMode == false, op);
+        // A filter comparison returns the left side's samples unchanged, metric name included; `bool` returns 0/1 values
+        // and, like arithmetic, drops the metric name.
+        super(source, left, right, match, boolMode, op);
         this.op = op;
         this.boolMode = boolMode;
     }

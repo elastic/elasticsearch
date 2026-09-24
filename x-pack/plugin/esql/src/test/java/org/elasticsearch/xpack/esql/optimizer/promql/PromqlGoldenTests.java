@@ -96,7 +96,9 @@ public class PromqlGoldenTests extends GoldenTestCase {
     public void testBinaryWithDifferentSelectors() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         builder("PROMQL index=k8s step=1m result=(sum(avg_over_time(network.cost[1m]) + avg_over_time(network.cost[10m])))")
+            .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
+            .expectationChangesAt(PACK_DIMS_AGG)
             .run();
     }
 

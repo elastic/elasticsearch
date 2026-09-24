@@ -24,12 +24,16 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.of;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.sub;
 
 /**
  * Represents a PromQL function call in the logical plan.
@@ -109,6 +113,15 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     }
 
     /**
+     * Whether the result drops {@code __name__} from the series identity. Prometheus drops the metric name from the result
+     * of every function, except the label functions (they return the input series relabeled), {@code topk}/{@code bottomk}/
+     * {@code limitk} (they return input series unchanged) and {@code last_over_time}, which acts like an offset.
+     */
+    public boolean dropsMetricName() {
+        return true;
+    }
+
+    /**
      * Builds the ES|QL expression that implements this PromQL function call.
      *
      * @param target the primary input expression (child vector or scalar), or {@code null} for zero-argument functions
@@ -135,18 +148,23 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
 
     /**
      * A function over its argument's value ({@code rate}, {@code abs}, ...): the child translates under the same
-     * requirement and the function is an expression over its value; the labels pass through unchanged.
+     * requirement and the function is an expression over its value; the labels pass through unchanged. A function that
+     * {@link #dropsMetricName() drops the metric name} requires nothing of {@code __name__} below itself, so the child's
+     * packings already exclude it, and discards the column above.
      */
     @Override
     public TranslationResult translate(TranslationContext translation) {
-        // IN: required, unchanged
-        TranslationResult child = translation.translate(child(), translation.required());
+        List<String> name = List.of(LabelMatcher.NAME);
+        TranslationConstraint required = translation.required();
+        // IN: required - `__name__` when the function drops the metric name
+        TranslationResult child = translation.translate(child(), dropsMetricName() ? sub(required, of(name)) : required);
         if (child.kind().constant) {
             return child;
         }
         Expression function = buildEsqlFunction(child.value(), translation.promqlContext(child, window(translation.cmd())));
-        // OUT: child's labels, the function as the value
-        return translation.eval(child, function);
+        // OUT: child's labels - `__name__` when dropped, the function as the value
+        TranslationResult result = translation.eval(child, function);
+        return dropsMetricName() ? result.drop(name) : result;
     }
 
     /** The lookback window of a range-vector argument; none for an instant vector. */

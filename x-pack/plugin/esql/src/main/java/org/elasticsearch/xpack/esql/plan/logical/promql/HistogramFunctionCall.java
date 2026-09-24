@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.List;
 
@@ -60,15 +61,17 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
     }
 
     /**
-     * Classic histogram functions collapse the {@code le} bucket dimension like a {@code without (le)} would, and read the
-     * bucket bound off the {@code le} column itself, so the child must also expose it by name.
+     * Classic histogram functions collapse the {@code le} bucket dimension like a {@code without (le)} would, dropping the
+     * metric name with it, and read the bucket bound off the {@code le} column itself, so the child must also expose it by
+     * name.
      */
     @Override
     public TranslationResult translate(TranslationContext translation) {
         TranslationConstraint required = translation.required();
         List<String> le = List.of(LE_LABEL);
-        // IN: any + required - le, plus le itself as a column to read the bound from
-        TranslationConstraint below = union(sub(union(any(), required), of(le)), of(le));
+        List<String> dropped = List.of(LE_LABEL, LabelMatcher.NAME);
+        // IN: any + required - le - `__name__`, plus le itself as a column to read the bound from
+        TranslationConstraint below = union(sub(union(any(), required), of(dropped)), of(le));
         TranslationResult result = translation.translate(child(), below);
         if (result.kind().constant) {
             return result;
@@ -94,8 +97,8 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
             assert upperBound != null : "[INVARIANT]: [" + LE_LABEL + "] must be delivered by the child";
         }
 
-        // OUT: child's labels - le; bucket counts read as doubles
-        TranslationConstraint keys = sub(result.shape(), of(le));
+        // OUT: child's labels - le - `__name__`; bucket counts read as doubles
+        TranslationConstraint keys = sub(result.shape(), of(dropped));
         Expression count = new ToDouble(source(), result.value());
         return translation.aggregate(result, keys, buildAggregateFunction(count, upperBound), true);
     }
@@ -103,6 +106,12 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
     @Override
     public final FunctionType functionType() {
         return FunctionType.HISTOGRAM;
+    }
+
+    @Override
+    public boolean dropsMetricName() {
+        // Classic histograms collapse buckets like `without (le)`: the metric name goes with `le`.
+        return true;
     }
 
     @Override

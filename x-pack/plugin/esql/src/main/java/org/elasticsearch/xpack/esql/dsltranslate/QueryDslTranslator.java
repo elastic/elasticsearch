@@ -851,24 +851,28 @@ public final class QueryDslTranslator {
 
     /**
      * Asserts that nothing in {@code applied} carries a pin the cluster does not clear. {@link #gated} already refuses
-     * to build such a function, so this fires only when a new emit site skipped the gate — and it fires here, on the
-     * coordinator, naming the function and both versions, instead of surfacing as {@code Unknown NamedWriteable} on
-     * whichever data node happened to receive the plan. Assertion-only: production pays nothing, and any test that
-     * assembles a cluster spanning the window fails at the cause.
+     * to build such a function, so this fires only when an emit site skipped the gate — and it fires here, on the
+     * coordinator, naming the function, instead of surfacing as {@code Unknown NamedWriteable} on whichever data node
+     * received the plan. Assertion-only: production pays nothing.
+     * <p>
+     * The gated families are listed explicitly rather than discovered by reflection. A {@code TransportVersion} on an
+     * expression class usually pins an OPTION rather than the function's existence — {@code Bucket} declares three,
+     * {@code AggregateFunction} one that every aggregate inherits — so treating any such constant as an availability
+     * pin would refuse plans for reasons that have nothing to do with deserialization. Add a family here when it is
+     * gated; the census is what makes sure that happens.
      */
     private boolean everyPinnedFunctionIsSupported(Expression applied) {
         if (applied == null) {
             // A wholly unsupported filter translates to nothing; there is no expression to check.
             return true;
         }
-        applied.forEachDown(Expression.class, e -> {
-            TransportVersion pin = declaredPin(e.getClass());
-            if (pin != null && minimumVersion.supports(pin) == false) {
+        applied.forEachDown(MvCompare.class, e -> {
+            if (minimumVersion.supports(MvGreater.MV_COMPARE_TRANSPORT_VERSION) == false) {
                 throw new AssertionError(
                     "translated filter carries ["
                         + e.getClass().getSimpleName()
                         + "], pinned at ["
-                        + pin
+                        + MvGreater.MV_COMPARE_TRANSPORT_VERSION
                         + "], on a cluster whose minimum is ["
                         + minimumVersion
                         + "] — it was built without consulting its pin"
@@ -876,20 +880,6 @@ public final class QueryDslTranslator {
             }
         });
         return true;
-    }
-
-    /** The {@code TransportVersion} constant a function declares for itself, or null when it declares none. */
-    private static TransportVersion declaredPin(Class<?> type) {
-        for (java.lang.reflect.Field f : type.getFields()) {
-            if (f.getType() == TransportVersion.class && java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
-                try {
-                    return (TransportVersion) f.get(null);
-                } catch (IllegalAccessException e) {
-                    return null;
-                }
-            }
-        }
-        return null;
     }
 
     /** Why a version-gated construct was skipped, kept out of the construct name. */

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -47,6 +48,8 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     );
 
     private static final String MISSING_INFERENCE_ID_ERROR = "[inference_id] must be specified";
+
+    private static final String MISSING_INDEX_NAME = "missing-index";
 
     private final String semanticFieldType;
 
@@ -138,6 +141,28 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             IllegalArgumentException.class,
             MISSING_INFERENCE_ID_ERROR,
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+    }
+
+    public void testMissingRemoteIndexWithCcsMinimizeRoundTripsFalse() throws Exception {
+        // Leaving the inference ID null keeps the remote inference lookup in play; setting one makes the interceptor skip remotes and the
+        // lookup never runs.
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                COMMON_INFERENCE_ID_FIELD,
+                new EmbeddingQueryVectorBuilder(null, randomInferenceStringGroup(), null),
+                10,
+                100,
+                10f,
+                null
+            ),
+            List.of(LOCAL_INDEX_NAME, fullyQualifiedIndexName(REMOTE_CLUSTER, MISSING_INDEX_NAME)),
+            List.of(new SearchResult(null, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
+            new ClusterFailure(
+                SearchResponse.Cluster.Status.SKIPPED,
+                Set.of(new FailureCause(IndexNotFoundException.class, "no such index [" + MISSING_INDEX_NAME + "]"))
+            ),
             s -> s.setCcsMinimizeRoundtrips(false)
         );
     }

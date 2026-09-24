@@ -1100,7 +1100,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
-        final ReaderContext readerContext = findReaderContext(request.contextId(), request, null);
+        final ShardSearchRequest suppliedShardSearchRequest = request.getShardSearchRequest();
+        final ReaderContext readerContext = findReaderContext(
+            request.contextId(),
+            request,
+            suppliedShardSearchRequest == null ? null : suppliedShardSearchRequest.shardId()
+        );
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         listener = wrapListenerForErrorHandling(
             listener,
@@ -1179,7 +1184,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener
     ) {
         final ActionListener<FetchSearchResult> releaseListener = releaseCircuitBreakerOnResponse(listener, result -> result);
-        final ReaderContext readerContext = findReaderContext(request.contextId(), request, null);
+        final ShardSearchRequest suppliedShardSearchRequest = request.getShardSearchRequest();
+        final ReaderContext readerContext = findReaderContext(
+            request.contextId(),
+            request,
+            suppliedShardSearchRequest == null ? null : suppliedShardSearchRequest.shardId()
+        );
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
 

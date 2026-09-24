@@ -130,7 +130,7 @@ public class PointInTimeIT extends ESIntegTestCase {
 
             SearchPhaseExecutionException failure = expectThrows(
                 SearchPhaseExecutionException.class,
-                prepareSearch().setPointInTime(new PointInTimeBuilder(forged))
+                prepareSearch().setAllowPartialSearchResults(randomBoolean()).setPointInTime(new PointInTimeBuilder(forged))
             );
             assertThat(failure.shardFailures().length, equalTo(1));
             Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures()[0].getCause());

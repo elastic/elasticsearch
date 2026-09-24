@@ -190,6 +190,7 @@ public class SecurityPointInTimeTests extends SecurityIntegTestCase {
                 SearchPhaseExecutionException.class,
                 client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("pit_public_user", password)))
                     .prepareSearch()
+                    .setAllowPartialSearchResults(randomBoolean())
                     .setPointInTime(new PointInTimeBuilder(forged))
             );
             assertThat(failure, not(instanceOf(ElasticsearchSecurityException.class)));

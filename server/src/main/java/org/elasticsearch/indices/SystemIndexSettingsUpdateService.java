@@ -160,9 +160,13 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
                     continue;
                 }
                 Settings dsSettings = Settings.EMPTY;
-                Template template = dsDescriptor.getComposableIndexTemplate().template();
-                if (template != null && template.settings() != null) {
-                    dsSettings = template.settings();
+                // Descriptors registered without an owned template (ownsTemplate() == false) have no embedded settings to check.
+                ComposableIndexTemplate composableTemplate = dsDescriptor.getComposableIndexTemplate();
+                if (composableTemplate != null) {
+                    Template template = composableTemplate.template();
+                    if (template != null && template.settings() != null) {
+                        dsSettings = template.settings();
+                    }
                 }
                 for (Index idx : ds.getIndices()) {
                     backingIndexToDescriptorSettings.put(idx.getName(), dsSettings);

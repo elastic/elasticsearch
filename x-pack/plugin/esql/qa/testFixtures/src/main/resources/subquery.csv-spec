@@ -1901,3 +1901,47 @@ FROM sample_data, (FROM sample_data_ts_long)
 y:long
 1698063303360
 ;
+
+// Regression tests: converting a grouping key after STATS above a multi-subquery FROM must succeed.
+
+subqueryInFromConvertGroupKeyAfterStatsEval
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| EVAL g = TO_STRING(gender)
+| SORT gender
+;
+
+max_salary:integer | gender:keyword | g:keyword
+74572              | F              | F
+74999              | M              | M
+73717              | null           | null
+;
+
+subqueryInFromConvertGroupKeyAfterStatsWhere
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| WHERE TO_STRING(gender) == "M"
+;
+
+max_salary:integer | gender:keyword
+74999              | M
+;
+
+subqueryInFromConvertGroupKeyAfterStatsSecondStats
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| STATS c = COUNT(TO_STRING(gender))
+;
+
+c:long
+2
+;

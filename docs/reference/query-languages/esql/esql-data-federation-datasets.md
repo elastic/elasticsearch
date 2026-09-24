@@ -2,7 +2,7 @@
 navigation_title: "Add datasets"
 description: "Create ES|QL Data Federation datasets to query files in external storage. Choose file formats, adjust Parquet and CSV parsing, and control schema inference."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -105,6 +105,19 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 A dataset cannot have the same name as an existing index, data stream, alias, or view, because dataset names share the same namespace. Dataset names must be lowercase and cannot begin with `-`, `_`, or `+`.
 :::
 
+$$$s3-resource-requirements$$$
+:::{dropdown} S3 bucket names an `s3` dataset cannot use
+:applies_to: stack: experimental 9.6+
+A bucket name can send the request somewhere other than the regional object endpoint on its own. For an S3 on Outposts alias, setting `endpoint` on the data source does not prevent this. These `resource` values are rejected:
+
+- An S3 Express directory bucket, whose name ends `--x-s3` or `--xa-s3`.
+- A bucket name the AWS SDK routes off the regional object endpoint. The practical case is a name ending `--op-s3` that is long enough for the SDK to read an S3 on Outposts access point alias out of it; shorter names ending `--op-s3` are ordinary bucket names and are accepted.
+- A multi-region access point, given either as an alias ending `.mrap` or as its full hostname.
+- An ARN. Use the bucket name, or an access point alias if the bucket is behind an access point.
+
+There is no node setting that permits these; `esql.external.allowed_endpoint_hosts` governs the data source endpoint, not the bucket. Use a bucket reachable through the regional endpoint instead.
+:::
+
 ::::{tab-set}
 :group: api-ref
 
@@ -160,7 +173,7 @@ After creating a dataset, you can check the field mappings that {{es}} inferred 
 
 By default, {{es}} infers a dataset's schema from its files. You can instead add an optional `mappings` block to the create or update request to control column names and types. Dataset mappings are currently available only through the API. The {{kib}} **Add dataset** flyout does not expose them.
 
-The following example declares the complete schema, renames the physical `event_time` column to `@timestamp`, supplies its date format, and uses `request_id` as the row's `_id`:
+The following example declares the complete schema, renames the physical `event_time` column to `@timestamp`, and supplies its date format:
 
 ```console
 PUT /_query/dataset/access_logs
@@ -178,9 +191,6 @@ PUT /_query/dataset/access_logs
       "request_id": { "type": "keyword" },
       "service": { "type": "keyword" },
       "status_code": { "type": "integer" }
-    },
-    "_id": {
-      "path": "request_id"
     }
   }
 }
@@ -190,8 +200,9 @@ The `mappings` block supports the following properties:
 
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
   - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`.
+    - {applies_to}`stack: experimental 9.6` To keep a file column whose name matches a metadata name, rename it here before requesting that name via `METADATA`.
   - `format`: Optional date parsing pattern for a column with type `date`.
-- `_id.path`: Optional source column whose value becomes the row's `_id`.
+- `_id.path` {applies_to}`stack: experimental =9.5`: Optional source column whose value becomes the row's `_id`. Later versions reject an `_id` block in `mappings`.
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference for text formats, and leave undeclared columns unavailable to queries.
 
 :::{note}
@@ -286,6 +297,7 @@ The following settings apply to all file-based data sources:
 | `region` (S3 only) | Auto-detected | The AWS region of the bucket, for example `eu-central-1`. Omit it for standard AWS S3 — the SDK redirects automatically. Set it explicitly when using a custom `endpoint` override (such as MinIO or Scaleway) to skip the `HeadBucket` probe that discovers the region on the first request; once discovered the region is cached for the lifetime of the data source, so setting it is an optimization, not a requirement. |
 | `partition_detection` | `auto` | Partition detection mode. Valid values: `"auto"`, `"hive"`, `"template"`, `"none"`. `auto` (default) tries Hive `key=value` directory names first; if a `partition_path` is also set, falls back to the template for paths that do not use `key=value`. `hive` reads `key=value` directory names only and rejects `partition_path`. `template` uses `partition_path` to name partition columns and is rejected without it. `none` disables partition detection entirely. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
 | `partition_path` | (none) | Template naming partition columns for paths that do not use `key=value` directories. Use `{column}` placeholders to label each partition path segment: for example, `{year}/{month}` extracts `year` and `month` columns from a two-level path. Setting `partition_path` without an explicit `partition_detection` leaves detection on `auto`, which tries Hive first and falls back to the template — a valid and common configuration. `partition_path` is rejected with `partition_detection: hive` or `none`. Refer to [brace groups and partition placeholders](esql-data-federation-patterns.md#brace-groups-and-partition-placeholders). |
+| `partition_sample_size` {applies_to}`stack: experimental 9.6+` | `1000` | File paths sampled to infer partition columns and their types. Determines whether late-appearing partition values get a column. `union_by_name` and `strict` list every file regardless. |
 | `schema_resolution` | `first_file_wins` | How schemas are reconciled across multiple files. Valid values: `"first_file_wins"`, `"strict"`, `"union_by_name"`. New datasets that omit this setting store `"first_file_wins"`. Existing datasets created before `"first_file_wins"` became the default continue to use `"union_by_name"` when the setting is absent. Refer to [schema merge strategies](#schema-merge-strategies). |
 | `error_mode` | `fail_fast` | How malformed rows are handled. Valid values: `"fail_fast"`, `"skip_row"`, `"null_field"`. Under `skip_row` the entire row is dropped. Under `null_field` the failing value is replaced with null and the row is kept. For CSV, TSV, and NDJSON, `null_field` fills only individual value failures with null. Rows whose structure cannot be parsed (for example, an unparsable JSON line or a malformed CSV row) are still dropped. |
 | `max_errors` | unbounded | Maximum malformed rows allowed before the query fails. {applies_to}`stack: experimental 9.6+` Requires an explicit `error_mode` of `skip_row` or `null_field`; cannot be combined with `fail_fast`. A dataset registered before this requirement took effect and stored with a bare `max_errors` continues to read as `skip_row` and emits a `Warning` header identifying the inferred mode. |
@@ -301,6 +313,13 @@ The following settings apply to all file-based data sources:
 
 :::{note}
 `max_split_probes` and `split_probe_window` are independent. The first defines how many record-boundary searches a query runs. The second defines how many bytes each one reads. Their product is the bytes a query can read while searching, which cannot exceed 4 GB. With the default values, it is 1000 searches of `256kb`, or around 250 MB. Size the window from the dataset's longest record and the count from the number of splits the scan needs. Lower one of them if the pair is rejected. The budget covers searches at fixed offsets: a sequentially scanned file (quoted or escaped CSV and TSV) is bounded by `external_max_record_size` rather than by either key.
+:::
+
+:::{note}
+`partition_sample_size` applies only to a query that reads no rows, and only when the listing is the whole
+dataset in the store's own order. A query that reads rows lists every file. So does one that filters on a
+partition column or on `_file.*`, and so does a dataset that sets `file_sort_by` or `file_order` away from its
+default. In each of those cases raising the sample size has no effect.
 :::
 
 ### Excluding non-data objects

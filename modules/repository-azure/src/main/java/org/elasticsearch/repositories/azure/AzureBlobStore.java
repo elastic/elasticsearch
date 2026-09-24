@@ -113,6 +113,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -120,7 +121,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -896,19 +896,27 @@ public class AzureBlobStore implements BlobStore {
             // length is at most 100MB so it's safe to cast back to an integer in this case
             final int parts = (int) length / chunkSize;
             final long remaining = length % chunkSize;
-            return Flux.range(0, remaining == 0 ? parts : parts + 1).map(i -> i * chunkSize).concatMap(pos -> Mono.fromCallable(() -> {
+            // The buffers are produced with a synchronous map rather than concatMap(Mono.fromCallable(...)): the downstream MonoSendMany
+            // issues its refill requests from the Netty event loop, which the subscribeOn below hands to another repository_azure thread,
+            // and concatMap's inner scalar subscription is not safe against such concurrent demand (it can emit a buffer twice and drop
+            // the next one, keeping the body length intact but corrupting the blob).
+            return Flux.range(0, remaining == 0 ? parts : parts + 1).map(i -> i * chunkSize).map(pos -> {
                 long count = pos + chunkSize > length ? length - pos : chunkSize;
                 int numOfBytesRead = 0;
                 int offset = 0;
                 int len = (int) count;
                 final byte[] buffer = new byte[len];
-                while (numOfBytesRead != -1 && offset < count) {
-                    numOfBytesRead = inputStream.read(buffer, offset, len);
-                    offset += numOfBytesRead;
-                    len -= numOfBytesRead;
-                    if (numOfBytesRead != -1) {
-                        currentTotalLength.addAndGet(numOfBytesRead);
+                try {
+                    while (numOfBytesRead != -1 && offset < count) {
+                        numOfBytesRead = inputStream.read(buffer, offset, len);
+                        offset += numOfBytesRead;
+                        len -= numOfBytesRead;
+                        if (numOfBytesRead != -1) {
+                            currentTotalLength.addAndGet(numOfBytesRead);
+                        }
                     }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
                 }
                 if (numOfBytesRead == -1 && currentTotalLength.get() < length) {
                     throw new IllegalStateException(
@@ -916,7 +924,7 @@ public class AzureBlobStore implements BlobStore {
                     );
                 }
                 return ByteBuffer.wrap(buffer);
-            })).doOnComplete(() -> {
+            }).doOnComplete(() -> {
                 if (currentTotalLength.get() > length) {
                     throw new IllegalStateException(
                         "Read more data than was requested. Size of data read: "
@@ -943,13 +951,7 @@ public class AzureBlobStore implements BlobStore {
         int byteBufferSize,
         int part
     ) {
-        return toFlux(() -> {
-            try {
-                return wrapInputStream(blobName, provider.apply(offset, length), part);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }, length, byteBufferSize);
+        return toFlux(() -> wrapInputStream(blobName, provider.apply(offset, length), part), length, byteBufferSize);
     }
 
     /**
@@ -1014,14 +1016,15 @@ public class AzureBlobStore implements BlobStore {
      * fresh stream on each subscribe (including Azure SDK retries) and closes it on terminate.
      * Does not mark or reset the stream. Also checks that the stream provided the expected number of bytes.
      *
-     * @param openStream        supplies an independent {@link InputStream} for this subscription
+     * @param openStream        opens an independent {@link InputStream} for this subscription
      * @param length            the expected length in bytes of the input stream
      * @param byteBufferSize    the size of the ByteBuffers to be created
      */
-    private static Flux<ByteBuffer> toFlux(Supplier<InputStream> openStream, long length, final int byteBufferSize) {
+    // package-private for testing
+    static Flux<ByteBuffer> toFlux(Callable<InputStream> openStream, long length, final int byteBufferSize) {
         // Flux.using creates the stream per subscriber so retries resubscribe with a new InputStream.
         // subscribeOn a different scheduler to avoid blocking the network io threads when reading bytes from disk
-        return Flux.using(openStream::get, stream -> {
+        return Flux.using(openStream, stream -> {
             // the number of bytes read is updated in a thread pool (repository_azure) and later compared to the expected length in another
             // thread pool (azure_event_loop), so we need this to be atomic.
             final var bytesRead = new AtomicLong(0L);
@@ -1044,19 +1047,28 @@ public class AzureBlobStore implements BlobStore {
             // forked to the repository_azure thread pool, which has a maximum of 15 threads (most of the time, can be less than that for
             // nodes with less than 750mb heap). It means that max. 15 * 8 = 120mb bytes are allocated on heap at a time here (omitting the
             // ones already created and pending garbage collection).
-            return Flux.range(0, remaining == 0 ? parts : parts + 1).map(i -> i * byteBufferSize).concatMap(pos -> Mono.fromCallable(() -> {
+            //
+            // The buffers are produced with a synchronous map rather than concatMap(Mono.fromCallable(...)): MonoSendMany issues its refill
+            // requests from the Netty event loop, which the subscribeOn below hands to another repository_azure thread, and concatMap's
+            // inner scalar subscription is not safe against such concurrent demand (it can emit a buffer twice and drop the next one,
+            // keeping the body length intact but corrupting the blob). See AzureBlobStoreToFluxTests.
+            return Flux.range(0, remaining == 0 ? parts : parts + 1).map(i -> i * byteBufferSize).map(pos -> {
                 long count = pos + byteBufferSize > length ? length - pos : byteBufferSize;
                 int numOfBytesRead = 0;
                 int offset = 0;
                 int len = (int) count;
                 final byte[] buffer = new byte[len];
-                while (numOfBytesRead != -1 && offset < count) {
-                    numOfBytesRead = stream.read(buffer, offset, len);
-                    offset += numOfBytesRead;
-                    len -= numOfBytesRead;
-                    if (numOfBytesRead != -1) {
-                        bytesRead.addAndGet(numOfBytesRead);
+                try {
+                    while (numOfBytesRead != -1 && offset < count) {
+                        numOfBytesRead = stream.read(buffer, offset, len);
+                        offset += numOfBytesRead;
+                        len -= numOfBytesRead;
+                        if (numOfBytesRead != -1) {
+                            bytesRead.addAndGet(numOfBytesRead);
+                        }
                     }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
                 }
                 if (numOfBytesRead == -1 && bytesRead.get() < length) {
                     throw new IllegalStateException(
@@ -1064,7 +1076,7 @@ public class AzureBlobStore implements BlobStore {
                     );
                 }
                 return ByteBuffer.wrap(buffer);
-            })).doOnComplete(() -> {
+            }).doOnComplete(() -> {
                 if (bytesRead.get() > length) {
                     throw new IllegalStateException(
                         format("Input stream [%s] emitted %d bytes, more than the expected %d bytes.", stream, bytesRead.get(), length)

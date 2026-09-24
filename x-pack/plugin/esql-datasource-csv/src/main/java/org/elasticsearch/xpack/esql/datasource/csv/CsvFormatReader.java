@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -86,6 +87,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PushbackInputStream;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -293,24 +295,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Whether this read carries the user's word that its string columns are strings, which is what earns a blank
-     * cell the empty string rather than {@code null} (see {@link CsvBatchIterator#emptyCellIsEmptyString}).
-     * All three inputs are known before the first row: the binding and the options are the reader's, and the
-     * schema is the one the split pinned.
-     *
-     * @param declaredProvenanceBinding the read is bound to a strictly declared schema ({@code dynamic: false})
-     * @param preResolvedSchema         that schema, pinned on the read context; a declaration always arrives with one
-     * @param options                   consulted for {@code null_value}, which when set to the blank overrides the above
-     */
-    private static boolean declaredStringSemantics(
-        boolean declaredProvenanceBinding,
-        @Nullable List<Attribute> preResolvedSchema,
-        CsvFormatOptions options
-    ) {
-        return declaredProvenanceBinding && preResolvedSchema != null && "".equals(options.nullValue()) == false;
-    }
-
-    /**
      * Reused {@link DateFormatter} that delegates to ES's hand-rolled
      * {@code Iso8601DateTimeParser}: covers the {@code YYYY-MM-DDTHH:MM:SS[.fff][Z|+HH:MM]} family
      * (plus date-only inputs like {@code YYYY-MM-DD}) without the {@link DateTimeFormatter}
@@ -462,9 +446,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
-    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
-    // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
-    private final CsvReaderCounters counters;
     /**
      * Notices this reader can raise about its own {@code WITH} options (today one: {@code mode: escaped} with a
      * {@code quote} override, which switches the escaped decode off). They are known when the options are parsed, but
@@ -594,45 +575,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean declaredProvenanceBinding,
         List<String> configWarnings
     ) {
-        this(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            declaredProvenanceBinding,
-            null,
-            configWarnings
-        );
-    }
-
-    /**
-     * As above, but adopting an existing counters instance rather than starting fresh ones. Used by the per-file
-     * withers: the operator snapshots its status envelope from the factory's shared reader, so a per-file copy that
-     * started its own counters would accumulate where nobody reads, and the reported figures would be zero.
-     */
-    private CsvFormatReader(
-        BlockFactory blockFactory,
-        CsvFormatOptions options,
-        String format,
-        List<String> extensions,
-        List<Attribute> resolvedSchema,
-        int schemaSampleSize,
-        ErrorPolicy effectivePolicy,
-        String canonicalConfig,
-        String readConfig,
-        boolean directBlockEnabled,
-        Map<String, String> declaredDateFormats,
-        boolean declaredProvenanceBinding,
-        CsvReaderCounters sharedCounters,
-        List<String> configWarnings
-    ) {
         this.blockFactory = blockFactory;
         this.options = options;
         this.format = format;
@@ -645,7 +587,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredProvenanceBinding = declaredProvenanceBinding;
-        this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
         this.configWarnings = List.copyOf(configWarnings);
         this.sharedCsvMapper = createMapper(options);
     }
@@ -1240,9 +1181,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (newReadConfig == null || newReadConfig.equals(readConfig)) {
             return this;
         }
-        // Shares this reader's counters. The status envelope is snapshotted from the factory's shared reader, but
-        // this wither runs at the per-file seam, so the copy is the instance that actually reads. Starting fresh
-        // counters leaves the reported read time at zero for every query — telemetry goes quiet, not the data.
         return new CsvFormatReader(
             blockFactory,
             options,
@@ -1256,7 +1194,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            counters,
             configWarnings
         );
     }
@@ -1358,6 +1295,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // primary failure rather than replacing it.
         try (Closeable abortOnExit = () -> object.abortStream(stream)) {
             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
+            stripLeadingBomFromReader(reader);
             CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
                 reader,
                 options.quoteChar(),
@@ -1670,9 +1608,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // A configured null_value installs a Jackson null token; an unset one (the default) must not, or the
         // empty-vs-null decision could no longer be made per column in tryConvertValue / presentEmptyCell —
         // Jackson would collapse empty to null before the value is ever seen, hiding present-empty string cells
-        // on declared string columns. Note that the empty string IS a configurable token here (nullValue is
+        // on string columns. Note that the empty string IS a configurable token here (nullValue is
         // null when unset, precisely so it stays distinguishable from ""), and naming it is how a user asks for
-        // a blank cell to be null even on a declared string column.
+        // a blank cell to be null even on any string column.
         if (options.nullValue() != null) {
             schema = schema.withNullValue(options.nullValue());
         }
@@ -1932,7 +1870,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // mode is enabled the data path goes through CsvLogicalRecordReader and never reaches the
         // Jackson bulk iterator, so the wrap brings no defense-in-depth there either.
         boolean useBracketAware = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ',';
-        // _rowPosition projected (_id / _file.record_ref requested) forces the same CsvLogicalRecordReader
+        // _rowPosition projected (_file.record_ref requested) forces the same CsvLogicalRecordReader
         // data path as bracket mode: the Jackson bulk iterator bypasses recordReader's per-record byte
         // accounting, so the composed file-global offset would stay pinned at the header boundary for every
         // data row. That path enforces external_max_record_size per record (char-decoded), so it must not also carry
@@ -1981,9 +1919,31 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean useRecordReaderPath = useBracketAware
             || rowPositionProjected
             || (useDirectBlock == false && jacksonGrammarApplies() == false);
+        // Strip a leading UTF-8 BOM between CountingInputStream and CsvRecordCappingInputStream so
+        // that: (a) CountingInputStream counts all N file bytes including the 3 BOM bytes, keeping
+        // byteCounter.getBytesRead() == N; (b) CsvRecordCappingInputStream never sees the BOM bytes,
+        // so a BufferedReader fill cannot trip the per-record cap before the first real record; and
+        // (c) after seeding recordReader.bytesRead() at 3, inferredEndOffset == splitStartByte +
+        // chunkBytes and the stripe-capture tripwire does not fire.
+        // For non-BOM files the probed bytes are restored via PushbackInputStream so the downstream
+        // parse receives the complete stream content. Only UTF-8 is handled: the BOM is exactly 3
+        // bytes (EF BB BF). Non-UTF-8 encodings either have no BOM or a different byte width.
+        int bomBytesConsumed = 0;
+        InputStream streamAfterBom = stream;
+        if (context.firstSplit() && StandardCharsets.UTF_8.name().equals(options.encoding().name())) {
+            byte[] probe = new byte[3];
+            int n = stream.readNBytes(probe, 0, 3);
+            if (n == 3 && (probe[0] & 0xFF) == 0xEF && (probe[1] & 0xFF) == 0xBB && (probe[2] & 0xFF) == 0xBF) {
+                bomBytesConsumed = 3;
+            } else if (n > 0) {
+                PushbackInputStream pb = new PushbackInputStream(stream, n);
+                pb.unread(probe, 0, n);
+                streamAfterBom = pb;
+            }
+        }
         InputStream capped = (useRecordReaderPath || useDirectBlock)
-            ? stream
-            : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
+            ? streamAfterBom
+            : new CsvRecordCappingInputStream(streamAfterBom, context.maxRecordBytes());
         BufferedReader reader = new BufferedReader(new InputStreamReader(capped, options.encoding()), READER_BUFFER_SIZE);
         CsvLogicalRecordReader recordReader = recordEscapeAware
             ? new CsvLogicalRecordReader(
@@ -2004,6 +1964,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.encoding(),
                 options.quoting()
             );
+        if (bomBytesConsumed > 0) {
+            recordReader.setInitialByteOffset(bomBytesConsumed);
+        }
         // Bulk read-ahead is safe when this reader owns the stream end to end: the direct-to-block
         // path, and the house per-record path (useRecordReaderPath). The Jackson bulk path skips the
         // header through this reader then resumes on the same underlying BufferedReader, so it must
@@ -2160,7 +2123,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cacheable ? stream : null,
             pinnedMtimeMillis,
             chunkMode,
-            counters,
+            context.readCounters() instanceof CsvReaderCounters c ? c : null,
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
@@ -2171,13 +2134,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
     }
 
-    /**
-     * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
-     * envelope. Zero-valued counters when no batches have run.
-     */
     @Override
-    public CsvReaderStatus statusSnapshot() {
-        return counters.snapshot();
+    public FormatReadCounters newReadCounters() {
+        return new CsvReaderCounters(format);
     }
 
     @Override
@@ -2614,7 +2573,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code escaped}) treats a quote as literal data, so the raw delimiter split is correct there.
      */
     private static String[] splitFieldsForOptions(String line, CsvFormatOptions options) {
-        // The header is the file's first line, so a UTF-8 BOM (Excel/Windows) lands on its first field.
+        // A BOM on a header line that is not the file's first character (e.g. after a comment block)
+        // is not removed at the stream level; strip it here before splitting into field names.
         line = stripLeadingBom(line);
         if (options.quoting()) {
             return splitHeaderQuoteAware(
@@ -2746,11 +2706,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private static final char BOM = '\uFEFF';
 
     /**
-     * Strips a leading byte-order mark from the first line of a file. Excel/Windows CSV exports prepend a
-     * UTF-8 BOM ({@code EF BB BF}); without this the BOM would otherwise prefix the first column name.
+     * Strips a leading UTF-8 byte-order mark from {@code line} if present. Called for any header line
+     * that may carry a BOM — either at the file's start (covered upstream by {@link
+     * #stripLeadingBomFromReader}) or on a header line further in (after comments).
      */
     private static String stripLeadingBom(String line) {
         return line != null && line.isEmpty() == false && line.charAt(0) == BOM ? line.substring(1) : line;
+    }
+
+    /**
+     * Reads and discards a leading UTF-8 byte-order mark from {@code reader} if one is present.
+     * The {@link InputStreamReader} has already decoded the stream, so only a decoded {@code U+FEFF}
+     * character is stripped — non-BOM bytes are always restored via {@link java.io.Reader#mark}/{@link
+     * java.io.Reader#reset}. Called from {@code readSchema}; the data-read path strips the BOM at
+     * byte level before {@link CsvRecordCappingInputStream} to avoid tripping the cap on a
+     * {@link BufferedReader} fill.
+     */
+    private static boolean stripLeadingBomFromReader(BufferedReader reader) throws IOException {
+        reader.mark(1);
+        int first = reader.read();
+        if (first == BOM) {
+            return true;
+        }
+        reader.reset();
+        return false;
     }
 
     /**
@@ -3349,20 +3328,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         @Nullable
         private final String nullValueStr;
         /**
-         * Whether a present-but-empty cell on a {@code KEYWORD}/{@code TEXT} column reads as the empty string
-         * rather than {@code null}. True only when the schema this read is bound to was DECLARED — which the
-         * resolver means strictly: {@code mappings} carrying {@code dynamic: false}, the only form that yields
-         * {@link CsvFormatReader#declaredProvenanceBinding}, so a {@code dynamic: true} overlay naming the same
-         * column does NOT enable it — and {@code null_value} does not name the blank. A strictly declared
-         * {@code keyword} column is a request for string semantics, in which "" is a value the file can carry,
-         * and {@code null_value: ""} is how to opt back out of it.
-         * <p>Both inputs are constructor arguments, so the flag is decided once, before any row is read. It
-         * pairs {@code declaredProvenanceBinding} with a pinned schema because a declaration always arrives as
-         * one; the binding without a pinned schema is not a state the resolver can produce.
-         * <p>False for an INFERRED schema, where the alternative would make a blank cell's meaning depend on
-         * what the REST of its column holds — the same bytes reading {@code ""} in a column that sampled as
-         * keyword and {@code null} in one that sampled as long, with nothing the user could set to align them.
-         * Blank is therefore {@code null} on every inferred column, whatever its inferred type.
+         * True when a blank string cell earns {@code ""} rather than {@code null}: set when {@code null_value}
+         * is NOT the empty string (its default is absent, which is also not {@code ""}). Setting
+         * {@code null_value: ""} is the one opt-out: it names the blank as the null token and forces
+         * {@code null} even on string columns. Any other {@code null_value} (or none at all) leaves this true.
+         * <p>Applies identically for inferred and declared reads — the schema provenance is not an input.
+         * The flag is decided once before any row is read.
          */
         private final boolean emptyCellIsEmptyString;
         private final DateFormatter datetimeFormatter;
@@ -3507,7 +3478,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /** True for parallel-parsing chunks — close-time publish carries the partial-chunk marker. */
         private final boolean chunkMode;
 
-        // Reader-level counters shared across this iterator and any sibling segments.
+        @Nullable
         private final CsvReaderCounters counters;
 
         /** True when the direct-to-block plain (unquoted) path is eligible (decided once in {@link #read}). */
@@ -3663,7 +3634,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.hasCommentFilter = options.commentPrefix().isEmpty() == false;
             this.hasCustomNullValue = options.nullValue() != null;
             this.nullValueStr = options.nullValue();
-            this.emptyCellIsEmptyString = declaredStringSemantics(declaredProvenanceBinding, preResolvedSchema, options);
+            this.emptyCellIsEmptyString = "".equals(options.nullValue()) == false;
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
@@ -3716,8 +3687,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;
-                counters.addRowsEmitted(deltaTotal - deltaErrors);
-                counters.addParseErrors(deltaErrors);
+                if (counters != null) {
+                    counters.addRowsEmitted(deltaTotal - deltaErrors);
+                    counters.addParseErrors(deltaErrors);
+                }
             }
         }
 
@@ -4051,7 +4024,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (headerLine == null) {
                         return null;
                     }
-                    counters.markHeaderDetected();
+                    if (counters != null) {
+                        counters.markHeaderDetected();
+                    }
                     schema = parseSchema(headerLine);
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);
@@ -4071,7 +4046,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // Two exceptions route through the recordReader-backed per-record iterator instead of the
                     // Jackson bulk path. read() suppresses the byte-level cap wrap on both to match (see
                     // useRecordReaderPath):
-                    // 1. _rowPosition projected (rowPositionSlot >= 0, i.e. _id / _file.record_ref): each
+                    // 1. _rowPosition projected (rowPositionSlot >= 0, i.e. _file.record_ref): each
                     // record must advance CsvLogicalRecordReader's byte accounting so the offset
                     // (splitStartByte + bytesRead - lastRecordBytes) stays exact; the Jackson bulk path
                     // bypasses recordReader and would pin every data row at the header boundary.
@@ -5615,10 +5590,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * Stages a present-but-empty field on the direct-to-block path, applying the same rule as
-         * {@link #presentEmptyCell}: the empty string only on a DECLARED {@code KEYWORD}/{@code TEXT} column,
-         * {@code null} otherwise. Kept as a separate method (rather than staging what {@code presentEmptyCell}
-         * returns) so this path stays off the boxed {@code rowBuffer}. A MISSING field (row shorter than the
-         * schema) is always {@code null} and is handled by the trailing null-fill, not this method.
+         * {@link #presentEmptyCell}: the empty string on a {@code KEYWORD}/{@code TEXT} column unless
+         * {@code null_value: ""} opted out, {@code null} otherwise. Kept as a separate method (rather than
+         * staging what {@code presentEmptyCell} returns) so this path stays off the boxed {@code rowBuffer}.
+         * A MISSING field (row shorter than the schema) is always {@code null} and is handled by the trailing
+         * null-fill, not this method.
          * <p>The gate lives here rather than at the call sites because an empty span reaches this method
          * unconditionally — {@link #emitPlainField} checks {@code len == 0} BEFORE it compares against a
          * configured null marker, so a {@code null_value} of {@code ""} would never be seen otherwise.
@@ -5684,8 +5660,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // only shrinks the range, so len here is always within the cap and needs no re-check.
             int len = end - start;
             // Null classification mirrors tryConvertValue: a present-but-empty field is handed to
-            // stagePresentEmptyValue, which applies the emptyCellIsEmptyString rule (the empty string only on
-            // a DECLARED string column, null everywhere else); the literal "null" (any case) is a null marker
+            // stagePresentEmptyValue, which applies the emptyCellIsEmptyString rule (the empty string on any
+            // string column unless null_value: "" opts out, null everywhere else); the literal "null" (any case) is a null marker
             // only for non-string columns, since KEYWORD/TEXT must be able to hold the string "null"; the
             // configured null marker always becomes null.
             // The empty branch is tested FIRST, so the configured marker below never sees a blank -- with
@@ -6343,10 +6319,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Value for a cell that is present in the row but has empty text: {@code null}, except on a DECLARED
-         * {@code KEYWORD}/{@code TEXT} column, which holds the empty string — see
-         * {@link #emptyCellIsEmptyString} for why the two cases differ. A MISSING field (row shorter than the
-         * schema) is always {@code null} and is handled by the callers, independent of this method.
+         * Value for a cell that is present in the row but has empty text: the empty string on a
+         * {@code KEYWORD}/{@code TEXT} column (unless {@code null_value: ""} opted out), {@code null} on every
+         * other type. Applies identically for inferred and declared reads — see {@link #emptyCellIsEmptyString}.
+         * A MISSING field (row shorter than the schema) is always {@code null} and is handled by the callers,
+         * independent of this method.
          * <p>An empty ELEMENT of a bracket cell takes {@link CsvFormatReader#presentEmptyElement} instead.
          */
         private Object presentEmptyCell(DataType dataType) {

@@ -25,7 +25,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Base class and shared helpers for simdjson tests.
  *
  * <p>Subclasses that exercise native code inherit platform-aware gating via {@link #nativeRequirement()}:
- * unsupported platforms (Windows x64, Darwin x64) skip; supported platforms fail if native is missing.
+ * unsupported platforms (Darwin x64) skip; supported platforms fail if native is missing.
  */
 public abstract class SimdJsonTestCase extends ESTestCase {
 

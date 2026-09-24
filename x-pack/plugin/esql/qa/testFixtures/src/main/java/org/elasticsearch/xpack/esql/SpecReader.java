@@ -38,7 +38,7 @@ public final class SpecReader {
     }
 
     public static List<Object[]> readURLSpec(URL source, Parser parser) throws Exception {
-        String fileName = EsqlTestUtils.pathAndName(source.getFile()).v2();
+        String fileName = EsqlTestUtils.PathAndName.from(source.getFile()).name();
         String groupName = fileName.substring(0, fileName.lastIndexOf('.'));
 
         /**

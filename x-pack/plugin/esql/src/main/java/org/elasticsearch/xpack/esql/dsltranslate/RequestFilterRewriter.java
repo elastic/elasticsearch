@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -31,63 +30,54 @@ import java.util.Set;
  * Extending the request filter to other source boundaries (a view, say) is a change of the target predicate here, not of
  * the mechanism. Index leaves keep their existing (pre-analysis) request-filter path and are not touched.
  *
- * <p>Translation is <em>fail-closed by default</em>: a construct outside the supported subset fails the whole query
- * with a 400 ({@link VerificationException}) listing every offending clause, rather than silently applying a widened
- * superset. With {@code allow_partial_dsl_filter=true} the translatable AND-conjuncts are applied and the rest are
- * dropped with a {@link HeaderWarning}. A filter that translates to a supported no-op ({@code match_all}) leaves the
- * relation read unfiltered.
+ * <p>A construct outside the supported subset never fails the query: the translatable AND-conjuncts are applied and
+ * the rest are dropped with a {@link HeaderWarning} naming each one. What that costs the caller depends on where the
+ * construct sits. In a top-level conjunct it costs that clause. Each {@code must_not} clause is its own arm, dropped
+ * whole if anything inside it fails, while separate {@code must_not} clauses stand or fall independently. A required
+ * {@code should} group is all-or-nothing across its arms, so one failure drops the whole group. In a non-required
+ * {@code should} arm it
+ * costs nothing and is not reported: those arms gate scoring rather than matching, so they are never translated and
+ * their failures are not collected. Dropping only ever widens what matches, never narrows it, which is what makes it
+ * safe. A filter that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
  *
- * <p>The rewrite is <em>feature-flagged</em>. Applying the filter to datasets changes what an existing dataset query
- * returns — a filter that used to be dropped now selects rows, and DSL outside the supported subset now fails the
- * query — so it is gated on {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG}: on by default in snapshot builds (so
- * development, CI and tests exercise it) and excluded from release builds until we choose to ship it. While it is off
- * the relation is read unfiltered <em>with a warning</em>, which is the behavior datasets had before this feature
- * existed — never a silent drop.
+ * <p>The strict policy — fail the query with a 400 ({@link VerificationException}) listing every offending clause —
+ * remains reachable through {@code dropUntranslatableWithWarning} so both policies stay under test. Nothing selects it
+ * in production, and no request parameter exposes it.
  *
- * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: the translated filter may contain
- * {@code mv_in_range}/{@code mv_greater}/{@code mv_less}, which older nodes cannot deserialize. Below that version the
- * rewrite is skipped (unfiltered + warning).
+ * <p>There is no feature flag: applying a request filter to a dataset is ordinary behaviour, and the only gate is the
+ * transport version below.
+ *
+ * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: below that version the rewrite is skipped (unfiltered
+ * + warning). That pin does not cover everything the translator emits. It was allocated before {@code mv_greater} and
+ * {@code mv_less} existed, so of the functions a translated filter can carry it covers {@code mv_in_range} alone, and
+ * a node whose build sits between the two passes the gate and cannot read the other two. Tracked as
+ * elastic/elasticsearch#159672; do not read this gate as a guarantee about the emitted set.
  */
 public final class RequestFilterRewriter {
-
-    /**
-     * Gates applying the request filter to datasets: on by default in snapshot builds, excluded from release builds
-     * unless {@code -Des.esql_request_filter_on_dataset_feature_flag_enabled=true}. Shipping this code therefore cannot
-     * change what an existing dataset query returns until we decide to turn it on.
-     */
-    public static final FeatureFlag REQUEST_FILTER_ON_DATASET_FEATURE_FLAG = new FeatureFlag("esql_request_filter_on_dataset");
 
     static final TransportVersion ESQL_REQUEST_FILTER_ON_DATASET = TransportVersion.fromName("esql_request_filter_on_dataset");
 
     private RequestFilterRewriter() {}
 
     /**
-     * @param enabled               whether the feature is on (production passes
-     *                              {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG}); when {@code false} the relation
-     *                              is read unfiltered with a warning. A parameter rather than a direct flag read so
-     *                              the disabled path is unit-testable.
      * @param configuration         the query configuration — anchors {@code now} date math so a request filter over
      *                              an external source resolves {@code "now-15m"} to the same instant the index path
      *                              would, and supplies the locale for case-folding.
      * @param minimumVersion        the minimum transport version across the nodes this plan targets; below
      *                              {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the class
      *                              javadoc).
-     * @param allowPartialDslFilter when {@code true}, unsupported DSL clauses are dropped with a warning rather than
-     *                              failing the query.
+     * @param dropUntranslatableWithWarning when {@code true}, unsupported DSL clauses are dropped with a warning rather
+     *                                      than failing the query. Production always passes {@code true}; the
+     *                                      {@code false} arm exists so the strict policy stays under test.
      */
     public static LogicalPlan rewrite(
         LogicalPlan analyzed,
         QueryBuilder requestFilter,
-        boolean enabled,
         Configuration configuration,
         TransportVersion minimumVersion,
-        boolean allowPartialDslFilter
+        boolean dropUntranslatableWithWarning
     ) {
         if (requestFilter == null) {
-            return analyzed;
-        }
-        if (enabled == false) {
-            warnNotApplied(analyzed, "applying the request filter to datasets is not enabled in this build");
             return analyzed;
         }
         if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {
@@ -102,7 +92,7 @@ public final class RequestFilterRewriter {
             configuration
         );
         if (result.isComplete() == false) {
-            if (allowPartialDslFilter) {
+            if (dropUntranslatableWithWarning) {
                 warnUnsupportedClauses(result.failures());
             } else {
                 List<String> messages = new ArrayList<>(result.failures().size());

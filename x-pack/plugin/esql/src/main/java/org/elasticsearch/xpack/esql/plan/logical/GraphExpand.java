@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.io.IOException;
@@ -260,7 +262,8 @@ public class GraphExpand extends UnaryPlan
             && (groupings == null || Resolvables.resolved(groupings))
             && (documentFilter == null || documentFilter.resolved())
             && (aggregateFilter == null || (aggregates != null && aggregateFilter.resolved()))
-            && (sorts == null || Resolvables.resolved(sorts));
+            && (sorts == null || Resolvables.resolved(sorts))
+            && (until == null || until.resolved());
     }
 
     @Override
@@ -298,6 +301,13 @@ public class GraphExpand extends UnaryPlan
     public void postAnalysisVerification(Failures failures) {
         if (aggregateFilter != null && aggregates == null) {
             failures.add(fail(this, "GRAPH EXPAND aggregate WHERE requires STATS"));
+        }
+        if (until != null) {
+            until.forEachDown(e -> {
+                if (e instanceof InSubquery || e instanceof MultiColumnInSubquery) {
+                    failures.add(fail(this, "GRAPH EXPAND UNTIL subquery form is not supported yet"));
+                }
+            });
         }
         postAnalysisOptionsVerification(failures);
     }

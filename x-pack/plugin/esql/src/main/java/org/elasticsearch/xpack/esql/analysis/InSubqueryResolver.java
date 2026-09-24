@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Mul
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
@@ -767,6 +768,26 @@ public class InSubqueryResolver {
                     for (Alias field : eval.fields()) {
                         checkInSubqueryExpression(eval, field.child(), true, false, null, failures);
                     }
+                }
+                case GraphExpand ge -> {
+                    if (ge.until() != null) {
+                        ge.until().forEachDown(e -> {
+                            if (e instanceof InSubquery || e instanceof MultiColumnInSubquery) {
+                                failures.add(fail(e, "GRAPH EXPAND UNTIL subquery form is not supported yet"));
+                            }
+                        });
+                    }
+                    // Other GraphExpand expressions still get the generic rejection.
+                    p.forEachExpression(InSubquery.class, inSub -> {
+                        if (ge.until() == null || ge.until().anyMatch(x -> x == inSub) == false) {
+                            failures.add(fail(inSub, "IN subquery is not supported in [{}]", p.sourceText()));
+                        }
+                    });
+                    p.forEachExpression(MultiColumnInSubquery.class, mcs -> {
+                        if (ge.until() == null || ge.until().anyMatch(x -> x == mcs) == false) {
+                            failures.add(fail(mcs, "IN subquery is not supported in [{}]", p.sourceText()));
+                        }
+                    });
                 }
                 default -> {
                     p.forEachExpression(

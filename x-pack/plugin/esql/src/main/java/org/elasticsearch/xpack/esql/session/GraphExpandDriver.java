@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -57,9 +59,12 @@ import java.util.Set;
  * the Aggregate output before admission. {@code direction: both} runs outbound
  * then inbound as separate hop plans and combines pages before SORT and
  * admission. In-command {@code SORT} (plus an always-on {@code node_reached}
- * ascending tie-break) orders each hop's rows before admission. Admitted nodes
- * are remembered here so a later hop does not re-admit them. Stage subset —
- * see {@link #validateSubset}.
+ * ascending tie-break) orders each hop's rows before admission. When
+ * {@code UNTIL} is present, the sorted hop rows are then filtered with that
+ * boolean expression (ordinary {@link Filter} over the emit columns); the first
+ * matching row and every row before it are admitted, later rows are dropped,
+ * and the walk stops. Admitted nodes are remembered here so a later hop does
+ * not re-admit them. Stage subset — see {@link #validateSubset}.
  */
 public final class GraphExpandDriver {
 
@@ -97,6 +102,14 @@ public final class GraphExpandDriver {
     private Leg nextLeg;
     /** Outbound rows buffered while the inbound leg of {@code direction: both} runs. */
     private List<List<Object>> pendingOutRows;
+
+    /**
+     * Sorted hop rows waiting for an {@code UNTIL} {@link Filter} subplan, or
+     * {@code null} when no until-filter is in flight.
+     */
+    private List<List<Object>> pendingUntilRows;
+    /** True while {@link #firstSubPlan} should return the UNTIL Filter over {@link #pendingUntilRows}. */
+    private boolean awaitingUntilFilter;
 
     private GraphExpandDriver(
         GraphExpand graphExpand,
@@ -172,10 +185,19 @@ public final class GraphExpandDriver {
     }
 
     /**
-     * Next hop (or hop-leg) plan to execute, or {@code null} when the walk is done.
+     * Next hop (or hop-leg) plan to execute, the in-flight {@code UNTIL} Filter,
+     * or {@code null} when the walk is done.
      */
     public LogicalPlan firstSubPlan() {
-        if (finished || frontier.isEmpty() || nextHop > maxHops) {
+        if (finished) {
+            return null;
+        }
+        if (awaitingUntilFilter) {
+            LogicalPlan untilPlan = buildUntilFilterPlan(pendingUntilRows);
+            untilPlan.setOptimized();
+            return untilPlan;
+        }
+        if (frontier.isEmpty() || nextHop > maxHops) {
             finished = true;
             return null;
         }
@@ -185,11 +207,16 @@ public final class GraphExpandDriver {
     }
 
     /**
-     * Consumes a hop {@link Result}, updates visited/frontier, and either keeps
-     * {@code mainPlan} for another hop (or the inbound leg of {@code both}) or
-     * replaces {@link GraphExpand} with the accumulated admission rows.
+     * Consumes a hop {@link Result} (or an {@code UNTIL} Filter result), updates
+     * visited/frontier, and either keeps {@code mainPlan} for another hop (or
+     * the inbound leg of {@code both}, or the UNTIL Filter) or replaces
+     * {@link GraphExpand} with the accumulated admission rows.
      */
     public LogicalPlan newMainPlan(LogicalPlan mainPlan, Result hopResult) {
+        if (awaitingUntilFilter) {
+            return finishUntilFilter(mainPlan, hopResult);
+        }
+
         List<List<Object>> rows = extractRows(hopResult);
 
         if ("both".equals(direction) && nextLeg == Leg.OUT) {
@@ -204,11 +231,51 @@ public final class GraphExpandDriver {
             nextLeg = Leg.OUT;
         }
 
+        // SORT then UNTIL then admission — UNTIL is not a post-filter after all hops.
         sortHopRows(rows);
+        if (graphExpand.until() != null && rows.isEmpty() == false) {
+            pendingUntilRows = rows;
+            awaitingUntilFilter = true;
+            return mainPlan;
+        }
+        return admitAndAdvance(mainPlan, rows, false);
+    }
+
+    /**
+     * Ordinary ES|QL {@link Filter} over the hop's emitted columns (not edge
+     * documents). Matching rows identify where {@code UNTIL} fires; the driver
+     * still walks the sorted hop in order and cuts off after the first match.
+     */
+    private LogicalPlan buildUntilFilterPlan(List<List<Object>> rows) {
+        Source source = graphExpand.source();
+        LocalRelation local = rowsAsRelation(source, rows);
+        return new Filter(source, local, graphExpand.until());
+    }
+
+    private LogicalPlan finishUntilFilter(LogicalPlan mainPlan, Result filterResult) {
+        awaitingUntilFilter = false;
+        List<List<Object>> matched = extractRows(filterResult);
+        Set<List<Object>> matchedSet = new HashSet<>(matched);
+        List<List<Object>> sorted = pendingUntilRows;
+        pendingUntilRows = null;
+
+        List<List<Object>> kept = new ArrayList<>();
+        boolean untilMatched = false;
+        for (List<Object> row : sorted) {
+            kept.add(row);
+            if (matchedSet.contains(row)) {
+                untilMatched = true;
+                break;
+            }
+        }
+        return admitAndAdvance(mainPlan, kept, untilMatched);
+    }
+
+    private LogicalPlan admitAndAdvance(LogicalPlan mainPlan, List<List<Object>> rows, boolean untilMatched) {
         List<Object> newlyAdmitted = admitRows(rows);
         nextHop++;
         frontier = newlyAdmitted;
-        if (frontier.isEmpty() || nextHop > maxHops) {
+        if (untilMatched || frontier.isEmpty() || nextHop > maxHops) {
             finished = true;
             LocalRelation results = resultsRelation();
             LogicalPlan replaced = mainPlan.transformUp(GraphExpand.class, ge -> results);
@@ -216,6 +283,18 @@ public final class GraphExpandDriver {
             return replaced;
         }
         return mainPlan;
+    }
+
+    private LocalRelation rowsAsRelation(Source source, List<List<Object>> rows) {
+        if (rows.isEmpty()) {
+            Block[] empty = new Block[resultAttributes.size()];
+            for (int i = 0; i < resultAttributes.size(); i++) {
+                empty[i] = blockFactory.newConstantNullBlock(0);
+            }
+            return new LocalRelation(source, resultAttributes, LocalSupplier.of(new Page(empty)));
+        }
+        Block[] blocks = BlockUtils.fromList(blockFactory, rows);
+        return new LocalRelation(source, resultAttributes, LocalSupplier.of(new Page(blocks)));
     }
 
     public boolean finished() {
@@ -454,8 +533,8 @@ public final class GraphExpandDriver {
         if (ge.aggregateFilter() != null && ge.aggregates() == null) {
             throw new IllegalArgumentException("GRAPH EXPAND aggregate WHERE requires STATS");
         }
-        if (ge.until() != null) {
-            throw new IllegalArgumentException("GRAPH EXPAND UNTIL is not supported in this build");
+        if (ge.until() != null && untilContainsSubquery(ge.until())) {
+            throw new IllegalArgumentException("GRAPH EXPAND UNTIL subquery form is not supported yet");
         }
         if (ge.targetFields().size() != 1) {
             throw new IllegalArgumentException(
@@ -490,6 +569,10 @@ public final class GraphExpandDriver {
                 default -> throw new IllegalArgumentException("GRAPH EXPAND option [" + key + "] is not supported in this build");
             }
         });
+    }
+
+    private static boolean untilContainsSubquery(Expression until) {
+        return until.anyMatch(e -> e instanceof InSubquery || e instanceof MultiColumnInSubquery);
     }
 
     private static int maxHops(GraphExpand ge) {

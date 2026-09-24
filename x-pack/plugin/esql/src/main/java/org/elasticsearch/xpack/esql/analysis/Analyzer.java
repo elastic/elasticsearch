@@ -2888,6 +2888,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 sorts = resolvedSorts;
             }
 
+            // UNTIL resolves against the expand output (same columns SORT sees), not edge docs.
+            Expression until = ge.until();
+            boolean untilChanged = false;
+            if (until != null && resultAttributes != null) {
+                List<Attribute> untilScope = resultAttributes;
+                Expression resolvedUntil = until.transformUp(
+                    UnresolvedAttribute.class,
+                    ua -> maybeResolveAttribute(ua, untilScope)
+                );
+                untilChanged = resolvedUntil != until;
+                until = resolvedUntil;
+            }
+
             if (edgeRelation != ge.edgeRelation()
                 || seedColumn != ge.seedColumn()
                 || matchField != ge.matchField()
@@ -2896,7 +2909,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 || documentFilterChanged
                 || aggregateFilterChanged
                 || needResultAttributes
-                || sortsChanged) {
+                || sortsChanged
+                || untilChanged) {
                 return new GraphExpand(
                     ge.source(),
                     ge.child(),
@@ -2909,7 +2923,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     groupings,
                     aggregateFilter,
                     sorts,
-                    ge.until(),
+                    until,
                     ge.options(),
                     resultAttributes
                 );

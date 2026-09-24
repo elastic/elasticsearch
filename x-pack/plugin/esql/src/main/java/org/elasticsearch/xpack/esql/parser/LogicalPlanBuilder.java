@@ -2224,13 +2224,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             sorts = visitList(this, ctx.graphExpandSort().orderExpression(), Order.class);
         }
 
-        Expression until = ctx.graphExpandUntil() != null ? expression(ctx.graphExpandUntil().booleanExpression()) : null;
+        Expression until = null;
+        if (ctx.graphExpandUntil() != null) {
+            var untilCtx = ctx.graphExpandUntil();
+            until = expression(untilCtx.booleanExpression());
+            if (until.anyMatch(e -> e instanceof InSubquery || e instanceof MultiColumnInSubquery)) {
+                throw new ParsingException(source(untilCtx), "GRAPH EXPAND UNTIL subquery form is not supported yet");
+            }
+        }
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
 
         List<? extends NamedExpression> finalAggregates = aggregates;
         List<Expression> finalGroupings = groupings;
         Expression finalAggregateFilter = aggregateFilter;
         List<Order> finalSorts = sorts;
+        Expression finalUntil = until;
         return input -> new GraphExpand(
             source,
             input,
@@ -2243,7 +2251,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             finalGroupings,
             finalAggregateFilter,
             finalSorts,
-            until,
+            finalUntil,
             options
         );
     }

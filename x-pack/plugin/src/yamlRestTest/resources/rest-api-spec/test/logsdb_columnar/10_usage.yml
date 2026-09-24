@@ -169,6 +169,8 @@
           index_patterns: ["columnar-unmanaged-*"]
           data_stream: {}
           template:
+            lifecycle:
+              enabled: false
             settings:
               index.mode: logsdb_columnar
             mappings:

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160178
+summary: Fix relevance scoring for federated search
+type: bug

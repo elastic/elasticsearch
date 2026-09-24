@@ -2846,7 +2846,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             boolean includeDropped = org.elasticsearch.xpack.esql.session.GraphExpandDriver.hasHubDegree(ge.options());
-            int baseWalkColumns = includeDropped ? 5 : 4;
+            boolean includeRelation = org.elasticsearch.xpack.esql.session.GraphExpandDriver.isMultiFieldTo(targetFields);
+            int baseWalkColumns = 4 + (includeRelation ? 1 : 0) + (includeDropped ? 1 : 0);
             boolean needResultAttributes = ge.resultAttributes() == null
                 || statsChanged
                 || (ge.resultAttributes() != null
@@ -2872,7 +2873,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         targetFields.get(0).dataType(),
                         aggregates,
                         groupings,
-                        includeDropped
+                        includeDropped,
+                        includeRelation
                     );
                 } else if (resultAttributes == null && Resolvables.resolved(targetFields) && targetFields.isEmpty() == false) {
                     resultAttributes = org.elasticsearch.xpack.esql.session.GraphExpandDriver.buildResultAttributes(
@@ -2880,7 +2882,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         targetFields.get(0).dataType(),
                         null,
                         null,
-                        includeDropped
+                        includeDropped,
+                        includeRelation
                     );
                 }
             }

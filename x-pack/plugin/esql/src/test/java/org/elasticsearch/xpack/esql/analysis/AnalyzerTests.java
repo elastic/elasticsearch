@@ -6683,6 +6683,32 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(graphExpand.resultAttributes().stream().map(Attribute::name).toList(), equalTo(List.of("node_from", "node_to", "node_reached", "hop")));
     }
 
+    public void testGraphExpandMultiFieldToEmitsRelationColumn() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "mentor",
+            new EsField("mentor", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("people", IndexResolution.valid(EsIndexGenerator.esIndex("people", mapping)));
+        var plan = a.query(
+            "ROW node_id = \"a\" | GRAPH EXPAND people ON node_id == id TO (manager, mentor) WITH { \"max_hops\": 1, \"direction\": \"out\" }"
+        );
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertThat(graphExpand.targetFields().stream().map(Attribute::name).toList(), equalTo(List.of("manager", "mentor")));
+        assertThat(
+            graphExpand.resultAttributes().stream().map(Attribute::name).toList(),
+            equalTo(List.of("node_from", "node_to", "node_reached", "hop", "relation"))
+        );
+    }
+
     public void testGraphExpandResolvesStatsAgainstEdgeIndex() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         Map<String, EsField> mapping = Map.of(

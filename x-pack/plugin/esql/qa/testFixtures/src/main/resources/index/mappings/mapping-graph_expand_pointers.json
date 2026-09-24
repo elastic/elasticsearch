@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "id": {
+      "type": "keyword"
+    },
+    "manager": {
+      "type": "keyword"
+    },
+    "mentor": {
+      "type": "keyword"
+    }
+  }
+}

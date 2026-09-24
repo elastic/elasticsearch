@@ -224,3 +224,43 @@ b                 | c               | c                    | 2           | null
 b                 | d               | d                    | 2           | null
 b                 | a               | null                 | 2           | null
 ;
+
+
+TO list is a union within one hop
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_pointers ON node_id == id TO (manager, mentor)
+  WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | relation:keyword
+a                 | b               | b                    | 1           | manager
+a                 | c               | c                    | 1           | mentor
+;
+
+
+max_edges_per_node applies to the TO union
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_pointers ON node_id == id TO (manager, mentor)
+  WITH { "max_hops": 1, "direction": "out", "max_edges_per_node": 1 }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | relation:keyword
+a                 | b               | b                    | 1           | manager
+;
+
+
+inbound multi-field TO matches the pointer field
+required_capability: graph_expand
+
+ROW node_id = "b"
+| GRAPH EXPAND graph_expand_pointers ON node_id == id TO (manager, mentor)
+  WITH { "max_hops": 1, "direction": "in" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | relation:keyword
+a                 | b               | a                    | 1           | manager
+;

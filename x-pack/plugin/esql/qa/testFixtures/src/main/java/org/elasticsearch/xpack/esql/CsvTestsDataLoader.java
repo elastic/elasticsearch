@@ -441,6 +441,7 @@ public class CsvTestsDataLoader {
         new TestDataset("graph_expand_labeled").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("graph_expand_ranked").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("graph_expand_fanout").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
+        new TestDataset("graph_expand_pointers").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("json_logs"),
         new TestDataset("network_direction_networks"),
         new TestDataset("flattened_otel_logs"),

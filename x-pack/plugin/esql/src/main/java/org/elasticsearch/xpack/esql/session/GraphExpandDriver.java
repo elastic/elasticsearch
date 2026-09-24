@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
@@ -60,7 +61,11 @@ import java.util.Set;
  * into the edge {@link Filter}; aggregate {@code WHERE} is a {@link Filter} on
  * the Aggregate output before admission. {@code direction: both} runs outbound
  * then inbound as separate hop plans and combines pages before SORT and
- * admission. In-command {@code SORT} (plus an always-on {@code node_reached}
+ * admission. A multi-field {@code TO (f1, f2, …)} runs the same leg(s) once per
+ * target field in written order, concatenates those field legs (each row stamped
+ * with {@code relation}), then applies SORT / hub_degree / caps / UNTIL /
+ * admission once on the union — caps therefore bind to the combined rows, not
+ * per field. In-command {@code SORT} (plus an always-on {@code node_reached}
  * ascending tie-break) orders each hop's rows, then {@code hub_degree} may
  * refuse a frontier node (stub row, no budget spend) before the three caps
  * {@code max_edges_per_node}, {@code max_frontier}, {@code max_nodes} — a row
@@ -89,7 +94,8 @@ public final class GraphExpandDriver {
     private final int maxHops;
     private final String direction;
     private final Attribute matchField;
-    private final Attribute targetField;
+    private final List<Attribute> targetFields;
+    private final boolean multiField;
     private final List<Attribute> resultAttributes;
     private final DataType nodeType;
 
@@ -104,12 +110,20 @@ public final class GraphExpandDriver {
     private boolean finished;
 
     /**
-     * Next leg to execute for the current hop. For {@code out}/{@code in} this
-     * stays on that single leg; for {@code both} it advances OUT → IN within the hop.
+     * Next leg to execute for the current target field. For {@code out}/{@code in}
+     * this stays on that single leg; for {@code both} it advances OUT → IN within
+     * the field.
      */
     private Leg nextLeg;
+    /** Index into {@link #targetFields} for the field leg currently in flight. */
+    private int nextFieldIndex;
     /** Outbound rows buffered while the inbound leg of {@code direction: both} runs. */
     private List<List<Object>> pendingOutRows;
+    /**
+     * Rows from completed TO-field legs of the current hop, waiting for remaining
+     * fields before SORT / caps. {@code null} when no multi-field buffering is active.
+     */
+    private List<List<Object>> pendingFieldRows;
 
     /**
      * Sorted hop rows waiting for an {@code UNTIL} {@link Filter} subplan, or
@@ -125,7 +139,7 @@ public final class GraphExpandDriver {
         int maxHops,
         String direction,
         Attribute matchField,
-        Attribute targetField,
+        List<Attribute> targetFields,
         List<Attribute> resultAttributes,
         List<Object> seeds
     ) {
@@ -134,14 +148,20 @@ public final class GraphExpandDriver {
         this.maxHops = maxHops;
         this.direction = direction;
         this.matchField = matchField;
-        this.targetField = targetField;
+        this.targetFields = targetFields;
+        this.multiField = targetFields.size() > 1;
         this.resultAttributes = resultAttributes;
-        this.nodeType = targetField.dataType();
-        this.nextLeg = "in".equals(direction) ? Leg.IN : Leg.OUT;
+        this.nodeType = targetFields.get(0).dataType();
+        this.nextLeg = initialLeg();
+        this.nextFieldIndex = 0;
         for (Object seed : seeds) {
             visited.add(seed);
             frontier.add(seed);
         }
+    }
+
+    private Leg initialLeg() {
+        return "in".equals(direction) ? Leg.IN : Leg.OUT;
     }
 
     /**
@@ -166,6 +186,9 @@ public final class GraphExpandDriver {
         if (resultAttributes == null || resultAttributes.size() < 4) {
             throw new IllegalStateException("GRAPH EXPAND result attributes were not resolved during analysis");
         }
+        if (ge.targetFields().isEmpty()) {
+            throw new IllegalStateException("GRAPH EXPAND requires at least one TO field");
+        }
         List<Object> seeds = readColumnValues((LocalRelation) ge.child(), ge.seedColumn());
         if (seeds.isEmpty()) {
             throw new IllegalArgumentException("GRAPH EXPAND seed column [" + ge.seedColumn().name() + "] produced no values");
@@ -176,7 +199,7 @@ public final class GraphExpandDriver {
             maxHops(ge),
             direction(ge),
             ge.matchField(),
-            ge.targetFields().get(0),
+            ge.targetFields(),
             resultAttributes,
             seeds
         );
@@ -193,8 +216,8 @@ public final class GraphExpandDriver {
     }
 
     /**
-     * Next hop (or hop-leg) plan to execute, the in-flight {@code UNTIL} Filter,
-     * or {@code null} when the walk is done.
+     * Next hop (or hop-leg / field-leg) plan to execute, the in-flight {@code UNTIL}
+     * Filter, or {@code null} when the walk is done.
      */
     public LogicalPlan firstSubPlan() {
         if (finished) {
@@ -209,7 +232,7 @@ public final class GraphExpandDriver {
             finished = true;
             return null;
         }
-        LogicalPlan hopPlan = buildHopPlan(nextHop, frontier, nextLeg);
+        LogicalPlan hopPlan = buildHopPlan(nextHop, frontier, nextLeg, targetFields.get(nextFieldIndex));
         hopPlan.setOptimized();
         return hopPlan;
     }
@@ -217,8 +240,8 @@ public final class GraphExpandDriver {
     /**
      * Consumes a hop {@link Result} (or an {@code UNTIL} Filter result), updates
      * visited/frontier, and either keeps {@code mainPlan} for another hop (or
-     * the inbound leg of {@code both}, or the UNTIL Filter) or replaces
-     * {@link GraphExpand} with the accumulated admission rows.
+     * the inbound leg of {@code both}, or the next TO field, or the UNTIL Filter)
+     * or replaces {@link GraphExpand} with the accumulated admission rows.
      */
     public LogicalPlan newMainPlan(LogicalPlan mainPlan, Result hopResult) {
         if (awaitingUntilFilter) {
@@ -236,7 +259,23 @@ public final class GraphExpandDriver {
         if ("both".equals(direction) && nextLeg == Leg.IN) {
             rows = combineBothLegs(pendingOutRows, rows);
             pendingOutRows = null;
-            nextLeg = Leg.OUT;
+            nextLeg = initialLeg();
+        }
+
+        // Multi-field TO: concatenate field legs in written order, then SORT/caps once.
+        if (multiField) {
+            if (pendingFieldRows == null) {
+                pendingFieldRows = new ArrayList<>();
+            }
+            pendingFieldRows.addAll(rows);
+            nextFieldIndex++;
+            if (nextFieldIndex < targetFields.size()) {
+                nextLeg = initialLeg();
+                return mainPlan;
+            }
+            rows = pendingFieldRows;
+            pendingFieldRows = null;
+            nextFieldIndex = 0;
         }
 
         // SORT → hub_degree → caps → UNTIL → admission — UNTIL is not a post-filter after all hops.
@@ -285,6 +324,8 @@ public final class GraphExpandDriver {
         List<Object> newlyAdmitted = admitRows(rows);
         nextHop++;
         frontier = newlyAdmitted;
+        nextFieldIndex = 0;
+        nextLeg = initialLeg();
         if (untilMatched || frontier.isEmpty() || nextHop > maxHops) {
             finished = true;
             LocalRelation results = resultsRelation();
@@ -313,7 +354,7 @@ public final class GraphExpandDriver {
 
     // --- hop plan ----------------------------------------------------------------
 
-    private LogicalPlan buildHopPlan(int hop, List<Object> frontierValues, Leg leg) {
+    private LogicalPlan buildHopPlan(int hop, List<Object> frontierValues, Leg leg, Attribute targetField) {
         Source source = graphExpand.source();
         List<Expression> literals = new ArrayList<>(frontierValues.size());
         for (Object value : frontierValues) {
@@ -322,10 +363,13 @@ public final class GraphExpandDriver {
         // out: frontier matches ON (stored source). in: frontier matches TO (stored target).
         Attribute frontierField = leg == Leg.OUT ? matchField : targetField;
         In inPredicate = new In(source, frontierField, literals);
-        // Document WHERE filters hop documents before STATS (and before emit when there is no STATS).
-        Expression edgePredicate = graphExpand.documentFilter() != null
-            ? Predicates.combineAnd(List.of(inPredicate, graphExpand.documentFilter()))
-            : inPredicate;
+        // Null pointer values emit no row (TO IS NOT NULL on the scanned documents).
+        Expression notNullPointer = new IsNotNull(source, targetField);
+        Expression edgePredicate = Predicates.combineAnd(
+            graphExpand.documentFilter() != null
+                ? List.of(inPredicate, notNullPointer, graphExpand.documentFilter())
+                : List.of(inPredicate, notNullPointer)
+        );
         LogicalPlan hopChild = new Filter(source, graphExpand.edgeRelation(), edgePredicate);
 
         Attribute nodeFrom = resultAttributes.get(0);
@@ -336,7 +380,7 @@ public final class GraphExpandDriver {
         Attribute evalFrom = matchField;
         Attribute evalTo = targetField;
         if (graphExpand.aggregates() != null) {
-            Aggregate aggregate = buildHopAggregate(source, hopChild);
+            Aggregate aggregate = buildHopAggregate(source, hopChild, targetField);
             hopChild = aggregate;
             // Aggregate WHERE filters collapsed edges after STATS, before admission.
             if (graphExpand.aggregateFilter() != null) {
@@ -348,20 +392,21 @@ public final class GraphExpandDriver {
 
         // node_from / node_to keep stored orientation; node_reached follows the walk leg.
         Attribute reachedExpr = leg == Leg.OUT ? evalTo : evalFrom;
-        List<Alias> evalFields = new ArrayList<>(5);
+        List<Alias> evalFields = new ArrayList<>(6);
         evalFields.add(new Alias(source, nodeFrom.name(), evalFrom, nodeFrom.id(), false));
         evalFields.add(new Alias(source, nodeTo.name(), evalTo, nodeTo.id(), false));
         evalFields.add(new Alias(source, nodeReached.name(), reachedExpr, nodeReached.id(), false));
         evalFields.add(new Alias(source, hopAttr.name(), new Literal(source, hop, DataType.INTEGER), hopAttr.id(), false));
+        // Multi-field TO only: relation = the pointer field name that fired this leg.
+        Attribute relationAttr = findNamed(resultAttributes, "relation");
+        if (relationAttr != null) {
+            evalFields.add(
+                new Alias(source, relationAttr.name(), Literal.keyword(source, targetField.name()), relationAttr.id(), false)
+            );
+        }
         // Optional dropped: null on every hop row; hub stubs overwrite with the refused degree.
         // Must live on Eval (Literal) — Project only accepts Attribute children.
-        Attribute droppedAttr = null;
-        for (int i = 4; i < resultAttributes.size(); i++) {
-            if ("dropped".equals(resultAttributes.get(i).name())) {
-                droppedAttr = resultAttributes.get(i);
-                break;
-            }
-        }
+        Attribute droppedAttr = findNamed(resultAttributes, "dropped");
         if (droppedAttr != null) {
             evalFields.add(
                 new Alias(source, droppedAttr.name(), new Literal(source, null, DataType.INTEGER), droppedAttr.id(), false)
@@ -373,7 +418,7 @@ public final class GraphExpandDriver {
         for (int i = 0; i < 4; i++) {
             projections.add(evalFields.get(i).toAttribute());
         }
-        // STATS payload columns after hop (aggregates then user BY), then optional dropped.
+        // relation / STATS payload / optional dropped — lookup by name on Eval output.
         for (int i = 4; i < resultAttributes.size(); i++) {
             projections.add(attributeByName(eval.output(), resultAttributes.get(i).name()));
         }
@@ -385,7 +430,7 @@ public final class GraphExpandDriver {
      * endpoint pair ({@code match}, {@code TO}); a user {@code BY} refines that
      * pair. Aggregate expressions are those already resolved on {@link GraphExpand}.
      */
-    private Aggregate buildHopAggregate(Source source, LogicalPlan filteredEdges) {
+    private Aggregate buildHopAggregate(Source source, LogicalPlan filteredEdges, Attribute targetField) {
         List<? extends NamedExpression> userAggregates = graphExpand.aggregates();
         List<Expression> userGroupings = graphExpand.groupings() != null ? graphExpand.groupings() : List.of();
 
@@ -760,13 +805,6 @@ public final class GraphExpandDriver {
         if (ge.until() != null && untilContainsSubquery(ge.until())) {
             throw new IllegalArgumentException("GRAPH EXPAND UNTIL subquery form is not supported yet");
         }
-        if (ge.targetFields().size() != 1) {
-            throw new IllegalArgumentException(
-                "GRAPH EXPAND multi-field TO is not supported in this build, got "
-                    + ge.targetFields().size()
-                    + " target fields"
-            );
-        }
         MapExpression options = ge.options();
         if (options == null) {
             return;
@@ -860,6 +898,15 @@ public final class GraphExpandDriver {
         throw new IllegalStateException("hop result missing column [" + name + "]");
     }
 
+    private static Attribute findNamed(List<Attribute> schema, String name) {
+        for (Attribute attribute : schema) {
+            if (attribute.name().equals(name)) {
+                return attribute;
+            }
+        }
+        return null;
+    }
+
     private static Attribute attributeByName(List<Attribute> schema, String name) {
         for (Attribute attribute : schema) {
             if (attribute.name().equals(name)) {
@@ -871,7 +918,7 @@ public final class GraphExpandDriver {
 
     /** Builds the four walk output attributes once analysis has resolved the TO field type. */
     public static List<Attribute> buildResultAttributes(Source source, DataType nodeType) {
-        return buildResultAttributes(source, nodeType, null, null, false);
+        return buildResultAttributes(source, nodeType, null, null, false, false);
     }
 
     /**
@@ -885,11 +932,12 @@ public final class GraphExpandDriver {
         @Nullable List<? extends NamedExpression> aggregates,
         @Nullable List<Expression> groupings
     ) {
-        return buildResultAttributes(source, nodeType, aggregates, groupings, false);
+        return buildResultAttributes(source, nodeType, aggregates, groupings, false, false);
     }
 
     /**
      * Walk columns {@code node_from}, {@code node_to}, {@code node_reached}, {@code hop},
+     * optional {@code relation} when {@code includeRelation} is true (multi-field TO),
      * then STATS output columns in written order (aggregates, then user {@code BY}).
      * When {@code includeDropped} is true (query set {@code hub_degree}), appends
      * {@code dropped} after those columns.
@@ -901,6 +949,24 @@ public final class GraphExpandDriver {
         @Nullable List<Expression> groupings,
         boolean includeDropped
     ) {
+        return buildResultAttributes(source, nodeType, aggregates, groupings, includeDropped, false);
+    }
+
+    /**
+     * Walk columns {@code node_from}, {@code node_to}, {@code node_reached}, {@code hop},
+     * optional {@code relation} when {@code includeRelation} is true (multi-field TO),
+     * then STATS output columns in written order (aggregates, then user {@code BY}).
+     * When {@code includeDropped} is true (query set {@code hub_degree}), appends
+     * {@code dropped} after those columns.
+     */
+    public static List<Attribute> buildResultAttributes(
+        Source source,
+        DataType nodeType,
+        @Nullable List<? extends NamedExpression> aggregates,
+        @Nullable List<Expression> groupings,
+        boolean includeDropped,
+        boolean includeRelation
+    ) {
         // Not synthetic: Analyzer.planWithoutSyntheticAttributes would strip them from the
         // query output (leaving an empty Project) if they were marked synthetic.
         List<Attribute> attributes = new ArrayList<>();
@@ -908,6 +974,9 @@ public final class GraphExpandDriver {
         attributes.add(new ReferenceAttribute(source, null, "node_to", nodeType, Nullability.TRUE, null, false));
         attributes.add(new ReferenceAttribute(source, null, "node_reached", nodeType, Nullability.TRUE, null, false));
         attributes.add(new ReferenceAttribute(source, null, "hop", DataType.INTEGER, Nullability.TRUE, null, false));
+        if (includeRelation) {
+            attributes.add(new ReferenceAttribute(source, null, "relation", DataType.KEYWORD, Nullability.TRUE, null, false));
+        }
         if (aggregates != null) {
             for (NamedExpression aggregate : aggregates) {
                 attributes.add(aggregate.toAttribute());
@@ -936,5 +1005,10 @@ public final class GraphExpandDriver {
     /** True when the expand options map names {@code hub_degree}. */
     public static boolean hasHubDegree(@Nullable MapExpression options) {
         return options != null && options.keyFoldedMap().containsKey("hub_degree");
+    }
+
+    /** True when {@code TO} lists more than one target field (emits {@code relation}). */
+    public static boolean isMultiFieldTo(List<Attribute> targetFields) {
+        return targetFields != null && targetFields.size() > 1;
     }
 }

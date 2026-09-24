@@ -18,6 +18,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
@@ -42,6 +44,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -110,6 +113,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * concurrently with late registrations.
      */
     private final transient List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
+
+    /**
+     * The dataset query slot this query holds on the coordinator, if it reads an external dataset; coordinator-only,
+     * not serialized. Set once by the session, closed once when the query completes.
+     */
+    private final transient AtomicReference<Releasable> datasetQuerySlot = new AtomicReference<>();
 
     // Project routing telemetry — coordinator-only, not serialized
     private transient ProjectRoutingRequestInfo projectRoutingInfo;
@@ -383,7 +392,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     /**
      * Marks the overall result as partial directly, independent of the per-cluster status path used for
-     * shard/node failures. This is required for pure external-source queries (e.g. {@code EXTERNAL "file://..."}),
+     * shard/node failures. This is required for pure external-source queries (e.g. {@code FROM <dataset>}),
      * which carry no {@code clusterInfo} entry to drive {@link #swapCluster} — so a lenient external read that
      * drops data (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
      * to flip. Sticky like the cluster-driven path: once partial, always partial.
@@ -394,6 +403,23 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public void markAsStopped() {
         isStopped = true;
+    }
+
+    /** Whether this query already holds a dataset query slot, so the session asks for one at most once. */
+    public boolean holdsDatasetQuerySlot() {
+        return datasetQuerySlot.get() != null;
+    }
+
+    /** Records the dataset query slot this query holds. If one is already held, {@code slot} is closed instead. */
+    public void holdDatasetQuerySlot(Releasable slot) {
+        if (datasetQuerySlot.compareAndSet(null, slot) == false) {
+            slot.close();
+        }
+    }
+
+    /** Gives the dataset query slot back to the gate, if one is held; safe to call more than once and from both arms of a listener. */
+    public void releaseDatasetQuerySlot() {
+        Releasables.close(datasetQuerySlot.getAndSet(null));
     }
 
     public boolean isStopped() {

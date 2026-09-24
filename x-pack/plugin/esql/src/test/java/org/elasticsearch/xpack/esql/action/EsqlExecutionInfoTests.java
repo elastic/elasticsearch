@@ -13,6 +13,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlExecutionInfoTests extends ESTestCase {
 
@@ -62,6 +65,29 @@ public class EsqlExecutionInfoTests extends ESTestCase {
             return builder.build();
         });
         assertTrue(info.hasMetadataToReport());
+    }
+
+    public void testDatasetQuerySlotIsReleasedOnce() {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(randomBoolean());
+        AtomicInteger closes = new AtomicInteger();
+        assertFalse(info.holdsDatasetQuerySlot());
+        info.holdDatasetQuerySlot(closes::incrementAndGet);
+        assertTrue(info.holdsDatasetQuerySlot());
+        info.releaseDatasetQuerySlot();
+        info.releaseDatasetQuerySlot();
+        assertThat(closes.get(), equalTo(1));
+        assertFalse(info.holdsDatasetQuerySlot());
+    }
+
+    public void testSecondDatasetQuerySlotIsClosedAtOnce() {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(randomBoolean());
+        AtomicInteger firstCloses = new AtomicInteger();
+        AtomicInteger secondCloses = new AtomicInteger();
+        info.holdDatasetQuerySlot(firstCloses::incrementAndGet);
+        info.holdDatasetQuerySlot(secondCloses::incrementAndGet);
+        assertThat("a slot the query cannot hold goes straight back", secondCloses.get(), equalTo(1));
+        info.releaseDatasetQuerySlot();
+        assertThat(firstCloses.get(), equalTo(1));
     }
 
     public static EsqlExecutionInfo createEsqlExecutionInfo(boolean includeCCSMetadata) {

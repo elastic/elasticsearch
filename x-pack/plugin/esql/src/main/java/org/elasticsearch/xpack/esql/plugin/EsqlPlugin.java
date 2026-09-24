@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryMetrics;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.ExternalQueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -524,6 +525,28 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+        // One gate per node, shared by every query this node coordinates. A query that waits for a slot resumes on SEARCH,
+        // where EsqlSession runs pre-analysis.
+        ExternalQueryAdmission datasetQueryAdmission = new ExternalQueryAdmission(
+            services.threadPool(),
+            services.threadPool().executor(ThreadPool.Names.SEARCH),
+            ExternalSourceSettings.ADMISSION_MAX_CONCURRENT_QUERIES.get(settings),
+            ExternalSourceSettings.ADMISSION_MAX_QUEUED_QUERIES.get(settings),
+            ExternalSourceSettings.ADMISSION_QUEUE_TIMEOUT.get(settings)
+        );
+        datasetQueryAdmission.registerMetrics(services.telemetryProvider().getMeterRegistry());
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.ADMISSION_MAX_CONCURRENT_QUERIES,
+            datasetQueryAdmission::setMaxConcurrentQueries
+        );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.ADMISSION_MAX_QUEUED_QUERIES,
+            datasetQueryAdmission::setMaxQueuedQueries
+        );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ExternalSourceSettings.ADMISSION_QUEUE_TIMEOUT,
+            datasetQueryAdmission::setQueueTimeout
+        );
         if (federationRegistered) {
             clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
         }
@@ -621,6 +644,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 parser,
                 cacheService,
                 services.indicesService().getAnalysis(),
+                datasetQueryAdmission,
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
                 maxListedObjects::get

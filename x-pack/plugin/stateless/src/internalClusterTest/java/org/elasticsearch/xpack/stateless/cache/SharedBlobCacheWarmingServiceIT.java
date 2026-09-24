@@ -1018,16 +1018,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
                 handler.messageReceived(
                     request,
-                    new TestTransportChannel(
-                        new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, response) -> {
-                            if (stoppedLatch.getCount() > 0) {
-                                shouldDelayGetConnection.set(true);
-                            }
-                            l.onResponse(response);
-                        }).delegateResponse((l, exception) -> {
-                            logger.error("--> encountered unexpected exception during recovery commit registration", exception);
-                        })
-                    ),
+                    new TestTransportChannel(new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, response) -> {
+                        if (stoppedLatch.getCount() > 0) {
+                            shouldDelayGetConnection.set(true);
+                        }
+                        l.onResponse(response);
+                    }).delegateResponse((l, exception) -> {
+                        logger.error("--> encountered unexpected exception during recovery commit registration", exception);
+                    })),
                     task
                 );
             });

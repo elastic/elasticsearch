@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.pki;
 
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -227,6 +228,20 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         assertThat(metadata, hasEntry(PkiRealm.PKI_DN_METADATA_KEY, "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
         assertThat(metadata, hasEntry(PkiRealm.PKI_DELEGATED_BY_USER_METADATA_KEY, delegateeUsername));
         assertThat(metadata, hasEntry(PkiRealm.PKI_DELEGATED_BY_REALM_METADATA_KEY, "file"));
+        assertThat(
+            metadata,
+            hasEntry(
+                PkiRealm.PKI_CERT_FINGERPRINT_METADATA_KEY,
+                MessageDigests.toHexString(MessageDigests.sha256().digest(clientCertificate.getEncoded()))
+            )
+        );
+        assertThat(
+            metadata,
+            hasEntry(
+                PkiRealm.PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY,
+                MessageDigests.toHexString(MessageDigests.sha256().digest(clientCertificate.getPublicKey().getEncoded()))
+            )
+        );
 
         // no roles because no role mappings
         List<?> roles = assertList(authenticateResponse, Fields.ROLES);
@@ -351,6 +366,20 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         assertThat(metadata, hasEntry(PkiRealm.PKI_DN_METADATA_KEY, "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
         assertThat(metadata, hasEntry(PkiRealm.PKI_DELEGATED_BY_USER_METADATA_KEY, "test_user"));
         assertThat(metadata, hasEntry(PkiRealm.PKI_DELEGATED_BY_REALM_METADATA_KEY, "file"));
+        assertThat(
+            metadata,
+            hasEntry(
+                PkiRealm.PKI_CERT_FINGERPRINT_METADATA_KEY,
+                MessageDigests.toHexString(MessageDigests.sha256().digest(clientCertificate.getEncoded()))
+            )
+        );
+        assertThat(
+            metadata,
+            hasEntry(
+                PkiRealm.PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY,
+                MessageDigests.toHexString(MessageDigests.sha256().digest(clientCertificate.getPublicKey().getEncoded()))
+            )
+        );
 
         // assert roles
         List<?> roles = assertList(authenticateResponse, Fields.ROLES);

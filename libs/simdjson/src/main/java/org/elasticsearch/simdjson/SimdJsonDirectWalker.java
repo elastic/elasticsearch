@@ -406,6 +406,7 @@ public final class SimdJsonDirectWalker {
             if ((mask & 0xFF00L) != 0) { // byte 1 (c1) is not a digit
                 byte c1 = (byte) (word >>> 8);
                 if (isNumberContinuation(c1) == false) {
+                    checkTerminator(buffer, idx, c1);
                     long val = t & 0xFFL;
                     handler.longField(fieldName, negative ? -val : val, true, buffer, idx, pos + 1 - idx);
                     return;
@@ -416,6 +417,7 @@ public final class SimdJsonDirectWalker {
                     if ((t & 0xFFL) == 0) { // c0's digit, reused from t
                         throwLeadingZero(buffer, idx);
                     }
+                    checkTerminator(buffer, idx, c2);
                     long val = (t & 0xFFL) * 10L + ((t >>> 8) & 0xFFL);
                     handler.longField(fieldName, negative ? -val : val, true, buffer, idx, pos + 2 - idx);
                     return;
@@ -452,14 +454,16 @@ public final class SimdJsonDirectWalker {
         }
 
         int digitCount = pos - digitStart;
+        checkHasIntegerDigits(buffer, idx, digitCount);
         checkNoLeadingZero(buffer, idx, firstDigit, digitCount);
 
         if (ch == '.' || ch == 'e' || ch == 'E') {
             handleFloatingPoint(buffer, idx, negative, digits, pos, fieldName, handler);
             return;
         }
+        checkTerminator(buffer, idx, ch);
 
-        if (digitCount == 0 || digitCount >= 19) {
+        if (digitCount >= 19) {
             handleLargeNumber(buffer, idx, pos, negative, fieldName, handler, digits, digitCount);
             return;
         }
@@ -484,10 +488,32 @@ public final class SimdJsonDirectWalker {
     }
 
     private void throwLeadingZero(byte[] buffer, int idx) {
+        throwInvalidNumber(buffer, idx, "Leading zeroes not allowed");
+    }
+
+    /**
+     * Rejects a number with no digits at all in its integer part (RFC 8259 requires {@code "0"}
+     * or {@code [1-9][0-9]*}).
+     */
+    private void checkHasIntegerDigits(byte[] buffer, int idx, int digitCount) {
+        if (digitCount == 0) {
+            throwInvalidNumber(buffer, idx, "No digits found");
+        }
+    }
+
+    /**
+     * Rejects a number immediately followed by a byte that's neither a valid continuation
+     * (handled by the caller before reaching here) nor a structural/whitespace delimiter.
+     */
+    private void checkTerminator(byte[] buffer, int idx, byte terminator) {
+        if (isStructuralOrWhitespace(terminator) == false) {
+            throwInvalidNumber(buffer, idx, "Unexpected character after number");
+        }
+    }
+
+    private void throwInvalidNumber(byte[] buffer, int idx, String reason) {
         LineAndColumn loc = computeLineAndColumn(buffer, idx);
-        throw new JsonParsingException(
-            "[" + loc.line() + ":" + loc.column() + "] Invalid numeric value at " + idx + ": Leading zeroes not allowed"
-        );
+        throw new JsonParsingException("[" + loc.line() + ":" + loc.column() + "] Invalid numeric value at " + idx + ": " + reason);
     }
 
     private record LineAndColumn(int line, int column) {}
@@ -551,14 +577,16 @@ public final class SimdJsonDirectWalker {
         }
 
         int digitCount = pos - digitStart;
+        checkHasIntegerDigits(buffer, idx, digitCount);
         checkNoLeadingZero(buffer, idx, buffer[digitStart] - '0', digitCount);
 
         if (ch == '.' || ch == 'e' || ch == 'E') {
             handleFloatingPoint(buffer, idx, negative, digits, pos, fieldName, handler);
             return;
         }
+        checkTerminator(buffer, idx, ch);
 
-        if (digitCount == 0 || digitCount >= 19) {
+        if (digitCount >= 19) {
             handleLargeNumber(buffer, idx, pos, negative, fieldName, handler, digits, digitCount);
             return;
         }
@@ -569,11 +597,11 @@ public final class SimdJsonDirectWalker {
     }
 
     /**
-     * Reached only for {@code digitCount == 0} (no digits at all - an invalid number, e.g. a
-     * lone {@code -}) or {@code digitCount >= 19}: a 19-digit value may still fit in a signed
+     * Reached only for {@code digitCount >= 19}: a 19-digit value may still fit in a signed
      * long (the common case), but could also overflow it (either because it has 20+ digits, or
      * because it has exactly 19 but exceeds {@code Long.MAX_VALUE}/{@code Long.MIN_VALUE}), in
-     * which case it's re-parsed as a {@link BigInteger}.
+     * which case it's re-parsed as a {@link BigInteger}. Callers have already verified the
+     * number has at least one integer digit and is properly terminated.
      */
     private void handleLargeNumber(
         byte[] buffer,
@@ -585,9 +613,6 @@ public final class SimdJsonDirectWalker {
         long digits,
         int digitCount
     ) {
-        if (digitCount == 0) {
-            throw new JsonParsingException("Invalid number at " + idx);
-        }
         int len = pos - idx;
         if (digitCount > 19 || (negative ? digits == Long.MIN_VALUE ? false : digits < 0 : digits < 0)) {
             BigInteger bigVal = new BigInteger(new String(buffer, idx, len, java.nio.charset.StandardCharsets.US_ASCII));
@@ -644,6 +669,9 @@ public final class SimdJsonDirectWalker {
                 digits = digits * 10 + (ch - '0');
                 ch = buffer[++pos];
             }
+            if (pos == fracStart) {
+                throwInvalidNumber(buffer, startIdx, "Decimal point not followed by a digit");
+            }
             exponent = fracStart - pos;
             digitCountEnd = pos;
         }
@@ -657,14 +685,19 @@ public final class SimdJsonDirectWalker {
             } else if (buffer[pos] == '+') {
                 pos++;
             }
+            int expStart = pos;
             long exp = 0;
             byte ch = buffer[pos];
             while (ch >= '0' && ch <= '9') {
                 exp = exp * 10 + (ch - '0');
                 ch = buffer[++pos];
             }
+            if (pos == expStart) {
+                throwInvalidNumber(buffer, startIdx, "Exponent indicator not followed by a digit");
+            }
             exponent += expNeg ? -exp : exp;
         }
+        checkTerminator(buffer, startIdx, buffer[pos]);
 
         int digitCount = digitCountEnd - digitsStartIdx;
         double val = doubleParser.parse(buffer, startIdx, negative, digitsStartIdx, digitCount, digits, exponent);
@@ -695,6 +728,7 @@ public final class SimdJsonDirectWalker {
             if ((mask & 0xFF00L) != 0) { // byte 1 (c1) is not a digit
                 byte c1 = (byte) (word >>> 8);
                 if (isNumberContinuation(c1) == false) {
+                    checkTerminator(buffer, idx, c1);
                     long val = t & 0xFFL;
                     handler.arrayElemLong(negative ? -val : val, true);
                     return;
@@ -705,6 +739,7 @@ public final class SimdJsonDirectWalker {
                     if ((t & 0xFFL) == 0) { // c0's digit, reused from t
                         throwLeadingZero(buffer, idx);
                     }
+                    checkTerminator(buffer, idx, c2);
                     long val = (t & 0xFFL) * 10L + ((t >>> 8) & 0xFFL);
                     handler.arrayElemLong(negative ? -val : val, true);
                     return;
@@ -740,12 +775,14 @@ public final class SimdJsonDirectWalker {
         }
 
         int digitCount = pos - digitStart;
+        checkHasIntegerDigits(buffer, idx, digitCount);
         checkNoLeadingZero(buffer, idx, firstDigit, digitCount);
 
         if (ch == '.' || ch == 'e' || ch == 'E') {
             handleArrayFloatingPoint(buffer, idx, negative, digits, pos, digitStart, handler);
             return;
         }
+        checkTerminator(buffer, idx, ch);
 
         if (digitCount >= 19) {
             handleArrayLargeNumber(buffer, idx, pos, negative, handler, digits, digitCount);
@@ -778,12 +815,14 @@ public final class SimdJsonDirectWalker {
         }
 
         int digitCount = pos - digitStart;
+        checkHasIntegerDigits(buffer, idx, digitCount);
         checkNoLeadingZero(buffer, idx, buffer[digitStart] - '0', digitCount);
 
         if (ch == '.' || ch == 'e' || ch == 'E') {
             handleArrayFloatingPoint(buffer, idx, negative, digits, pos, digitStart, handler);
             return;
         }
+        checkTerminator(buffer, idx, ch);
 
         if (digitCount >= 19) {
             handleArrayLargeNumber(buffer, idx, pos, negative, handler, digits, digitCount);
@@ -815,6 +854,9 @@ public final class SimdJsonDirectWalker {
                 digits = digits * 10 + (ch - '0');
                 ch = buffer[++pos];
             }
+            if (pos == fracStart) {
+                throwInvalidNumber(buffer, idx, "Decimal point not followed by a digit");
+            }
             exponent = fracStart - pos;
             digitCountEnd = pos;
         }
@@ -828,14 +870,19 @@ public final class SimdJsonDirectWalker {
             } else if (buffer[pos] == '+') {
                 pos++;
             }
+            int expStart = pos;
             long exp = 0;
             byte ch = buffer[pos];
             while (ch >= '0' && ch <= '9') {
                 exp = exp * 10 + (ch - '0');
                 ch = buffer[++pos];
             }
+            if (pos == expStart) {
+                throwInvalidNumber(buffer, idx, "Exponent indicator not followed by a digit");
+            }
             exponent += expNeg ? -exp : exp;
         }
+        checkTerminator(buffer, idx, buffer[pos]);
 
         int digitCount = digitCountEnd - digitStart;
         double val = doubleParser.parse(buffer, idx, negative, digitStart, digitCount, digits, exponent);

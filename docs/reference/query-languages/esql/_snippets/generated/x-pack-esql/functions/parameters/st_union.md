@@ -6,5 +6,5 @@
 :   Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. If `null`, the function returns `null`.
 
 `geomB`
-:   Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. Must share the same coordinate reference system as the first parameter. If `null`, the function returns `null`.
+:   Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. Must share the same coordinate reference system as the first parameter. If `null`, the function returns `null`. When omitted, all multi-values of `geomA` are unioned into a single geometry.
 

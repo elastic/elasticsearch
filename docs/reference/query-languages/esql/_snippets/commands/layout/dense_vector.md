@@ -3,48 +3,45 @@ serverless: preview
 stack: preview 9.6+
 ```
 
-The `DENSE_VECTOR` command generates a `dense_vector` embedding for one or more
-text or keyword fields, within ES|QL queries. For each input field it
-calls an inference model and appends a new `dense_vector` column to every row. By
-default, it embeds the field's text; set the `type` option to embed images instead.
-Each row is embedded independently, so you can vectorize
-an indexed or computed column as part of a query.
+The `DENSE_VECTOR` command generates vector embeddings from one or more `text`
+or `keyword` columns. It embeds each row independently through an inference
+endpoint and appends the resulting `dense_vector` columns to the query output.
+You can embed indexed or computed text, or base64-encoded image data.
 
 ## Syntax
 
 ```esql
-DENSE_VECTOR [column = | suffix = "<suffix>" ON] field [, field, ...] [WITH { "inference_id" : "my_inference_endpoint" [, "type" : "text" | "image"] [, "timeout" : "<timeout_duration>"] }]
+DENSE_VECTOR <input_column> [, <input_column>, ...] [WITH { <options> }]
+DENSE_VECTOR <output_column> = <input_column> [WITH { <options> }]
+DENSE_VECTOR suffix = "<suffix>" ON <input_column> [, <input_column>, ...] [WITH { <options> }]
 ```
 
 ## Parameters
 
-`field`
-:   One or more comma-separated columns to embed. Fields must be `text` or
-    `keyword`. To embed images, store a base64 image data URI in one of these string
-    fields and set the `type` option to `image`. A non-string field is rejected
-    before execution. If a field's value is `null`, its generated vector is `null`.
+`input_column`
+:   (Required) One or more comma-separated `text` or `keyword` columns to
+    embed. For image input, the column must contain a base64-encoded image data
+    URI. A non-string column is rejected before execution. If a value is `null`,
+    the generated vector is also `null`.
 
-`column`
-:   (Optional) Names the single generated column outright, for example
-    `DENSE_VECTOR vector = title`. Valid only when embedding one field, since one
-    name cannot serve several. If the name matches an existing column, the existing
-    column is replaced.
+`output_column`
+:   (Optional) The name of the generated column. You can specify an output
+    column name only when embedding one input column. If the name matches an
+    existing column, the generated column replaces it.
 
 `suffix`
-:   (Optional) A quoted string appended to each input field's name to build its
-    output column, for example `DENSE_VECTOR suffix = "_dv" ON title, body`
-    produces `title_dv` and `body_dv`. Works for any number of fields. With no
-    naming clause at all, each field defaults to `<field>_dense_vector`.
+:   (Optional) A quoted string appended to each input column name. For example,
+    `DENSE_VECTOR suffix = "_dv" ON title, body` produces `title_dv` and
+    `body_dv`. You can use a suffix with one or more input columns. Without a
+    naming clause, output columns use the name `<input_column>_dense_vector`.
 
 ## WITH options
 
 `inference_id`
 :   (Optional) The ID of the
     [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md)
-    to use. For `text` input the endpoint must have the `text_embedding` or a
-    multimodal `embedding` task type; for `image` input it must be a multimodal
-    `embedding` endpoint. If not specified, `DENSE_VECTOR` uses a preconfigured
-    default endpoint (see [Requirements](#requirements)).
+    used to embed the input. If omitted, `DENSE_VECTOR` selects a default text
+    embedding endpoint. See [Inference endpoints](#inference-endpoints).
 
 `type`
 :   (Optional) The input modality. Accepts `text` (default) or `image`. An `image`
@@ -56,110 +53,126 @@ DENSE_VECTOR [column = | suffix = "<suffix>" ON] field [, field, ...] [WITH { "i
 
 ## Description
 
-Use `DENSE_VECTOR` to embed text or images into vectors as part of a query, for
-example to feed vector similarity functions such as
+`DENSE_VECTOR` adds one `dense_vector` output column for each input column and
+preserves the other columns in the result. You can embed columns loaded from an
+index or columns computed earlier in the query, for example with `EVAL`.
+
+Use the generated vectors with vector similarity functions such as
 [`V_COSINE`](/reference/query-languages/esql/functions-operators/dense-vector-functions.md)
-or to diversify results with [`MMR`](/reference/query-languages/esql/commands/mmr.md).
+or commands such as [`MMR`](/reference/query-languages/esql/commands/mmr.md).
 
 :::{tip}
-`DENSE_VECTOR` embeds a **field**, once per row, to vectorize the data flowing through
-your query. To embed a single **constant** value instead, such as a query string, use the
+Use `DENSE_VECTOR` to embed values that vary between rows. To embed a single
+constant value, such as query text, use the
 [`TEXT_EMBEDDING`](/reference/query-languages/esql/functions-operators/dense-vector-functions/text_embedding.md)
 function.
 :::
 
-`DENSE_VECTOR` **adds** columns: it produces a new `dense_vector` column for each
-input field and keeps the existing columns. Because it
-embeds each row independently, you can embed any `text` or `keyword` column,
-a source field from an index, or one computed earlier in the query (for example, with `EVAL`).
-
-For a multivalued field, only the first value is embedded and a warning records
-that the rest were discarded. Which value is "first" depends on how the field is
-loaded, so it's good practice to reduce the field first, for example with
-[`MV_FIRST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_first.md),
-to choose the value explicitly.
-
-:::{tip}
 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
-:::
-
-In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md#ccq-inference-endpoints),
-`DENSE_VECTOR` runs on the cluster that receives the query, so the inference
-endpoint must exist on that cluster even when the documents come from a remote.
 
 ## Requirements
 
-`DENSE_VECTOR` calls an
+### Inference endpoints
+
+`DENSE_VECTOR` uses an
 [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
-to embed its input, and the endpoint has to match the input type. For **text**, if you
-omit `inference_id` it uses a preconfigured default text embedding endpoint, so the
-command works with zero configuration; change the cluster default with
-`esql.command.dense_vector.default_inference_id`, or name a specific endpoint in the
-`WITH` clause. For **images** (`"type": "image"`), there is no default, pass the ID of a
-multimodal embedding endpoint in the `WITH` clause.
+to embed its input. The endpoint must support the selected input type:
 
-Different default endpoints produce vectors that are not comparable with each other,
-so pin a specific `inference_id` if you need consistent vectors.
+- For text input, the endpoint must use the `text_embedding` or multimodal
+  `embedding` task type. If you omit `inference_id`, `DENSE_VECTOR` uses
+  `esql.command.dense_vector.default_inference_id` when configured. Otherwise,
+  it selects an available built-in text embedding endpoint.
+- For image input, the endpoint must use the multimodal `embedding` task type.
+  No default image endpoint is available, so you must specify `inference_id`.
 
-`DENSE_VECTOR` limits processing to **1000 rows by default** to prevent accidental
-high consumption. Adjust it with the `esql.command.dense_vector.limit` cluster
-setting, or disable the command entirely with
-`esql.command.dense_vector.enabled`.
+If no endpoint resolves, for example on a deployment that has neither built-in
+endpoint, the query fails with an error naming each candidate and why it was
+rejected. Specify `inference_id` to select an endpoint explicitly.
+
+Embeddings produced by different models generally do not share the same vector
+space. Specify `inference_id` when generated vectors must remain comparable
+across queries or deployments.
+
+In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md#ccq-inference-endpoints),
+`DENSE_VECTOR` runs on the cluster that receives the query. The inference
+endpoint must exist on that cluster, even when the documents come from a remote
+cluster.
+
+## Resource controls
+
+Use the following dynamic cluster settings to control `DENSE_VECTOR` resource
+usage and availability:
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `esql.command.dense_vector.enabled` | `true` | Controls whether the command is available. |
+| `esql.command.dense_vector.limit` | `1000` | Sets the maximum number of input rows processed by the command. |
+| `esql.command.dense_vector.batch_size` | `20` | Sets the maximum number of inputs combined in one inference request. Accepts values from `1` to `1000`. |
+| `esql.command.dense_vector.default_inference_id` | Not set | Selects a default endpoint when a query omits `inference_id`. |
+
+## Limitations
+
+For a multivalued input column, `DENSE_VECTOR` embeds only the first value and
+reports a warning for the discarded values. The first value depends on how the
+column is loaded. To select the value explicitly, reduce the column first with a
+function such as
+[`MV_FIRST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_first.md).
 
 ## Examples
 
-These examples build on a single `FROM books` query, adding one capability at a time.
+The following examples use columns from a `books` index, unless noted otherwise.
 
-The simplest form omits `inference_id` and uses the default endpoint, no configuration needed:
+### Embed a column
 
-```esql
-FROM books
-| DENSE_VECTOR title
-```
-
-### Embed a field
-
-Read a text field and append a `dense_vector` to each row, every row is embedded
-on its own. With no naming clause, the output column is named `<field>_dense_vector`:
+Embed a text column and add an output column named `<input_column>_dense_vector`:
 
 :::{include} ../../generated/x-pack-esql/commands/examples/dense_vector_command.csv-spec/denseVectorSingleFieldForDocs.md
 :::
 
-### Name the output column
+### Embed multiple columns
 
-Use `column =` to name the generated column instead of the default:
-
-:::{include} ../../generated/x-pack-esql/commands/examples/dense_vector_command.csv-spec/denseVectorNamedOutputForDocs.md
-:::
-
-### Embed multiple fields
-
-List several fields to embed them all in one command:
+List multiple input columns to embed them with one command:
 
 :::{include} ../../generated/x-pack-esql/commands/examples/dense_vector_command.csv-spec/denseVectorMultipleFieldsForDocs.md
 :::
 
-### Rename every output with a suffix
+### Specify an output column name
 
-Use `suffix = "..." ON` to replace the default `_dense_vector` suffix on every
-listed field:
+Use `output_column = input_column` to replace the default output name:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/dense_vector_command.csv-spec/denseVectorNamedOutputForDocs.md
+:::
+
+### Apply a suffix to output column names
+
+Use `suffix = "..." ON` to replace the default `_dense_vector` suffix for
+each listed column:
 
 :::{include} ../../generated/x-pack-esql/commands/examples/dense_vector_command.csv-spec/denseVectorSuffixForDocs.md
 :::
 
-### Embed a computed field
+### Embed a computed column
 
-`DENSE_VECTOR` embeds any `text` or `keyword` column, including one built earlier in the query.
-Here `EVAL` composes a value that is then embedded:
+Embed a `text` or `keyword` column created earlier in the query. In this example,
+`EVAL` creates the value that `DENSE_VECTOR` embeds:
 
 :::{include} ../../generated/x-pack-esql/commands/examples/dense_vector_command.csv-spec/denseVectorComputedColumnForDocs.md
 :::
 
-### Diversify results with MMR
+### Diversify results with `MMR`
 
-Feed the generated column into [`MMR`](/reference/query-languages/esql/commands/mmr.md) to drop
-near-duplicate rows. `MMR` diversifies on the runtime `dense_vector`, so no indexed
-field is required:
+Pass the generated column to [`MMR`](/reference/query-languages/esql/commands/mmr.md)
+to remove near-duplicate rows. `MMR` can use the runtime `dense_vector`, so this
+workflow does not require an indexed vector field:
 
 :::{include} ../../generated/x-pack-esql/commands/examples/dense_vector_command.csv-spec/denseVectorThenMmrForDocs.md
+:::
+
+### Embed image data
+
+Set `"type": "image"` to embed a base64-encoded image data URI through a
+multimodal endpoint. This example uses `ROW` because the input is a literal data
+URI rather than an indexed column:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/dense_vector_command.csv-spec/denseVectorImageForDocs.md
 :::

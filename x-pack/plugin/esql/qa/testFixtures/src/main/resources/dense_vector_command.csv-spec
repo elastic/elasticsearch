@@ -331,12 +331,16 @@ dense_vector command with image type
 required_capability: dense_vector_command_v2
 required_capability: dense_vector_field_type_released
 
+// tag::denseVectorImageForDocs[]
 ROW input = "data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw=="
 | DENSE_VECTOR input WITH { "inference_id" : "test_embedding_inference", "type" : "image" }
+// end::denseVectorImageForDocs[]
 ;
 
+// tag::denseVectorImageForDocs-result[]
 input:keyword                                          | input_dense_vector:dense_vector
 data:image/jpeg;base64,V2hvIGlzIFZpY3RvciBIdWdvPw==    | [-56.0, -50.0, -48.0]
+// end::denseVectorImageForDocs-result[]
 ;
 
 

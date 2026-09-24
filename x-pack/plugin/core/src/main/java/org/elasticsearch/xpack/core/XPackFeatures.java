@@ -23,6 +23,8 @@ public class XPackFeatures implements FeatureSpecification {
 
     public static final NodeFeature VECTORDB_DOCUMENT_USAGE = new NodeFeature("vectordb_document.usage");
 
+    public static final NodeFeature LOGSDB_COLUMNAR_USAGE = new NodeFeature("logsdb_columnar.usage");
+
     public static final NodeFeature COLUMNAR_ENABLED_SETTING = new NodeFeature("columnar.enabled_setting");
 
     @Override
@@ -32,6 +34,6 @@ public class XPackFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(VECTORDB_DOCUMENT_USAGE, COLUMNAR_ENABLED_SETTING);
+        return Set.of(VECTORDB_DOCUMENT_USAGE, COLUMNAR_ENABLED_SETTING, LOGSDB_COLUMNAR_USAGE);
     }
 }

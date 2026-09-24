@@ -36,8 +36,11 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Pins the declared-type coercion contract: the castability predicate
@@ -842,8 +845,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
         assertThat(warnings, hasSize(2));
-        assertThat(warnings.get(0), containsString("ts"));
-        assertThat(warnings.get(0), containsString("declared type [date_nanos]"));
+        assertThat(warnings.get(0), startsWith("column [ts]: cannot read [datetime] as [date_nanos]: "));
     }
 
     public void testCastStringToDatetimeHonorsDeclaredFormat() {
@@ -991,7 +993,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             assertEquals("the good cell still decodes", 5L, out.getLong(out.getFirstValueIndex(1)));
         }
         assertThat(warnings, hasSize(1));
-        assertThat(warnings.get(0), containsString("declared type [date_nanos]"));
+        assertThat(warnings.get(0), containsString(" as [date_nanos]: "));
         try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
             expectThrows(
                 InvalidArgumentException.class,
@@ -1078,9 +1080,9 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
         assertThat(warnings, hasSize(1));
-        assertThat(warnings.get(0), containsString("col"));
-        assertThat(warnings.get(0), containsString("declared type [long]"));
-        assertThat(warnings.get(0), containsString("returning null"));
+        assertThat(warnings.get(0), startsWith("column [col]: cannot read [keyword] as [long]: "));
+        // The outcome is the collector summary's to state, so the detail does not repeat it.
+        assertThat(warnings.get(0), not(containsString("returning null")));
     }
 
     /** The lenient branch degrades a null column name to {@code <unknown>} too, mirroring the strict path (shared detail). */
@@ -1093,9 +1095,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
         assertThat(warnings, hasSize(1));
-        assertThat(warnings.get(0), containsString("Column [<unknown>]"));
-        assertThat(warnings.get(0), containsString("declared type [long]"));
-        assertThat(warnings.get(0), containsString("returning null"));
+        assertThat(warnings.get(0), startsWith("column [<unknown>]: cannot read [keyword] as [long]: "));
     }
 
     public void testLenientOverflowNullsCellAndWarns() {
@@ -1126,7 +1126,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
 
     /**
      * A strict coercion failure names the column, the declared type and the offending value, points at
-     * {@code error_mode=null_field}, and is a client error (HTTP 400) — never the bare JDK parser exception
+     * {@code [error_mode]} set to {@code [null_field]}, and is a client error (HTTP 400) — never the bare JDK parser exception
      * with no column/type context that regressed diagnosability. The original exception is chained as the cause.
      */
     public void testStrictCoercionFailureNamesColumnTypeAndValue() {
@@ -1135,10 +1135,9 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, "views", null).close()
             );
-            assertThat(e.getMessage(), containsString("Column [views]"));
-            assertThat(e.getMessage(), containsString("declared type [double]"));
+            assertThat(e.getMessage(), startsWith("column [views]: cannot read [keyword] as [double]: "));
             assertThat("the offending value survives on the message", e.getMessage(), containsString("abc"));
-            assertThat(e.getMessage(), containsString("error_mode=null_field"));
+            assertThat(e.getMessage(), endsWith("; set [error_mode] to [null_field] to return null instead"));
             assertThat("a coercion failure is a client error, not a 500", e.status(), equalTo(RestStatus.BAD_REQUEST));
             assertNotNull("the low-level parser exception is preserved as the cause", e.getCause());
         }
@@ -1156,8 +1155,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, "FlashMinor2", null)
                     .close()
             );
-            assertThat(e.getMessage(), containsString("Column [FlashMinor2]"));
-            assertThat(e.getMessage(), containsString("declared type [double]"));
+            assertThat(e.getMessage(), startsWith("column [FlashMinor2]: cannot read [keyword] as [double]: "));
             assertThat("the raw JDK detail is retained, not discarded", e.getMessage(), containsString("empty String"));
         }
     }
@@ -1174,8 +1172,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.LONG, null, blockFactory, "views", null).close()
             );
-            assertThat(e.getMessage(), containsString("Column [views]"));
-            assertThat(e.getMessage(), containsString("declared type [long]"));
+            assertThat(e.getMessage(), startsWith("column [views]: cannot read [keyword] as [long]: "));
             assertTrue("the cast-engine exception is preserved as the cause", e.getCause() instanceof InvalidArgumentException);
         }
     }
@@ -1187,8 +1184,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(src, DataType.KEYWORD, DataType.DOUBLE, null, blockFactory, null, null).close()
             );
-            assertThat(e.getMessage(), containsString("Column [<unknown>]"));
-            assertThat(e.getMessage(), containsString("declared type [double]"));
+            assertThat(e.getMessage(), startsWith("column [<unknown>]: cannot read [keyword] as [double]: "));
         }
     }
 

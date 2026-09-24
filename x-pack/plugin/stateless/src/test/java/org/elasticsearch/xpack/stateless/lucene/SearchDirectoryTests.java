@@ -688,8 +688,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final var genFileSeg1 = "_1_1.fnm"; // soft-delete of segment _1, first written into BCC (1,2)
 
             // Backing bytes for the two BCC blobs so the generational files can actually be opened once their BCC is pinned.
-            writeBlob(blobContainer, StatelessCompoundCommit.blobNameFromGeneration(1L), 300);
-            writeBlob(blobContainer, StatelessCompoundCommit.blobNameFromGeneration(2L), 300);
+            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(1L), 300);
+            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(2L), 300);
 
             // Notification for the commit in BCC (1,1): segment _0 and its first soft-delete gen file, all internal to BCC (1,1).
             searchDirectory.updateCommit(

@@ -103,7 +103,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
     // Parse {"a":1} with varying whitespace and verify identical structurals.
     public void testStage1SimpleDocument() {
         String[] variants = { "{\"a\":1}", "{ \"a\" : 1 }", "{  \"a\"  :  1  }", "{\n\"a\"\n:\n1\n}", "{\t\"a\"\t:\t1\t}" };
-        List<Character> expected = List.of('{', '"', ':', '1', '}');
+        List<Character> expected = List.of('{', '"', '"', ':', '1', '}');
         for (String json : variants) {
             byte[] buffer = json.getBytes(UTF_8);
             MemorySegment ctx = lib.create(buffer.length);
@@ -120,7 +120,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
     // Parse JSON placed at a non-zero offset and verify indices are absolute buffer positions.
     public void testStage1WithOffset() {
         String[] variants = { "{\"x\":42}", "{ \"x\" : 42 }", "{  \"x\"  :  42  }", "{\n\"x\"\n:\n42\n}" };
-        List<Character> expected = List.of('{', '"', ':', '4', '}');
+        List<Character> expected = List.of('{', '"', '"', ':', '4', '}');
         int offset = 50;
         for (String json : variants) {
             byte[] raw = json.getBytes(UTF_8);
@@ -165,11 +165,11 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         try (Arena arena = arenaSupplier.get()) {
             byte[] buf1 = "{\"a\":1}".getBytes(UTF_8);
             BitIndexes bi1 = runStage1(ctx, arena, buf1, 0, buf1.length);
-            assertEquals(List.of('{', '"', ':', '1', '}'), drainStructurals(buf1, bi1));
+            assertEquals(List.of('{', '"', '"', ':', '1', '}'), drainStructurals(buf1, bi1));
 
             byte[] buf2 = "{\"b\":2,\"c\":3}".getBytes(UTF_8);
             BitIndexes bi2 = runStage1(ctx, arena, buf2, 0, buf2.length);
-            assertEquals(List.of('{', '"', ':', '2', ',', '"', ':', '3', '}'), drainStructurals(buf2, bi2));
+            assertEquals(List.of('{', '"', '"', ':', '2', ',', '"', '"', ':', '3', '}'), drainStructurals(buf2, bi2));
         } finally {
             lib.destroy(ctx);
         }
@@ -265,7 +265,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
             byte[] buffer = "{\"key\":\"value\"}".getBytes(UTF_8);
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
             List<Character> chars = drainStructurals(buffer, bi);
-            assertEquals(List.of('{', '"', ':', '"', '}'), chars);
+            assertEquals(List.of('{', '"', '"', ':', '"', '"', '}'), chars);
         } finally {
             lib.destroy(ctx);
         }
@@ -322,7 +322,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         MemorySegment ctx = lib.create(buffer.length);
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
-            assertEquals(List.of('{', '"', ':', '[', '1', ',', '2', ']', '}'), drainStructurals(buffer, bi));
+            assertEquals(List.of('{', '"', '"', ':', '[', '1', ',', '2', ']', '}'), drainStructurals(buffer, bi));
         } finally {
             lib.destroy(ctx);
         }
@@ -337,7 +337,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         MemorySegment ctx = lib.create(buffer.length);
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
-            assertEquals(List.of('{', '"', ':', '{', '"', ':', '1', '}', '}'), drainStructurals(buffer, bi));
+            assertEquals(List.of('{', '"', '"', ':', '{', '"', '"', ':', '1', '}', '}'), drainStructurals(buffer, bi));
         } finally {
             lib.destroy(ctx);
         }
@@ -352,7 +352,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         MemorySegment ctx = lib.create(buffer.length);
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
-            assertEquals(List.of('{', '"', ':', 't', ',', '"', ':', 'f', '}'), drainStructurals(buffer, bi));
+            assertEquals(List.of('{', '"', '"', ':', 't', ',', '"', '"', ':', 'f', '}'), drainStructurals(buffer, bi));
         } finally {
             lib.destroy(ctx);
         }
@@ -365,7 +365,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         MemorySegment ctx = lib.create(buffer.length);
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
-            assertEquals(List.of('{', '"', ':', 'n', '}'), drainStructurals(buffer, bi));
+            assertEquals(List.of('{', '"', '"', ':', 'n', '}'), drainStructurals(buffer, bi));
         } finally {
             lib.destroy(ctx);
         }
@@ -378,7 +378,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         MemorySegment ctx = lib.create(buffer.length);
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
-            assertEquals(List.of('{', '"', ':', '-', '}'), drainStructurals(buffer, bi));
+            assertEquals(List.of('{', '"', '"', ':', '-', '}'), drainStructurals(buffer, bi));
         } finally {
             lib.destroy(ctx);
         }
@@ -391,7 +391,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         MemorySegment ctx = lib.create(buffer.length);
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
-            assertEquals(List.of('{', '"', ':', '"', '}'), drainStructurals(buffer, bi));
+            assertEquals(List.of('{', '"', '"', ':', '"', '"', '}'), drainStructurals(buffer, bi));
         } finally {
             lib.destroy(ctx);
         }
@@ -406,8 +406,9 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         MemorySegment ctx = lib.create(buffer.length);
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
-            // the escaped quote inside the string is not a structural
-            assertEquals(List.of('{', '"', ':', '"', '}'), drainStructurals(buffer, bi));
+            // the escaped quote inside the string is not a closing quote; only the backslash
+            // preceding it is recorded, followed by the real closing quote
+            assertEquals(List.of('{', '"', '"', ':', '"', '\\', '"', '}'), drainStructurals(buffer, bi));
         } finally {
             lib.destroy(ctx);
         }
@@ -420,7 +421,8 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         MemorySegment ctx = lib.create(buffer.length);
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
-            assertEquals(List.of('{', '"', ':', '"', '}'), drainStructurals(buffer, bi));
+            // only the first backslash escapes; the second is escaped and so is not recorded
+            assertEquals(List.of('{', '"', '"', ':', '"', '\\', '"', '}'), drainStructurals(buffer, bi));
         } finally {
             lib.destroy(ctx);
         }
@@ -458,9 +460,9 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
             assertEquals('{', chars.getFirst().charValue());
             assertEquals('}', chars.getLast().charValue());
             // 100 fields: each contributes "key":value plus a comma separator (except last)
-            // structurals per field: " : value_start = 3, plus comma = 1 (except last)
-            // total = { + 100*3 + 99 commas + } = 401
-            assertEquals(401, chars.size());
+            // structurals per field: key open " + key close " + : + value_start = 4, plus comma = 1 (except last)
+            // total = { + 100*4 + 99 commas + } = 501
+            assertEquals(501, chars.size());
         } finally {
             lib.destroy(ctx);
         }
@@ -476,7 +478,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
             List<Character> chars = drainStructurals(buffer, bi);
-            assertEquals(List.of('{', '"', ':', '1', '}', '{', '"', ':', '2', '}', '{', '"', ':', '3', '}'), chars);
+            assertEquals(List.of('{', '"', '"', ':', '1', '}', '{', '"', '"', ':', '2', '}', '{', '"', '"', ':', '3', '}'), chars);
         } finally {
             lib.destroy(ctx);
         }
@@ -490,7 +492,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
             List<Character> chars = drainStructurals(buffer, bi);
-            assertEquals(List.of('{', '"', ':', '1', '}', '{', '"', ':', '2', '}', '{', '"', ':', '3', '}'), chars);
+            assertEquals(List.of('{', '"', '"', ':', '1', '}', '{', '"', '"', ':', '2', '}', '{', '"', '"', ':', '3', '}'), chars);
         } finally {
             lib.destroy(ctx);
         }
@@ -506,7 +508,7 @@ public class SimdJsonLibraryTests extends SimdJsonTestCase {
         try (Arena arena = arenaSupplier.get()) {
             BitIndexes bi = runStage1(ctx, arena, buffer, 0, buffer.length);
             List<Character> chars = drainStructurals(buffer, bi);
-            assertEquals(List.of('{', '"', ':', '1', ',', '"'), chars);
+            assertEquals(List.of('{', '"', '"', ':', '1', ',', '"', '"'), chars);
         } finally {
             lib.destroy(ctx);
         }

@@ -1,4 +1,4 @@
-/* auto-generated on 2026-08-24 17:10:01 -0400. version 4.6.9 Do not edit! */
+/* auto-generated on 2026-08-26 21:32:13 -0400. version 4.6.9 Do not edit! */
 /* including simdjson.cpp:  */
 /* begin file simdjson.cpp */
 #define SIMDJSON_SRC_SIMDJSON_CPP
@@ -12712,6 +12712,19 @@ struct json_character_block {
 /* amalgamation skipped (editor-only): #include <generic/base.h> */
 /* amalgamation skipped (editor-only): #endif // SIMDJSON_CONDITIONAL_INCLUDE */
 
+/**
+ * When enabled, stage 1 additionally records, for every string, the position of its closing quote
+ * and of each backslash it contains. Consumers that want a string's extent, or want to know whether
+ * it needs unescaping, can then read it off the structural index instead of rescanning the bytes.
+ *
+ * Off by default, and only usable by callers that consume stage 1 directly: the extra entries are
+ * not structural characters in the JSON grammar, so simdjson's own stage 2 cannot parse an index
+ * produced with this enabled.
+ */
+#ifndef SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+#define SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE 0
+#endif
+
 namespace simdjson {
 namespace arm64 {
 namespace {
@@ -13031,13 +13044,18 @@ namespace stage1 {
 
 struct json_string_block {
   // We spell out the constructors in the hope of resolving inlining issues with Visual Studio 2017
-  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t quote, uint64_t in_string) :
-  _escaped(escaped), _quote(quote), _in_string(in_string) {}
+  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t escape, uint64_t quote, uint64_t in_string) :
+  _escaped(escaped), _escape(escape), _quote(quote), _in_string(in_string) {}
 
   // Escaped characters (characters following an escape() character)
   simdjson_really_inline uint64_t escaped() const { return _escaped; }
+  // The escape characters themselves (the backslashes), where they occur inside a string
+  simdjson_really_inline uint64_t escape_in_string() const { return _escape & _in_string; }
   // Real (non-backslashed) quotes
   simdjson_really_inline uint64_t quote() const { return _quote; }
+  // The quotes that close a string. _in_string covers the opening quote but stops short of the
+  // closing one, so the closing quotes are exactly the real quotes outside it.
+  simdjson_really_inline uint64_t close_quote() const { return _quote & ~_in_string; }
   // Only characters inside the string (not including the quotes)
   simdjson_really_inline uint64_t string_content() const { return _in_string & ~_quote; }
   // Return a mask of whether the given characters are inside a string (only works on non-quotes)
@@ -13049,6 +13067,8 @@ struct json_string_block {
 
   // escaped characters (backslashed--does not include the hex characters after \u)
   uint64_t _escaped;
+  // escape characters (the backslashes that do the escaping, not the characters they escape)
+  uint64_t _escape;
   // real quotes (non-escaped ones)
   uint64_t _quote;
   // string characters (includes start quote but not end quote)
@@ -13079,7 +13099,8 @@ private:
 //
 simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in) {
   const uint64_t backslash = in.eq('\\');
-  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const json_escape_scanner::escaped_and_escape escapes = escape_scanner.next(backslash);
+  const uint64_t escaped = escapes.escaped;
   const uint64_t quote = in.eq('"') & ~escaped;
 
   //
@@ -13099,7 +13120,7 @@ simdjson_really_inline json_string_block json_string_scanner::next(const simd::s
 
   // We are returning a function-local object so either we get a move constructor
   // or we get copy elision.
-  return json_string_block(escaped, quote, in_string);
+  return json_string_block(escaped, escapes.escape, quote, in_string);
 }
 
 simdjson_really_inline error_code json_string_scanner::finish() {
@@ -13373,7 +13394,17 @@ public:
    * The start of structurals.
    * In simdjson prior to v0.3, these were called the pseudo-structural characters.
    **/
-  simdjson_inline uint64_t structural_start() const noexcept { return potential_structural_start() & ~_string.string_tail(); }
+  simdjson_inline uint64_t structural_start() const noexcept {
+#if SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+    // Closing quotes and in-string backslashes are not potential structural starts (both follow a
+    // nonquote scalar in all but the empty-string case), so they are added rather than unmasked.
+    return (potential_structural_start() & ~_string.string_tail())
+         | _string.close_quote()
+         | _string.escape_in_string();
+#else
+    return potential_structural_start() & ~_string.string_tail();
+#endif
+  }
   /** All JSON whitespace (i.e. not in a string) */
   simdjson_inline uint64_t whitespace() const noexcept { return non_quote_outside_string(_characters.whitespace()); }
 
@@ -19107,6 +19138,19 @@ struct json_character_block {
 /* amalgamation skipped (editor-only): #include <generic/base.h> */
 /* amalgamation skipped (editor-only): #endif // SIMDJSON_CONDITIONAL_INCLUDE */
 
+/**
+ * When enabled, stage 1 additionally records, for every string, the position of its closing quote
+ * and of each backslash it contains. Consumers that want a string's extent, or want to know whether
+ * it needs unescaping, can then read it off the structural index instead of rescanning the bytes.
+ *
+ * Off by default, and only usable by callers that consume stage 1 directly: the extra entries are
+ * not structural characters in the JSON grammar, so simdjson's own stage 2 cannot parse an index
+ * produced with this enabled.
+ */
+#ifndef SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+#define SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE 0
+#endif
+
 namespace simdjson {
 namespace haswell {
 namespace {
@@ -19426,13 +19470,18 @@ namespace stage1 {
 
 struct json_string_block {
   // We spell out the constructors in the hope of resolving inlining issues with Visual Studio 2017
-  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t quote, uint64_t in_string) :
-  _escaped(escaped), _quote(quote), _in_string(in_string) {}
+  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t escape, uint64_t quote, uint64_t in_string) :
+  _escaped(escaped), _escape(escape), _quote(quote), _in_string(in_string) {}
 
   // Escaped characters (characters following an escape() character)
   simdjson_really_inline uint64_t escaped() const { return _escaped; }
+  // The escape characters themselves (the backslashes), where they occur inside a string
+  simdjson_really_inline uint64_t escape_in_string() const { return _escape & _in_string; }
   // Real (non-backslashed) quotes
   simdjson_really_inline uint64_t quote() const { return _quote; }
+  // The quotes that close a string. _in_string covers the opening quote but stops short of the
+  // closing one, so the closing quotes are exactly the real quotes outside it.
+  simdjson_really_inline uint64_t close_quote() const { return _quote & ~_in_string; }
   // Only characters inside the string (not including the quotes)
   simdjson_really_inline uint64_t string_content() const { return _in_string & ~_quote; }
   // Return a mask of whether the given characters are inside a string (only works on non-quotes)
@@ -19444,6 +19493,8 @@ struct json_string_block {
 
   // escaped characters (backslashed--does not include the hex characters after \u)
   uint64_t _escaped;
+  // escape characters (the backslashes that do the escaping, not the characters they escape)
+  uint64_t _escape;
   // real quotes (non-escaped ones)
   uint64_t _quote;
   // string characters (includes start quote but not end quote)
@@ -19474,7 +19525,8 @@ private:
 //
 simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in) {
   const uint64_t backslash = in.eq('\\');
-  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const json_escape_scanner::escaped_and_escape escapes = escape_scanner.next(backslash);
+  const uint64_t escaped = escapes.escaped;
   const uint64_t quote = in.eq('"') & ~escaped;
 
   //
@@ -19494,7 +19546,7 @@ simdjson_really_inline json_string_block json_string_scanner::next(const simd::s
 
   // We are returning a function-local object so either we get a move constructor
   // or we get copy elision.
-  return json_string_block(escaped, quote, in_string);
+  return json_string_block(escaped, escapes.escape, quote, in_string);
 }
 
 simdjson_really_inline error_code json_string_scanner::finish() {
@@ -19768,7 +19820,17 @@ public:
    * The start of structurals.
    * In simdjson prior to v0.3, these were called the pseudo-structural characters.
    **/
-  simdjson_inline uint64_t structural_start() const noexcept { return potential_structural_start() & ~_string.string_tail(); }
+  simdjson_inline uint64_t structural_start() const noexcept {
+#if SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+    // Closing quotes and in-string backslashes are not potential structural starts (both follow a
+    // nonquote scalar in all but the empty-string case), so they are added rather than unmasked.
+    return (potential_structural_start() & ~_string.string_tail())
+         | _string.close_quote()
+         | _string.escape_in_string();
+#else
+    return potential_structural_start() & ~_string.string_tail();
+#endif
+  }
   /** All JSON whitespace (i.e. not in a string) */
   simdjson_inline uint64_t whitespace() const noexcept { return non_quote_outside_string(_characters.whitespace()); }
 
@@ -25497,6 +25559,19 @@ struct json_character_block {
 /* amalgamation skipped (editor-only): #include <generic/base.h> */
 /* amalgamation skipped (editor-only): #endif // SIMDJSON_CONDITIONAL_INCLUDE */
 
+/**
+ * When enabled, stage 1 additionally records, for every string, the position of its closing quote
+ * and of each backslash it contains. Consumers that want a string's extent, or want to know whether
+ * it needs unescaping, can then read it off the structural index instead of rescanning the bytes.
+ *
+ * Off by default, and only usable by callers that consume stage 1 directly: the extra entries are
+ * not structural characters in the JSON grammar, so simdjson's own stage 2 cannot parse an index
+ * produced with this enabled.
+ */
+#ifndef SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+#define SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE 0
+#endif
+
 namespace simdjson {
 namespace icelake {
 namespace {
@@ -25816,13 +25891,18 @@ namespace stage1 {
 
 struct json_string_block {
   // We spell out the constructors in the hope of resolving inlining issues with Visual Studio 2017
-  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t quote, uint64_t in_string) :
-  _escaped(escaped), _quote(quote), _in_string(in_string) {}
+  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t escape, uint64_t quote, uint64_t in_string) :
+  _escaped(escaped), _escape(escape), _quote(quote), _in_string(in_string) {}
 
   // Escaped characters (characters following an escape() character)
   simdjson_really_inline uint64_t escaped() const { return _escaped; }
+  // The escape characters themselves (the backslashes), where they occur inside a string
+  simdjson_really_inline uint64_t escape_in_string() const { return _escape & _in_string; }
   // Real (non-backslashed) quotes
   simdjson_really_inline uint64_t quote() const { return _quote; }
+  // The quotes that close a string. _in_string covers the opening quote but stops short of the
+  // closing one, so the closing quotes are exactly the real quotes outside it.
+  simdjson_really_inline uint64_t close_quote() const { return _quote & ~_in_string; }
   // Only characters inside the string (not including the quotes)
   simdjson_really_inline uint64_t string_content() const { return _in_string & ~_quote; }
   // Return a mask of whether the given characters are inside a string (only works on non-quotes)
@@ -25834,6 +25914,8 @@ struct json_string_block {
 
   // escaped characters (backslashed--does not include the hex characters after \u)
   uint64_t _escaped;
+  // escape characters (the backslashes that do the escaping, not the characters they escape)
+  uint64_t _escape;
   // real quotes (non-escaped ones)
   uint64_t _quote;
   // string characters (includes start quote but not end quote)
@@ -25864,7 +25946,8 @@ private:
 //
 simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in) {
   const uint64_t backslash = in.eq('\\');
-  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const json_escape_scanner::escaped_and_escape escapes = escape_scanner.next(backslash);
+  const uint64_t escaped = escapes.escaped;
   const uint64_t quote = in.eq('"') & ~escaped;
 
   //
@@ -25884,7 +25967,7 @@ simdjson_really_inline json_string_block json_string_scanner::next(const simd::s
 
   // We are returning a function-local object so either we get a move constructor
   // or we get copy elision.
-  return json_string_block(escaped, quote, in_string);
+  return json_string_block(escaped, escapes.escape, quote, in_string);
 }
 
 simdjson_really_inline error_code json_string_scanner::finish() {
@@ -26158,7 +26241,17 @@ public:
    * The start of structurals.
    * In simdjson prior to v0.3, these were called the pseudo-structural characters.
    **/
-  simdjson_inline uint64_t structural_start() const noexcept { return potential_structural_start() & ~_string.string_tail(); }
+  simdjson_inline uint64_t structural_start() const noexcept {
+#if SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+    // Closing quotes and in-string backslashes are not potential structural starts (both follow a
+    // nonquote scalar in all but the empty-string case), so they are added rather than unmasked.
+    return (potential_structural_start() & ~_string.string_tail())
+         | _string.close_quote()
+         | _string.escape_in_string();
+#else
+    return potential_structural_start() & ~_string.string_tail();
+#endif
+  }
   /** All JSON whitespace (i.e. not in a string) */
   simdjson_inline uint64_t whitespace() const noexcept { return non_quote_outside_string(_characters.whitespace()); }
 
@@ -32158,6 +32251,19 @@ struct json_character_block {
 /* amalgamation skipped (editor-only): #include <generic/base.h> */
 /* amalgamation skipped (editor-only): #endif // SIMDJSON_CONDITIONAL_INCLUDE */
 
+/**
+ * When enabled, stage 1 additionally records, for every string, the position of its closing quote
+ * and of each backslash it contains. Consumers that want a string's extent, or want to know whether
+ * it needs unescaping, can then read it off the structural index instead of rescanning the bytes.
+ *
+ * Off by default, and only usable by callers that consume stage 1 directly: the extra entries are
+ * not structural characters in the JSON grammar, so simdjson's own stage 2 cannot parse an index
+ * produced with this enabled.
+ */
+#ifndef SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+#define SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE 0
+#endif
+
 namespace simdjson {
 namespace ppc64 {
 namespace {
@@ -32477,13 +32583,18 @@ namespace stage1 {
 
 struct json_string_block {
   // We spell out the constructors in the hope of resolving inlining issues with Visual Studio 2017
-  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t quote, uint64_t in_string) :
-  _escaped(escaped), _quote(quote), _in_string(in_string) {}
+  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t escape, uint64_t quote, uint64_t in_string) :
+  _escaped(escaped), _escape(escape), _quote(quote), _in_string(in_string) {}
 
   // Escaped characters (characters following an escape() character)
   simdjson_really_inline uint64_t escaped() const { return _escaped; }
+  // The escape characters themselves (the backslashes), where they occur inside a string
+  simdjson_really_inline uint64_t escape_in_string() const { return _escape & _in_string; }
   // Real (non-backslashed) quotes
   simdjson_really_inline uint64_t quote() const { return _quote; }
+  // The quotes that close a string. _in_string covers the opening quote but stops short of the
+  // closing one, so the closing quotes are exactly the real quotes outside it.
+  simdjson_really_inline uint64_t close_quote() const { return _quote & ~_in_string; }
   // Only characters inside the string (not including the quotes)
   simdjson_really_inline uint64_t string_content() const { return _in_string & ~_quote; }
   // Return a mask of whether the given characters are inside a string (only works on non-quotes)
@@ -32495,6 +32606,8 @@ struct json_string_block {
 
   // escaped characters (backslashed--does not include the hex characters after \u)
   uint64_t _escaped;
+  // escape characters (the backslashes that do the escaping, not the characters they escape)
+  uint64_t _escape;
   // real quotes (non-escaped ones)
   uint64_t _quote;
   // string characters (includes start quote but not end quote)
@@ -32525,7 +32638,8 @@ private:
 //
 simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in) {
   const uint64_t backslash = in.eq('\\');
-  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const json_escape_scanner::escaped_and_escape escapes = escape_scanner.next(backslash);
+  const uint64_t escaped = escapes.escaped;
   const uint64_t quote = in.eq('"') & ~escaped;
 
   //
@@ -32545,7 +32659,7 @@ simdjson_really_inline json_string_block json_string_scanner::next(const simd::s
 
   // We are returning a function-local object so either we get a move constructor
   // or we get copy elision.
-  return json_string_block(escaped, quote, in_string);
+  return json_string_block(escaped, escapes.escape, quote, in_string);
 }
 
 simdjson_really_inline error_code json_string_scanner::finish() {
@@ -32819,7 +32933,17 @@ public:
    * The start of structurals.
    * In simdjson prior to v0.3, these were called the pseudo-structural characters.
    **/
-  simdjson_inline uint64_t structural_start() const noexcept { return potential_structural_start() & ~_string.string_tail(); }
+  simdjson_inline uint64_t structural_start() const noexcept {
+#if SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+    // Closing quotes and in-string backslashes are not potential structural starts (both follow a
+    // nonquote scalar in all but the empty-string case), so they are added rather than unmasked.
+    return (potential_structural_start() & ~_string.string_tail())
+         | _string.close_quote()
+         | _string.escape_in_string();
+#else
+    return potential_structural_start() & ~_string.string_tail();
+#endif
+  }
   /** All JSON whitespace (i.e. not in a string) */
   simdjson_inline uint64_t whitespace() const noexcept { return non_quote_outside_string(_characters.whitespace()); }
 
@@ -39381,6 +39505,19 @@ struct json_character_block {
 /* amalgamation skipped (editor-only): #include <generic/base.h> */
 /* amalgamation skipped (editor-only): #endif // SIMDJSON_CONDITIONAL_INCLUDE */
 
+/**
+ * When enabled, stage 1 additionally records, for every string, the position of its closing quote
+ * and of each backslash it contains. Consumers that want a string's extent, or want to know whether
+ * it needs unescaping, can then read it off the structural index instead of rescanning the bytes.
+ *
+ * Off by default, and only usable by callers that consume stage 1 directly: the extra entries are
+ * not structural characters in the JSON grammar, so simdjson's own stage 2 cannot parse an index
+ * produced with this enabled.
+ */
+#ifndef SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+#define SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE 0
+#endif
+
 namespace simdjson {
 namespace westmere {
 namespace {
@@ -39700,13 +39837,18 @@ namespace stage1 {
 
 struct json_string_block {
   // We spell out the constructors in the hope of resolving inlining issues with Visual Studio 2017
-  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t quote, uint64_t in_string) :
-  _escaped(escaped), _quote(quote), _in_string(in_string) {}
+  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t escape, uint64_t quote, uint64_t in_string) :
+  _escaped(escaped), _escape(escape), _quote(quote), _in_string(in_string) {}
 
   // Escaped characters (characters following an escape() character)
   simdjson_really_inline uint64_t escaped() const { return _escaped; }
+  // The escape characters themselves (the backslashes), where they occur inside a string
+  simdjson_really_inline uint64_t escape_in_string() const { return _escape & _in_string; }
   // Real (non-backslashed) quotes
   simdjson_really_inline uint64_t quote() const { return _quote; }
+  // The quotes that close a string. _in_string covers the opening quote but stops short of the
+  // closing one, so the closing quotes are exactly the real quotes outside it.
+  simdjson_really_inline uint64_t close_quote() const { return _quote & ~_in_string; }
   // Only characters inside the string (not including the quotes)
   simdjson_really_inline uint64_t string_content() const { return _in_string & ~_quote; }
   // Return a mask of whether the given characters are inside a string (only works on non-quotes)
@@ -39718,6 +39860,8 @@ struct json_string_block {
 
   // escaped characters (backslashed--does not include the hex characters after \u)
   uint64_t _escaped;
+  // escape characters (the backslashes that do the escaping, not the characters they escape)
+  uint64_t _escape;
   // real quotes (non-escaped ones)
   uint64_t _quote;
   // string characters (includes start quote but not end quote)
@@ -39748,7 +39892,8 @@ private:
 //
 simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in) {
   const uint64_t backslash = in.eq('\\');
-  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const json_escape_scanner::escaped_and_escape escapes = escape_scanner.next(backslash);
+  const uint64_t escaped = escapes.escaped;
   const uint64_t quote = in.eq('"') & ~escaped;
 
   //
@@ -39768,7 +39913,7 @@ simdjson_really_inline json_string_block json_string_scanner::next(const simd::s
 
   // We are returning a function-local object so either we get a move constructor
   // or we get copy elision.
-  return json_string_block(escaped, quote, in_string);
+  return json_string_block(escaped, escapes.escape, quote, in_string);
 }
 
 simdjson_really_inline error_code json_string_scanner::finish() {
@@ -40042,7 +40187,17 @@ public:
    * The start of structurals.
    * In simdjson prior to v0.3, these were called the pseudo-structural characters.
    **/
-  simdjson_inline uint64_t structural_start() const noexcept { return potential_structural_start() & ~_string.string_tail(); }
+  simdjson_inline uint64_t structural_start() const noexcept {
+#if SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+    // Closing quotes and in-string backslashes are not potential structural starts (both follow a
+    // nonquote scalar in all but the empty-string case), so they are added rather than unmasked.
+    return (potential_structural_start() & ~_string.string_tail())
+         | _string.close_quote()
+         | _string.escape_in_string();
+#else
+    return potential_structural_start() & ~_string.string_tail();
+#endif
+  }
   /** All JSON whitespace (i.e. not in a string) */
   simdjson_inline uint64_t whitespace() const noexcept { return non_quote_outside_string(_characters.whitespace()); }
 
@@ -45635,6 +45790,19 @@ struct json_character_block {
 /* amalgamation skipped (editor-only): #include <generic/base.h> */
 /* amalgamation skipped (editor-only): #endif // SIMDJSON_CONDITIONAL_INCLUDE */
 
+/**
+ * When enabled, stage 1 additionally records, for every string, the position of its closing quote
+ * and of each backslash it contains. Consumers that want a string's extent, or want to know whether
+ * it needs unescaping, can then read it off the structural index instead of rescanning the bytes.
+ *
+ * Off by default, and only usable by callers that consume stage 1 directly: the extra entries are
+ * not structural characters in the JSON grammar, so simdjson's own stage 2 cannot parse an index
+ * produced with this enabled.
+ */
+#ifndef SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+#define SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE 0
+#endif
+
 namespace simdjson {
 namespace lasx {
 namespace {
@@ -45954,13 +46122,18 @@ namespace stage1 {
 
 struct json_string_block {
   // We spell out the constructors in the hope of resolving inlining issues with Visual Studio 2017
-  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t quote, uint64_t in_string) :
-  _escaped(escaped), _quote(quote), _in_string(in_string) {}
+  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t escape, uint64_t quote, uint64_t in_string) :
+  _escaped(escaped), _escape(escape), _quote(quote), _in_string(in_string) {}
 
   // Escaped characters (characters following an escape() character)
   simdjson_really_inline uint64_t escaped() const { return _escaped; }
+  // The escape characters themselves (the backslashes), where they occur inside a string
+  simdjson_really_inline uint64_t escape_in_string() const { return _escape & _in_string; }
   // Real (non-backslashed) quotes
   simdjson_really_inline uint64_t quote() const { return _quote; }
+  // The quotes that close a string. _in_string covers the opening quote but stops short of the
+  // closing one, so the closing quotes are exactly the real quotes outside it.
+  simdjson_really_inline uint64_t close_quote() const { return _quote & ~_in_string; }
   // Only characters inside the string (not including the quotes)
   simdjson_really_inline uint64_t string_content() const { return _in_string & ~_quote; }
   // Return a mask of whether the given characters are inside a string (only works on non-quotes)
@@ -45972,6 +46145,8 @@ struct json_string_block {
 
   // escaped characters (backslashed--does not include the hex characters after \u)
   uint64_t _escaped;
+  // escape characters (the backslashes that do the escaping, not the characters they escape)
+  uint64_t _escape;
   // real quotes (non-escaped ones)
   uint64_t _quote;
   // string characters (includes start quote but not end quote)
@@ -46002,7 +46177,8 @@ private:
 //
 simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in) {
   const uint64_t backslash = in.eq('\\');
-  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const json_escape_scanner::escaped_and_escape escapes = escape_scanner.next(backslash);
+  const uint64_t escaped = escapes.escaped;
   const uint64_t quote = in.eq('"') & ~escaped;
 
   //
@@ -46022,7 +46198,7 @@ simdjson_really_inline json_string_block json_string_scanner::next(const simd::s
 
   // We are returning a function-local object so either we get a move constructor
   // or we get copy elision.
-  return json_string_block(escaped, quote, in_string);
+  return json_string_block(escaped, escapes.escape, quote, in_string);
 }
 
 simdjson_really_inline error_code json_string_scanner::finish() {
@@ -46296,7 +46472,17 @@ public:
    * The start of structurals.
    * In simdjson prior to v0.3, these were called the pseudo-structural characters.
    **/
-  simdjson_inline uint64_t structural_start() const noexcept { return potential_structural_start() & ~_string.string_tail(); }
+  simdjson_inline uint64_t structural_start() const noexcept {
+#if SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+    // Closing quotes and in-string backslashes are not potential structural starts (both follow a
+    // nonquote scalar in all but the empty-string case), so they are added rather than unmasked.
+    return (potential_structural_start() & ~_string.string_tail())
+         | _string.close_quote()
+         | _string.escape_in_string();
+#else
+    return potential_structural_start() & ~_string.string_tail();
+#endif
+  }
   /** All JSON whitespace (i.e. not in a string) */
   simdjson_inline uint64_t whitespace() const noexcept { return non_quote_outside_string(_characters.whitespace()); }
 
@@ -51793,6 +51979,19 @@ struct json_character_block {
 /* amalgamation skipped (editor-only): #include <generic/base.h> */
 /* amalgamation skipped (editor-only): #endif // SIMDJSON_CONDITIONAL_INCLUDE */
 
+/**
+ * When enabled, stage 1 additionally records, for every string, the position of its closing quote
+ * and of each backslash it contains. Consumers that want a string's extent, or want to know whether
+ * it needs unescaping, can then read it off the structural index instead of rescanning the bytes.
+ *
+ * Off by default, and only usable by callers that consume stage 1 directly: the extra entries are
+ * not structural characters in the JSON grammar, so simdjson's own stage 2 cannot parse an index
+ * produced with this enabled.
+ */
+#ifndef SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+#define SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE 0
+#endif
+
 namespace simdjson {
 namespace lsx {
 namespace {
@@ -52112,13 +52311,18 @@ namespace stage1 {
 
 struct json_string_block {
   // We spell out the constructors in the hope of resolving inlining issues with Visual Studio 2017
-  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t quote, uint64_t in_string) :
-  _escaped(escaped), _quote(quote), _in_string(in_string) {}
+  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t escape, uint64_t quote, uint64_t in_string) :
+  _escaped(escaped), _escape(escape), _quote(quote), _in_string(in_string) {}
 
   // Escaped characters (characters following an escape() character)
   simdjson_really_inline uint64_t escaped() const { return _escaped; }
+  // The escape characters themselves (the backslashes), where they occur inside a string
+  simdjson_really_inline uint64_t escape_in_string() const { return _escape & _in_string; }
   // Real (non-backslashed) quotes
   simdjson_really_inline uint64_t quote() const { return _quote; }
+  // The quotes that close a string. _in_string covers the opening quote but stops short of the
+  // closing one, so the closing quotes are exactly the real quotes outside it.
+  simdjson_really_inline uint64_t close_quote() const { return _quote & ~_in_string; }
   // Only characters inside the string (not including the quotes)
   simdjson_really_inline uint64_t string_content() const { return _in_string & ~_quote; }
   // Return a mask of whether the given characters are inside a string (only works on non-quotes)
@@ -52130,6 +52334,8 @@ struct json_string_block {
 
   // escaped characters (backslashed--does not include the hex characters after \u)
   uint64_t _escaped;
+  // escape characters (the backslashes that do the escaping, not the characters they escape)
+  uint64_t _escape;
   // real quotes (non-escaped ones)
   uint64_t _quote;
   // string characters (includes start quote but not end quote)
@@ -52160,7 +52366,8 @@ private:
 //
 simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in) {
   const uint64_t backslash = in.eq('\\');
-  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const json_escape_scanner::escaped_and_escape escapes = escape_scanner.next(backslash);
+  const uint64_t escaped = escapes.escaped;
   const uint64_t quote = in.eq('"') & ~escaped;
 
   //
@@ -52180,7 +52387,7 @@ simdjson_really_inline json_string_block json_string_scanner::next(const simd::s
 
   // We are returning a function-local object so either we get a move constructor
   // or we get copy elision.
-  return json_string_block(escaped, quote, in_string);
+  return json_string_block(escaped, escapes.escape, quote, in_string);
 }
 
 simdjson_really_inline error_code json_string_scanner::finish() {
@@ -52454,7 +52661,17 @@ public:
    * The start of structurals.
    * In simdjson prior to v0.3, these were called the pseudo-structural characters.
    **/
-  simdjson_inline uint64_t structural_start() const noexcept { return potential_structural_start() & ~_string.string_tail(); }
+  simdjson_inline uint64_t structural_start() const noexcept {
+#if SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+    // Closing quotes and in-string backslashes are not potential structural starts (both follow a
+    // nonquote scalar in all but the empty-string case), so they are added rather than unmasked.
+    return (potential_structural_start() & ~_string.string_tail())
+         | _string.close_quote()
+         | _string.escape_in_string();
+#else
+    return potential_structural_start() & ~_string.string_tail();
+#endif
+  }
   /** All JSON whitespace (i.e. not in a string) */
   simdjson_inline uint64_t whitespace() const noexcept { return non_quote_outside_string(_characters.whitespace()); }
 
@@ -58370,6 +58587,19 @@ struct json_character_block {
 /* amalgamation skipped (editor-only): #include <generic/base.h> */
 /* amalgamation skipped (editor-only): #endif // SIMDJSON_CONDITIONAL_INCLUDE */
 
+/**
+ * When enabled, stage 1 additionally records, for every string, the position of its closing quote
+ * and of each backslash it contains. Consumers that want a string's extent, or want to know whether
+ * it needs unescaping, can then read it off the structural index instead of rescanning the bytes.
+ *
+ * Off by default, and only usable by callers that consume stage 1 directly: the extra entries are
+ * not structural characters in the JSON grammar, so simdjson's own stage 2 cannot parse an index
+ * produced with this enabled.
+ */
+#ifndef SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+#define SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE 0
+#endif
+
 namespace simdjson {
 namespace rvv_vls {
 namespace {
@@ -58689,13 +58919,18 @@ namespace stage1 {
 
 struct json_string_block {
   // We spell out the constructors in the hope of resolving inlining issues with Visual Studio 2017
-  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t quote, uint64_t in_string) :
-  _escaped(escaped), _quote(quote), _in_string(in_string) {}
+  simdjson_really_inline json_string_block(uint64_t escaped, uint64_t escape, uint64_t quote, uint64_t in_string) :
+  _escaped(escaped), _escape(escape), _quote(quote), _in_string(in_string) {}
 
   // Escaped characters (characters following an escape() character)
   simdjson_really_inline uint64_t escaped() const { return _escaped; }
+  // The escape characters themselves (the backslashes), where they occur inside a string
+  simdjson_really_inline uint64_t escape_in_string() const { return _escape & _in_string; }
   // Real (non-backslashed) quotes
   simdjson_really_inline uint64_t quote() const { return _quote; }
+  // The quotes that close a string. _in_string covers the opening quote but stops short of the
+  // closing one, so the closing quotes are exactly the real quotes outside it.
+  simdjson_really_inline uint64_t close_quote() const { return _quote & ~_in_string; }
   // Only characters inside the string (not including the quotes)
   simdjson_really_inline uint64_t string_content() const { return _in_string & ~_quote; }
   // Return a mask of whether the given characters are inside a string (only works on non-quotes)
@@ -58707,6 +58942,8 @@ struct json_string_block {
 
   // escaped characters (backslashed--does not include the hex characters after \u)
   uint64_t _escaped;
+  // escape characters (the backslashes that do the escaping, not the characters they escape)
+  uint64_t _escape;
   // real quotes (non-escaped ones)
   uint64_t _quote;
   // string characters (includes start quote but not end quote)
@@ -58737,7 +58974,8 @@ private:
 //
 simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in) {
   const uint64_t backslash = in.eq('\\');
-  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const json_escape_scanner::escaped_and_escape escapes = escape_scanner.next(backslash);
+  const uint64_t escaped = escapes.escaped;
   const uint64_t quote = in.eq('"') & ~escaped;
 
   //
@@ -58757,7 +58995,7 @@ simdjson_really_inline json_string_block json_string_scanner::next(const simd::s
 
   // We are returning a function-local object so either we get a move constructor
   // or we get copy elision.
-  return json_string_block(escaped, quote, in_string);
+  return json_string_block(escaped, escapes.escape, quote, in_string);
 }
 
 simdjson_really_inline error_code json_string_scanner::finish() {
@@ -59031,7 +59269,17 @@ public:
    * The start of structurals.
    * In simdjson prior to v0.3, these were called the pseudo-structural characters.
    **/
-  simdjson_inline uint64_t structural_start() const noexcept { return potential_structural_start() & ~_string.string_tail(); }
+  simdjson_inline uint64_t structural_start() const noexcept {
+#if SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE
+    // Closing quotes and in-string backslashes are not potential structural starts (both follow a
+    // nonquote scalar in all but the empty-string case), so they are added rather than unmasked.
+    return (potential_structural_start() & ~_string.string_tail())
+         | _string.close_quote()
+         | _string.escape_in_string();
+#else
+    return potential_structural_start() & ~_string.string_tail();
+#endif
+  }
   /** All JSON whitespace (i.e. not in a string) */
   simdjson_inline uint64_t whitespace() const noexcept { return non_quote_outside_string(_characters.whitespace()); }
 

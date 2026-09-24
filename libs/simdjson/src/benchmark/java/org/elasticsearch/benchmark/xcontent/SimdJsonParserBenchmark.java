@@ -91,6 +91,13 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * # All shapes, single bulk size:
  * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
  *   -p shape=clickbench_flat,otel_nested,small_sparse -p docCount=1000"
+ *
+ * # Full sweep for a change to string handling: every shape, both escape rates. otel_nested is
+ * # the only shape reaching walkObjectInArray, and escapePercent>0 the only way to reach the
+ * # unescaping path, so neither is covered by the default matrix.
+ * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
+ *   -p shape=clickbench_flat,otel_nested,small_sparse -p escapePercent=0,10 -p docCount=1000 \
+ *   -rf json -rff build/jmh-result.json"
  * }</pre>
  */
 @Fork(value = 1, jvmArgsAppend = { "--add-modules=jdk.incubator.vector" })
@@ -126,6 +133,14 @@ public class SimdJsonParserBenchmark {
     @Param({ "clickbench_flat", "small_sparse" })
     private String shape;
 
+    /**
+     * Percentage of generated string values that carry a {@code \n} escape. Defaults to 0 so the
+     * standard matrix is unchanged; pass {@code -p escapePercent=0,10} to measure the unescaping
+     * path, which no shape exercises otherwise.
+     */
+    @Param({ "0" })
+    private int escapePercent;
+
     private BytesReference[] docs;
 
     @Setup
@@ -137,7 +152,7 @@ public class SimdJsonParserBenchmark {
         int minLen = Integer.MAX_VALUE, maxLen = 0;
         long totalLen = 0;
         for (int i = 0; i < docCount; i++) {
-            byte[] raw = generateDoc(random, shape, i).getBytes(UTF_8);
+            byte[] raw = generateDoc(random, shape, i, escapePercent).getBytes(UTF_8);
             docs[i] = new BytesArray(raw);
             minLen = Math.min(minLen, raw.length);
             maxLen = Math.max(maxLen, raw.length);
@@ -206,13 +221,60 @@ public class SimdJsonParserBenchmark {
     // Document generators (same shapes as EscfFieldResolutionBenchmark)
     // ------------------------------------------------------------------
 
-    private static String generateDoc(Random random, String shape, int docIndex) {
-        return switch (shape) {
+    /**
+     * Package-private so {@link Stage1IndexingBenchmark} measures stage 1 over exactly the corpora
+     * this benchmark measures end to end; the two numbers are only comparable on identical input.
+     */
+    static String generateDoc(Random random, String shape, int docIndex, int escapePercent) {
+        String json = switch (shape) {
             case "clickbench_flat" -> generateClickBenchFlat(random);
             case "otel_nested" -> generateOtelNested(random);
             case "small_sparse" -> generateSmallSparse(random, docIndex);
             default -> throw new IllegalArgumentException("unknown shape: " + shape);
         };
+        return escapePercent > 0 ? injectEscapes(json, random, escapePercent) : json;
+    }
+
+    /**
+     * Rewrites {@code escapePercent} of the document's string <em>values</em> to carry a {@code \n}
+     * escape, so the walker's unescaping path is exercised.
+     *
+     * <p>Done as a pass over the finished document rather than inside the value helpers: the
+     * generators build values from several different helpers and from literal text inside the
+     * format templates, so escaping at the helper level reaches only a fraction of the strings —
+     * too few to move index density at all, which is what a first attempt did.
+     *
+     * <p>A string is a key exactly when the next non-whitespace character after its closing quote
+     * is a colon; those are left alone, since escaped field names are a separate concern from
+     * escaped values. The escape is placed mid-value so the scan for it can terminate neither on
+     * the first nor the last byte.
+     */
+    private static String injectEscapes(String json, Random random, int escapePercent) {
+        StringBuilder out = new StringBuilder(json.length() + 16);
+        int i = 0;
+        while (i < json.length()) {
+            char c = json.charAt(i);
+            if (c != '"') {
+                out.append(c);
+                i++;
+                continue;
+            }
+            int close = json.indexOf('"', i + 1);
+            String content = json.substring(i + 1, close);
+            int after = close + 1;
+            while (after < json.length() && Character.isWhitespace(json.charAt(after))) {
+                after++;
+            }
+            boolean isKey = after < json.length() && json.charAt(after) == ':';
+            if (isKey == false && content.length() >= 2 && random.nextInt(100) < escapePercent) {
+                int at = content.length() / 2;
+                out.append('"').append(content, 0, at).append("\\n").append(content, at, content.length()).append('"');
+            } else {
+                out.append('"').append(content).append('"');
+            }
+            i = close + 1;
+        }
+        return out.toString();
     }
 
     private static String generateClickBenchFlat(Random random) {

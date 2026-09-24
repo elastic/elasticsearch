@@ -215,7 +215,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         Function<List<Attribute>, String> fingerprinter,
         String readConfig,
         boolean chunkMode,
-        NdJsonReaderCounters counters,
+        @Nullable NdJsonReaderCounters counters,
         long splitStartByte,
         int maxRecordBytes,
         DateFormatter datetimeFormatter,
@@ -227,7 +227,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         @Nullable Consumer<String> warningSink
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
-        Check.isTrue(counters != null, "counters must not be null");
         this.cacheableObject = cacheableObject;
         this.pinnedMtimeMillis = pinnedMtimeMillis;
         this.fingerprinter = fingerprinter;

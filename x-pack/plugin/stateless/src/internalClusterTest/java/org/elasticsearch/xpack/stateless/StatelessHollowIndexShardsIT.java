@@ -144,6 +144,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -158,6 +159,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.lang.Math.min;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
@@ -2164,7 +2166,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 .mapToObj(i -> findIndexShard(index, i).indexingStats().getTotal().getIndexCount())
                 .toList();
             var ingestLatch = new CountDownLatch(ingestingThreads);
+            // need enough updates to be sure to hollow every shard
+            final var docsToIngest = randomSubsetOf(100, docsIds);
+            final var ingestFutures = new ArrayList<Future<?>>(ingestingThreads);
             for (int i = 0; i < ingestingThreads; i++) {
+                final int threadIndex = i;
                 Runnable ingestRunnable = switch (ingestionType) {
                     // Index docs
                     case Index -> () -> {
@@ -2177,11 +2183,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     // Update doc or Upsert new doc
                     case Update -> () -> {
                         try {
-                            for (int j = 0; j < Math.min(docsIds.size(), 128); j++) { // need enough updates to be sure to hollow every
-                                                                                      // shard
+                            for (int docIndex = threadIndex; docIndex < docsToIngest.size(); docIndex += ingestingThreads) {
                                 final var upsertOrUpdate = randomBoolean();
-                                var docId = upsertOrUpdate ? docIdSupplier.get() : randomFrom(docsIds);
-                                var response = client().prepareUpdate(indexName, docId)
+                                final var docId = upsertOrUpdate ? docIdSupplier.get() : docsToIngest.get(docIndex);
+                                final var response = client().prepareUpdate(indexName, docId)
                                     .setDoc(frequently() ? "field" : "field_" + docId, randomUnicodeOfLength(10))
                                     .setDocAsUpsert(upsertOrUpdate)
                                     .get();
@@ -2200,9 +2205,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                         try {
                             var client = client();
                             var bulkUpdates = client.prepareBulk();
-                            for (int j = 0; j < Math.min(docsIds.size(), 128); j++) { // need enough updates to be sure to hollow every
-                                                                                      // shard
-                                var docId = randomFrom(docsIds);
+                            for (int docIndex = threadIndex; docIndex < docsToIngest.size(); docIndex += ingestingThreads) {
+                                var docId = docsToIngest.get(docIndex);
                                 bulkUpdates.add(client.prepareUpdate(indexName, docId).setDoc("field", randomUnicodeOfLength(10)));
                             }
                             assertNoFailures(bulkUpdates.get());
@@ -2212,7 +2216,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     };
                     default -> throw new AssertionError("Unexpected value");
                 };
-                ingestExecutor.submit(ingestRunnable);
+                ingestFutures.add(ingestExecutor.submit(ingestRunnable));
             }
             // If an ingesting thread blocks (most likely on a shard's unhollow-on-first-ingestion), the latch never reaches
             // zero. Rather than mask that by simply extending the timeout, capture diagnostics on the (rare, CI-only) timeout:
@@ -2249,6 +2253,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 );
                 fail("ingestLatch did not reach zero within 30s; see still-hollow shards and hot threads logged above");
             }
+            // if ingest threads haven't succeeded, we cannot be sure about the results
+            ingestFutures.forEach(ESTestCase::safeGet);
             for (int i = 0; i < numberOfShards; i++) {
                 // Should unhollow only once
                 assertThat(
@@ -2969,7 +2975,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     if (subsetOfInsertedDocs.isEmpty()) {
                         continue;
                     }
-                    List<String> docIds = randomSubsetOf(Math.min(8, subsetOfInsertedDocs.size()), subsetOfInsertedDocs);
+                    List<String> docIds = randomSubsetOf(min(8, subsetOfInsertedDocs.size()), subsetOfInsertedDocs);
                     try {
                         if (randomBoolean()) {
                             var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
@@ -3009,7 +3015,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 if (subsetOfInsertedDocs.isEmpty()) {
                     continue;
                 }
-                List<String> docIds = randomSubsetOf(Math.min(subsetOfInsertedDocs.size(), 64), subsetOfInsertedDocs);
+                List<String> docIds = randomSubsetOf(min(subsetOfInsertedDocs.size(), 64), subsetOfInsertedDocs);
                 if (docIds.isEmpty()) {
                     continue;
                 }

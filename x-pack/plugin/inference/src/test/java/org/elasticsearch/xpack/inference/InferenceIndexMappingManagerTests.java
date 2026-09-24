@@ -157,7 +157,7 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
         verify(mockClient).execute(eq(TransportPutMappingAction.TYPE), putMappingCaptor.capture(), any());
         assertThat(
             "The follow-up PutMappingRequest must carry the descriptor's latest mappings",
-            jsonToMap(putMappingCaptor.getValue().source()),
+            jsonToMap(putMappingCaptor.getValue().source().utf8ToString()),
             equalTo(jsonToMap(descriptor.getMappings()))
         );
         assertThat(
@@ -207,7 +207,7 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
         verify(mockClient).execute(eq(TransportPutMappingAction.TYPE), putMappingCaptor.capture(), any());
         assertThat(
             "PutMappingRequest must carry the descriptor's latest mappings",
-            jsonToMap(putMappingCaptor.getValue().source()),
+            jsonToMap(putMappingCaptor.getValue().source().utf8ToString()),
             equalTo(jsonToMap(descriptor.getMappings()))
         );
         assertThat(

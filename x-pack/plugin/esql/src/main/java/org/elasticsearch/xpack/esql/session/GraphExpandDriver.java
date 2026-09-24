@@ -63,8 +63,11 @@ import java.util.Set;
  * {@code UNTIL} is present, the sorted hop rows are then filtered with that
  * boolean expression (ordinary {@link Filter} over the emit columns); the first
  * matching row and every row before it are admitted, later rows are dropped,
- * and the walk stops. Admitted nodes are remembered here so a later hop does
- * not re-admit them. Stage subset — see {@link #validateSubset}.
+ * and the walk stops. An edge onto a node admitted on an earlier hop is a
+ * closing edge: it is emitted with {@code node_reached} null and does not
+ * re-enter the frontier. Same-hop duplicates of a newly admitted
+ * {@code node_reached} keep that value and enter the frontier once. Stage
+ * subset — see {@link #validateSubset}.
  */
 public final class GraphExpandDriver {
 
@@ -492,14 +495,19 @@ public final class GraphExpandDriver {
 
     private List<Object> admitRows(List<List<Object>> rows) {
         int reachedIdx = 2; // node_reached
+        int hopStart = admittedRows.size();
         LinkedHashSet<Object> newlyAdmitted = new LinkedHashSet<>();
         for (List<Object> row : rows) {
             Object reached = row.get(reachedIdx);
             if (reached == null) {
                 continue;
             }
-            // Target admitted on an earlier hop: closing edge — drop the row.
+            // Target admitted on an earlier hop (not this hop): closing edge.
+            // Emit with node_reached null; do not re-frontier the node.
             if (visited.contains(reached) && newlyAdmitted.contains(reached) == false) {
+                List<Object> closing = new ArrayList<>(row);
+                closing.set(reachedIdx, null);
+                admittedRows.add(closing);
                 continue;
             }
             boolean firstTimeThisHop = newlyAdmitted.add(reached);
@@ -510,6 +518,11 @@ public final class GraphExpandDriver {
             // produce several rows that share one node_reached). Frontier gets the
             // node once via newlyAdmitted.
             admittedRows.add(row);
+        }
+        // Closing edges null node_reached after the pre-admit SORT; re-apply the
+        // hop comparator so nulls land last among this hop's emitted rows.
+        if (admittedRows.size() - hopStart >= 2) {
+            admittedRows.subList(hopStart, admittedRows.size()).sort(hopRowComparator());
         }
         return new ArrayList<>(newlyAdmitted);
     }

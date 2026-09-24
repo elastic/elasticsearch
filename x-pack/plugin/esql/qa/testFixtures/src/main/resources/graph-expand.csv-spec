@@ -9,6 +9,7 @@ ROW node_id = "a"
 node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
 a                 | b               | b                    | 1
 b                 | c               | c                    | 2
+b                 | a               | null                 | 2
 ;
 
 
@@ -84,6 +85,7 @@ ROW node_id = "a"
 
 node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
 b                 | a               | b                    | 1
+a                 | b               | null                 | 2
 ;
 
 

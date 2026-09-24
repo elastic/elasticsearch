@@ -22,6 +22,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -140,13 +143,14 @@ public final class HashOffset extends EsqlScalarFunction {
     }
 
     /**
-     * Scales a 64-bit hash to a sampling offset in {@code [0, 1)}. Multiplying the unsigned value by
-     * 2^-64 is exact, so every hash maps to a distinct offset with no rounding skew beyond the
-     * unavoidable double rounding of values above 2^53 (which stays monotonic).
+     * Scales an unsigned 64-bit hash to a sampling offset in {@code [0, 1)}. Double rounding can
+     * map nearby hashes to the same offset, but preserves their unsigned order. Top-range hashes
+     * rounding up to exactly 1.0 are pulled back inside the interval.
      */
     static double toOffset(long hash) {
         double unsigned = hash >= 0 ? (double) hash : (double) (hash & Long.MAX_VALUE) + 0x1p63;
-        return unsigned * 0x1p-64;
+        double offset = unsigned * 0x1p-64;
+        return offset >= 1.0 ? Math.nextAfter(1.0, 0.0) : offset;
     }
 
     static final class HashOffsetEvaluator implements ExpressionEvaluator {
@@ -175,26 +179,21 @@ public final class HashOffset extends EsqlScalarFunction {
             int positions = page.getPositionCount();
             BlockFactory blockFactory = driverContext.blockFactory();
             if (args.isEmpty()) {
+                return blockFactory.newConstantDoubleBlockWith(emptyOffset, positions);
+            }
+            Block[] argBlocks = new Block[args.size()];
+            try (Releasable ignored = Releasables.wrap(argBlocks)) {
+                for (int i = 0; i < args.size(); i++) {
+                    argBlocks[i] = args.get(i).eval(page);
+                }
+                Page keys = new Page(argBlocks);
                 try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positions)) {
                     for (int p = 0; p < positions; p++) {
-                        builder.appendDouble(emptyOffset);
+                        PagedBytesCursor key = encoder.encode(keys, p);
+                        builder.appendDouble(toOffset(key.mixHash64()));
                     }
                     return builder.build();
                 }
-            }
-            Block[] argBlocks = new Block[args.size()];
-            for (int i = 0; i < args.size(); i++) {
-                argBlocks[i] = args.get(i).eval(page);
-            }
-            Page keys = new Page(argBlocks);
-            try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positions)) {
-                for (int p = 0; p < positions; p++) {
-                    PagedBytesCursor key = encoder.encode(keys, p);
-                    builder.appendDouble(toOffset(key.mixHash64()));
-                }
-                return builder.build();
-            } finally {
-                keys.releaseBlocks();
             }
         }
 
@@ -214,10 +213,7 @@ public final class HashOffset extends EsqlScalarFunction {
 
         @Override
         public void close() {
-            for (ExpressionEvaluator arg : args) {
-                arg.close();
-            }
-            encoder.close();
+            Releasables.close(Releasables.wrap(args), encoder);
         }
     }
 
@@ -227,7 +223,16 @@ public final class HashOffset extends EsqlScalarFunction {
 
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new HashOffsetEvaluator(context, args.stream().map(factory -> factory.get(context)).toList(), elementTypes);
+            List<ExpressionEvaluator> argEvals = new ArrayList<>(args.size());
+            try {
+                for (ExpressionEvaluator.Factory factory : args) {
+                    argEvals.add(factory.get(context));
+                }
+                return new HashOffsetEvaluator(context, argEvals, elementTypes);
+            } catch (Throwable t) {
+                Releasables.closeWhileHandlingException(Releasables.wrap(argEvals));
+                throw t;
+            }
         }
 
         @Override

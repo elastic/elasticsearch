@@ -246,12 +246,11 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
     /**
      * Validates the {@code r} argument of {@code limit_ratio(r, v)} at analysis time.
      * <p>
-     * Prometheus treats a negative {@code r} as the complement of the matching positive ratio and hard-errors on
-     * {@code NaN}. This implementation uses order-based streaming sampling and does not implement the complement,
-     * so negative and non-finite ratios are rejected here rather than silently dropping rows at execution time.
+     * Like Prometheus, negative ratios select offsets at or above {@code 1 + r}, complementing the
+     * selection for that threshold. Only {@code NaN} is rejected; ratios outside {@code [-1, 1]},
+     * including infinities, keep every row.
      * Non-numeric literals (e.g. strings) are likewise rejected so a clear verification error surfaces instead of
-     * a {@code ClassCastException} in the execution planner. Ratios greater than {@code 1} are allowed and keep
-     * every row.
+     * a {@code ClassCastException} in the execution planner.
      */
     private static void validateLimitRatio(UnresolvedPromqlFunction unresolved, List<Expression> extraParams) {
         String name = unresolved.functionName();

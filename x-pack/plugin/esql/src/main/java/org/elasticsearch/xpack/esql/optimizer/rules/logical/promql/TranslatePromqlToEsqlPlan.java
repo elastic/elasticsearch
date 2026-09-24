@@ -499,8 +499,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
          * {@link Filter} over the internal {@link HashOffset} sampling offset, so no sort order is
          * built and no dedicated plan node or execution operator is needed. The sampling key is
          * membership-neutral: solely the input identity (the {@code _timeseries} blob at series
-         * grain, else the surviving grouping labels or packed label sets). Outer {@code by}
-         * partition labels are neither hashed nor materialized as null columns. The filter sits
+         * grain, else the surviving grouping labels or packed label sets, with packing-covered
+         * labels dropped and the rest ordered by name so key order cannot change the hash).
+         * Outer {@code by} partition labels are neither hashed nor materialized as null columns. The filter sits
          * above the aggregation producing its keys, which the optimizer cannot push past.
          */
         private LogicalPlan emitLimitRatioFilter(AcrossSeriesReduction reduction, IntermediateResult table) {
@@ -518,18 +519,28 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 // underneath -- packed label sets when the header packs labels away (for example
                 // sum without), else the grain label columns. Packings hold only dimensions, never
                 // the step, so the identity is stable across steps.
+                var resolvedSkips = new ArrayList<Set<String>>();
                 for (Set<String> skip : finestFirst(table.header().skips())) {
                     Attribute packing = table.packed(skip);
                     if (packing != null) {
                         addIfMissing(keys, packing);
+                        resolvedSkips.add(skip);
                     }
                 }
-                for (String label : table.header().labels()) {
-                    Attribute carrier = table.label(label);
-                    // Guaranteed by emitRegroup, which resolves every header label (null-filling missing ones).
-                    assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
-                    addIfMissing(keys, carrier);
-                }
+                // A finite label carried inside any packing adds no identity: the packing already
+                // determines it (for example pod inside _timeseries$region). The surviving labels
+                // sort by name so grouping-key order cannot change the hashed bytes.
+                table.header()
+                    .labels()
+                    .stream()
+                    .filter(label -> resolvedSkips.stream().allMatch(skip -> skip.contains(label)))
+                    .sorted()
+                    .forEach(label -> {
+                        Attribute carrier = table.label(label);
+                        // Guaranteed by emitRegroup, which resolves every header label (null-filling missing ones).
+                        assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
+                        addIfMissing(keys, carrier);
+                    });
             }
             // Validated at analysis (ResolvePromqlFunctions): a foldable numeric non-NaN literal.
             double ratio = ((Number) reduction.parameters().getFirst().fold(FoldContext.small())).doubleValue();

@@ -153,6 +153,34 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     }
 
     /**
+     * A label already carried inside a packing adds no identity: regrouping its table only
+     * narrows which packed rows survive, so the outer grouping must not append the label.
+     * Here the outer {@code sum by (pod)} regroups packed {@code _timeseries$region} rows that
+     * already determine pod, sampling exactly the inner identity -- like the bare query.
+     */
+    public void testLimitRatioIgnoresPackingCoveredOuterGrouping() {
+        var bare = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum without (region) (network.bytes_in)))");
+        var regrouped = hashOffset(
+            "PROMQL index=k8s step=1h result=(sum by (pod) (limit_ratio(0.5, sum without (region) (network.bytes_in))))"
+        );
+
+        assertThat(samplingKeyNames(regrouped), equalTo(samplingKeyNames(bare)));
+        assertThat(regrouped.children(), hasSize(1));
+    }
+
+    /**
+     * Grouping-key order must not change the hashed identity: the label-derived keys sort by
+     * name, so {@code sum by (pod, cluster)} and {@code sum by (cluster, pod)} sample identically.
+     */
+    public void testLimitRatioGroupingKeyOrderIsStable() {
+        var ordered = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)))");
+        var reordered = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (cluster, pod) (network.bytes_in)))");
+
+        assertThat(samplingKeyNames(reordered), equalTo(samplingKeyNames(ordered)));
+        assertThat(samplingKeyNames(ordered), equalTo(List.of("cluster", "pod")));
+    }
+
+    /**
      * Over an aggregate the sampling key is the aggregated identity (here {@code pod, cluster}),
      * regardless of any outer {@code by}: outer partitions must not narrow or widen the hashed set.
      */

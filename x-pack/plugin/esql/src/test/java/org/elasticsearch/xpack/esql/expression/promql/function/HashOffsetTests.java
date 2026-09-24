@@ -67,6 +67,13 @@ public class HashOffsetTests extends AbstractScalarFunctionTestCase {
         // HashOffset never folds: every row must hash in the engine.
     }
 
+    public void testToOffsetStaysInsideInterval() {
+        // Top-range hashes rounding up to exactly 1.0 are pulled back inside [0, 1).
+        for (long hash : new long[] { 0L, 1L, -1L, Long.MAX_VALUE, Long.MIN_VALUE }) {
+            assertThat(HashOffset.toOffset(hash), both(greaterThanOrEqualTo(0.0)).and(lessThan(1.0)));
+        }
+    }
+
     private static TestCaseSupplier emptyKeys() {
         return new TestCaseSupplier(
             "emptyKeys",

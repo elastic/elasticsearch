@@ -483,7 +483,9 @@ public class StatelessPlugin extends Plugin
                 prewarmMaxThreads,
                 TimeValue.timeValueMinutes(5),
                 true,
-                PREWARM_THREAD_POOL_SETTING
+                PREWARM_THREAD_POOL_SETTING,
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(0.3).build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             ),
             new ScalingExecutorBuilder(
                 UPLOAD_PREWARM_THREAD_POOL,

@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityFeatures;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
@@ -362,6 +364,16 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         corruptions.put("created_at that is not a number", source -> source.put("created_at", "2024-01-01"));
         corruptions.put("editor that is not an object", source -> source.put("editor", List.of("bob")));
         corruptions.put("edited_at that is not a number", source -> source.put("edited_at", true));
+        corruptions.put("creator with an api key that is not an object", source -> {
+            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
+            creator.put("api_key", "VuaCfGcBCdbkQm-e5aOx");
+            source.put("creator", creator);
+        });
+        corruptions.put("creator with an api key without an id", source -> {
+            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
+            creator.put("api_key", Map.of("name", "deploy-bot-key"));
+            source.put("creator", creator);
+        });
 
         corruptions.forEach((description, corruption) -> {
             final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
@@ -501,9 +513,21 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final Map<String, Object> creator = (Map<String, Object>) upsertDocument().get("creator");
         assertThat(creator.get("principal"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
-        assertThat(creator.get("realm"), equalTo(authentication.getEffectiveSubject().getRealm().getName()));
-        assertThat(creator.get("realm_type"), equalTo(authentication.getEffectiveSubject().getRealm().getType()));
+        assertThat(creator.get("realm"), equalTo(ApiKeyService.getCreatorRealmName(authentication)));
+        assertThat(creator.get("realm_type"), equalTo(ApiKeyService.getCreatorRealmType(authentication)));
         assertThat(creator, not(hasKey("metadata")));
+        // A write through a key records the key; one run as another user records none, as an explicit null.
+        assertThat(creator, hasKey("api_key"));
+        if (authentication.isApiKey()) {
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> apiKey = (Map<String, Object>) creator.get("api_key");
+            assertThat(
+                apiKey.get("id"),
+                equalTo(authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY))
+            );
+        } else {
+            assertThat(creator.get("api_key"), nullValue());
+        }
     }
 
     /**
@@ -561,10 +585,33 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> editor = (Map<String, Object>) changesDocument().get("editor");
-        assertThat(editor.keySet(), equalTo(Set.of("principal", "full_name", "email", "realm", "realm_type", "realm_domain")));
+        assertThat(editor.keySet(), equalTo(Set.of("principal", "full_name", "email", "realm", "realm_type", "realm_domain", "api_key")));
         assertThat(editor.get("full_name"), nullValue());
         assertThat(editor.get("email"), nullValue());
         assertThat(editor.get("realm_domain"), nullValue());
+    }
+
+    /**
+     * An unnamed API key must clear the previous editor's key name when the update merges nested objects.
+     */
+    public void testPutAccountClearsThePreviousEditorsApiKeyName() {
+        respondWithUpdateResult(DocWriteResponse.Result.UPDATED);
+        final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        for (String keyId : List.of("named-key-id", "unnamed-key-id")) {
+            final Map<String, Object> metadata = new HashMap<>();
+            metadata.put(AuthenticationField.API_KEY_ID_KEY, keyId);
+            metadata.put(AuthenticationField.API_KEY_NAME_KEY, keyId.equals("named-key-id") ? "deploy-bot-key" : null);
+            authentication = AuthenticationTestHelper.builder().apiKey().metadata(metadata).build(false);
+            requests.clear();
+
+            final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+            store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, authentication, RefreshPolicy.NONE, future);
+            assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
+
+            // Apply the same recursive merge used by UpdateHelper for a partial document update.
+            XContentHelper.update(source, changesDocument(), false);
+            assertThat(source.get("editor"), equalTo(storedAuthor(ServiceAccountAuthor.fromAuthentication(authentication))));
+        }
     }
 
     public void testPutAccountReportsAnUpdateOfAnExistingAccount() {
@@ -1112,7 +1159,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             randomBoolean() ? null : randomAlphaOfLengthBetween(3, 12),
             randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLengthBetween(3, 8),
-            randomBoolean() ? null : AuthenticationTestHelper.randomDomain(randomBoolean())
+            randomBoolean() ? null : AuthenticationTestHelper.randomDomain(randomBoolean()),
+            randomBoolean()
+                ? null
+                : new ServiceAccountAuthor.ApiKey(randomAlphaOfLength(20), randomBoolean() ? null : randomAlphaOfLength(8))
         );
     }
 
@@ -1127,6 +1177,14 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         stored.put("realm", author.realm());
         stored.put("realm_type", author.realmType());
         stored.put("realm_domain", author.realmDomain() == null ? null : storedRealmDomain(author.realmDomain()));
+        stored.put("api_key", author.apiKey() == null ? null : storedApiKey(author.apiKey()));
+        return stored;
+    }
+
+    private static Map<String, Object> storedApiKey(ServiceAccountAuthor.ApiKey apiKey) {
+        final Map<String, Object> stored = new HashMap<>();
+        stored.put("id", apiKey.id());
+        stored.put("name", apiKey.name());
         return stored;
     }
 

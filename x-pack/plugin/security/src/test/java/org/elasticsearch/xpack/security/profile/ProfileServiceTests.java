@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRespo
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
@@ -1343,6 +1344,20 @@ public class ProfileServiceTests extends ESTestCase {
         final ServiceAccountAuthor alice = new ServiceAccountAuthor("alice", "Alice", null, "realm_name_1", "realm_type_1", null);
         // The same person as recorded by a later write, after a full name was added: one subject, two authors.
         final ServiceAccountAuthor aliceRenamed = new ServiceAccountAuthor("alice", "Alice B.", null, "realm_name_1", "realm_type_1", null);
+        final ServiceAccountAuthor aliceViaApiKey = ServiceAccountAuthor.fromAuthentication(
+            AuthenticationTestHelper.builder()
+                .apiKey()
+                .user(new User("alice"))
+                .metadata(
+                    Map.of(
+                        AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+                        "realm_name_1",
+                        AuthenticationField.API_KEY_CREATOR_REALM_TYPE,
+                        "realm_type_1"
+                    )
+                )
+                .build(false)
+        );
         final ServiceAccountAuthor bob = new ServiceAccountAuthor("bob", null, null, "unconfigured_realm", "ldap", null);
         realmRefLookup = realmIdentifier -> {
             if (realmIdentifier.getName().equals("realm_name_1")) {
@@ -1381,8 +1396,8 @@ public class ProfileServiceTests extends ESTestCase {
             when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
 
             final PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
-            profileService.resolveProfileUidsForServiceAccountAuthors(List.of(alice, bob, aliceRenamed, alice), listener);
-            assertThat(listener.get(), contains("u_alice", null, "u_alice", "u_alice"));
+            profileService.resolveProfileUidsForServiceAccountAuthors(List.of(alice, bob, aliceRenamed, alice, aliceViaApiKey), listener);
+            assertThat(listener.get(), contains("u_alice", null, "u_alice", "u_alice", "u_alice"));
         } finally {
             multiSearchResponse.decRef();
             hits.decRef();

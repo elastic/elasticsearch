@@ -49,12 +49,16 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
         "creator.email",
         "creator.realm",
         "creator.realm_type",
+        "creator.api_key.id",
+        "creator.api_key.name",
         "created_at",
         "editor.principal",
         "editor.full_name",
         "editor.email",
         "editor.realm",
         "editor.realm_type",
+        "editor.api_key.id",
+        "editor.api_key.name",
         "edited_at"
     );
 

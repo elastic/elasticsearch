@@ -625,8 +625,17 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             .field(ServiceAccountAuthor.EMAIL_FIELD, author.email())
             .field(ServiceAccountAuthor.REALM_FIELD, author.realm())
             .field(ServiceAccountAuthor.REALM_TYPE_FIELD, author.realmType())
-            .field(ServiceAccountAuthor.REALM_DOMAIN_FIELD, author.realmDomain())
-            .endObject();
+            .field(ServiceAccountAuthor.REALM_DOMAIN_FIELD, author.realmDomain());
+        if (author.apiKey() == null) {
+            builder.nullField(ServiceAccountAuthor.API_KEY_FIELD);
+        } else {
+            // Unlike the response, the stored object must clear an absent name from the previous editor's key.
+            builder.startObject(ServiceAccountAuthor.API_KEY_FIELD)
+                .field(ServiceAccountAuthor.ApiKey.ID_FIELD, author.apiKey().id())
+                .field(ServiceAccountAuthor.ApiKey.NAME_FIELD, author.apiKey().name())
+                .endObject();
+        }
+        builder.endObject();
     }
 
     /**
@@ -711,7 +720,8 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
                     optionalString(map, ServiceAccountAuthor.EMAIL_FIELD),
                     requiredString(map, ServiceAccountAuthor.REALM_FIELD),
                     requiredString(map, ServiceAccountAuthor.REALM_TYPE_FIELD),
-                    parseRealmDomain(map.get(ServiceAccountAuthor.REALM_DOMAIN_FIELD))
+                    parseRealmDomain(map.get(ServiceAccountAuthor.REALM_DOMAIN_FIELD)),
+                    parseApiKey(map.get(ServiceAccountAuthor.API_KEY_FIELD))
                 );
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("has an invalid [" + fieldName + "] field: " + e.getMessage(), e);
@@ -734,6 +744,20 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             return (String) value;
         }
         throw new IllegalArgumentException("[" + key + "] is not a string");
+    }
+
+    @Nullable
+    private static ServiceAccountAuthor.ApiKey parseApiKey(@Nullable Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> map) {
+            return new ServiceAccountAuthor.ApiKey(
+                requiredString(map, ServiceAccountAuthor.ApiKey.ID_FIELD),
+                optionalString(map, ServiceAccountAuthor.ApiKey.NAME_FIELD)
+            );
+        }
+        throw new IllegalArgumentException("[" + ServiceAccountAuthor.API_KEY_FIELD + "] is not an object");
     }
 
     @Nullable

@@ -106,6 +106,8 @@ public final class FieldNameTranslators {
             idemFieldNameTranslator("creator.realm"),
             idemFieldNameTranslator("creator.realm_type"),
             new SimpleFieldNameTranslator("creator.realm_domain.name", "creator.realm_domain"),
+            idemFieldNameTranslator("creator.api_key.id"),
+            idemFieldNameTranslator("creator.api_key.name"),
             idemFieldNameTranslator("created_at"),
             idemFieldNameTranslator("editor.principal"),
             idemFieldNameTranslator("editor.full_name", false),
@@ -113,6 +115,8 @@ public final class FieldNameTranslators {
             idemFieldNameTranslator("editor.realm"),
             idemFieldNameTranslator("editor.realm_type"),
             new SimpleFieldNameTranslator("editor.realm_domain.name", "editor.realm_domain"),
+            idemFieldNameTranslator("editor.api_key.id"),
+            idemFieldNameTranslator("editor.api_key.name"),
             idemFieldNameTranslator("edited_at")
         )
     );

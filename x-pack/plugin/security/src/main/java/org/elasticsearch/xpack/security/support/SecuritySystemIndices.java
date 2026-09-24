@@ -580,6 +580,11 @@ public class SecuritySystemIndices {
                             builder.endObject();
 
                             defineRealmDomain(builder, "realm_domain");
+                            if (mappingVersion.onOrAfter(ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS)) {
+                                // The API key a user-managed service account's creator acted through. API key documents
+                                // share this object but never write the field.
+                                defineAuthorApiKey(builder);
+                            }
                         }
                         builder.endObject();
                     }
@@ -615,6 +620,7 @@ public class SecuritySystemIndices {
                                 builder.endObject();
 
                                 defineRealmDomain(builder, "realm_domain");
+                                defineAuthorApiKey(builder);
                             }
                             builder.endObject();
                         }
@@ -1112,6 +1118,28 @@ public class SecuritySystemIndices {
         }
     }
 
+    /**
+     * The API key an author of a user-managed service account acted through, by id and name.
+     */
+    private static void defineAuthorApiKey(XContentBuilder builder) throws IOException {
+        builder.startObject("api_key");
+        {
+            builder.field("type", "object");
+            builder.startObject("properties");
+            {
+                builder.startObject("id");
+                builder.field("type", "keyword");
+                builder.endObject();
+
+                builder.startObject("name");
+                builder.field("type", "keyword");
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
     private static void defineRealmDomain(XContentBuilder builder, String fieldName) throws IOException {
         builder.startObject(fieldName);
         {
@@ -1181,7 +1209,8 @@ public class SecuritySystemIndices {
 
         /**
          * Mapping for who created and last replaced a user-managed service account and when: the {@code editor},
-         * {@code created_at} and {@code edited_at} fields. The creator reuses the existing {@code creator} field.
+         * {@code created_at} and {@code edited_at} fields, and the {@code api_key} an author acted through. The
+         * creator reuses the existing {@code creator} field, which gains {@code api_key}.
          */
         ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS(6),
 

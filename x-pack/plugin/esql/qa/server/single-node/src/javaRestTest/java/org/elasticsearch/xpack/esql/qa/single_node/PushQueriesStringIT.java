@@ -207,11 +207,9 @@ public class PushQueriesStringIT extends ESRestTestCase {
                  * single_value_match appears when multiple docs with the same foo value are in the index.
                  */
                 List.of(
-                    "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                    "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
                     "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
                     "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
-                    "foo:[1 TO 1]",
+                    "FieldExistsQuery [field=foo]",
                     "FieldExistsQuery [field=_primary_term]"
                 );
             case WILDCARD -> List.of(": [%value]", ": [%value] foo:[2 TO 2]");
@@ -690,8 +688,6 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case WILDCARD -> List.of("-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=false] #*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
                 "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
                 "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
@@ -718,8 +714,6 @@ public class PushQueriesStringIT extends ESRestTestCase {
             );
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
                 "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
                 "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
@@ -745,8 +739,6 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case WILDCARD -> List.of("-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=true] #*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
                 "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
                 "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
@@ -774,8 +766,6 @@ public class PushQueriesStringIT extends ESRestTestCase {
             );
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
                 "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
                 "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );

@@ -14,10 +14,13 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -37,6 +40,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 
 /**
@@ -130,7 +134,10 @@ class FieldCapabilitiesFetcher {
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
-            indexMappingHash = mapping != null ? mapping.getSha256() + indexMode : null;
+            // The mapping hash omits index.analysis, which decides whether an analyzer name is withheld as index-local.
+            Set<String> configuredAnalyzers = configuredAnalyzerNames(searchExecutionContext);
+            String analyzersSuffix = configuredAnalyzers.isEmpty() ? "" : configuredAnalyzers.toString();
+            indexMappingHash = mapping != null ? mapping.getSha256() + indexMode + analyzersSuffix : null;
         } else {
             // even if the mapping is the same if we return only fields with values we need
             // to make sure that we consider all the shard-mappings pair, that is why we
@@ -184,6 +191,7 @@ class FieldCapabilitiesFetcher {
         Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
         Set<String> inferenceFieldNames = context.getMappingLookup().inferenceFields().keySet();
+        Set<String> configuredAnalyzerNames = configuredAnalyzerNames(context);
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
@@ -197,6 +205,13 @@ class FieldCapabilitiesFetcher {
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
+                NamedAnalyzer analyzer = TextFieldMapper.CONTENT_TYPE.equals(ft.familyTypeName())
+                    ? context.getMappingLookup().indexAnalyzer(ft.name(), unused -> null)
+                    : null;
+                // A name bound under index.analysis is index-local, even when it collides with a built-in such as
+                // english: the coordinator resolves analyzers by name and would build a different one.
+                boolean indexLocalAnalyzer = analyzer != null && configuredAnalyzerNames.contains(analyzer.name());
+                NamedAnalyzer reported = indexLocalAnalyzer ? null : analyzer;
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
@@ -206,7 +221,10 @@ class FieldCapabilitiesFetcher {
                     inferenceFieldNames.contains(field),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
-                    ft.meta()
+                    ft.meta(),
+                    reported == null ? null : reported.name(),
+                    reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
+                    indexLocalAnalyzer
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -237,7 +255,10 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             null,
-                            Map.of()
+                            Map.of(),
+                            null,
+                            TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+                            false
                         );
                         responseMap.put(parentField, fieldCap);
                     }
@@ -246,6 +267,11 @@ class FieldCapabilitiesFetcher {
             }
         }
         return responseMap;
+    }
+
+    /** Names under {@code index.analysis.analyzer}, sorted so the dedup hash is stable. */
+    private static Set<String> configuredAnalyzerNames(SearchExecutionContext context) {
+        return new TreeSet<>(context.getIndexSettings().getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER).keySet());
     }
 
     private static boolean checkIncludeParents(String[] filters) {

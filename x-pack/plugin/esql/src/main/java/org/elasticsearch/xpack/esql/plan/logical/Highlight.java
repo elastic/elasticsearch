@@ -197,6 +197,11 @@ public class Highlight extends UnaryPlan
         return options;
     }
 
+    /** Whether WITH sets {@code analyzer}, which then applies to every row instead of each field's mapping analyzer. */
+    public boolean hasAnalyzerOption() {
+        return options != null && options.get(ANALYZER) != null;
+    }
+
     public static List<String> validOptionNames() {
         return VALID_OPTION_NAMES;
     }

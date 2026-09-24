@@ -289,7 +289,7 @@ public class CollectionUtils {
             Object copy = Array.newInstance(componentType, length);
             if (componentType.isPrimitive()) {
                 // primitives are immutable, so we can just blast through them
-                System.arraycopy(value, 0, copy, 0, length); //
+                System.arraycopy(value, 0, copy, 0, length);
             } else {
                 // non-primitives have to go through a recursive call
                 Object[] source = (Object[]) value;

@@ -13,6 +13,7 @@ import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -192,6 +193,41 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         List<String> events = walkJson("{\"a\":\"hello\\nworld\"}");
         assertEquals(1, events.size());
         assertEquals("string(a=hello\nworld)", events.get(0));
+    }
+
+    /**
+     * Unescaped values stay readable after later calls in the same document. Handlers are allowed
+     * to keep the {@code (buf, off, len)} slice and decode it later — the ESCF handler stages it
+     * and reads it at flush — so unescaping several values through one shared buffer would let a
+     * later value overwrite an earlier one. Decoding eagerly, as most tests here do, cannot
+     * observe that, so this handler keeps the slices and decodes only at the end.
+     */
+    public void testRetainedUnescapedValuesDoNotAlias() {
+        record Slice(byte[] buf, int off, int len) {}
+        List<Slice> retained = new ArrayList<>();
+        RecordingHandler handler = new RecordingHandler(false) {
+            @Override
+            public void stringField(String fieldName, byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
+
+            @Override
+            public void arrayElemString(byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
+        };
+
+        byte[] buffer = "{\"a\":[\"x\\ny\",\"p\\nq\"],\"b\":\"r\\ns\"}".getBytes(UTF_8);
+        try (SimdJsonParser parser = newParser(buffer.length)) {
+            FrozenFieldNameTable parent = new FrozenFieldNameTable();
+            SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
+            parser.stage1(buffer, 0, buffer.length);
+            parser.prepareDocumentWindow(0, buffer.length);
+            walker.walkDocument(buffer, parser, handler);
+        }
+
+        List<String> decoded = retained.stream().map(s -> new String(s.buf(), s.off(), s.len(), UTF_8)).toList();
+        assertEquals(List.of("x\ny", "p\nq", "r\ns"), decoded);
     }
 
     public void testNegativeNumber() {

@@ -128,21 +128,9 @@ public final class AllocationEstimators {
         AllocSizes.REFERENCE_SIZE
     );
 
-    /** A number, boolean or character renders to a short String that is cheap and safe to measure before the real call. */
-    private static boolean isScalar(Object value) {
-        return value instanceof Number || value instanceof Boolean || value instanceof Character;
-    }
-
-    /** The String made of {@code value}: "null", a copy of text, the exact rendering of a scalar, or an allowance. */
+    /** The String made of {@code value}, counted without rendering it. */
     private static long renderedStringBytes(Object value) {
-        if (value == null) {
-            return newStringBytes(4);
-        } else if (value instanceof CharSequence sequence) {
-            return newStringBytes(sequence.length());
-        } else if (isScalar(value)) {
-            return newStringBytes(String.valueOf(value).length());
-        }
-        return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES;
+        return newStringBytes(AllocSizes.renderedChars(value));
     }
 
     /** {@code Object.toString()}. A String returns itself and is over-charged. */

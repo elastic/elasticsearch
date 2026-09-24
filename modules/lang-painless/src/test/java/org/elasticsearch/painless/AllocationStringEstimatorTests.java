@@ -14,6 +14,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -161,10 +162,26 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testValueOfNumberChargedExactly() {
-        // The int is boxed, then rendered to one char.
+        // The int is boxed, then counted as one char without rendering it.
         long one = AllocationEstimators.stringValueOfBytes(5);
         assertEquals(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + 2L, one);
         assertEquals(AllocSizes.boxSize(int.class) + one, allocatedBytes("String.valueOf(5); return \"x\";"));
+    }
+
+    public void testRenderedCharsCountsWithoutRendering() {
+        assertEquals(1L, AllocSizes.decimalChars(0));
+        assertEquals(4L, AllocSizes.decimalChars(-123));
+        assertEquals(String.valueOf(Long.MIN_VALUE).length(), AllocSizes.decimalChars(Long.MIN_VALUE));
+        assertEquals(String.valueOf(Long.MAX_VALUE).length(), AllocSizes.decimalChars(Long.MAX_VALUE));
+        assertEquals(4L, AllocSizes.renderedChars(null));
+        assertEquals(3L, AllocSizes.renderedChars("abc"));
+        assertEquals(5L, AllocSizes.renderedChars(true));
+        assertEquals(1L, AllocSizes.renderedChars('c'));
+        assertThat(AllocSizes.renderedChars(-Double.MAX_VALUE), greaterThanOrEqualTo((long) String.valueOf(-Double.MAX_VALUE).length()));
+        assertThat(AllocSizes.renderedChars(-Float.MAX_VALUE), greaterThanOrEqualTo((long) String.valueOf(-Float.MAX_VALUE).length()));
+        java.math.BigInteger big = java.math.BigInteger.TEN.pow(100);
+        assertThat(AllocSizes.renderedChars(big), greaterThanOrEqualTo((long) big.toString().length()));
+        assertEquals(AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES / 2L, AllocSizes.renderedChars(List.of()));
     }
 
     public void testCopyValueOfCharged() {

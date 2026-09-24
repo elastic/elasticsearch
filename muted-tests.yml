@@ -676,9 +676,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification byte vector type}
   issue: https://github.com/elastic/elasticsearch/issues/160126
-- class: org.elasticsearch.indices.recovery.RecoveryMetricsIT
-  method: testDirectCancellationMetricsQueuedAndStarted
-  issue: https://github.com/elastic/elasticsearch/issues/160130
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
   issue: https://github.com/elastic/elasticsearch/issues/160160

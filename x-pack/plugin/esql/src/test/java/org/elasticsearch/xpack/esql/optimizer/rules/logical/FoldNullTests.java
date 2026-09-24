@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -310,15 +309,6 @@ public class FoldNullTests extends ESTestCase {
         Literal folded = as(foldNull(add), Literal.class);
         assertNull(folded.value());
         assertEquals(add.dataType(), folded.dataType());
-    }
-
-    public void testAnyNullIsNullFoldsEvenIfASiblingIsUnknownNullable() {
-        Concat concat = new Concat(
-            EMPTY,
-            new Coalesce(EMPTY, getFieldAttribute("a", KEYWORD), List.of(Literal.keyword(EMPTY, "x"))),
-            List.of(NULL)
-        );
-        assertNullLiteral(foldNull(concat));
     }
 
     public void testEqualsNullSuggestsIsNull() {

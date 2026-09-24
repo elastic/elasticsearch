@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -58,12 +57,13 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             // A mixed list (x IN (1, NULL)) is not — a match still yields true.
             return isNullChild.test(in.value()) || in.list().stream().allMatch(isNullChild);
         }
-        return e instanceof Alias == false && e instanceof AnyNullIsNull
+        return e instanceof Alias == false && e.nullable() == Nullability.TRUE
         // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),
         // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
             && e instanceof GroupingFunction.NonEvaluatableGroupingFunction == false
             // We cannot fold aggregate functions until we resolve https://github.com/elastic/elasticsearch/issues/100634.
-            // AggregateMapper cannot handle aggregate functions with literal values.
+            // AggregateMapper cannot handle aggregate functions with literal values. Aggregates over null inputs are instead
+            // replaced with a literal by ReplaceStatsFilteredOrNullAggWithEval.
             && e instanceof AggregateFunction == false
             && e.children().stream().anyMatch(isNullChild);
     }

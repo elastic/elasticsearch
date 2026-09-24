@@ -194,12 +194,10 @@ teardown:
           }
   - match: { total: 1 }
   - match: { count: 1 }
-  - match:
-      service_accounts.0:
-        username: "apps/worker_2"
-        type: user_managed
-        roles: ["query_sa_api_key", "query_sa_monitor"]
-        enabled: false
+  - match: { service_accounts.0.username: "apps/worker_2" }
+  - match: { service_accounts.0.type: user_managed }
+  - match: { service_accounts.0.roles: ["query_sa_api_key", "query_sa_monitor"] }
+  - match: { service_accounts.0.enabled: false }
 
 ---
 "Test query a namespace by prefix":
@@ -489,13 +487,11 @@ teardown:
           }
   - match: { total: 1 }
   - match: { count: 1 }
-  - match:
-      service_accounts.0:
-        username: "apps/worker_1"
-        type: user_managed
-        roles: ["query_sa_monitor"]
-        enabled: true
-        description: "Nightly deploy of the apps"
+  - match: { service_accounts.0.username: "apps/worker_1" }
+  - match: { service_accounts.0.type: user_managed }
+  - match: { service_accounts.0.roles: ["query_sa_monitor"] }
+  - match: { service_accounts.0.enabled: true }
+  - match: { service_accounts.0.description: "Nightly deploy of the apps" }
 
   # Accounts without a description do not report the field.
   - do:

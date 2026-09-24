@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,7 +29,10 @@ import java.util.Objects;
  * instead, so every instance must set it.
  * <p>
  * The description is free text carried for whoever administers the account. It means nothing to Elasticsearch and
- * so is deliberately kept out of the {@link User}, which is what authorization and audit see.
+ * so is deliberately kept out of the {@link User}, which is what authorization and audit see. The same goes for the
+ * attribution: who created the account and who last replaced it, and when. Each of those is {@code null} when the
+ * document does not record it, which is the case for the editor until the account is first replaced and for the
+ * creator of an account written before attribution was recorded.
  */
 final class UserManagedServiceAccount implements ServiceAccount {
 
@@ -35,9 +40,11 @@ final class UserManagedServiceAccount implements ServiceAccount {
      * Schema version of the stored {@code service_account} document. Increment when the document
      * format changes so readers can branch on how old a document is, independently of the
      * Elasticsearch release that wrote it.
+     * <p>
+     * Version 2 added the {@code creator}, {@code created_at}, {@code editor} and {@code edited_at} fields.
      */
     record Version(int version) implements VersionId<Version> {
-        static final Version CURRENT = new Version(1);
+        static final Version CURRENT = new Version(2);
 
         @Override
         public int id() {
@@ -50,13 +57,38 @@ final class UserManagedServiceAccount implements ServiceAccount {
     private final boolean enabled;
     @Nullable
     private final String description;
+    @Nullable
+    private final ServiceAccountAuthor creator;
+    @Nullable
+    private final Instant createdAt;
+    @Nullable
+    private final ServiceAccountAuthor editor;
+    @Nullable
+    private final Instant editedAt;
     private final User user;
 
     UserManagedServiceAccount(ServiceAccountId id, List<String> roles, boolean enabled, @Nullable String description) {
+        this(id, roles, enabled, description, null, null, null, null);
+    }
+
+    UserManagedServiceAccount(
+        ServiceAccountId id,
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description,
+        @Nullable ServiceAccountAuthor creator,
+        @Nullable Instant createdAt,
+        @Nullable ServiceAccountAuthor editor,
+        @Nullable Instant editedAt
+    ) {
         this.id = Objects.requireNonNull(id, "service account id cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
         this.enabled = enabled;
         this.description = description;
+        this.creator = creator;
+        this.createdAt = createdAt;
+        this.editor = editor;
+        this.editedAt = editedAt;
         this.user = new User(
             id.asPrincipal(),
             this.roles.toArray(String[]::new),
@@ -90,8 +122,44 @@ final class UserManagedServiceAccount implements ServiceAccount {
         return description;
     }
 
+    @Nullable
+    ServiceAccountAuthor creator() {
+        return creator;
+    }
+
+    @Nullable
+    Instant createdAt() {
+        return createdAt;
+    }
+
+    @Nullable
+    ServiceAccountAuthor editor() {
+        return editor;
+    }
+
+    @Nullable
+    Instant editedAt() {
+        return editedAt;
+    }
+
     @Override
     public String toString() {
-        return "UserManagedServiceAccount{id=" + id + ", roles=" + roles + ", enabled=" + enabled + ", description=" + description + '}';
+        return "UserManagedServiceAccount{id="
+            + id
+            + ", roles="
+            + roles
+            + ", enabled="
+            + enabled
+            + ", description="
+            + description
+            + ", creator="
+            + creator
+            + ", createdAt="
+            + createdAt
+            + ", editor="
+            + editor
+            + ", editedAt="
+            + editedAt
+            + '}';
     }
 }

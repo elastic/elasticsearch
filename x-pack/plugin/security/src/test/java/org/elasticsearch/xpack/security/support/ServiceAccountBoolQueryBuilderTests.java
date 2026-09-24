@@ -35,7 +35,28 @@ import static org.mockito.Mockito.verify;
 
 public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
 
-    private static final List<String> ALLOWED_FIELDS = List.of("username", "roles", "enabled", "description");
+    /**
+     * Query-level names that are also the index-level names. The realm domain is the one field whose two names
+     * differ, and is covered separately.
+     */
+    private static final List<String> ALLOWED_FIELDS = List.of(
+        "username",
+        "roles",
+        "enabled",
+        "description",
+        "creator.principal",
+        "creator.full_name",
+        "creator.email",
+        "creator.realm",
+        "creator.realm_type",
+        "created_at",
+        "editor.principal",
+        "editor.full_name",
+        "editor.email",
+        "editor.realm",
+        "editor.realm_type",
+        "edited_at"
+    );
 
     public void testANullQuerySelectsEveryServiceAccountDocument() {
         final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(null);
@@ -52,6 +73,24 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
         assertThat(query.should(), empty());
         assertThat(query.mustNot(), empty());
         assertThat(query.filter(), contains(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE)));
+    }
+
+    /**
+     * A response names the realm domain by its name alone, so the query field follows the response and is translated
+     * to the {@code name} of the stored domain object. The index-level name is not accepted as a query field.
+     */
+    public void testTheRealmDomainIsQueriedByTheNameAResponseReports() {
+        final String author = randomFrom("creator", "editor");
+        final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(
+            QueryBuilders.termQuery(author + ".realm_domain", "corp")
+        );
+        assertThat(query.must(), contains(QueryBuilders.termQuery(author + ".realm_domain.name", "corp")));
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ServiceAccountBoolQueryBuilder.build(QueryBuilders.termQuery(author + ".realm_domain.name", "corp"))
+        );
+        assertThat(e.getMessage(), containsString("Field [" + author + ".realm_domain.name] is not allowed for querying or aggregation"));
     }
 
     public void testABoolQueryIsTranslatedClauseByClause() {
@@ -88,7 +127,19 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
     public void testFieldsOutsideTheAllowlistAreRejected() {
         // Fields of other document types in the security index, and fields of the account document itself that the
         // API does not expose, are refused alike.
-        final String fieldName = randomFrom("doc_type", "version", "password", "full_name", "metadata_flattened", "creator.principal");
+        // The metadata of an API key's creator, and the realms that make up a domain, are stored under the same
+        // "creator" object but are not part of an account's attribution.
+        final String fieldName = randomFrom(
+            "doc_type",
+            "version",
+            "password",
+            "full_name",
+            "metadata_flattened",
+            "creator.metadata",
+            "creator.metadata.foo",
+            "creator.realm_domain.realms.name",
+            "editor.realm_domain.realms.type"
+        );
         final QueryBuilder query = randomValueOtherThanMany(q -> q instanceof MatchAllQueryBuilder, () -> randomSimpleQuery(fieldName));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ServiceAccountBoolQueryBuilder.build(query));
         assertThat(e.getMessage(), containsString("Field [" + fieldName + "] is not allowed for querying or aggregation"));
@@ -131,10 +182,22 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
             for (String field : ALLOWED_FIELDS) {
                 assertTrue(field, allowed.test(field));
             }
+            // The realm domain's index-level name passes; its query-level name is an object and does not.
+            assertTrue(allowed.test("creator.realm_domain.name"));
+            assertTrue(allowed.test("editor.realm_domain.name"));
+            assertFalse(allowed.test("creator.realm_domain"));
             // The filter's own field and the document id have to pass so the query built here can run at all.
             assertTrue(allowed.test("doc_type"));
             assertTrue(allowed.test("_id"));
-            for (String field : List.of("version", "password", "type", "full_name", "metadata_flattened", "creator.principal")) {
+            for (String field : List.of(
+                "version",
+                "password",
+                "type",
+                "full_name",
+                "metadata_flattened",
+                "creator.metadata",
+                "creator.realm_domain.realms.name"
+            )) {
                 assertFalse(field, allowed.test(field));
             }
             return null;

@@ -1,0 +1,306 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [user_managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "User-managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "attribution_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  # Writing a user-managed service account takes manage_security.
+  - do:
+      security.put_role:
+        name: "attribution_manager"
+        body: >
+          {
+            "cluster": ["manage_security"]
+          }
+
+  - do:
+      security.put_user:
+        username: "sa_creator"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["attribution_manager"],
+            "full_name": "Sa Creator",
+            "email": "sa_creator@example.com"
+          }
+
+  - do:
+      security.put_user:
+        username: "sa_editor"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["attribution_manager"]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: attributed
+        service: worker_2
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "sa_creator"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "sa_editor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "attribution_monitor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "attribution_manager"
+        ignore: 404
+
+---
+"Test the creator is recorded on creation and the editor on replacement":
+  - do:
+      headers:
+        Authorization: "Basic c2FfY3JlYXRvcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_creator
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"],
+            "description": "Created by sa_creator"
+          }
+  - match: { created: true }
+
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+  - match:
+      "attributed/worker_1.creator":
+        principal: "sa_creator"
+        full_name: "Sa Creator"
+        email: "sa_creator@example.com"
+        realm: "default_native"
+        realm_type: "native"
+  - is_true: "attributed/worker_1.created_at"
+  - set: { "attributed/worker_1.created_at": created_at }
+  # Nothing has replaced the account yet.
+  - is_false: "attributed/worker_1.editor"
+  - is_false: "attributed/worker_1.edited_at"
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZWRpdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_editor
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"],
+            "enabled": false
+          }
+  - match: { created: false }
+
+  - do:
+      security.get_service_accounts:
+        namespace: attributed
+        service: worker_1
+  - match: { "attributed/worker_1.enabled": false }
+  # A replacement is wholesale: the description the creator gave is gone.
+  - is_false: "attributed/worker_1.description"
+  # The creator is what it was; the editor is who replaced the account.
+  - match: { "attributed/worker_1.creator.principal": "sa_creator" }
+  - match: { "attributed/worker_1.created_at": $created_at }
+  - match:
+      "attributed/worker_1.editor":
+        principal: "sa_editor"
+        realm: "default_native"
+        realm_type: "native"
+  # sa_editor has no full name or email, so neither is reported.
+  - is_false: "attributed/worker_1.editor.full_name"
+  - is_false: "attributed/worker_1.editor.email"
+  - is_true: "attributed/worker_1.edited_at"
+
+  # Attribution is for administrators: authenticating as the account does not surface it.
+  - do:
+      security.create_service_token:
+        namespace: attributed
+        service: worker_1
+        name: token-1
+  - set: { "token.value": attributed_service_token }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfY3JlYXRvcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_creator
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: false }
+
+  - do:
+      headers:
+        Authorization: Bearer ${attributed_service_token}
+      security.authenticate: {}
+  - match: { username: "attributed/worker_1" }
+  - is_false: metadata.creator
+  - is_false: metadata.editor
+
+---
+"Test query by creator and editor and sort by created_at":
+  - do:
+      headers:
+        Authorization: "Basic c2FfY3JlYXRvcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_creator
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZWRpdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_editor
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_2
+        body: >
+          {
+            "roles": ["attribution_monitor"]
+          }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZWRpdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk" # sa_editor
+      security.put_user_managed_service_account:
+        namespace: attributed
+        service: worker_1
+        body: >
+          {
+            "roles": ["attribution_monitor"],
+            "enabled": false
+          }
+  - match: { created: false }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "creator.principal": "sa_creator" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_1" }
+  - match: { service_accounts.0.creator.principal: "sa_creator" }
+  - match: { service_accounts.0.editor.principal: "sa_editor" }
+  - is_true: service_accounts.0.created_at
+  - is_true: service_accounts.0.edited_at
+
+  # sa_editor created worker_2 and replaced worker_1.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "creator.principal": "sa_editor" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_2" }
+  - is_false: service_accounts.0.editor
+  - is_false: service_accounts.0.edited_at
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "editor.principal": "sa_editor" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_1" }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "exists": { "field": "edited_at" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "attributed/worker_1" }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "creator.realm": "default_native" } },
+            "sort": [ { "created_at": { "order": "desc" } } ]
+          }
+  - match: { total: 2 }
+  - match: { service_accounts.0.username: "attributed/worker_2" }
+  - match: { service_accounts.1.username: "attributed/worker_1" }
+  - is_true: service_accounts.0._sort.0
+
+  # The realm domain is queried by the name a response reports. No realm in this cluster is under a domain.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "creator.realm_domain": "corp" } }
+          }
+  - match: { total: 0 }
+
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "creator.realm_domain.name": "corp" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [creator.realm_domain.name] is not allowed for querying or aggregation" }
+
+  # Fields stored under the same object that are not part of the author stay outside the allowlist.
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "creator.metadata.foo": "bar" } }
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Field [creator.metadata.foo] is not allowed for querying or aggregation" }

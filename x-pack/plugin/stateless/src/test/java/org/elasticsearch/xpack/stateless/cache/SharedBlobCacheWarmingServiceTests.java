@@ -3153,7 +3153,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             var segmentCommitInfo = new SegmentCommitInfo(segmentInfo, 0, 0, -1L, -1L, -1L, new byte[16]);
 
             int regionCount = randomIntBetween(2, 5);
-            var blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
+            var blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
             var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
             var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
             var mergeWarmFuture = new PlainActionFuture<Void>();
@@ -3255,7 +3255,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // merge warming schedules one task per region, so we end up with 5 merge tasks for warming regions
             int regionCount = 5;
-            var blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
+            var blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
             var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
             var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
             var mergeWarmFuture = new PlainActionFuture<Void>();

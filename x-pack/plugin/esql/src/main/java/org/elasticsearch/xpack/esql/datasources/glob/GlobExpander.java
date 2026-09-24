@@ -1858,7 +1858,7 @@ public final class GlobExpander {
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {
-        List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
+        List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
         if (fileHints.isEmpty()) {
             return entries;
         }
@@ -1902,25 +1902,65 @@ public final class GlobExpander {
     }
 
     /**
-     * A missing modification time is not a value the filter can exclude: {@link StorageEntry} normalises one the store
-     * could not provide to {@link Instant#EPOCH}, so both null and the epoch keep the file. A literal that is not a
-     * full instant is likewise undecidable, and one such literal makes the whole hint undecidable.
+     * Parse each {@code _file.modified} hint once. A literal that is not a full instant is undecidable, and one such
+     * literal makes the whole hint undecidable, so that hint is dropped and every file is kept for it. Hints that
+     * parse are replaced with their epoch-millis values and reused for every file.
      */
-    private static boolean matchesModified(Instant actual, PartitionFilterHint hint) {
-        if (actual == null || actual.equals(Instant.EPOCH) || hint.values().isEmpty()) {
-            return true;
+    private static List<PartitionFilterHint> resolveModifiedHints(List<PartitionFilterHint> hints) {
+        boolean anyModified = false;
+        for (PartitionFilterHint hint : hints) {
+            if (FileMetadataColumns.MODIFIED.equals(hint.columnName())) {
+                anyModified = true;
+                break;
+            }
+        }
+        if (anyModified == false) {
+            return hints;
+        }
+        List<PartitionFilterHint> resolved = new ArrayList<>(hints.size());
+        for (PartitionFilterHint hint : hints) {
+            if (FileMetadataColumns.MODIFIED.equals(hint.columnName()) == false) {
+                resolved.add(hint);
+                continue;
+            }
+            PartitionFilterHint parsed = parsedModifiedHint(hint);
+            if (parsed != null) {
+                resolved.add(parsed);
+            }
+        }
+        return resolved;
+    }
+
+    /**
+     * The hint with each literal read as epoch millis, or {@code null} when a literal cannot be read that way.
+     * An empty value list decides nothing.
+     */
+    @Nullable
+    private static PartitionFilterHint parsedModifiedHint(PartitionFilterHint hint) {
+        if (hint.values().isEmpty()) {
+            return null;
         }
         List<Object> millis = new ArrayList<>(hint.values().size());
         for (Object value : hint.values()) {
             Long parsed = epochMillis(value);
             if (parsed == null) {
-                return true;
+                return null;
             }
             millis.add(parsed);
         }
-        return kept(
-            PartitionValueMatcher.matches(actual.toEpochMilli(), new PartitionFilterHint(hint.columnName(), hint.operator(), millis))
-        );
+        return new PartitionFilterHint(hint.columnName(), hint.operator(), millis);
+    }
+
+    /**
+     * A missing modification time is not a value the filter can exclude: {@link StorageEntry} normalises one the store
+     * could not provide to {@link Instant#EPOCH}, so both null and the epoch keep the file. {@code hint} values are
+     * epoch millis.
+     */
+    private static boolean matchesModified(Instant actual, PartitionFilterHint hint) {
+        if (actual == null || actual.equals(Instant.EPOCH)) {
+            return true;
+        }
+        return kept(PartitionValueMatcher.matches(actual.toEpochMilli(), hint));
     }
 
     /** Epoch millis of a {@code Long} or a full-instant {@code String}, or {@code null} when the literal cannot be read. */

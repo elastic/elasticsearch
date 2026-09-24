@@ -2204,12 +2204,13 @@ public class NdJsonPageDecoder implements Closeable {
          * The scalar-coercion arms below make an NDJSON read match the columnar and CSV readers, routing every
          * unrepresentable cell through {@link #coercionFailure} so the outcome depends only on {@code error_mode}:
          * <ul>
-         *   <li>A <b>supported</b> coercion — a JSON string for any scalar column, a fractional number for a
-         *       whole-number column, an epoch number for a datetime column — is coerced through the same
-         *       {@code ::} cast engine (string→number rounds like {@code ::long}; string→boolean is strict
-         *       case-insensitive; string→double preserves NaN). A parse failure or numeric overflow on such a
-         *       token is a genuine value error and is routed through {@link #coercionFailure} — so it fails
-         *       {@code fail_fast}, warns, and counts against the error budget exactly like a malformed CSV value.</li>
+         *   <li>A <b>supported</b> coercion — a JSON string for any scalar column, a number for a whole-number
+         *       column (exact whole numbers only via {@link DeclaredTypeCoercions#exactToInt} and siblings; a
+         *       non-whole decimal is a value error), an epoch number for a datetime column, string→boolean
+         *       (strict case-insensitive), string→double (preserves NaN). A parse failure or numeric overflow
+         *       on such a token is a genuine value error and is routed through {@link #coercionFailure} — so it
+         *       fails {@code fail_fast}, warns, and counts against the error budget exactly like a malformed
+         *       CSV value.</li>
          *   <li>An <b>unsupported cross-kind</b> token — a boolean in a numeric/datetime column, a number in a
          *       boolean column: {@code supports(from, to)} is false, the pair the columnar readers reject at
          *       resolution. NDJSON has no physical schema to reject upfront, so {@link #crossKindDrift} routes the
@@ -2263,9 +2264,9 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
                 try {
-                    // fractional number or string: parse + ROUND through :: (matches ::integer / columnar / CSV)
-                    ((IntBlock.Builder) blockBuilder).appendInt(EsqlDataTypeConverter.stringToInt(parser.getValueAsString()));
-                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    // fractional number or string: exact whole-number parse (refuses non-whole decimals)
+                    ((IntBlock.Builder) blockBuilder).appendInt(DeclaredTypeCoercions.exactToInt(parser.getValueAsString()));
+                } catch (InvalidArgumentException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.INTEGER);
                 }
             } else {
@@ -2282,8 +2283,8 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
                 try {
-                    ((LongBlock.Builder) blockBuilder).appendLong(EsqlDataTypeConverter.stringToLong(parser.getValueAsString()));
-                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    ((LongBlock.Builder) blockBuilder).appendLong(DeclaredTypeCoercions.exactToLong(parser.getValueAsString()));
+                } catch (InvalidArgumentException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.LONG);
                 }
             } else {
@@ -2295,27 +2296,24 @@ public class NdJsonPageDecoder implements Closeable {
          * The {@code unsigned_long} twin of {@link #decodeLongValue}. A JSON integer is read as a
          * {@link BigInteger} rather than a {@code long} because the interesting half of the domain --
          * {@code (2^63, 2^64)} -- does not fit a signed long and would trip {@code getLongValue}. Float and
-         * string tokens go through the same {@link DeclaredTypeCoercions#coerceToUnsignedLong} scalar the CSV
-         * and columnar readers use, so truncation-toward-zero and the {@code [0, 2^64-1]} range check are
+         * string tokens go through the same {@link DeclaredTypeCoercions#exactToUnsignedLong} scalar the CSV
+         * and columnar readers use, so exact-whole acceptance and the {@code [0, 2^64-1]} range check are
          * identical across every format. A bad value fails the cell through the error policy; only a
          * cross-kind token (a boolean in a numeric column) takes the drift path.
          */
         private void decodeUnsignedLongValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
             if (token == JsonToken.VALUE_NUMBER_INT) {
                 try {
-                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getBigIntegerValue());
+                    long encoded = DeclaredTypeCoercions.exactToUnsignedLong(parser.getBigIntegerValue());
                     ((LongBlock.Builder) blockBuilder).appendLong(encoded);
-                } catch (IllegalArgumentException | InputCoercionException e) {
+                } catch (InvalidArgumentException | InputCoercionException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
                 try {
-                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getValueAsString());
+                    long encoded = DeclaredTypeCoercions.exactToUnsignedLong(parser.getValueAsString());
                     ((LongBlock.Builder) blockBuilder).appendLong(encoded);
-                } catch (IllegalArgumentException e) {
-                    // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard,
-                    // the ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
-                    // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
+                } catch (InvalidArgumentException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
                 }
             } else {

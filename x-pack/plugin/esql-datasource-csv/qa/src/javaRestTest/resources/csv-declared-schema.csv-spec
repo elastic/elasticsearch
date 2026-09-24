@@ -133,3 +133,22 @@ count:long | gender:keyword
 33         | "F"
 57         | "M"
 ;
+
+// A double physical column declared integer must not round a non-whole value into the column. height holds
+// values such as 2.03; under error_mode=null_field the cell nulls and warns, naming INTEGER — never returns 2.
+strictDeclaredIntegerRefusesNonWholeDecimal
+required_capability: dataset_in_from_command
+required_capability: external_dataset_whole_number_read_is_exact
+dataset: employees_declared_height_int: "{{employees_no_mv}}" WITH {"error_mode": "null_field", "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "h": {"type": "integer", "path": "height"}}}}
+
+FROM employees_declared_height_int
+| SORT id
+| LIMIT 3;
+warningRegex:CSV read from \[.+\] encountered parse errors handled per policy.*
+warningRegex:Row \[\d+\] field \[h\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
+
+id:long | h:integer
+10001   | null
+10002   | null
+10003   | null
+;

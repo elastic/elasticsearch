@@ -1559,12 +1559,24 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
     }
 
-    /** Fractional and scientific tokens truncate toward zero, matching ::unsigned_long and the CSV reader. */
-    public void testDeclaredUnsignedLongTruncatesTowardZero() throws IOException {
-        try (Page page = decodeOneColumn("{\"v\":42.9}\n{\"v\":\"1e3\"}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT)) {
+    /**
+     * Exact wholes (including scientific) succeed; a non-whole fraction is refused under STRICT and nulls under
+     * PERMISSIVE — deliberately unlike {@code ::unsigned_long}, which truncates toward zero.
+     */
+    public void testDeclaredUnsignedLongRequiresExactWholeNumber() throws IOException {
+        try (Page page = decodeOneColumn("{\"v\":42.0}\n{\"v\":\"1e3\"}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT)) {
             LongBlock block = page.getBlock(0);
             assertEquals(encoded("42"), block.getLong(0));
             assertEquals(encoded("1000"), block.getLong(1));
+        }
+        expectThrows(
+            Exception.class,
+            () -> decodeOneColumn("{\"v\":42.9}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT).close()
+        );
+        try (Page page = decodeOneColumn("{\"v\":42.9}\n{\"v\":5}\n", DataType.UNSIGNED_LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertTrue("non-whole fraction must null the cell", block.isNull(0));
+            assertEquals(encoded("5"), block.getLong(1));
         }
     }
 
@@ -1594,9 +1606,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * "1e999999999" makes BigDecimal.toBigInteger() throw ArithmeticException -- not an IllegalArgumentException, so
-     * an unhandled one escapes the per-cell catch and hard-fails the read on every error_mode. It must be an
-     * ordinary out-of-range cell instead.
+     * Exotic exponents must stay ordinary per-cell failures. {@code 1e999999999} is out of range (unmaterializable
+     * whole); never an escaped {@link ArithmeticException}.
      */
     public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
         String ndjson = "{\"v\":\"1e999999999\"}\n{\"v\":1e999999999}\n{\"v\":5}\n";

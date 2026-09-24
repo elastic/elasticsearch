@@ -6560,17 +6560,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return value;
         }
 
-        // The numeric parsers reuse the ES|QL :: cast engine (EsqlDataTypeConverter.stringToInt/
-        // stringToLong/stringToDouble) so a declared CSV read is value-identical to ::integer/::long/
-        // ::double and to the columnar readers: a fractional/scientific token parses and ROUNDS for the
-        // whole-number targets (e.g. "1.9" -> 2), where the former Integer/Long.parseLong rejected it as
-        // a policy error. The direct-block fast path still parses clean integers straight from the char
-        // buffer and only falls back here for non-integer tokens, so the hot path is unchanged. A failure
-        // stays a per-field policy error (lastFieldError + null), counted against the read's error budget.
+        // Whole-number parsers use DeclaredTypeCoercions.exactToInt/exactToLong/exactToUnsignedLong so a
+        // declared CSV read reports what the file holds: a token must name a whole number exactly
+        // ("2.0", "1e5" succeed; "1.9" fails). This deliberately diverges from ::integer/::long (which
+        // round) and from coerceToUnsignedLong / ::unsigned_long (which truncate). The direct-block fast
+        // path still parses clean ASCII-digit integers straight from the char buffer and only falls back
+        // here for non-digit tokens, so the hot path is unchanged. A failure stays a per-field policy
+        // error (lastFieldError + null), counted against the read's error budget.
         private Object tryParseInt(String value) {
             try {
-                return EsqlDataTypeConverter.stringToInt(value);
-            } catch (NumberFormatException | InvalidArgumentException e) {
+                return DeclaredTypeCoercions.exactToInt(value);
+            } catch (InvalidArgumentException e) {
                 lastFieldError = "Failed to parse CSV value [" + value + "] as [INTEGER]";
                 return null;
             }
@@ -6578,8 +6578,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private Object tryParseLong(String value) {
             try {
-                return EsqlDataTypeConverter.stringToLong(value);
-            } catch (NumberFormatException | InvalidArgumentException e) {
+                return DeclaredTypeCoercions.exactToLong(value);
+            } catch (InvalidArgumentException e) {
                 lastFieldError = "Failed to parse CSV value [" + value + "] as [LONG]";
                 return null;
             }
@@ -6599,16 +6599,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private Object tryParseUnsignedLong(String value) {
             try {
-                // Delegate to the single unsigned_long authority (DeclaredTypeCoercions.coerceToUnsignedLong), the
-                // same scalar the Parquet and ORC declared-read paths use. It parses, range-checks [0, 2^64-1] and
-                // returns the sign-flip block encoding, so a declared unsigned_long reads bit-identically whatever
-                // the file format. Fractional and scientific tokens truncate toward zero, matching ::unsigned_long
-                // and deliberately unlike the round-half behavior of the long/integer coercers.
-                return DeclaredTypeCoercions.coerceToUnsignedLong(value);
-            } catch (IllegalArgumentException e) {
-                // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard, the
-                // ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
-                // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
+                // Delegate to the single exact unsigned_long authority (DeclaredTypeCoercions.exactToUnsignedLong),
+                // the same scalar the Parquet and ORC declared-read paths use. It parses whole numbers only,
+                // range-checks [0, 2^64-1] and returns the sign-flip block encoding.
+                return DeclaredTypeCoercions.exactToUnsignedLong(value);
+            } catch (InvalidArgumentException e) {
                 lastFieldError = "Failed to parse CSV value [" + value + "] as [UNSIGNED_LONG]";
                 return null;
             }

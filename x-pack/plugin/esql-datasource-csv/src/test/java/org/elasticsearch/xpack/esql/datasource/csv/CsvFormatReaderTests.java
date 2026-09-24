@@ -10233,12 +10233,20 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(encoded("18446744073709551615"), block.getLong(3));  // 2^64-1
     }
 
-    /** Fractional and scientific tokens truncate toward zero — matching ::unsigned_long, deliberately unlike long's rounding. */
-    public void testDeclaredUnsignedLongTruncatesTowardZero() throws IOException {
+    /**
+     * Whole-number scientific / trailing-zero tokens succeed; a non-whole fraction is refused (exact read),
+     * deliberately unlike {@code ::unsigned_long} which truncates toward zero.
+     */
+    public void testDeclaredUnsignedLongRequiresExactWholeNumber() throws IOException {
         FormatReader reader = new CsvFormatReader(blockFactory);
-        LongBlock block = readOneUnsignedLongColumn(reader, "v\n42.9\n1e3\n");
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n42.0\n1e3\n");
         assertEquals(encoded("42"), block.getLong(0));
         assertEquals(encoded("1000"), block.getLong(1));
+
+        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        LongBlock refused = readOneUnsignedLongColumn(lenient, "v\n42.9\n5\n");
+        assertTrue("non-whole fraction must null the cell", refused.isNull(0));
+        assertEquals(encoded("5"), refused.getLong(1));
     }
 
     /** An absent/empty cell nulls the cell exactly as it does for a declared long — no special arm. */
@@ -10288,11 +10296,9 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A token whose decimal exponent is large enough that materializing the integer would overflow BigInteger --
-     * "1e999999999", and "1e-999999999" which truncates toward 0 but cannot be computed to get there -- makes
-     * BigDecimal.toBigInteger() throw ArithmeticException, which is not an IllegalArgumentException. Unhandled it
-     * escapes the per-field catch and hard-fails the whole read on every error_mode, precisely the failure declared
-     * unsigned_long support exists to remove. It must instead be an ordinary per-cell failure.
+     * Exotic exponents must stay ordinary per-cell failures (never escape as {@link ArithmeticException}).
+     * {@code 1e999999999} is a whole that cannot be materialized → out of range; {@code 1e-999999999} is not
+     * a whole number.
      */
     public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
         String csv = "v\n1e999999999\n1e-999999999\n5\n";
@@ -10304,6 +10310,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("the good cell still reads", encoded("5"), block.getLong(2));
 
         // fail_fast still fails, but as an ordinary bad-value failure, not an escaped ArithmeticException.
+        // Message text (out of range vs not a whole number) is pinned on DeclaredTypeCoercionsTests —
+        // the CSV wrapper reports a fixed "Failed to parse … as [UNSIGNED_LONG]" without the cause detail.
         FormatReader failFast = new CsvFormatReader(blockFactory);
         Exception e = expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
         assertFalse("ArithmeticException must not escape the coercer", e instanceof ArithmeticException);

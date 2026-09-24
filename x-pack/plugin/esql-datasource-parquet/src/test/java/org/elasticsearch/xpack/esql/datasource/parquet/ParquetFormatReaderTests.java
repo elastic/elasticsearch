@@ -5049,33 +5049,59 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The mundane user shape: a physical {@code DOUBLE} column declared {@code long}/{@code integer}. The read
-     * ROUNDS like {@code ::long}/{@code ::integer} (not truncates); an out-of-{@code int}-range value under a
-     * lenient policy nulls the cell and warns rather than wrapping to a garbage int.
+     * A physical {@code DOUBLE} column declared {@code long}/{@code integer}: only already-whole values
+     * succeed. A non-whole double is refused under STRICT and nulls under a lenient policy — never rounded
+     * like {@code ::long}/{@code ::integer}. An out-of-{@code int}-range whole value under a lenient policy
+     * nulls the cell and warns rather than wrapping to a garbage int.
      */
-    public void testDoubleFileDeclaredLongAndIntegerRounds() throws Exception {
+    public void testDoubleFileDeclaredLongAndIntegerRequiresExactWholeNumber() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.DOUBLE).named("x").named("test_schema");
-        byte[] parquetData = createParquetFile(schema, factory -> {
+        byte[] wholeData = createParquetFile(schema, factory -> {
             Group a = factory.newGroup();
-            a.add("x", 2.5d);
+            a.add("x", 2.0d);
             Group b = factory.newGroup();
-            b.add("x", -1.9d);
+            b.add("x", 1000.0d);
             return List.of(a, b);
         });
-        StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> asLong = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
         try (
             CloseableIterator<Page> it = declaredReader("x").readRange(
-                storageObject,
-                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, asLong, ErrorPolicy.STRICT)
+                createStorageObject(wholeData),
+                new RangeReadContext(List.of("x"), 10, 0, wholeData.length, asLong, ErrorPolicy.STRICT)
             )
         ) {
             LongBlock l = (LongBlock) it.next().getBlock(0);
-            assertEquals(3L, l.getLong(0));   // 2.5 rounds to 3
-            assertEquals(-2L, l.getLong(1));  // -1.9 rounds to -2
+            assertEquals(2L, l.getLong(0));
+            assertEquals(1000L, l.getLong(1));
         }
 
-        // Out-of-int-range double under a lenient policy: null + warn, never a wrapped int.
+        byte[] fractionData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.add("x", 2.5d);
+            return List.of(a);
+        });
+        expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> it = declaredReader("x").readRange(
+                    createStorageObject(fractionData),
+                    new RangeReadContext(List.of("x"), 10, 0, fractionData.length, asLong, ErrorPolicy.STRICT)
+                )
+            ) {
+                it.next().releaseBlocks();
+            }
+        });
+        try (
+            CloseableIterator<Page> it = declaredReader("x").readRange(
+                createStorageObject(fractionData),
+                new RangeReadContext(List.of("x"), 10, 0, fractionData.length, asLong, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            LongBlock l = (LongBlock) it.next().getBlock(0);
+            assertTrue("non-whole double declared long nulls the cell", l.isNull(0));
+        }
+        assertFalse("the non-whole coercion warns", drainWarnings().isEmpty());
+
+        // Out-of-int-range whole double under a lenient policy: null + warn, never a wrapped int.
         byte[] bigData = createParquetFile(
             Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.DOUBLE).named("x").named("test_schema"),
             factory -> {

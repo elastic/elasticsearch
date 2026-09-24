@@ -136,7 +136,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
         assertTripsLimit("String s = \"hello\"; s.toCharArray(); return \"x\";");
     }
 
-    // ---- the rest of java.lang: toString, valueOf, copies, base64, split and replace ----
+    // ---- the rest of java.lang ----
 
     public void testSubSequenceCharged() {
         assertEquals(
@@ -154,14 +154,14 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testObjectToStringChargedAnAllowance() {
-        // A map's toString length is unknowable, so it gets the concat operand allowance plus the String object.
+        // A map's toString gets the concat allowance plus the String object.
         long map = AllocationEstimators.toStringBytes((Object) java.util.Map.of());
         assertEquals(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + (long) AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES, map);
         assertEquals(64L + map, allocatedBytes("Map m = new HashMap(); m.toString(); return \"x\";"));
     }
 
     public void testValueOfNumberChargedExactly() {
-        // The int is boxed on the way in, then rendered to one char.
+        // The int is boxed, then rendered to one char.
         long one = AllocationEstimators.stringValueOfBytes(5);
         assertEquals(AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + 2L, one);
         assertEquals(AllocSizes.boxSize(int.class) + one, allocatedBytes("String.valueOf(5); return \"x\";"));
@@ -208,7 +208,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testReplaceWithFunctionCharged() {
-        // The lambda's capture object is charged where it is built; the regex literal is a constant and is not.
+        // The lambda's capture object is charged; the regex literal is a constant and is not.
         long lambda = AllocSizes.captureSize(1);
         assertEquals(
             lambda + AllocationEstimators.replaceAllBytes(null, "abc", 0, Pattern.compile("b"), null),
@@ -235,7 +235,7 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
     }
 
     public void testToStringRunawayTripsLimit() {
-        // A builder copied to a String every iteration: the copies are transient but each one is charged.
+        // Every toString copies the builder, and each copy is charged.
         assertTripsLimit(
             "StringBuilder sb = new StringBuilder(); sb.setLength(10000); for (int i = 0; i < 1000; ++i) { sb.toString(); } return \"x\";",
             "1mb"

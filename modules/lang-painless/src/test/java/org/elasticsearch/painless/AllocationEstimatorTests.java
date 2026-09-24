@@ -40,7 +40,7 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         return contexts;
     }
 
-    // ---- Iterable augmentations that build a collection or a String ----
+    // ---- Iterable augmentations ----
 
     public void testAsListCopiesOnlyWhenTheReceiverIsNotAList() {
         assertEquals(0L, AllocationEstimators.asListBytes(List.of()));

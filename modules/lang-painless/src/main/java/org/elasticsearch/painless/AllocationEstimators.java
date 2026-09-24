@@ -108,22 +108,18 @@ public final class AllocationEstimators {
         return newStringBytes(receiver.length());
     }
 
-    // ---- The rest of java.lang: CharSequence, Object, String and Character members that build a String, and the Iterable
-    // ---- augmentations that build a collection.
+    // ---- The rest of java.lang: members that build a String, and Iterable augmentations that build a collection.
 
-    /** Chars allowed for the text a script's replacement function adds across a whole {@code replaceAll}. An allowance. */
+    /** Allowance for the text a replacement function adds in a {@code replaceAll}. */
     private static final long REPLACEMENT_CHARACTERS = 256;
 
-    /** A fixed {@code StackTraceElement}: seven references, an int and a byte. */
+    /** A {@code StackTraceElement}: seven references, an int and a byte. */
     private static final long STACK_TRACE_ELEMENT_BYTES = 80;
 
-    /** {@code Character.getName} results are under 90 chars. */
+    /** A {@code Character.getName} result, under 90 chars. */
     private static final long CHARACTER_NAME_BYTES = 256;
 
-    /**
-     * Every element of a {@code groupBy} may start its own group: a linked map entry, a 40-byte list shell, and the list's
-     * first ten-slot array.
-     */
+    /** One {@code groupBy} element at worst starts a group: a linked entry, a 40-byte list, and its first ten slots. */
     private static final long GROUP_BY_ELEMENT_BYTES = 56 + 40 + AllocSizes.arrayBytes(10, AllocSizes.REFERENCE_SIZE);
 
     /** The array {@code Character.UnicodeScript.values()} clones on every call. */
@@ -137,10 +133,7 @@ public final class AllocationEstimators {
         return value instanceof Number || value instanceof Boolean || value instanceof Character;
     }
 
-    /**
-     * The String {@code toString()} or {@code String.valueOf} makes of {@code value}: {@code "null"}, a copy of text, the exact
-     * rendering of a scalar, or a flat allowance for any other object.
-     */
+    /** The String made of {@code value}: "null", a copy of text, the exact rendering of a scalar, or an allowance. */
     private static long renderedStringBytes(Object value) {
         if (value == null) {
             return newStringBytes(4);
@@ -152,7 +145,7 @@ public final class AllocationEstimators {
         return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.NON_STRING_OBJECT_CONCAT_BYTES;
     }
 
-    /** {@code Object.toString()}. A String returns itself and is over-charged; anything else is sized as rendered. */
+    /** {@code Object.toString()}. A String returns itself and is over-charged. */
     public static long toStringBytes(Object receiver) {
         return renderedStringBytes(receiver);
     }
@@ -182,7 +175,7 @@ public final class AllocationEstimators {
         return newStringBytes(count);
     }
 
-    /** {@code String.encodeBase64()}: the UTF-8 bytes, up to three per char, the encoded bytes, and the result String. */
+    /** {@code String.encodeBase64()}: the UTF-8 bytes, the encoded bytes, and the result. */
     public static long encodeBase64Bytes(String receiver) {
         long chars = receiver.length();
         long utf8 = AllocSizes.arrayBytes(AllocSizes.mulSat(chars, 3), 1);
@@ -190,13 +183,13 @@ public final class AllocationEstimators {
         return AllocSizes.addSat(AllocSizes.addSat(utf8, encoded), newStringBytes(AllocSizes.mulSat(chars, 4)));
     }
 
-    /** {@code String.decodeBase64()}: the input bytes, the decoded bytes, and the result String, none larger than the input. */
+    /** {@code String.decodeBase64()}: the input bytes, the decoded bytes, and the result. */
     public static long decodeBase64Bytes(String receiver) {
         long chars = receiver.length();
         return AllocSizes.addSat(AllocSizes.mulSat(AllocSizes.arrayBytes(chars, 1), 2), newStringBytes(chars));
     }
 
-    /** {@code pieces} Strings holding {@code chars} between them, in an {@code ArrayList} and then a {@code String[]}. */
+    /** {@code pieces} Strings holding {@code chars} in total, in a list and then an array. */
     private static long splitPiecesBytes(long pieces, long chars) {
         long strings = AllocSizes.addSat(AllocSizes.mulSat(pieces, AllocSizes.STRING_CONCAT_RESULT_OVERHEAD), AllocSizes.mulSat(2, chars));
         long list = AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(pieces, AllocSizes.REFERENCE_SIZE));
@@ -204,7 +197,7 @@ public final class AllocationEstimators {
         return AllocSizes.addSat(AllocSizes.addSat(strings, list), array);
     }
 
-    /** {@code String.splitOnToken(token)}: at worst one piece per char plus one. */
+    /** {@code String.splitOnToken(token)}: at worst a piece per char, plus one. */
     public static long splitOnTokenBytes(String receiver, String token) {
         long chars = receiver.length();
         return splitPiecesBytes(chars + 1, chars);
@@ -217,10 +210,7 @@ public final class AllocationEstimators {
         return splitPiecesBytes(pieces, chars);
     }
 
-    /**
-     * {@code String.replace(target, replacement)}, the script-aware augmentation. The result can be far longer than the
-     * receiver, so bound it: every possible match replaced, and an empty target matching before and after every char.
-     */
+    /** {@code String.replace(target, replacement)}: a bound with every possible match replaced. */
     public static long replaceBytes(PainlessScript script, String receiver, CharSequence target, CharSequence replacement) {
         long chars = receiver.length();
         long targetLength = target == null ? 0 : target.length();
@@ -229,7 +219,7 @@ public final class AllocationEstimators {
         return newStringBytes(AllocSizes.addSat(chars, AllocSizes.mulSat(matches, replacementLength)));
     }
 
-    /** A regex replace: the matcher, a builder started at the receiver length plus 16, and the result with its allowance. */
+    /** A regex replace: the matcher, a builder of the receiver plus 16, and the result with its allowance. */
     private static long regexReplaceBytes(CharSequence receiver) {
         long chars = receiver.length();
         long builder = AllocSizes.addSat(stringBuilderShellBytes(), AllocSizes.arrayBytes(chars + 16, 2));
@@ -237,7 +227,7 @@ public final class AllocationEstimators {
         return AllocSizes.addSat(AllocSizes.addSat(AllocSizes.MATCHER_BYTES, builder), result);
     }
 
-    /** {@code CharSequence.replaceAll(pattern, function)}, the script-aware augmentation with the regex limit injected. */
+    /** {@code CharSequence.replaceAll(pattern, function)}. */
     public static long replaceAllBytes(
         PainlessScript script,
         CharSequence receiver,
@@ -248,22 +238,22 @@ public final class AllocationEstimators {
         return regexReplaceBytes(receiver);
     }
 
-    /** {@code CharSequence.replaceFirst(pattern, function)} with the regex limit injected. */
+    /** {@code CharSequence.replaceFirst(pattern, function)}. */
     public static long replaceFirstBytes(CharSequence receiver, int limitFactor, Pattern pattern, Function<?, ?> function) {
         return regexReplaceBytes(receiver);
     }
 
-    /** Element count of {@code iterable} without consuming it: its size when it is a collection, otherwise a fixed guess. */
+    /** Size of {@code iterable} without consuming it: a collection's size, otherwise a fixed guess. */
     private static long iterableCount(Iterable<?> iterable) {
         return iterable instanceof Collection<?> collection ? collection.size() : UNKNOWN_ELEMENT_COUNT;
     }
 
-    /** {@code Iterable.asCollection()}: returns a collection as is, otherwise copies into a list. */
+    /** {@code Iterable.asCollection()}: a collection is returned as is, anything else is copied. */
     public static long asCollectionBytes(Iterable<?> receiver) {
         return receiver instanceof Collection ? 0 : listBuiltByAddBytes(UNKNOWN_ELEMENT_COUNT);
     }
 
-    /** {@code Iterable.asList()}: returns a list as is, otherwise copies into one. */
+    /** {@code Iterable.asList()}: a list is returned as is, anything else is copied. */
     public static long asListBytes(Iterable<?> receiver) {
         return receiver instanceof List ? 0 : listBuiltByAddBytes(iterableCount(receiver));
     }
@@ -273,12 +263,12 @@ public final class AllocationEstimators {
         return listBuiltByAddBytes(iterableCount(receiver));
     }
 
-    /** {@code Iterable.groupBy(function)}: a linked map plus, at worst, a group per element. */
+    /** {@code Iterable.groupBy(function)}: a map plus, at worst, a group per element. */
     public static long groupByBytes(PainlessScript script, Iterable<?> receiver, Function<?, ?> function) {
         return AllocSizes.addSat(hashMapShellBytes(), AllocSizes.mulSat(iterableCount(receiver), GROUP_BY_ELEMENT_BYTES));
     }
 
-    /** {@code Iterable.join(separator)}: the same allowance as {@code String.join}, with the arguments the other way round. */
+    /** {@code Iterable.join(separator)}: same as {@code String.join}. */
     public static long iterableJoinBytes(Iterable<?> receiver, String separator) {
         return joinBytes(separator == null ? "" : separator, receiver);
     }
@@ -288,7 +278,7 @@ public final class AllocationEstimators {
         return CHARACTER_NAME_BYTES;
     }
 
-    /** {@code Character.UnicodeBlock.forName(name)} and {@code UnicodeScript.forName(name)}: the name is upper-cased first. */
+    /** {@code UnicodeBlock.forName(name)} and {@code UnicodeScript.forName(name)}: the name is upper-cased first. */
     public static long forNameBytes(String name) {
         return newStringBytes(name == null ? 0 : name.length());
     }

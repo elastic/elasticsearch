@@ -694,9 +694,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.RecoveryMetricsIT
   method: testDirectCancellationMetricsQueuedAndStarted
   issue: https://github.com/elastic/elasticsearch/issues/160130
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
-  issue: https://github.com/elastic/elasticsearch/issues/160160
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogramTests
   issue: https://github.com/elastic/elasticsearch/issues/160168
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT

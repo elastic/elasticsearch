@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.NanoTime;
@@ -16,6 +17,8 @@ import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
+import org.apache.parquet.format.ColumnChunk;
+import org.apache.parquet.format.Util;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -7954,6 +7957,300 @@ public class ParquetFormatReaderTests extends ESTestCase {
         for (RangeAwareFormatReader.SplitRange range : ranges) {
             assertTrue("y records null_count in every row group", range.statistics().containsKey("_stats.columns.y.null_count"));
         }
+    }
+
+    /**
+     * Merges the single-row-group source files into one Parquet file with one row group per source.
+     * Uses zero-copy row-group transfer so each source's footer statistics (including which columns
+     * recorded {@code null_count} / bounds) are preserved verbatim in the merged file.
+     */
+    private byte[] mergeRowGroups(MessageType schema, Path... sources) throws IOException {
+        Path merged = createTempFile();
+        try (
+            ParquetFileWriter writer = new ParquetFileWriter(
+                new LocalOutputFile(merged),
+                schema,
+                ParquetFileWriter.Mode.OVERWRITE,
+                ParquetWriter.DEFAULT_BLOCK_SIZE,
+                ParquetWriter.MAX_PADDING_SIZE_DEFAULT
+            )
+        ) {
+            writer.start();
+            for (Path source : sources) {
+                LocalInputFile inputFile = new LocalInputFile(source);
+                ParquetReadOptions options = ParquetReadOptions.builder(new PlainParquetConfiguration()).build();
+                try (ParquetFileReader fileReader = new ParquetFileReader(inputFile, options)) {
+                    List<BlockMetaData> blocks = fileReader.getFooter().getBlocks();
+                    try (SeekableInputStream stream = inputFile.newStream()) {
+                        writer.appendRowGroups(stream, blocks, false);
+                    }
+                }
+            }
+            writer.end(Map.of());
+        }
+        return Files.readAllBytes(merged);
+    }
+
+    /**
+     * Regression for esql-planning#2068: when a row group holds values but records no min/max bound,
+     * {@code extractStatistics} must mark the column's bounds as unknown so {@code MIN}/{@code MAX}
+     * fall back to a scan rather than returning an answer sourced only from the other row groups.
+     * <p>
+     * This case covers a row group whose {@code Statistics} is absent ({@code null} or
+     * {@code isEmpty()}): a writer such as parquet-java 1.18.1 drops the whole {@code Statistics}
+     * object (including the null count) when any column value exceeds the statistics size threshold.
+     * Because the null count is unknown we cannot confirm that all rows are null, so the bounds must
+     * be withheld even though the other row group carries valid bounds.
+     * <p>
+     * Control column {@code id} carries statistics in every row group and must still have its bounds
+     * served, proving the poison is column-scoped rather than file-wide.
+     */
+    public void testRowGroupWithMissingStatisticsPoisonsBounds() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("s")
+            .named("test_schema");
+
+        // Row group 1: both columns have normal statistics — id and s both get bounds.
+        Path rg1 = writeSingleRowGroupStrings(schema, Set.of(), false);
+        // Row group 2: statistics disabled for s so its Statistics.isEmpty() is true, while
+        // id keeps its statistics. This is the parquet-java shape for a chunk that drops stats
+        // due to an oversized value: isEmpty() == true, null count unknown.
+        Path rg2 = writeSingleRowGroupStrings(schema, Set.of("s"), false);
+
+        // Verify the fixture shape before asserting the statistics output.
+        try (
+            ParquetFileReader pfr = ParquetFileReader.open(
+                new LocalInputFile(rg2),
+                ParquetReadOptions.builder(new PlainParquetConfiguration()).build()
+            )
+        ) {
+            Statistics<?> sStats = pfr.getFooter().getBlocks().get(0).getColumns().get(1).getStatistics();
+            assertTrue("second row group's s Statistics must be empty (stats disabled)", sStats == null || sStats.isEmpty());
+        }
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(mergeRowGroups(schema, rg1, rg2));
+
+        SourceMetadata metadata = reader.metadata(so);
+        var colStats = metadata.statistics().get().columnStatistics().orElseThrow();
+
+        assertTrue("s min must be withheld when one row group has no statistics", colStats.get("s").minValue().isEmpty());
+        assertTrue("s max must be withheld when one row group has no statistics", colStats.get("s").maxValue().isEmpty());
+
+        // Null count is also unknown because the second row group does not record it for s.
+        assertEquals("s null count is unknown when one row group omits it", OptionalLong.empty(), colStats.get("s").nullCount());
+
+        // Control: id carries statistics in both row groups and must still serve its bounds.
+        assertTrue("id min must still be served (id statistics are complete)", colStats.get("id").minValue().isPresent());
+        assertTrue("id max must still be served (id statistics are complete)", colStats.get("id").maxValue().isPresent());
+    }
+
+    /**
+     * Companion to {@link #testRowGroupWithMissingStatisticsPoisonsBounds} for the safe direction:
+     * when a row group records {@code null_count == row_count} for a non-repeated leaf but omits the
+     * bounds ({@code hasNonNullValue() == false}), every row in that row group is known to be null
+     * and therefore contributes no candidate value. The bounds recorded by the other row groups
+     * remain valid and must still be served rather than being poisoned.
+     */
+    public void testRowGroupWithAllNullValuesDoesNotPoisonBounds() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("s")
+            .named("test_schema");
+
+        // Row group 1: non-null values → hasNonNullValue() == true, min/max recorded.
+        Path rg1 = writeSingleRowGroupStrings(schema, Set.of(), false);
+        // Row group 2: all-null for s → hasNonNullValue() == false, null_count == row_count.
+        Path rg2 = writeSingleRowGroupStrings(schema, Set.of(), true);
+
+        // Verify the all-null fixture shape.
+        try (
+            ParquetFileReader pfr = ParquetFileReader.open(
+                new LocalInputFile(rg2),
+                ParquetReadOptions.builder(new PlainParquetConfiguration()).build()
+            )
+        ) {
+            Statistics<?> sStats = pfr.getFooter().getBlocks().get(0).getColumns().get(0).getStatistics();
+            assertFalse("second row group must have no non-null value (all null)", sStats.hasNonNullValue());
+            assertTrue("second row group must record the null count", sStats.isNumNullsSet());
+            assertEquals("null_count must equal the row group's row count", 5L, sStats.getNumNulls());
+        }
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(mergeRowGroups(schema, rg1, rg2));
+
+        SourceMetadata metadata = reader.metadata(so);
+        var colStats = metadata.statistics().get().columnStatistics().orElseThrow();
+
+        assertTrue("s min must still be served (all-null row group contributes no candidates)", colStats.get("s").minValue().isPresent());
+        assertTrue("s max must still be served (all-null row group contributes no candidates)", colStats.get("s").maxValue().isPresent());
+        assertEquals("min is the first row group's minimum", Optional.of("aaa"), colStats.get("s").minValue());
+        assertEquals("max is the first row group's maximum", Optional.of("eee"), colStats.get("s").maxValue());
+    }
+
+    /**
+     * When a row group records a {@code null_count} below the row group's row count but omits the
+     * bounds ({@code hasNonNullValue() == false}, {@code isEmpty() == false}), the row group may
+     * hold non-null values whose extrema are not captured by the other row groups. The file-level
+     * bounds must be withheld.
+     * <p>
+     * pyarrow writes this shape when any value exceeds the statistics size threshold: it keeps the
+     * null count and drops only the bounds. parquet-java instead drops the whole {@code Statistics}
+     * object ({@code isEmpty()} — see {@link #testRowGroupWithMissingStatisticsPoisonsBounds}).
+     * Both shapes reach the same code path in {@code extractStatistics} and must poison the bounds.
+     * <p>
+     * The null count remains valid even when the bounds are withheld, so {@code COUNT} is
+     * unaffected — the test asserts {@code nullCount()} is known and correct.
+     */
+    public void testRowGroupWithKnownNullCountButNoBoundsPoisonsBounds() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("s")
+            .named("test_schema");
+
+        // Row group 1: full statistics (null_count=0, min="aaa", max="eee").
+        Path rg1 = writeSingleRowGroupStrings(schema, Set.of(), false);
+        // Row group 2: write with full statistics first, then strip only the min/max from the
+        // footer so the chunk has null_count=0 (known, all non-null) but no bounds. This is the
+        // pyarrow shape: isNumNullsSet()==true, hasNonNullValue()==false, isEmpty()==false.
+        Path rg2 = writeSingleRowGroupStrings(schema, Set.of(), false);
+        byte[] rg2Bytes = Files.readAllBytes(rg2);
+
+        // Verify rg2 initially has full statistics before stripping.
+        try (
+            ParquetFileReader pfr = ParquetFileReader.open(
+                new LocalInputFile(rg2),
+                ParquetReadOptions.builder(new PlainParquetConfiguration()).build()
+            )
+        ) {
+            Statistics<?> sStats = pfr.getFooter().getBlocks().get(0).getColumns().get(0).getStatistics();
+            assertTrue("rg2 must initially carry bounds for s", sStats != null && sStats.hasNonNullValue());
+            assertTrue("rg2 must have null_count set", sStats.isNumNullsSet());
+        }
+
+        // Strip min/max from rg2's "s" statistics, keeping null_count — the pyarrow shape.
+        Path rg2Stripped = createTempFile();
+        Files.write(rg2Stripped, stripBoundsFromColumn(rg2Bytes, 0, "s"));
+
+        // Verify the stripped fixture has the expected pyarrow shape.
+        try (
+            ParquetFileReader pfr = ParquetFileReader.open(
+                new LocalInputFile(rg2Stripped),
+                ParquetReadOptions.builder(new PlainParquetConfiguration()).build()
+            )
+        ) {
+            Statistics<?> sStats = pfr.getFooter().getBlocks().get(0).getColumns().get(0).getStatistics();
+            assertFalse("after stripping, s must have no bounds", sStats.hasNonNullValue());
+            assertTrue("after stripping, s must retain null_count", sStats.isNumNullsSet());
+            assertFalse("after stripping, s must not be isEmpty()", sStats.isEmpty());
+            assertEquals("null_count must be 0 (all non-null)", 0L, sStats.getNumNulls());
+        }
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(mergeRowGroups(schema, rg1, rg2Stripped));
+
+        SourceMetadata metadata = reader.metadata(so);
+        var colStats = metadata.statistics().get().columnStatistics().orElseThrow();
+
+        assertTrue(
+            "s min must be withheld (pyarrow shape: hasNonNullValue==false, isEmpty==false)",
+            colStats.get("s").minValue().isEmpty()
+        );
+        assertTrue(
+            "s max must be withheld (pyarrow shape: hasNonNullValue==false, isEmpty==false)",
+            colStats.get("s").maxValue().isEmpty()
+        );
+
+        // The null count is still valid: both row groups recorded null_count=0 for s.
+        assertEquals("s null count is still served despite poisoned bounds", OptionalLong.of(0L), colStats.get("s").nullCount());
+    }
+
+    /**
+     * Rewrites the Parquet footer of {@code parquetBytes} so that column {@code columnName} in
+     * row group {@code rowGroupIndex} has its min/max statistics stripped while its
+     * {@code null_count} is preserved. The result has {@code hasNonNullValue() == false},
+     * {@code isNumNullsSet() == true}, and {@code isEmpty() == false} for that column chunk —
+     * the shape pyarrow produces when a value exceeds the statistics size threshold.
+     */
+    private static byte[] stripBoundsFromColumn(byte[] parquetBytes, int rowGroupIndex, String columnName) throws IOException {
+        int len = parquetBytes.length;
+        int footerLen = ByteBuffer.wrap(parquetBytes, len - 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+        int footerStart = len - 8 - footerLen;
+
+        org.apache.parquet.format.FileMetaData thriftMeta;
+        try (var in = new ByteArrayInputStream(parquetBytes, footerStart, footerLen)) {
+            thriftMeta = Util.readFileMetaData(in);
+        }
+
+        for (ColumnChunk cc : thriftMeta.getRow_groups().get(rowGroupIndex).getColumns()) {
+            if (cc.getMeta_data() != null) {
+                String dotPath = String.join(".", cc.getMeta_data().getPath_in_schema());
+                if (dotPath.equals(columnName)) {
+                    org.apache.parquet.format.Statistics stats = cc.getMeta_data().getStatistics();
+                    if (stats != null) {
+                        stats.unsetMin();
+                        stats.unsetMax();
+                        stats.unsetMin_value();
+                        stats.unsetMax_value();
+                    }
+                }
+            }
+        }
+
+        ByteArrayOutputStream newFooterBuf = new ByteArrayOutputStream();
+        Util.writeFileMetaData(thriftMeta, newFooterBuf);
+        byte[] newFooter = newFooterBuf.toByteArray();
+
+        ByteArrayOutputStream result = new ByteArrayOutputStream(footerStart + newFooter.length + 8);
+        result.write(parquetBytes, 0, footerStart);
+        result.write(newFooter);
+        result.write(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(newFooter.length).array());
+        result.write(parquetBytes, len - 4, 4);
+        return result.toByteArray();
+    }
+
+    /**
+     * Writes a single-row-group Parquet file (5 rows) for the bound-poisoning tests. The schema
+     * must contain an optional {@code BINARY(UTF8)} column named {@code s} and optionally a
+     * required {@code INT64} column named {@code id}. When {@code allNullForS} is {@code true},
+     * every row is left null for {@code s} (producing {@code hasNonNullValue() == false} with
+     * {@code null_count == 5}); otherwise {@code s} gets the values {@code "aaa"} through
+     * {@code "eee"}. When {@code statsDisabledColumns} names {@code s}, its statistics are
+     * disabled so {@code Statistics.isEmpty() == true} in the footer.
+     */
+    private Path writeSingleRowGroupStrings(MessageType schema, Set<String> statsDisabledColumns, boolean allNullForS) throws IOException {
+        Path path = createTempFile();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        ExampleParquetWriter.Builder builder = ExampleParquetWriter.builder(new LocalOutputFile(path))
+            .withConf(new PlainParquetConfiguration())
+            .withCodecFactory(new PlainCompressionCodecFactory())
+            .withType(schema)
+            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
+            .withCompressionCodec(CompressionCodecName.UNCOMPRESSED);
+        for (String col : statsDisabledColumns) {
+            builder = builder.withStatisticsEnabled(col, false);
+        }
+        boolean hasId = schema.containsField("id");
+        try (ParquetWriter<Group> writer = builder.build()) {
+            for (int i = 0; i < 5; i++) {
+                Group g = groupFactory.newGroup();
+                if (hasId) {
+                    g.add("id", (long) i);
+                }
+                if (allNullForS == false) {
+                    // Values "aaa" through "eee" — distinct single-char repetitions so min="aaa", max="eee".
+                    g.add("s", Binary.fromString(String.valueOf((char) ('a' + i)).repeat(3)));
+                }
+                writer.write(g);
+            }
+        }
+        return path;
     }
 
     /**

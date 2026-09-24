@@ -72,3 +72,48 @@ ROW node_id = "a"
 node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long | edges:long
 a                 | b               | b                    | 1           | 5           | 2
 ;
+
+
+direction in matches TO and reaches ON
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+  WITH { "max_hops": 5, "direction": "in" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+b                 | a               | b                    | 1
+;
+
+
+direction both concatenates outbound and inbound legs
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+  WITH { "max_hops": 1, "direction": "both" }
+| SORT node_from ASC
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | a               | b                    | 1
+;
+
+
+SORT orders hop rows with node_reached tie-break
+required_capability: graph_expand
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_ranked ON node_id == source TO target
+    STATS weight = SUM(weight)
+    SORT weight DESC
+    WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long
+a                 | c               | c                    | 1           | 9
+a                 | d               | d                    | 1           | 9
+a                 | b               | b                    | 1           | 1
+;

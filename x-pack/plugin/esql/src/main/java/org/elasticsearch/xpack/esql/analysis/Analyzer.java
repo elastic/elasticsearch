@@ -2852,15 +2852,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     && ge.resultAttributes().size() == 4
                     && (aggregates.isEmpty() == false || (groupings != null && groupings.isEmpty() == false)));
 
-            if (edgeRelation != ge.edgeRelation()
+            List<Attribute> resultAttributes = ge.resultAttributes();
+            if (needResultAttributes
+                || edgeRelation != ge.edgeRelation()
                 || seedColumn != ge.seedColumn()
                 || matchField != ge.matchField()
                 || targetsChanged
                 || statsChanged
                 || documentFilterChanged
-                || aggregateFilterChanged
-                || needResultAttributes) {
-                List<Attribute> resultAttributes = ge.resultAttributes();
+                || aggregateFilterChanged) {
                 if (Resolvables.resolved(targetFields)
                     && targetFields.isEmpty() == false
                     && (aggregates == null || Resolvables.resolved(aggregates))
@@ -2877,6 +2877,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         targetFields.get(0).dataType()
                     );
                 }
+            }
+
+            // SORT resolves against the expand output (graph columns + STATS aliases), not edge docs.
+            List<Order> sorts = ge.sorts();
+            boolean sortsChanged = false;
+            if (sorts != null && resultAttributes != null) {
+                List<Order> resolvedSorts = resolveGraphExpandSorts(sorts, resultAttributes);
+                sortsChanged = resolvedSorts != sorts;
+                sorts = resolvedSorts;
+            }
+
+            if (edgeRelation != ge.edgeRelation()
+                || seedColumn != ge.seedColumn()
+                || matchField != ge.matchField()
+                || targetsChanged
+                || statsChanged
+                || documentFilterChanged
+                || aggregateFilterChanged
+                || needResultAttributes
+                || sortsChanged) {
                 return new GraphExpand(
                     ge.source(),
                     ge.child(),
@@ -2888,13 +2908,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     aggregates,
                     groupings,
                     aggregateFilter,
-                    ge.sorts(),
+                    sorts,
                     ge.until(),
                     ge.options(),
                     resultAttributes
                 );
             }
             return ge;
+        }
+
+        /**
+         * Resolves in-command {@code SORT} keys against the expand result attributes
+         * ({@code node_from}/{@code node_to}/{@code node_reached}/{@code hop} and STATS
+         * output columns). A name that is neither remains unresolved and fails analysis.
+         */
+        private List<Order> resolveGraphExpandSorts(List<Order> sorts, List<Attribute> resultAttributes) {
+            if (Resolvables.resolved(sorts)) {
+                return sorts;
+            }
+            List<Order> resolved = new ArrayList<>(sorts.size());
+            boolean changed = false;
+            for (Order order : sorts) {
+                Expression nextChild = order.child().transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, resultAttributes));
+                if (nextChild != order.child()) {
+                    changed = true;
+                    resolved.add(new Order(order.source(), nextChild, order.direction(), order.nullsPosition()));
+                } else {
+                    resolved.add(order);
+                }
+            }
+            return changed ? resolved : sorts;
         }
 
         /**

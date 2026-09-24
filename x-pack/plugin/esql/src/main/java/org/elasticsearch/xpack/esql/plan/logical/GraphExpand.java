@@ -259,7 +259,8 @@ public class GraphExpand extends UnaryPlan
             && (aggregates == null || Resolvables.resolved(aggregates))
             && (groupings == null || Resolvables.resolved(groupings))
             && (documentFilter == null || documentFilter.resolved())
-            && (aggregateFilter == null || (aggregates != null && aggregateFilter.resolved()));
+            && (aggregateFilter == null || (aggregates != null && aggregateFilter.resolved()))
+            && (sorts == null || Resolvables.resolved(sorts));
     }
 
     @Override

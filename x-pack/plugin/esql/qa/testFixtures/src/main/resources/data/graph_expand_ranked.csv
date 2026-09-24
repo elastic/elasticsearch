@@ -1,0 +1,4 @@
+source:keyword,target:keyword,weight:integer
+a,b,1
+a,c,9
+a,d,9

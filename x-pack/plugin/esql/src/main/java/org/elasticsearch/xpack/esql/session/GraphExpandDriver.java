@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -52,16 +54,27 @@ import java.util.Set;
  * {@link Aggregate} sits on the filtered edge scan (pair grouping always, user
  * {@code BY} refining it) before Eval/Project. Document {@code WHERE} is ANDed
  * into the edge {@link Filter}; aggregate {@code WHERE} is a {@link Filter} on
- * the Aggregate output before admission. Admitted nodes are remembered here
- * so a later hop does not re-admit them. Stage subset — see {@link #validateSubset}.
+ * the Aggregate output before admission. {@code direction: both} runs outbound
+ * then inbound as separate hop plans and combines pages before SORT and
+ * admission. In-command {@code SORT} (plus an always-on {@code node_reached}
+ * ascending tie-break) orders each hop's rows before admission. Admitted nodes
+ * are remembered here so a later hop does not re-admit them. Stage subset —
+ * see {@link #validateSubset}.
  */
 public final class GraphExpandDriver {
 
     public static final int DEFAULT_MAX_HOPS = 3;
 
+    /** Walk orientation for one hop leg. */
+    enum Leg {
+        OUT,
+        IN
+    }
+
     private final GraphExpand graphExpand;
     private final BlockFactory blockFactory;
     private final int maxHops;
+    private final String direction;
     private final Attribute matchField;
     private final Attribute targetField;
     private final List<Attribute> resultAttributes;
@@ -77,10 +90,19 @@ public final class GraphExpandDriver {
     private final List<List<Object>> admittedRows = new ArrayList<>();
     private boolean finished;
 
+    /**
+     * Next leg to execute for the current hop. For {@code out}/{@code in} this
+     * stays on that single leg; for {@code both} it advances OUT → IN within the hop.
+     */
+    private Leg nextLeg;
+    /** Outbound rows buffered while the inbound leg of {@code direction: both} runs. */
+    private List<List<Object>> pendingOutRows;
+
     private GraphExpandDriver(
         GraphExpand graphExpand,
         BlockFactory blockFactory,
         int maxHops,
+        String direction,
         Attribute matchField,
         Attribute targetField,
         List<Attribute> resultAttributes,
@@ -89,10 +111,12 @@ public final class GraphExpandDriver {
         this.graphExpand = graphExpand;
         this.blockFactory = blockFactory;
         this.maxHops = maxHops;
+        this.direction = direction;
         this.matchField = matchField;
         this.targetField = targetField;
         this.resultAttributes = resultAttributes;
         this.nodeType = targetField.dataType();
+        this.nextLeg = "in".equals(direction) ? Leg.IN : Leg.OUT;
         for (Object seed : seeds) {
             visited.add(seed);
             frontier.add(seed);
@@ -129,6 +153,7 @@ public final class GraphExpandDriver {
             ge,
             blockFactory,
             maxHops(ge),
+            direction(ge),
             ge.matchField(),
             ge.targetFields().get(0),
             resultAttributes,
@@ -147,25 +172,40 @@ public final class GraphExpandDriver {
     }
 
     /**
-     * Next hop plan to execute, or {@code null} when the walk is done.
+     * Next hop (or hop-leg) plan to execute, or {@code null} when the walk is done.
      */
     public LogicalPlan firstSubPlan() {
         if (finished || frontier.isEmpty() || nextHop > maxHops) {
             finished = true;
             return null;
         }
-        LogicalPlan hopPlan = buildHopPlan(nextHop, frontier);
+        LogicalPlan hopPlan = buildHopPlan(nextHop, frontier, nextLeg);
         hopPlan.setOptimized();
         return hopPlan;
     }
 
     /**
      * Consumes a hop {@link Result}, updates visited/frontier, and either keeps
-     * {@code mainPlan} for another hop or replaces {@link GraphExpand} with the
-     * accumulated admission rows.
+     * {@code mainPlan} for another hop (or the inbound leg of {@code both}) or
+     * replaces {@link GraphExpand} with the accumulated admission rows.
      */
     public LogicalPlan newMainPlan(LogicalPlan mainPlan, Result hopResult) {
-        List<Object> newlyAdmitted = admitHop(hopResult, nextHop);
+        List<List<Object>> rows = extractRows(hopResult);
+
+        if ("both".equals(direction) && nextLeg == Leg.OUT) {
+            pendingOutRows = rows;
+            nextLeg = Leg.IN;
+            return mainPlan;
+        }
+
+        if ("both".equals(direction) && nextLeg == Leg.IN) {
+            rows = combineBothLegs(pendingOutRows, rows);
+            pendingOutRows = null;
+            nextLeg = Leg.OUT;
+        }
+
+        sortHopRows(rows);
+        List<Object> newlyAdmitted = admitRows(rows);
         nextHop++;
         frontier = newlyAdmitted;
         if (frontier.isEmpty() || nextHop > maxHops) {
@@ -184,13 +224,15 @@ public final class GraphExpandDriver {
 
     // --- hop plan ----------------------------------------------------------------
 
-    private LogicalPlan buildHopPlan(int hop, List<Object> frontierValues) {
+    private LogicalPlan buildHopPlan(int hop, List<Object> frontierValues, Leg leg) {
         Source source = graphExpand.source();
         List<Expression> literals = new ArrayList<>(frontierValues.size());
         for (Object value : frontierValues) {
             literals.add(new Literal(source, value, nodeType));
         }
-        In inPredicate = new In(source, matchField, literals);
+        // out: frontier matches ON (stored source). in: frontier matches TO (stored target).
+        Attribute frontierField = leg == Leg.OUT ? matchField : targetField;
+        In inPredicate = new In(source, frontierField, literals);
         // Document WHERE filters hop documents before STATS (and before emit when there is no STATS).
         Expression edgePredicate = graphExpand.documentFilter() != null
             ? Predicates.combineAnd(List.of(inPredicate, graphExpand.documentFilter()))
@@ -215,10 +257,12 @@ public final class GraphExpandDriver {
             evalTo = attributeByName(hopChild.output(), targetField.name());
         }
 
+        // node_from / node_to keep stored orientation; node_reached follows the walk leg.
+        Attribute reachedExpr = leg == Leg.OUT ? evalTo : evalFrom;
         List<Alias> evalFields = List.of(
             new Alias(source, nodeFrom.name(), evalFrom, nodeFrom.id(), false),
             new Alias(source, nodeTo.name(), evalTo, nodeTo.id(), false),
-            new Alias(source, nodeReached.name(), evalTo, nodeReached.id(), false),
+            new Alias(source, nodeReached.name(), reachedExpr, nodeReached.id(), false),
             new Alias(source, hopAttr.name(), new Literal(source, hop, DataType.INTEGER), hopAttr.id(), false)
         );
         Eval eval = new Eval(source, hopChild, evalFields);
@@ -265,40 +309,128 @@ public final class GraphExpandDriver {
         return new Aggregate(source, filteredEdges, groupings, aggregates);
     }
 
-    // --- admission ---------------------------------------------------------------
+    // --- combine / sort / admission ----------------------------------------------
 
-    private List<Object> admitHop(Result hopResult, int hop) {
+    /**
+     * Concatenate outbound then inbound rows. A self-loop (stored source equals
+     * target) is kept from the outbound leg only.
+     */
+    private static List<List<Object>> combineBothLegs(List<List<Object>> outRows, List<List<Object>> inRows) {
+        List<List<Object>> combined = new ArrayList<>(outRows.size() + inRows.size());
+        combined.addAll(outRows);
+        for (List<Object> row : inRows) {
+            Object from = row.get(0);
+            Object to = row.get(1);
+            if (Objects.equals(from, to)) {
+                continue;
+            }
+            combined.add(row);
+        }
+        return combined;
+    }
+
+    private List<List<Object>> extractRows(Result hopResult) {
         List<Attribute> schema = hopResult.schema();
-        int reachedIdx = indexOf(schema, "node_reached");
         int[] channels = new int[resultAttributes.size()];
         for (int c = 0; c < resultAttributes.size(); c++) {
             channels[c] = indexOf(schema, resultAttributes.get(c).name());
         }
-        LinkedHashSet<Object> newlyAdmitted = new LinkedHashSet<>();
+        List<List<Object>> rows = new ArrayList<>();
         for (Page page : hopResult.pages()) {
             int positions = page.getPositionCount();
             for (int i = 0; i < positions; i++) {
-                Object reached = BlockUtils.toJavaObject(page.getBlock(reachedIdx), i);
-                if (reached == null) {
-                    continue;
-                }
-                // Target admitted on an earlier hop: closing edge — drop the row.
-                if (visited.contains(reached) && newlyAdmitted.contains(reached) == false) {
-                    continue;
-                }
-                boolean firstTimeThisHop = newlyAdmitted.add(reached);
-                if (firstTimeThisHop) {
-                    visited.add(reached);
-                }
-                // Emit every aggregated row for a node newly admitted this hop (BY may
-                // produce several rows that share one node_reached). Frontier gets the
-                // node once via newlyAdmitted.
                 List<Object> row = new ArrayList<>(resultAttributes.size());
                 for (int channel : channels) {
                     row.add(BlockUtils.toJavaObject(page.getBlock(channel), i));
                 }
-                admittedRows.add(row);
+                rows.add(row);
             }
+        }
+        return rows;
+    }
+
+    /**
+     * Orders hop rows by the in-command {@code SORT} keys (if any), then always by
+     * {@code node_reached} ascending so hop output is deterministic.
+     */
+    private void sortHopRows(List<List<Object>> rows) {
+        if (rows.size() < 2) {
+            return;
+        }
+        Comparator<List<Object>> comparator = hopRowComparator();
+        rows.sort(comparator);
+    }
+
+    private Comparator<List<Object>> hopRowComparator() {
+        Comparator<List<Object>> comparator = null;
+        List<Order> sorts = graphExpand.sorts();
+        if (sorts != null) {
+            for (Order order : sorts) {
+                String name = Expressions.attribute(order.child()).name();
+                int channel = indexOf(resultAttributes, name);
+                Comparator<List<Object>> key = comparingChannel(channel, order.direction(), order.nullsPosition());
+                comparator = comparator == null ? key : comparator.thenComparing(key);
+            }
+        }
+        // Always-on tie-break: node_reached ascending (channel 2).
+        Comparator<List<Object>> tieBreak = comparingChannel(2, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        return comparator == null ? tieBreak : comparator.thenComparing(tieBreak);
+    }
+
+    private static Comparator<List<Object>> comparingChannel(
+        int channel,
+        Order.OrderDirection direction,
+        Order.NullsPosition nulls
+    ) {
+        return (left, right) -> {
+            Object a = left.get(channel);
+            Object b = right.get(channel);
+            if (a == null || b == null) {
+                if (a == null && b == null) {
+                    return 0;
+                }
+                boolean nullFirst = nulls == Order.NullsPosition.FIRST;
+                if (a == null) {
+                    return nullFirst ? -1 : 1;
+                }
+                return nullFirst ? 1 : -1;
+            }
+            int cmp = compareSortValues(a, b);
+            return direction == Order.OrderDirection.DESC ? -cmp : cmp;
+        };
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static int compareSortValues(Object a, Object b) {
+        if (a instanceof Comparable comparable && a.getClass().isInstance(b)) {
+            return comparable.compareTo(b);
+        }
+        if (b instanceof Comparable comparable && b.getClass().isInstance(a)) {
+            return -comparable.compareTo(a);
+        }
+        return a.toString().compareTo(b.toString());
+    }
+
+    private List<Object> admitRows(List<List<Object>> rows) {
+        int reachedIdx = 2; // node_reached
+        LinkedHashSet<Object> newlyAdmitted = new LinkedHashSet<>();
+        for (List<Object> row : rows) {
+            Object reached = row.get(reachedIdx);
+            if (reached == null) {
+                continue;
+            }
+            // Target admitted on an earlier hop: closing edge — drop the row.
+            if (visited.contains(reached) && newlyAdmitted.contains(reached) == false) {
+                continue;
+            }
+            boolean firstTimeThisHop = newlyAdmitted.add(reached);
+            if (firstTimeThisHop) {
+                visited.add(reached);
+            }
+            // Emit every aggregated row for a node newly admitted this hop (BY may
+            // produce several rows that share one node_reached). Frontier gets the
+            // node once via newlyAdmitted.
+            admittedRows.add(row);
         }
         return new ArrayList<>(newlyAdmitted);
     }
@@ -322,9 +454,6 @@ public final class GraphExpandDriver {
         if (ge.aggregateFilter() != null && ge.aggregates() == null) {
             throw new IllegalArgumentException("GRAPH EXPAND aggregate WHERE requires STATS");
         }
-        if (ge.sorts() != null) {
-            throw new IllegalArgumentException("GRAPH EXPAND SORT is not supported in this build");
-        }
         if (ge.until() != null) {
             throw new IllegalArgumentException("GRAPH EXPAND UNTIL is not supported in this build");
         }
@@ -346,9 +475,9 @@ public final class GraphExpandDriver {
                 }
                 case "direction" -> {
                     String direction = BytesRefs.toString(value.fold(FoldContext.small())).toLowerCase(Locale.ROOT);
-                    if ("out".equals(direction) == false) {
+                    if (direction.equals("out") == false && direction.equals("in") == false && direction.equals("both") == false) {
                         throw new IllegalArgumentException(
-                            "GRAPH EXPAND direction [" + direction + "] is not supported in this build; only [out] is"
+                            "GRAPH EXPAND direction [" + direction + "] is not supported in this build"
                         );
                     }
                 }
@@ -374,6 +503,18 @@ public final class GraphExpandDriver {
         }
         Number n = (Number) value.fold(FoldContext.small());
         return n.intValue();
+    }
+
+    private static String direction(GraphExpand ge) {
+        MapExpression options = ge.options();
+        if (options == null) {
+            return "out";
+        }
+        Expression value = options.keyFoldedMap().get("direction");
+        if (value == null) {
+            return "out";
+        }
+        return BytesRefs.toString(value.fold(FoldContext.small())).toLowerCase(Locale.ROOT);
     }
 
     private static List<Object> readColumnValues(LocalRelation relation, Attribute column) {

@@ -177,7 +177,9 @@ public final class DeclaredSchemaResolver {
             throw new IllegalArgumentException("declared columns not found in the source: " + missing);
         } else {
             // Sample-derived schema (NDJSON, headerless CSV/TSV): the column may be sparse and simply not seen.
-            // Append it at its declared type; the reader will look it up by name and null-fill absent records.
+            // Append it at its declared type so the reader can resolve it by name and null-fill absent records.
+            // For NDJSON the reader uses JSON key lookup natively; for headerless CSV/TSV the caller upgrades
+            // the DeclaredReadSpec to DECLARED provenance so col<N> names bind to position N by index parse.
             sampledOut = new ArrayList<>(missing.size());
             for (String physical : missing) {
                 sampledOut.add(new ReferenceAttribute(Source.EMPTY, null, logicalByPhysical.get(physical), typeByPhysical.get(physical)));

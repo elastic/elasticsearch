@@ -690,10 +690,30 @@ public class ExternalSourceResolver {
         resolveSource(path, config, hints, declaredMapping, demand, ActionListener.wrap(resolvedSource -> {
             // Strict is built directly from the declaration inside resolveSource; non-strict infers first and then
             // overlays the declaration onto the resolved result (works the same for single- and multi-file).
-            ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isDeclaredSchema(declaredMapping) == false
-                ? applyNonStrictOverlay(resolvedSource, declaredMapping)
-                : resolvedSource;
-            resolved.put(path, finalSource.withDeclaredReadSpec(declaredReadSpec));
+            ExternalSourceResolution.ResolvedSource finalSource;
+            DeclaredReadSpec effectiveReadSpec;
+            if (declaredMapping != null && isDeclaredSchema(declaredMapping) == false) {
+                finalSource = applyNonStrictOverlay(resolvedSource, declaredMapping);
+                // When the overlay appended sampled-out columns for a headerless CSV/TSV source (which uses
+                // positional binding under INFERRED provenance), upgrade to DECLARED so that a col<N> name
+                // resolves to physical field N via headerlessFieldIndex rather than to schema-position N.
+                // NDJSON binds by JSON key natively and needs no upgrade.
+                if (finalSource.metadata().schema().size() > resolvedSource.metadata().schema().size()
+                    && isHeaderlessCsvOrTsv(resolvedSource.metadata().sourceType(), resolvedSource.metadata().config())) {
+                    effectiveReadSpec = DeclaredReadSpec.of(
+                        declaredReadSpec.renames(),
+                        declaredReadSpec.dateFormats(),
+                        declaredReadSpec.declaredTypeColumns(),
+                        SchemaProvenance.DECLARED
+                    );
+                } else {
+                    effectiveReadSpec = declaredReadSpec;
+                }
+            } else {
+                finalSource = resolvedSource;
+                effectiveReadSpec = declaredReadSpec;
+            }
+            resolved.put(path, finalSource.withDeclaredReadSpec(effectiveReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
             resolveNextPath(
                 paths,
@@ -3841,7 +3861,22 @@ public class ExternalSourceResolver {
             Object v = config != null ? config.get("header_row") : null;
             return v == null || Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
         }
-        return false;
+        if ("ndjson".equals(sourceType)) {
+            // Derives column list from a bounded sample prefix; a sparse field absent from the sample
+            // may still exist in later records.
+            return false;
+        }
+        // Unknown future format types default to complete: a missing declared column is an actionable
+        // error rather than silently accepted as a sparse-field surprise.
+        return true;
+    }
+
+    /**
+     * True for CSV and TSV files that have no header row — i.e., where {@link #isSchemaComplete} is
+     * {@code false} and the reader uses <em>positional</em> binding (column index == schema position).
+     */
+    private static boolean isHeaderlessCsvOrTsv(String sourceType, Map<String, Object> config) {
+        return ("csv".equals(sourceType) || "tsv".equals(sourceType)) && isSchemaComplete(sourceType, config) == false;
     }
 
     /**
@@ -3995,9 +4030,15 @@ public class ExternalSourceResolver {
 
     /**
      * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
-     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
-     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
-     * inferred stats/sourceMetadata and the per-file column mappings.
+     * columns in the user-facing schema and in each per-file schema (lenient — a column may be absent from one
+     * file under union-by-name), preserving the inferred stats/sourceMetadata and the per-file column mappings.
+     * <p>
+     * For sample-derived schemas ({@link #isSchemaComplete} is {@code false}), a declared column absent from the
+     * unified inferred schema is <em>appended</em> (returned in {@link DeclaredSchemaResolver.Overlaid#sampledOut()})
+     * rather than rejected — it may simply be a sparse field the sample window did not reach. The caller
+     * ({@link #resolveNextPath}) upgrades the {@link DeclaredReadSpec} provenance to {@link SchemaProvenance#DECLARED}
+     * for headerless CSV/TSV so that a {@code col<N>} name binds to physical field N rather than schema position N.
+     * </p>
      */
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
         ExternalSourceResolution.ResolvedSource resolved,
@@ -4023,6 +4064,17 @@ public class ExternalSourceResolver {
             schemaIsComplete
         );
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
+        // Mirror the provenance upgrade the outer resolver applies (see resolveNextPath): when sampledOut columns
+        // exist for a headerless CSV/TSV format the fingerprint must hash DECLARED provenance so it matches what
+        // the data-node's read will produce.
+        if (unified.sampledOut().isEmpty() == false && isHeaderlessCsvOrTsv(inferred.sourceType(), inferred.config())) {
+            declaredReadSpec = DeclaredReadSpec.of(
+                declaredReadSpec.renames(),
+                declaredReadSpec.dateFormats(),
+                declaredReadSpec.declaredTypeColumns(),
+                SchemaProvenance.DECLARED
+            );
+        }
         // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
         // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
@@ -4093,10 +4145,13 @@ public class ExternalSourceResolver {
                 true
             );
             // Sampled-out declared columns (absent from the unified inferred schema because the sample did not reach
-            // them) are appended to every per-file schema so the reader looks them up by name and null-fills records
-            // that do not carry the field. Under union-by-name, sampledOut() is empty whenever the column appeared in
-            // at least one file's inferred schema — the lenient per-file overlay correctly skips truly absent columns
-            // in the other files, leaving their column-mapping slots as null-fill, which is the intended behavior.
+            // them) are appended to every per-file schema. For NDJSON the reader always resolves field values by
+            // JSON key; for headerless CSV/TSV resolveNextPath upgrades provenance to DECLARED so the reader uses
+            // headerlessFieldIndex (col<N> → position N) rather than schema-position N — giving the same by-name
+            // semantics. In both cases, rows that do not carry the field null-fill the slot.
+            // Under union-by-name, sampledOut() is empty whenever the column appeared in at least one file's
+            // inferred schema — the lenient per-file overlay correctly skips truly absent columns in the other
+            // files, leaving their column-mapping slots as null-fill, which is the intended behavior.
             List<Attribute> perFileSchema;
             if (unified.sampledOut().isEmpty()) {
                 perFileSchema = perFile.fileSchema();

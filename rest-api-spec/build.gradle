@@ -171,4 +171,5 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("tsdb/25_id_generation/get", "ids have changed after introduction of synthetic id")
   task.skipTest("tsdb/25_id_generation/routing_path matches deep object", "ids have changed after introduction of synthetic id")
   task.skipTest("tsdb/25_id_generation/index a new document on top of an old one over bulk", "ids have changed after introduction of synthetic id")
+  task.skipTest("indices.put_mapping/10_basic/Put mappings with explicit _doc type", "_doc-wrapped mapping sources are now accepted rather than rejected")
 })

@@ -94,6 +94,8 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
 
+    public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
@@ -157,7 +159,8 @@ public class MapperFeatures implements FeatureSpecification {
             IGNORED_VALUES_STORED_IN_BINARY_DV,
             KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
             KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
-            ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER
+            ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
+            PUT_MAPPING_NO_TYPES_CHECK
         );
     }
 }

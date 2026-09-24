@@ -13,16 +13,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.DocWriteRequest.OpType;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -30,6 +25,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -40,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
@@ -54,25 +52,35 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -112,7 +120,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     private static final String ROLE_A = "deploy_bot_role_a";
     private static final String ROLE_B = "deploy_bot_role_b";
 
+    private static final Instant NOW = Instant.ofEpochMilli(1_700_000_000_000L);
+
     private Client client;
+    private Authentication authentication;
     private ClusterService clusterService;
     private ClusterState clusterState;
     private FeatureService featureService;
@@ -167,6 +178,8 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         );
         featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(true);
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION))).thenReturn(true);
+        authentication = AuthenticationTestHelper.builder().realm().build(false);
 
         securityIndex = mock(SecurityIndexManager.class);
         projectIndex = mock(SecurityIndexManager.IndexState.class);
@@ -277,6 +290,88 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(getByPrincipal(PRINCIPAL).description(), equalTo(description));
     }
 
+    public void testStoredAttributionIsLoaded() {
+        final ServiceAccountAuthor creator = randomAuthor();
+        final ServiceAccountAuthor editor = randomAuthor();
+        final Instant createdAt = Instant.ofEpochMilli(randomLongBetween(0, NOW.toEpochMilli()));
+        final Instant editedAt = Instant.ofEpochMilli(randomLongBetween(createdAt.toEpochMilli(), NOW.toEpochMilli()));
+        final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        source.put("creator", storedAuthor(creator));
+        source.put("created_at", createdAt.toEpochMilli());
+        // The editor is absent until the account is first replaced.
+        final boolean edited = randomBoolean();
+        if (edited) {
+            source.put("editor", storedAuthor(editor));
+            source.put("edited_at", editedAt.toEpochMilli());
+        }
+        respondToGetWith(source);
+
+        final UserManagedServiceAccount account = getByPrincipal(PRINCIPAL);
+        assertThat(account.creator(), equalTo(creator));
+        assertThat(account.createdAt(), equalTo(createdAt));
+        assertThat(account.editor(), edited ? equalTo(editor) : nullValue());
+        assertThat(account.editedAt(), edited ? equalTo(editedAt) : nullValue());
+        // Attribution is for administrators, not for authorization or audit, so the user is unchanged by it.
+        assertThat(account.asUser().metadata().keySet(), contains(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD));
+    }
+
+    /**
+     * Documents written before attribution was recorded have none of the fields, and read back as an account whose
+     * creator and editor are unknown.
+     */
+    public void testAnAccountWrittenBeforeAttributionWasRecordedReadsBackWithoutIt() {
+        final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        source.put("version", 1);
+        respondToGetWith(source);
+
+        final UserManagedServiceAccount account = getByPrincipal(PRINCIPAL);
+        assertThat(account.creator(), nullValue());
+        assertThat(account.createdAt(), nullValue());
+        assertThat(account.editor(), nullValue());
+        assertThat(account.editedAt(), nullValue());
+    }
+
+    public void testMalformedAttributionIsTreatedAsAnAbsentAccount() {
+        final Map<String, Consumer<Map<String, Object>>> corruptions = new LinkedHashMap<>();
+        corruptions.put("creator that is not an object", source -> source.put("creator", "alice"));
+        corruptions.put("creator without a principal", source -> {
+            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
+            creator.remove("principal");
+            source.put("creator", creator);
+        });
+        corruptions.put("creator with a null realm", source -> {
+            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
+            creator.put("realm", null);
+            source.put("creator", creator);
+        });
+        corruptions.put("creator with a full name that is not a string", source -> {
+            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
+            creator.put("full_name", 42);
+            source.put("creator", creator);
+        });
+        corruptions.put("creator with a realm domain that is not an object", source -> {
+            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
+            creator.put("realm_domain", "domain1");
+            source.put("creator", creator);
+        });
+        corruptions.put("creator with a realm domain without a name", source -> {
+            final Map<String, Object> creator = new HashMap<>(storedAuthor(randomAuthor()));
+            creator.put("realm_domain", Map.of("realms", List.of()));
+            source.put("creator", creator);
+        });
+        corruptions.put("created_at that is not a number", source -> source.put("created_at", "2024-01-01"));
+        corruptions.put("editor that is not an object", source -> source.put("editor", List.of("bob")));
+        corruptions.put("edited_at that is not a number", source -> source.put("edited_at", true));
+
+        corruptions.forEach((description, corruption) -> {
+            final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+            corruption.accept(source);
+            respondToGetWith(source);
+            store.invalidateAll();
+            assertThat("document with " + description, getByPrincipal(PRINCIPAL), nullValue());
+        });
+    }
+
     /**
      * Like role names, the description's write-time rule is not applied on read: tightening the cap later must not
      * make an already-stored account unreadable.
@@ -326,48 +421,161 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
     public void testPutAccountWritesTheDocumentAndClearsTheCacheClusterWide() {
         store = newStore(randomCacheTtlSettings());
-        respondWithBulkResult(true);
+        respondWithUpdateResult(DocWriteResponse.Result.CREATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_B, ROLE_A, ROLE_B), false, "Deploys things", RefreshPolicy.WAIT_UNTIL, future);
+        store.putAccount(
+            ACCOUNT_ID,
+            List.of(ROLE_B, ROLE_A, ROLE_B),
+            false,
+            "Deploys things",
+            authentication,
+            RefreshPolicy.WAIT_UNTIL,
+            future
+        );
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
 
-        assertThat(onlyRequestOfType(BulkRequest.class).getRefreshPolicy(), is(RefreshPolicy.WAIT_UNTIL));
-        final IndexRequest indexRequest = indexedDocument();
-        assertThat(indexRequest.id(), equalTo(DOC_ID));
-        assertThat(indexRequest.opType(), is(OpType.INDEX));
-        final Map<String, Object> source = indexRequest.sourceAsMap();
-        assertThat(source.get("doc_type"), equalTo(SERVICE_ACCOUNT_DOC_TYPE));
-        assertThat(source.get("username"), equalTo(PRINCIPAL));
-        assertThat(source.get("version"), equalTo(UserManagedServiceAccount.Version.CURRENT.id()));
-        assertThat(source.get("enabled"), is(false));
+        final UpdateRequest updateRequest = updateRequest();
+        assertThat(updateRequest.getRefreshPolicy(), is(RefreshPolicy.WAIT_UNTIL));
+        assertThat(updateRequest.id(), equalTo(DOC_ID));
+        final Map<String, Object> upsert = upsertDocument();
+        assertThat(upsert.get("doc_type"), equalTo(SERVICE_ACCOUNT_DOC_TYPE));
+        assertThat(upsert.get("username"), equalTo(PRINCIPAL));
+        assertThat(upsert.get("version"), equalTo(UserManagedServiceAccount.Version.CURRENT.id()));
+        assertThat(upsert.get("enabled"), is(false));
         // Sorted and de-duplicated, so that the document does not depend on how the caller ordered the roles.
-        assertThat(source.get("roles"), equalTo(List.of(ROLE_A, ROLE_B)));
-        assertThat(source.get("description"), equalTo("Deploys things"));
+        assertThat(upsert.get("roles"), equalTo(List.of(ROLE_A, ROLE_B)));
+        assertThat(upsert.get("description"), equalTo("Deploys things"));
+
+        // The changes carry the same account fields, so that an existing document ends up the same as a new one would.
+        final Map<String, Object> changes = changesDocument();
+        assertThat(changes.get("version"), equalTo(UserManagedServiceAccount.Version.CURRENT.id()));
+        assertThat(changes.get("enabled"), is(false));
+        assertThat(changes.get("roles"), equalTo(List.of(ROLE_A, ROLE_B)));
+        assertThat(changes.get("description"), equalTo("Deploys things"));
+        assertThat(changes, not(hasKey("doc_type")));
+        assertThat(changes, not(hasKey("username")));
 
         assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
 
     /**
-     * Written as no field at all rather than as a null, so that an account without a description has the same
-     * document as one written before the field existed.
+     * A new document records the caller as its creator and has no editor yet. The changes for an existing document
+     * record the caller as its editor and leave the creator alone.
      */
-    public void testPutAccountLeavesTheDescriptionOutOfTheDocumentWhenThereIsNone() {
-        respondWithBulkResult(true);
+    public void testPutAccountAttributesACreationToTheCallerAndAReplacementToTheEditor() {
+        respondWithUpdateResult(randomFrom(DocWriteResponse.Result.CREATED, DocWriteResponse.Result.UPDATED));
+        final ServiceAccountAuthor author = ServiceAccountAuthor.fromAuthentication(authentication);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), authentication, RefreshPolicy.NONE, future);
+        future.actionGet();
+
+        final Map<String, Object> upsert = upsertDocument();
+        assertThat(upsert.get("creator"), equalTo(storedAuthor(author)));
+        assertThat(upsert.get("created_at"), equalTo(NOW.toEpochMilli()));
+        assertThat(upsert, not(hasKey("editor")));
+        assertThat(upsert, not(hasKey("edited_at")));
+
+        final Map<String, Object> changes = changesDocument();
+        assertThat(changes.get("editor"), equalTo(storedAuthor(author)));
+        assertThat(changes.get("edited_at"), equalTo(NOW.toEpochMilli()));
+        assertThat(changes, not(hasKey("creator")));
+        assertThat(changes, not(hasKey("created_at")));
+    }
+
+    /**
+     * The author is the effective subject: a request run as another user is attributed to that user, and one made
+     * with an API key to the key's owner.
+     */
+    public void testPutAccountAttributesTheWriteToTheEffectiveSubject() {
+        authentication = randomBoolean()
+            ? AuthenticationTestHelper.builder().realm().runAs().build(false)
+            : AuthenticationTestHelper.builder().apiKey().build(false);
+        respondWithUpdateResult(DocWriteResponse.Result.CREATED);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, authentication, RefreshPolicy.NONE, future);
+        future.actionGet();
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> creator = (Map<String, Object>) upsertDocument().get("creator");
+        assertThat(creator.get("principal"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
+        assertThat(creator.get("realm"), equalTo(authentication.getEffectiveSubject().getRealm().getName()));
+        assertThat(creator.get("realm_type"), equalTo(authentication.getEffectiveSubject().getRealm().getType()));
+        assertThat(creator, not(hasKey("metadata")));
+    }
+
+    /**
+     * The attribution fields are only written once every node declares them, because until then the strict mapping
+     * may not hold them. The account itself is still written.
+     */
+    public void testPutAccountLeavesTheAttributionOutUntilEveryNodeSupportsIt() {
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION))).thenReturn(false);
+        respondWithUpdateResult(DocWriteResponse.Result.CREATED);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
 
-        assertThat(indexedDocument().sourceAsMap(), not(hasKey("description")));
+        for (Map<String, Object> document : List.of(upsertDocument(), changesDocument())) {
+            assertThat(document.get("roles"), equalTo(List.of(ROLE_A)));
+            for (String field : List.of("creator", "created_at", "editor", "edited_at")) {
+                assertThat(field, document, not(hasKey(field)));
+            }
+        }
+    }
+
+    /**
+     * Written as no field at all in a new document rather than as a null, so that an account without a description
+     * has the same document as one written before the field existed. The changes for an existing document write it
+     * as an explicit null instead: they are merged into the document, and left out, the old description would stay.
+     */
+    public void testPutAccountLeavesTheDescriptionOutOfANewDocumentAndClearsItInAnExistingOne() {
+        respondWithUpdateResult(DocWriteResponse.Result.CREATED);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, authentication, RefreshPolicy.NONE, future);
+        assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
+
+        assertThat(upsertDocument(), not(hasKey("description")));
+        final Map<String, Object> changes = changesDocument();
+        assertThat(changes, hasKey("description"));
+        assertThat(changes.get("description"), nullValue());
+    }
+
+    /**
+     * An editor's absent fields are written as explicit nulls for the same reason: merged field by field, a left-out
+     * field would keep whatever the previous editor had there.
+     */
+    public void testPutAccountWritesEveryFieldOfTheEditorSoThatAPreviousEditorCannotShowThrough() {
+        authentication = AuthenticationTestHelper.builder()
+            .realm(false)
+            .user(new User(randomAlphaOfLengthBetween(3, 8), new String[] { "role" }, null, null, Map.of(), true))
+            .build(false);
+        respondWithUpdateResult(DocWriteResponse.Result.UPDATED);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, authentication, RefreshPolicy.NONE, future);
+        assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> editor = (Map<String, Object>) changesDocument().get("editor");
+        assertThat(editor.keySet(), equalTo(Set.of("principal", "full_name", "email", "realm", "realm_type", "realm_domain")));
+        assertThat(editor.get("full_name"), nullValue());
+        assertThat(editor.get("email"), nullValue());
+        assertThat(editor.get("realm_domain"), nullValue());
     }
 
     public void testPutAccountReportsAnUpdateOfAnExistingAccount() {
-        respondWithBulkResult(false);
+        // A no-op needs the same caller to write the same account within the same millisecond; it is reported as
+        // an update rather than distinguished.
+        respondWithUpdateResult(randomFrom(DocWriteResponse.Result.UPDATED, DocWriteResponse.Result.NOOP));
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
+        assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
 
     public void testPutAccountReportsEveryValidationErrorAtOnce() {
@@ -377,6 +585,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             List.of("a role name that is far too long".repeat(32)),
             true,
             randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1),
+            authentication,
             RefreshPolicy.NONE,
             future
         );
@@ -392,7 +601,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     public void testPutAccountRejectsAnOverlongDescription() {
         final int max = Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH;
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomAlphaOfLength(max + 1), RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomAlphaOfLength(max + 1), authentication, RefreshPolicy.NONE, future);
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
         assertThat(
@@ -407,7 +616,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             ? IntStream.range(0, max + 1).mapToObj(i -> "role-" + i).toList()
             : Collections.nCopies(max + 1, "role-a");
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, tooMany, true, randomDescription(), RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, tooMany, true, randomDescription(), authentication, RefreshPolicy.NONE, future);
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
         assertThat(
@@ -420,7 +629,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(false);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), authentication, RefreshPolicy.NONE, future);
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(
@@ -732,6 +941,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     private UserManagedServiceAccountStore newStore(Settings settings) {
         return new UserManagedServiceAccountStore(
             settings,
+            Clock.fixed(NOW, ZoneOffset.UTC),
             client,
             securityIndex,
             clusterService,
@@ -788,20 +998,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         getListener.onResponse(new GetResponse(getResult));
     }
 
-    private void respondWithBulkResult(boolean created) {
+    private void respondWithUpdateResult(DocWriteResponse.Result result) {
         responseProvider.set((request, listener) -> {
-            if (request instanceof BulkRequest) {
-                listener.onResponse(
-                    new BulkResponse(
-                        new BulkItemResponse[] {
-                            BulkItemResponse.success(
-                                0,
-                                OpType.INDEX,
-                                new IndexResponse(mock(ShardId.class), DOC_ID, randomLong(), randomLong(), randomLong(), created)
-                            ) },
-                        randomLong()
-                    )
-                );
+            if (request instanceof UpdateRequest) {
+                listener.onResponse(new UpdateResponse(mock(ShardId.class), DOC_ID, randomLong(), randomLong(), randomLong(), result));
             } else if (recordClearedCache(request, listener) == false) {
                 fail("unexpected request " + request);
             }
@@ -887,10 +1087,58 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         }
     }
 
-    private IndexRequest indexedDocument() {
-        final BulkRequest bulkRequest = onlyRequestOfType(BulkRequest.class);
-        assertThat(bulkRequest.requests(), hasSize(1));
-        return (IndexRequest) bulkRequest.requests().get(0);
+    private UpdateRequest updateRequest() {
+        return onlyRequestOfType(UpdateRequest.class);
+    }
+
+    /**
+     * The document written when the account does not exist yet.
+     */
+    private Map<String, Object> upsertDocument() {
+        return updateRequest().upsertRequest().sourceAsMap();
+    }
+
+    /**
+     * The changes merged into the document when the account already exists.
+     */
+    private Map<String, Object> changesDocument() {
+        return updateRequest().doc().sourceAsMap();
+    }
+
+    private static ServiceAccountAuthor randomAuthor() {
+        return new ServiceAccountAuthor(
+            randomAlphaOfLengthBetween(3, 8),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(3, 12),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(3, 12),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            randomBoolean() ? null : AuthenticationTestHelper.randomDomain(randomBoolean())
+        );
+    }
+
+    /**
+     * The author as the store writes it: every field present, absent ones as nulls, and the realm domain whole.
+     */
+    private static Map<String, Object> storedAuthor(ServiceAccountAuthor author) {
+        final Map<String, Object> stored = new HashMap<>();
+        stored.put("principal", author.principal());
+        stored.put("full_name", author.fullName());
+        stored.put("email", author.email());
+        stored.put("realm", author.realm());
+        stored.put("realm_type", author.realmType());
+        stored.put("realm_domain", author.realmDomain() == null ? null : storedRealmDomain(author.realmDomain()));
+        return stored;
+    }
+
+    private static Map<String, Object> storedRealmDomain(RealmDomain realmDomain) {
+        try {
+            return XContentHelper.convertToMap(
+                BytesReference.bytes(realmDomain.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)),
+                false
+            ).v2();
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private QueryBuilder searchedQuery() {

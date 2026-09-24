@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -42,6 +43,13 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
      */
     TransportVersion USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION = TransportVersion.fromName("user_managed_service_account_description");
 
+    /**
+     * Gates who created and last changed a user-managed account and when, written after the description. As with the
+     * description, a node before this version is sent the account without them: they describe the account's history,
+     * not what it may do.
+     */
+    TransportVersion USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION = TransportVersion.fromName("user_managed_service_account_attribution");
+
     String principal();
 
     ServiceAccountType type();
@@ -66,12 +74,32 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
      * An account created through the API, whose privileges are the named roles resolved when it authenticates. The
      * roles are reported as the caller gave them. The description is free text that means nothing to Elasticsearch,
      * carried for the caller's benefit, and is {@code null} when the account has none.
+     * <p>
+     * The creator and editor record who created the account and who last replaced it, and the two timestamps when.
+     * Each is {@code null} when unknown: the editor and its timestamp until the account is first replaced, and the
+     * creator and its timestamp for an account written before they were recorded.
      */
-    record UserManaged(String principal, List<String> roles, boolean enabled, @Nullable String description) implements ServiceAccountInfo {
+    record UserManaged(
+        String principal,
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description,
+        @Nullable ServiceAccountAuthor creator,
+        @Nullable Instant createdAt,
+        @Nullable ServiceAccountAuthor editor,
+        @Nullable Instant editedAt
+    ) implements ServiceAccountInfo {
 
         public UserManaged {
             Objects.requireNonNull(principal, "service account principal cannot be null");
             roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
+        }
+
+        /**
+         * An account with no attribution, as one written before attribution was recorded reads back.
+         */
+        public UserManaged(String principal, List<String> roles, boolean enabled, @Nullable String description) {
+            this(principal, roles, enabled, description, null, null, null, null);
         }
 
         @Override
@@ -87,13 +115,29 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         }
         return switch (in.readEnum(ServiceAccountType.class)) {
             case BUILT_IN -> new BuiltIn(principal, new RoleDescriptor(in));
-            case USER_MANAGED -> new UserManaged(
-                principal,
-                in.readStringCollectionAsImmutableList(),
-                in.readBoolean(),
-                in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION) ? in.readOptionalString() : null
-            );
+            case USER_MANAGED -> readUserManaged(principal, in);
         };
+    }
+
+    private static UserManaged readUserManaged(String principal, StreamInput in) throws IOException {
+        final List<String> roles = in.readStringCollectionAsImmutableList();
+        final boolean enabled = in.readBoolean();
+        final String description = in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION)
+            ? in.readOptionalString()
+            : null;
+        if (in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION) == false) {
+            return new UserManaged(principal, roles, enabled, description);
+        }
+        return new UserManaged(
+            principal,
+            roles,
+            enabled,
+            description,
+            in.readOptionalWriteable(ServiceAccountAuthor::readFrom),
+            in.readOptionalInstant(),
+            in.readOptionalWriteable(ServiceAccountAuthor::readFrom),
+            in.readOptionalInstant()
+        );
     }
 
     @Override
@@ -120,6 +164,12 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                 out.writeBoolean(userManaged.enabled());
                 if (out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_DESCRIPTION)) {
                     out.writeOptionalString(userManaged.description());
+                }
+                if (out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION)) {
+                    out.writeOptionalWriteable(userManaged.creator());
+                    out.writeOptionalInstant(userManaged.createdAt());
+                    out.writeOptionalWriteable(userManaged.editor());
+                    out.writeOptionalInstant(userManaged.editedAt());
                 }
             }
         }
@@ -152,6 +202,18 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                 builder.field("enabled", userManaged.enabled());
                 if (userManaged.description() != null) {
                     builder.field("description", userManaged.description());
+                }
+                if (userManaged.creator() != null) {
+                    builder.field("creator", userManaged.creator());
+                }
+                if (userManaged.createdAt() != null) {
+                    builder.field("created_at", userManaged.createdAt().toEpochMilli());
+                }
+                if (userManaged.editor() != null) {
+                    builder.field("editor", userManaged.editor());
+                }
+                if (userManaged.editedAt() != null) {
+                    builder.field("edited_at", userManaged.editedAt().toEpochMilli());
                 }
             }
         }

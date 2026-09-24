@@ -1466,6 +1466,7 @@ public class Security extends Plugin
             } else {
                 userManagedServiceAccountStore = new UserManagedServiceAccountStore(
                     settings,
+                    getClock(),
                     client.get(),
                     systemIndices.getMainIndexManager(),
                     clusterService,

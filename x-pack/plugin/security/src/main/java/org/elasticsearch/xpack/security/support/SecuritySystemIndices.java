@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS;
 
 /**
  * Responsible for handling system indices for the Security plugin
@@ -583,6 +584,52 @@ public class SecuritySystemIndices {
                         builder.endObject();
                     }
                     builder.endObject();
+
+                    if (mappingVersion.onOrAfter(ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS)) {
+                        // Who last replaced a user-managed service account. The same shape as "creator", which the
+                        // account's creator shares with API keys, minus the user's metadata, which is not recorded.
+                        builder.startObject("editor");
+                        {
+                            builder.field("type", "object");
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("principal");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("full_name");
+                                builder.field("type", "text");
+                                builder.endObject();
+
+                                builder.startObject("email");
+                                builder.field("type", "text");
+                                builder.field("analyzer", "email");
+                                builder.endObject();
+
+                                builder.startObject("realm");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("realm_type");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                defineRealmDomain(builder, "realm_domain");
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+
+                        builder.startObject("created_at");
+                        builder.field("type", "date");
+                        builder.field("format", "epoch_millis");
+                        builder.endObject();
+
+                        builder.startObject("edited_at");
+                        builder.field("type", "date");
+                        builder.field("format", "epoch_millis");
+                        builder.endObject();
+                    }
 
                     builder.startObject("rules");
                     builder.field("type", "object");
@@ -1131,6 +1178,12 @@ public class SecuritySystemIndices {
          * Mapping for {@code global.data_source} configurable cluster privilege on roles.
          */
         ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE(5),
+
+        /**
+         * Mapping for who created and last replaced a user-managed service account and when: the {@code editor},
+         * {@code created_at} and {@code edited_at} fields. The creator reuses the existing {@code creator} field.
+         */
+        ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS(6),
 
         ;
 

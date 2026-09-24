@@ -88,14 +88,32 @@ public final class FieldNameTranslators {
      * The stored principal is the whole {@code namespace/service} pair, so a namespace is selected with a prefix
      * query on {@code username} and there are no separate namespace or service fields to translate. The description
      * shares the {@code text} field that role descriptions are stored in, so it answers to the same kinds of query,
-     * and like the other text fields of the index it has no fielddata to sort on.
+     * and like the other text fields of the index it has no fielddata to sort on. The same goes for the name and
+     * email of the account's creator and editor, whose other fields are keywords. Unlike an API key, whose
+     * {@code username} names its creator, an account's {@code username} is its own principal, so its creator is
+     * queried under {@code creator.principal}. A response reports the realm domain by name alone, so the query
+     * field follows the response and is translated to the {@code name} of the stored domain object.
      */
     public static final FieldNameTranslators SERVICE_ACCOUNT_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
         List.of(
             idemFieldNameTranslator("username"),
             idemFieldNameTranslator("roles"),
             idemFieldNameTranslator("enabled"),
-            idemFieldNameTranslator("description", false)
+            idemFieldNameTranslator("description", false),
+            idemFieldNameTranslator("creator.principal"),
+            idemFieldNameTranslator("creator.full_name", false),
+            idemFieldNameTranslator("creator.email", false),
+            idemFieldNameTranslator("creator.realm"),
+            idemFieldNameTranslator("creator.realm_type"),
+            new SimpleFieldNameTranslator("creator.realm_domain.name", "creator.realm_domain"),
+            idemFieldNameTranslator("created_at"),
+            idemFieldNameTranslator("editor.principal"),
+            idemFieldNameTranslator("editor.full_name", false),
+            idemFieldNameTranslator("editor.email", false),
+            idemFieldNameTranslator("editor.realm"),
+            idemFieldNameTranslator("editor.realm_type"),
+            new SimpleFieldNameTranslator("editor.realm_domain.name", "editor.realm_domain"),
+            idemFieldNameTranslator("edited_at")
         )
     );
 

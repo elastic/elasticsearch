@@ -1,5 +1,5 @@
 rate_of_long_no_grouping
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 required_capability: ts_command_v0
 
 TS k8s
@@ -8,59 +8,61 @@ TS k8s
 | SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
 rate_bytes_in:double | time_bucket:datetime
-26.69853             | 2024-05-10T00:04:00.000Z
-25.238823            | 2024-05-10T00:20:00.000Z
-22.148003            | 2024-05-10T00:01:00.000Z
-19.281831            | 2024-05-10T00:19:00.000Z
-18.744102            | 2024-05-10T00:11:00.000Z
-17.752681            | 2024-05-10T00:17:00.000Z
-16.945882            | 2024-05-10T00:10:00.000Z
-16.65479             | 2024-05-10T00:07:00.000Z
-15.773894            | 2024-05-10T00:18:00.000Z
-15.515104            | 2024-05-10T00:00:00.000Z
+19.281831 | 2024-05-10T00:19:00.000Z
+18.232182 | 2024-05-10T00:20:00.000Z
+14.771992 | 2024-05-10T00:17:00.000Z
+14.757574 | 2024-05-10T00:07:00.000Z
+13.925902 | 2024-05-10T00:01:00.000Z
+13.037712 | 2024-05-10T00:18:00.000Z
+12.610458 | 2024-05-10T00:04:00.000Z
+10.808185 | 2024-05-10T00:14:00.000Z
+10.410099 | 2024-05-10T00:16:00.000Z
+9.406699 | 2024-05-10T00:09:00.000Z
 ;
 
 rate_of_long_no_grouping_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: rate_with_interpolation_v4
 
 PROMQL index=k8s step=1m rate_bytes_in=(avg(rate(network.total_bytes_in[1m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step
 | SORT rate_bytes_in DESC, step DESC | LIMIT 10;
 
 rate_bytes_in:double | step:datetime
-26.69853             | 2024-05-10T00:05:00.000Z
-22.148003            | 2024-05-10T00:02:00.000Z
-18.744102            | 2024-05-10T00:12:00.000Z
-17.669007            | 2024-05-10T00:18:00.000Z
-17.386587            | 2024-05-10T00:21:00.000Z
-16.945882            | 2024-05-10T00:11:00.000Z
-16.65479             | 2024-05-10T00:08:00.000Z
-16.002437            | 2024-05-10T00:19:00.000Z
-15.515104            | 2024-05-10T00:01:00.000Z
-14.451021            | 2024-05-10T00:20:00.000Z
+14.799883 | 2024-05-10T00:18:00.000Z
+14.119262 | 2024-05-10T00:20:00.000Z
+13.925902 | 2024-05-10T00:02:00.000Z
+13.289138 | 2024-05-10T00:19:00.000Z
+12.610458 | 2024-05-10T00:05:00.000Z
+12.07523 | 2024-05-10T00:21:00.000Z
+10.808185 | 2024-05-10T00:15:00.000Z
+10.334846 | 2024-05-10T00:17:00.000Z
+9.976288 | 2024-05-10T00:08:00.000Z
+8.798457 | 2024-05-10T00:14:00.000Z
 ;
 
 rate_of_long_no_grouping_promql_implicit_range
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_implicit_range_selector
+required_capability: rate_with_interpolation_v4
 
 PROMQL index=k8s step=1m rate_bytes_in=(avg(rate(network.total_bytes_in)))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step
 | SORT rate_bytes_in DESC, step DESC | LIMIT 10;
 
 rate_bytes_in:double | step:datetime
-26.69853             | 2024-05-10T00:05:00.000Z
-22.148003            | 2024-05-10T00:02:00.000Z
-18.744102            | 2024-05-10T00:12:00.000Z
-17.669007            | 2024-05-10T00:18:00.000Z
-17.386587            | 2024-05-10T00:21:00.000Z
-16.945882            | 2024-05-10T00:11:00.000Z
-16.65479             | 2024-05-10T00:08:00.000Z
-16.002437            | 2024-05-10T00:19:00.000Z
-15.515104            | 2024-05-10T00:01:00.000Z
-14.451021            | 2024-05-10T00:20:00.000Z
+14.799883 | 2024-05-10T00:18:00.000Z
+14.119262 | 2024-05-10T00:20:00.000Z
+13.925902 | 2024-05-10T00:02:00.000Z
+13.289138 | 2024-05-10T00:19:00.000Z
+12.610458 | 2024-05-10T00:05:00.000Z
+12.07523 | 2024-05-10T00:21:00.000Z
+10.808185 | 2024-05-10T00:15:00.000Z
+10.334846 | 2024-05-10T00:17:00.000Z
+9.976288 | 2024-05-10T00:08:00.000Z
+8.798457 | 2024-05-10T00:14:00.000Z
 ;
 
 rate_of_long_grouping
@@ -136,6 +138,7 @@ required_capability: promql_command_v0
 required_capability: ts_collapse
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: rate_with_interpolation_v4
 
 PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" rate_bytes_in=(round(avg by (cluster) (rate(network.total_bytes_in[2m])), 0.000001))
 | TS_COLLAPSE
@@ -143,8 +146,8 @@ PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:
 
 rate_bytes_in:double                        | step:datetime                                                                                                                                                       | cluster:keyword
 [13.123848, 8.75881, 15.401155, 13.296465, 8.040258] | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | prod
-[6.706234, 10.98925, 20.532065, 16.338379, 4.95977]  | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | qa
-[9.408179, 4.30674, 7.12595, 9.412586, 1.460569]     | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | staging
+[6.706234, 10.98925, 19.002404, 16.338379, 5.268518] | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | qa
+[9.408179, 4.30674, 7.811308, 9.412586, 1.742799] | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | staging
 ;
 
 rate_with_window
@@ -181,7 +184,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_of_double_no_grouping
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v4
 required_capability: ts_command_v0
 
 TS k8s
@@ -190,37 +193,38 @@ TS k8s
 | SORT rate_cost DESC, time_bucket | LIMIT 10;
 
 rate_cost:double | time_bucket:datetime
-1.986939         | 2024-05-10T00:09:00.000Z
-1.428214         | 2024-05-10T00:17:00.000Z
-1.41077          | 2024-05-10T00:08:00.000Z
-1.011984         | 2024-05-10T00:14:00.000Z
-1.010113         | 2024-05-10T00:18:00.000Z
-0.999404         | 2024-05-10T00:15:00.000Z
-0.954623         | 2024-05-10T00:12:00.000Z
-0.92926          | 2024-05-10T00:05:00.000Z
-0.921813         | 2024-05-10T00:06:00.000Z
-0.913178         | 2024-05-10T00:11:00.000Z
+1.437542 | 2024-05-10T00:09:00.000Z
+1.271184 | 2024-05-10T00:17:00.000Z
+1.062118 | 2024-05-10T00:08:00.000Z
+0.947889 | 2024-05-10T00:18:00.000Z
+0.853791 | 2024-05-10T00:15:00.000Z
+0.793344 | 2024-05-10T00:06:00.000Z
+0.770715 | 2024-05-10T00:05:00.000Z
+0.751522 | 2024-05-10T00:14:00.000Z
+0.749293 | 2024-05-10T00:13:00.000Z
+0.730489 | 2024-05-10T00:22:00.000Z
 ;
 
 rate_of_double_no_grouping_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: rate_with_interpolation_v4
 
 PROMQL index=k8s step=1m rate_cost=(sum(rate(network.total_cost[1m])))
 | EVAL rate_cost=ROUND(rate_cost, 6), step=step
 | SORT rate_cost DESC, step | LIMIT 10;
 
 rate_cost:double | step:datetime
-2.005998         | 2024-05-10T00:10:00.000Z
-1.395675         | 2024-05-10T00:18:00.000Z
-1.263711         | 2024-05-10T00:09:00.000Z
-1.092999         | 2024-05-10T00:19:00.000Z
-1.011984         | 2024-05-10T00:15:00.000Z
-0.999404         | 2024-05-10T00:16:00.000Z
-0.954623         | 2024-05-10T00:13:00.000Z
-0.92926          | 2024-05-10T00:06:00.000Z
-0.921813         | 2024-05-10T00:07:00.000Z
-0.913178         | 2024-05-10T00:12:00.000Z
+1.397023 | 2024-05-10T00:10:00.000Z
+1.282031 | 2024-05-10T00:18:00.000Z
+1.069795 | 2024-05-10T00:09:00.000Z
+0.932543 | 2024-05-10T00:19:00.000Z
+0.856001 | 2024-05-10T00:20:00.000Z
+0.849046 | 2024-05-10T00:16:00.000Z
+0.793344 | 2024-05-10T00:07:00.000Z
+0.78424 | 2024-05-10T00:06:00.000Z
+0.751522 | 2024-05-10T00:15:00.000Z
+0.749293 | 2024-05-10T00:14:00.000Z
 ;
 
 rate_with_filtering
@@ -340,7 +344,7 @@ avg_bytes:double | step:datetime
 
 rate_of_expression
 required_capability: ts_command_v0
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in) + 10) BY time_bucket = bucket(@timestamp,1minute)
@@ -348,16 +352,16 @@ TS k8s
 | SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
 rate_bytes_in:double | time_bucket:datetime
-36.69853             | 2024-05-10T00:04:00.000Z
-35.238823            | 2024-05-10T00:20:00.000Z
-32.148003            | 2024-05-10T00:01:00.000Z
-29.281831            | 2024-05-10T00:19:00.000Z
-28.744102            | 2024-05-10T00:11:00.000Z
-27.752681            | 2024-05-10T00:17:00.000Z
-26.945882            | 2024-05-10T00:10:00.000Z
-26.65479             | 2024-05-10T00:07:00.000Z
-25.773894            | 2024-05-10T00:18:00.000Z
-25.515104            | 2024-05-10T00:00:00.000Z
+29.281831 | 2024-05-10T00:19:00.000Z
+28.232182 | 2024-05-10T00:20:00.000Z
+24.771992 | 2024-05-10T00:17:00.000Z
+24.757574 | 2024-05-10T00:07:00.000Z
+23.925902 | 2024-05-10T00:01:00.000Z
+23.037712 | 2024-05-10T00:18:00.000Z
+22.610458 | 2024-05-10T00:04:00.000Z
+20.808185 | 2024-05-10T00:14:00.000Z
+20.410099 | 2024-05-10T00:16:00.000Z
+19.406699 | 2024-05-10T00:09:00.000Z
 ;
 
 rate_combined_avg
@@ -427,7 +431,7 @@ rate_of_ratio:double | cluster:keyword | time_bucket:datetime
 
 rate_of_long_grouping_1min_nulls
 required_capability: ts_command_v0
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v4
 
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp,2minute)
@@ -435,16 +439,16 @@ TS k8s
 | SORT rate_bytes_in NULLS FIRST, time_bucket, cluster | LIMIT 10;
 
 rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-1.517381             | staging         | 2024-05-10T00:22:00.000Z
-2.023391             | prod            | 2024-05-10T00:06:00.000Z
-3.460329             | staging         | 2024-05-10T00:00:00.000Z
-3.836973             | prod            | 2024-05-10T00:04:00.000Z
-4.428024             | qa              | 2024-05-10T00:22:00.000Z
-5.093634             | qa              | 2024-05-10T00:02:00.000Z
-5.205085             | staging         | 2024-05-10T00:20:00.000Z
-5.283367             | prod            | 2024-05-10T00:08:00.000Z
-5.684349             | qa              | 2024-05-10T00:12:00.000Z
-5.834895             | prod            | 2024-05-10T00:10:00.000Z
+1.517381 | staging | 2024-05-10T00:22:00.000Z
+2.023391 | prod | 2024-05-10T00:06:00.000Z
+3.460329 | staging | 2024-05-10T00:00:00.000Z
+3.812615 | prod | 2024-05-10T00:08:00.000Z
+3.82015 | prod | 2024-05-10T00:04:00.000Z
+4.259292 | prod | 2024-05-10T00:02:00.000Z
+4.428024 | qa | 2024-05-10T00:22:00.000Z
+5.093634 | qa | 2024-05-10T00:02:00.000Z
+5.205085 | staging | 2024-05-10T00:20:00.000Z
+5.684349 | qa | 2024-05-10T00:12:00.000Z
 ;
 
 sum_rate_per_region
@@ -473,7 +477,7 @@ rate_bytes_in:double | cluster:keyword | region:keyword | time_bucket:datetime
 
 trange_absolute_with_rate
 required_capability: ts_command_v0
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 required_capability: fn_trange
 
 TS k8s
@@ -484,22 +488,23 @@ TS k8s
 | LIMIT 10;
 
 rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-1.517381             | staging         | 2024-05-10T00:22:00.000Z
-4.428024             | qa              | 2024-05-10T00:22:00.000Z
-5.205085             | staging         | 2024-05-10T00:20:00.000Z
-5.422222             | staging         | 2024-05-10T00:14:00.000Z
-7.347831             | staging         | 2024-05-10T00:16:00.000Z
-7.8322               | staging         | 2024-05-10T00:18:00.000Z
-8.001423             | prod            | 2024-05-10T00:22:00.000Z
-8.155203             | prod            | 2024-05-10T00:14:00.000Z
-8.939832             | qa              | 2024-05-10T00:14:00.000Z
-9.531694             | qa              | 2024-05-10T00:20:00.000Z
+1.517381 | staging | 2024-05-10T00:22:00.000Z
+3.622799 | staging | 2024-05-10T00:14:00.000Z
+4.428024 | qa | 2024-05-10T00:22:00.000Z
+5.205085 | staging | 2024-05-10T00:20:00.000Z
+7.347831 | staging | 2024-05-10T00:16:00.000Z
+7.472096 | staging | 2024-05-10T00:18:00.000Z
+8.001423 | prod | 2024-05-10T00:22:00.000Z
+8.155203 | prod | 2024-05-10T00:14:00.000Z
+8.939832 | qa | 2024-05-10T00:14:00.000Z
+9.531694 | qa | 2024-05-10T00:20:00.000Z
 ;
 
 trange_absolute_with_rate_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: rate_with_interpolation_v4
 
 PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[2m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step, cluster=cluster
@@ -507,16 +512,16 @@ PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:
 | LIMIT 10;
 
 rate_bytes_in:double | step:datetime            | cluster:keyword
-1.460569             | 2024-05-10T00:23:00.000Z | staging
-4.30674              | 2024-05-10T00:17:00.000Z | staging
-4.95977              | 2024-05-10T00:23:00.000Z | qa
-6.706234             | 2024-05-10T00:15:00.000Z | qa
-7.12595              | 2024-05-10T00:19:00.000Z | staging
-8.040258             | 2024-05-10T00:23:00.000Z | prod
-8.75881              | 2024-05-10T00:17:00.000Z | prod
-9.408179             | 2024-05-10T00:15:00.000Z | staging
-9.412586             | 2024-05-10T00:21:00.000Z | staging
-10.98925             | 2024-05-10T00:17:00.000Z | qa
+1.742799 | 2024-05-10T00:23:00.000Z | staging
+4.30674 | 2024-05-10T00:17:00.000Z | staging
+5.268518 | 2024-05-10T00:23:00.000Z | qa
+6.706234 | 2024-05-10T00:15:00.000Z | qa
+7.811308 | 2024-05-10T00:19:00.000Z | staging
+8.040258 | 2024-05-10T00:23:00.000Z | prod
+8.75881 | 2024-05-10T00:17:00.000Z | prod
+9.408179 | 2024-05-10T00:15:00.000Z | staging
+9.412586 | 2024-05-10T00:21:00.000Z | staging
+10.98925 | 2024-05-10T00:17:00.000Z | qa
 ;
 
 bare_rate_outputs_dimensions
@@ -765,7 +770,7 @@ increase_bytes_in:double | rate_bytes_in:double | time_bucket:datetime
 // rate(network.total_bytes_in). In practice, ::counter is useful when a field was misclassified
 // as a plain numeric type (long/integer/double) instead of its counter equivalent.
 rateOnToCounterCastNoop
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 required_capability: ts_command_v0
 required_capability: to_counter
 
@@ -778,16 +783,16 @@ TS k8s
 
 //tag::toCounter-result[]
 rate_bytes_in:double | time_bucket:datetime
-26.69853             | 2024-05-10T00:04:00.000Z
-25.238823            | 2024-05-10T00:20:00.000Z
-22.148003            | 2024-05-10T00:01:00.000Z
-19.281831            | 2024-05-10T00:19:00.000Z
-18.744102            | 2024-05-10T00:11:00.000Z
-17.752681            | 2024-05-10T00:17:00.000Z
-16.945882            | 2024-05-10T00:10:00.000Z
-16.65479             | 2024-05-10T00:07:00.000Z
-15.773894            | 2024-05-10T00:18:00.000Z
-15.515104            | 2024-05-10T00:00:00.000Z
+19.281831 | 2024-05-10T00:19:00.000Z
+18.232182 | 2024-05-10T00:20:00.000Z
+14.771992 | 2024-05-10T00:17:00.000Z
+14.757574 | 2024-05-10T00:07:00.000Z
+13.925902 | 2024-05-10T00:01:00.000Z
+13.037712 | 2024-05-10T00:18:00.000Z
+12.610458 | 2024-05-10T00:04:00.000Z
+10.808185 | 2024-05-10T00:14:00.000Z
+10.410099 | 2024-05-10T00:16:00.000Z
+9.406699 | 2024-05-10T00:09:00.000Z
 ;
 //end::toCounter-result[]
 
@@ -819,7 +824,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 // Round-trip: strip counter semantics with to_long(), then re-apply with ::counter.
 // Results must be identical to rateOnToCounterCastNoop (same underlying data).
 rateOnToCounterCastRoundTrip
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 required_capability: ts_command_v0
 required_capability: to_counter
 
@@ -829,16 +834,16 @@ TS k8s
 | SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
 rate_bytes_in:double | time_bucket:datetime
-26.69853             | 2024-05-10T00:04:00.000Z
-25.238823            | 2024-05-10T00:20:00.000Z
-22.148003            | 2024-05-10T00:01:00.000Z
-19.281831            | 2024-05-10T00:19:00.000Z
-18.744102            | 2024-05-10T00:11:00.000Z
-17.752681            | 2024-05-10T00:17:00.000Z
-16.945882            | 2024-05-10T00:10:00.000Z
-16.65479             | 2024-05-10T00:07:00.000Z
-15.773894            | 2024-05-10T00:18:00.000Z
-15.515104            | 2024-05-10T00:00:00.000Z
+19.281831 | 2024-05-10T00:19:00.000Z
+18.232182 | 2024-05-10T00:20:00.000Z
+14.771992 | 2024-05-10T00:17:00.000Z
+14.757574 | 2024-05-10T00:07:00.000Z
+13.925902 | 2024-05-10T00:01:00.000Z
+13.037712 | 2024-05-10T00:18:00.000Z
+12.610458 | 2024-05-10T00:04:00.000Z
+10.808185 | 2024-05-10T00:14:00.000Z
+10.410099 | 2024-05-10T00:16:00.000Z
+9.406699 | 2024-05-10T00:09:00.000Z
 ;
 
 // Same round-trip using the to_counter() function form, grouped by cluster.
@@ -919,7 +924,7 @@ rate_cost:double | cluster:keyword | time_bucket:datetime
 // input path of to_counter. Test data values fit in int32, so rate is identical to the long round-trip.
 // Results must be identical to rateOnToCounterCastNoop (same underlying data, no overflow).
 rateOnToCounterCastRoundTripInteger
-required_capability: rate_with_interpolation_v2
+required_capability: rate_with_interpolation_v4
 required_capability: ts_command_v0
 required_capability: to_counter
 
@@ -929,14 +934,14 @@ TS k8s
 | SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
 rate_bytes_in:double | time_bucket:datetime
-26.69853             | 2024-05-10T00:04:00.000Z
-25.238823            | 2024-05-10T00:20:00.000Z
-22.148003            | 2024-05-10T00:01:00.000Z
-19.281831            | 2024-05-10T00:19:00.000Z
-18.744102            | 2024-05-10T00:11:00.000Z
-17.752681            | 2024-05-10T00:17:00.000Z
-16.945882            | 2024-05-10T00:10:00.000Z
-16.65479             | 2024-05-10T00:07:00.000Z
-15.773894            | 2024-05-10T00:18:00.000Z
-15.515104            | 2024-05-10T00:00:00.000Z
+19.281831 | 2024-05-10T00:19:00.000Z
+18.232182 | 2024-05-10T00:20:00.000Z
+14.771992 | 2024-05-10T00:17:00.000Z
+14.757574 | 2024-05-10T00:07:00.000Z
+13.925902 | 2024-05-10T00:01:00.000Z
+13.037712 | 2024-05-10T00:18:00.000Z
+12.610458 | 2024-05-10T00:04:00.000Z
+10.808185 | 2024-05-10T00:14:00.000Z
+10.410099 | 2024-05-10T00:16:00.000Z
+9.406699 | 2024-05-10T00:09:00.000Z
 ;

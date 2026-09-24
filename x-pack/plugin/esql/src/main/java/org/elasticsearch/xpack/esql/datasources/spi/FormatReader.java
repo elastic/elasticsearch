@@ -417,6 +417,20 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns a fresh, zeroed counter struct for one operator driver, or {@code null} when this
+     * reader tracks no format-specific counters. Called once per {@code get(DriverContext)} by
+     * {@code AsyncExternalSourceOperatorFactory}; the returned struct is passed to every
+     * {@link #read} / {@link RangeAwareFormatReader#readRange} call via
+     * {@link FormatReadContext#readCounters()} / {@link RangeReadContext#readCounters()}.
+     * <p>
+     * The default returns {@code null}. Readers that track format-specific counters override this
+     * and return an instance of their format-specific {@link FormatReadCounters} implementation.
+     */
+    default FormatReadCounters newReadCounters() {
+        return null;
+    }
+
+    /**
      * Whether this format supports being wrapped in a whole-file, stream-only decompressor
      * (e.g. {@code .parquet.zst} or {@code .orc.gz}). Sequential formats (CSV, NDJSON) return
      * the default {@code true}. Tail/footer-based formats (Parquet, ORC) must override to
@@ -425,15 +439,6 @@ public interface FormatReader extends Closeable {
      */
     default boolean supportsWholeFileCompression() {
         return true;
-    }
-
-    /**
-     * Returns a typed snapshot of format-reader I/O counters, or {@code null} when the reader
-     * tracks none. The snapshot is folded into the {@code format_reader} field of the
-     * external-source operator status.
-     */
-    default FormatReaderStatus statusSnapshot() {
-        return null;
     }
 
     /**

@@ -1032,8 +1032,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         // Blob names for the two files we will warm concurrently.
         final long generationA = 1L;
         final long generationB = 2L;
-        final String blobNameA = StatelessCompoundCommit.blobNameFromGeneration(generationA);
-        final String blobNameB = StatelessCompoundCommit.blobNameFromGeneration(generationB);
+        final String blobNameA = BatchedCompoundCommit.blobNameFromGeneration(generationA);
+        final String blobNameB = BatchedCompoundCommit.blobNameFromGeneration(generationB);
 
         // Track blob-store reads in arrival order (reads are serialised by the central throttle, so no lock needed,
         // but CopyOnWriteArrayList avoids any visibility concern with the assertion thread).
@@ -1229,7 +1229,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }) {
             long generation = randomLongBetween(3, 42);
             var blobFile = new BlobFile(
-                StatelessCompoundCommit.blobNameFromGeneration(generation),
+                BatchedCompoundCommit.blobNameFromGeneration(generation),
                 new PrimaryTermAndGeneration(primaryTerm, generation)
             );
             // A commit with a handful of files; no real blob data needed — tasks are intercepted before execution
@@ -1490,7 +1490,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         ) {
             final var primaryTermAndGeneration = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
             final var blobFile = new BlobFile(
-                StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
+                BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
                 primaryTermAndGeneration
             );
 
@@ -1539,7 +1539,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long offset = randomLongBetween(stepSize * (i - 1), stepSize * i - fileLength) + rangeStart;
                 final long minimizedEnd = rangeStart + stepSize * i;
                 final var blobLocation = new BlobLocation(
-                    new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
                     offset,
                     fileLength
                 );
@@ -1603,7 +1603,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final long fileLength = randomLongBetween(1, rangeSize);
             final long offset = randomLongBetween(0, rangeSize - fileLength);
             final var blobLocation = new BlobLocation(
-                new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
                 offset,
                 fileLength
             );
@@ -1665,7 +1665,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         try (var node = createFakeNodeForPreWarming(ByteSizeValue.ofMb(4), regionSize, SharedBytes.PAGE_SIZE, preWarmEnabled, ratio)) {
             final IndexShard indexShard = mockIndexShard(node);
             final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
-            final var blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen);
+            final var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen);
 
             final Map<String, BlobLocation> commitFiles = new HashMap<>();
             long currentOffset = regionSize;
@@ -2192,7 +2192,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long warmEndOffset = randomLongBetween(1, blobSize);
                 blobSpecs.add(
                     new WarmTarget(
-                        new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                        new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
                         warmEndOffset,
                         blobSize
                     )
@@ -2398,7 +2398,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long blobSize = randomLongBetween(1, 1024 * 1024);
                 final long endOffset = randomLongBetween(1, blobSize);
                 warmTargets.put(
-                    new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
                     SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(endOffset, blobSize)
                 );
             }
@@ -3153,7 +3153,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             var segmentCommitInfo = new SegmentCommitInfo(segmentInfo, 0, 0, -1L, -1L, -1L, new byte[16]);
 
             int regionCount = randomIntBetween(2, 5);
-            var blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
+            var blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
             var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
             var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
             var mergeWarmFuture = new PlainActionFuture<Void>();
@@ -3255,7 +3255,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // merge warming schedules one task per region, so we end up with 5 merge tasks for warming regions
             int regionCount = 5;
-            var blobName = StatelessCompoundCommit.blobNameFromGeneration(1);
+            var blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
             var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
             var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
             var mergeWarmFuture = new PlainActionFuture<Void>();

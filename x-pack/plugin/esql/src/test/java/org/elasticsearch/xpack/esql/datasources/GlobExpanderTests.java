@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
@@ -2867,6 +2868,122 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(2, filtered.size());
         assertEquals("s3://b/events.parquet", filtered.get(0).path().toString());
         assertEquals("s3://b/metrics.parquet", filtered.get(1).path().toString());
+    }
+
+    /**
+     * The parser builds {@code 99.5} as a {@code DOUBLE} literal and the hint carries it unchanged, so the size
+     * comparison must be done in the wider type rather than truncating the bound onto the 99-byte file's size.
+     */
+    public void testFileMetadataFilterSizeAgainstFractionalBoundKeepsMatchingFile() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/ninetynine.parquet"), 99, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/twohundred.parquet"), 200, Instant.EPOCH)
+        );
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.size",
+            PartitionFilterHintExtractor.Operator.LESS_THAN,
+            List.of(99.5)
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(List.of("s3://b/ninetynine.parquet"), filtered.stream().map(e -> e.path().toString()).toList());
+    }
+
+    public void testFileMetadataFilterSizeNotEqualsFractionalKeepsEveryFile() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/six.parquet"), 6, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/seven.parquet"), 7, Instant.EPOCH)
+        );
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.size",
+            PartitionFilterHintExtractor.Operator.NOT_EQUALS,
+            List.of(6.5)
+        );
+
+        assertEquals(entries, GlobExpander.applyFileMetadataFilters(entries, List.of(hint)));
+    }
+
+    /**
+     * ES|QL orders keywords by UTF-8 bytes (code-point order). A supplementary-plane name sorts above {@code U+E000}
+     * in that order but below it in UTF-16 code-unit order.
+     */
+    public void testFileMetadataFilterNameOrdersLikeTheEngine() {
+        String supplementary = "\uD83D\uDE00.parquet"; // U+1F600
+        String privateUse = "\uE000";
+        assertTrue(new BytesRef(supplementary).compareTo(new BytesRef(privateUse)) > 0);
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/" + supplementary), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.EPOCH)
+        );
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.name",
+            PartitionFilterHintExtractor.Operator.GREATER_THAN,
+            List.of(privateUse)
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(List.of("s3://b/" + supplementary), filtered.stream().map(e -> e.path().toString()).toList());
+    }
+
+    /**
+     * A literal the listing cannot parse as an instant decides nothing, under {@code IN} as under {@code ==}. Two
+     * values, because the parser builds a one-item {@code IN} as an equality.
+     */
+    public void testFileMetadataFilterModifiedInWithUnparseableLiteralsKeepsEveryFile() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.parse("2024-01-01T00:00:00Z")),
+            new StorageEntry(StoragePath.of("s3://b/b.parquet"), 100, Instant.parse("2030-06-01T00:00:00Z"))
+        );
+
+        var equals = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.modified",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of("2024-01-01")
+        );
+        var in = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.modified",
+            PartitionFilterHintExtractor.Operator.IN,
+            List.of("2024-01-01", "2024-01-02")
+        );
+
+        assertEquals(entries, GlobExpander.applyFileMetadataFilters(entries, List.of(equals)));
+        assertEquals(entries, GlobExpander.applyFileMetadataFilters(entries, List.of(in)));
+    }
+
+    public void testFileMetadataFilterModifiedInWithOneUnparseableLiteralKeepsTheFile() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.parse("2024-01-01T00:00:00Z"))
+        );
+
+        var in = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.modified",
+            PartitionFilterHintExtractor.Operator.IN,
+            List.of("2024-01-01", "2024-01-02T00:00:00Z")
+        );
+
+        assertEquals(entries, GlobExpander.applyFileMetadataFilters(entries, List.of(in)));
+    }
+
+    /**
+     * When every literal in the list parses, a file whose instant none of them names is still pruned.
+     */
+    public void testFileMetadataFilterModifiedInWithParseableLiteralsStillPrunes() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.parse("2024-01-01T00:00:00Z")),
+            new StorageEntry(StoragePath.of("s3://b/b.parquet"), 100, Instant.parse("2030-06-01T00:00:00Z"))
+        );
+
+        var in = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.modified",
+            PartitionFilterHintExtractor.Operator.IN,
+            List.of("2024-01-01T00:00:00Z", "2024-01-02T00:00:00Z")
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(in));
+        assertEquals(List.of("s3://b/a.parquet"), filtered.stream().map(e -> e.path().toString()).toList());
     }
 
     /**

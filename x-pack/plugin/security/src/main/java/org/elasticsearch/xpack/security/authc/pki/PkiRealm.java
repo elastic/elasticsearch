@@ -165,8 +165,8 @@ public class PkiRealm extends Realm implements CachingRealm {
         assert delegatedRealms != null : "Realm has not been initialized correctly";
         X509AuthenticationToken token = (X509AuthenticationToken) authToken;
         try {
-            final TokenFingerprint fingerprint = computeTokenFingerprint(token);
-            User user = cache.get(fingerprint.cacheKey());
+            final BytesKey fingerprint = computeTokenFingerprint(token);
+            User user = cache.get(fingerprint);
             if (user != null) {
                 logger.debug(() -> format("Using cached authentication for DN [%s], as principal [%s]", token.dn(), user.principal()));
                 if (delegatedRealms.hasDelegation()) {
@@ -196,7 +196,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                     final ActionListener<AuthenticationResult<User>> cachingListener = ActionListener.wrap(result -> {
                         if (result.isAuthenticated()) {
                             try (ReleasableLock ignored = readLock.acquire()) {
-                                cache.put(fingerprint.cacheKey(), result.getValue());
+                                cache.put(fingerprint, result.getValue());
                             }
                         }
                         listener.onResponse(result);
@@ -214,7 +214,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                     if (delegatedRealms.hasDelegation()) {
                         delegatedRealms.resolve(principal, cachingListener);
                     } else {
-                        buildUser(token, principal, fingerprint.encodedLeafCertificate(), cachingListener);
+                        buildUser(token, principal, cachingListener);
                     }
                 }
             }
@@ -223,13 +223,10 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
-    private void buildUser(
-        X509AuthenticationToken token,
-        String principal,
-        byte[] encodedLeafCertificate,
-        ActionListener<AuthenticationResult<User>> listener
-    ) {
+    private void buildUser(X509AuthenticationToken token, String principal, ActionListener<AuthenticationResult<User>> listener)
+        throws CertificateEncodingException {
         final X509Certificate leafCertificate = token.credentials()[0];
+        final byte[] encodedLeafCertificate = leafCertificate.getEncoded();
         final byte[] encodedPublicKey = leafCertificate.getPublicKey().getEncoded();
         final Map<String, Object> metadataBuilder = new HashMap<>();
         metadataBuilder.put("pki_dn", token.dn());
@@ -383,21 +380,13 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
-    static TokenFingerprint computeTokenFingerprint(X509AuthenticationToken token) throws CertificateEncodingException {
+    static BytesKey computeTokenFingerprint(X509AuthenticationToken token) throws CertificateEncodingException {
         MessageDigest digest = MessageDigests.sha256();
-        byte[] encodedLeafCertificate = null;
-        final X509Certificate[] certificates = token.credentials();
-        for (int i = 0; i < certificates.length; i++) {
-            final byte[] encodedCertificate = certificates[i].getEncoded();
-            if (i == 0) {
-                encodedLeafCertificate = encodedCertificate;
-            }
-            digest.update(encodedCertificate);
+        for (X509Certificate certificate : token.credentials()) {
+            digest.update(certificate.getEncoded());
         }
-        return new TokenFingerprint(new BytesKey(digest.digest()), encodedLeafCertificate);
+        return new BytesKey(digest.digest());
     }
-
-    record TokenFingerprint(BytesKey cacheKey, byte[] encodedLeafCertificate) {}
 
     private static String sha256Fingerprint(byte[] encoded) {
         return MessageDigests.toHexString(MessageDigests.sha256().digest(encoded));

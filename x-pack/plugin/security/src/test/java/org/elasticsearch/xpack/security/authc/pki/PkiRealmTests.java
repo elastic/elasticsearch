@@ -830,21 +830,17 @@ public class PkiRealmTests extends ESTestCase {
         mockCertChain[1] = mock(X509Certificate.class);
         when(mockCertChain[1].getSubjectX500Principal()).thenReturn(new X500Principal("CN=Test CA, OU=elasticsearch, O=org"));
         when(mockCertChain[1].getEncoded()).thenReturn(randomByteArrayOfLength(3));
-        PkiRealm.TokenFingerprint fingerprint = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(mockCertChain));
-        BytesKey cacheKey = fingerprint.cacheKey();
-        assertArrayEquals(mockCertChain[0].getEncoded(), fingerprint.encodedLeafCertificate());
+        BytesKey cacheKey = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(mockCertChain));
 
         BytesKey sameCacheKey = PkiRealm.computeTokenFingerprint(
             new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0], mockCertChain[1] })
-        ).cacheKey();
+        );
         assertThat(cacheKey, is(sameCacheKey));
 
-        BytesKey cacheKeyClient = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0] }))
-            .cacheKey();
+        BytesKey cacheKeyClient = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0] }));
         assertThat(cacheKey, is(not(cacheKeyClient)));
 
-        BytesKey cacheKeyRoot = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[1] }))
-            .cacheKey();
+        BytesKey cacheKeyRoot = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[1] }));
         assertThat(cacheKey, is(not(cacheKeyRoot)));
         assertThat(cacheKeyClient, is(not(cacheKeyRoot)));
     }

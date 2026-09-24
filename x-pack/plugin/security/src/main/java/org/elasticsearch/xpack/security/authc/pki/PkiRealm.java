@@ -60,8 +60,11 @@ import static org.elasticsearch.core.Strings.format;
 public class PkiRealm extends Realm implements CachingRealm {
 
     public static final String PKI_CERT_HEADER_NAME = "__SECURITY_CLIENT_CERTIFICATE";
+    public static final String PKI_DN_METADATA_KEY = "pki_dn";
     public static final String PKI_CERT_FINGERPRINT_METADATA_KEY = "pki_cert_fingerprint";
     public static final String PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY = "pki_public_key_fingerprint";
+    public static final String PKI_DELEGATED_BY_USER_METADATA_KEY = "pki_delegated_by_user";
+    public static final String PKI_DELEGATED_BY_REALM_METADATA_KEY = "pki_delegated_by_realm";
 
     // For client based cert validation, the auth type must be specified but UNKNOWN is an acceptable value
     private static final String AUTH_TYPE = "UNKNOWN";
@@ -229,14 +232,20 @@ public class PkiRealm extends Realm implements CachingRealm {
         final byte[] encodedLeafCertificate = leafCertificate.getEncoded();
         final byte[] encodedPublicKey = leafCertificate.getPublicKey().getEncoded();
         final Map<String, Object> metadataBuilder = new HashMap<>();
-        metadataBuilder.put("pki_dn", token.dn());
+        metadataBuilder.put(PKI_DN_METADATA_KEY, token.dn());
         metadataBuilder.put(PKI_CERT_FINGERPRINT_METADATA_KEY, sha256Fingerprint(encodedLeafCertificate));
         if (encodedPublicKey != null) {
             metadataBuilder.put(PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY, sha256Fingerprint(encodedPublicKey));
         }
         if (token.isDelegated()) {
-            metadataBuilder.put("pki_delegated_by_user", token.getDelegateeAuthentication().getEffectiveSubject().getUser().principal());
-            metadataBuilder.put("pki_delegated_by_realm", token.getDelegateeAuthentication().getEffectiveSubject().getRealm().getName());
+            metadataBuilder.put(
+                PKI_DELEGATED_BY_USER_METADATA_KEY,
+                token.getDelegateeAuthentication().getEffectiveSubject().getUser().principal()
+            );
+            metadataBuilder.put(
+                PKI_DELEGATED_BY_REALM_METADATA_KEY,
+                token.getDelegateeAuthentication().getEffectiveSubject().getRealm().getName()
+            );
         }
         final Map<String, Object> metadata = Map.copyOf(metadataBuilder);
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, token.dn(), Set.of(), metadata, config);

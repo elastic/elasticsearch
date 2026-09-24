@@ -224,9 +224,9 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
 
         final Map<String, Object> metadata = assertMap(authenticateResponse, Fields.METADATA);
-        assertThat(metadata, hasEntry("pki_dn", "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
-        assertThat(metadata, hasEntry("pki_delegated_by_user", delegateeUsername));
-        assertThat(metadata, hasEntry("pki_delegated_by_realm", "file"));
+        assertThat(metadata, hasEntry(PkiRealm.PKI_DN_METADATA_KEY, "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
+        assertThat(metadata, hasEntry(PkiRealm.PKI_DELEGATED_BY_USER_METADATA_KEY, delegateeUsername));
+        assertThat(metadata, hasEntry(PkiRealm.PKI_DELEGATED_BY_REALM_METADATA_KEY, "file"));
 
         // no roles because no role mappings
         List<?> roles = assertList(authenticateResponse, Fields.ROLES);
@@ -348,9 +348,9 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
 
         final Map<String, Object> metadata = assertMap(authenticateResponse, Fields.METADATA);
-        assertThat(metadata, hasEntry("pki_dn", "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
-        assertThat(metadata, hasEntry("pki_delegated_by_user", "test_user"));
-        assertThat(metadata, hasEntry("pki_delegated_by_realm", "file"));
+        assertThat(metadata, hasEntry(PkiRealm.PKI_DN_METADATA_KEY, "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
+        assertThat(metadata, hasEntry(PkiRealm.PKI_DELEGATED_BY_USER_METADATA_KEY, "test_user"));
+        assertThat(metadata, hasEntry(PkiRealm.PKI_DELEGATED_BY_REALM_METADATA_KEY, "file"));
 
         // assert roles
         List<?> roles = assertList(authenticateResponse, Fields.ROLES);

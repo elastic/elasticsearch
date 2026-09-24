@@ -557,8 +557,8 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(result.getValue().principal(), is("Elasticsearch Test Node"));
         assertThat(result.getValue().roles(), is(notNullValue()));
         assertThat(result.getValue().roles().length, is(0));
-        assertThat(result.getValue().metadata().get("pki_delegated_by_user"), is("mockup_delegate_username"));
-        assertThat(result.getValue().metadata().get("pki_delegated_by_realm"), is("mockup_delegate_realm"));
+        assertThat(result.getValue().metadata().get(PkiRealm.PKI_DELEGATED_BY_USER_METADATA_KEY), is("mockup_delegate_username"));
+        assertThat(result.getValue().metadata().get(PkiRealm.PKI_DELEGATED_BY_REALM_METADATA_KEY), is("mockup_delegate_realm"));
 
         // Delegatee is run-as
         final Authentication runAsAuthentication = AuthenticationTestHelper.builder().realm().build(true);
@@ -572,11 +572,11 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(result.getValue().roles(), is(notNullValue()));
         assertThat(result.getValue().roles().length, is(0));
         assertThat(
-            result.getValue().metadata().get("pki_delegated_by_user"),
+            result.getValue().metadata().get(PkiRealm.PKI_DELEGATED_BY_USER_METADATA_KEY),
             is(runAsAuthentication.getEffectiveSubject().getUser().principal())
         );
         assertThat(
-            result.getValue().metadata().get("pki_delegated_by_realm"),
+            result.getValue().metadata().get(PkiRealm.PKI_DELEGATED_BY_REALM_METADATA_KEY),
             is(runAsAuthentication.getEffectiveSubject().getRealm().getName())
         );
     }

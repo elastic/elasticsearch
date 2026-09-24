@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 160229
+summary: Revert "Fix stateless split copy ordering"
+type: bug

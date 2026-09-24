@@ -2102,7 +2102,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera,
-        // IRONSCALES, Axonius, JupiterOne and PingDirectory) that
+        // IRONSCALES, Axonius, JupiterOne, PingDirectory and XM Cyber) that
         // `kibana_system` has full management access to
         // This includes read, write, create, delete, and all ILM-related management actions.
         Arrays.asList(
@@ -2130,7 +2130,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-axonius.ticket-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-jupiter_one.risks_and_alerts-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-ping_directory.user-" + randomAlphaOfLength(randomIntBetween(1, 10))
+            "logs-ping_directory.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-xm_cyber.device-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-xm_cyber.product-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-xm_cyber.vulnerability_instance-" + randomAlphaOfLength(randomIntBetween(1, 10))
         ).forEach((index_qualys_extra_hop) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 

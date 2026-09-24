@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
+package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -13,13 +13,13 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Header;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Header;
 
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.finite;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.open;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.finite;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.open;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;

@@ -59,18 +59,20 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
 
     private enum WitherLifecycle {
         /**
-         * Copies the reader's configuration; all ordinary withers that produce a new instance declare this.
+         * Copies the reader's configuration and returns a new instance; all ordinary withers declare this.
+         * Counters are no longer carried as reader fields (they are passed via {@code FormatReadContext}),
+         * so this only verifies that the wither actually produces a distinct copy.
          */
-        SHARES_COUNTERS,
+        CREATES_COPY,
         /** SPI default that returns {@code this}: no copy, so no state decision needed. */
         IDENTITY_NO_COPY
     }
 
     private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.ofEntries(
-        Map.entry("withPushedFilter", WitherLifecycle.SHARES_COUNTERS),
-        Map.entry("withDynamicThreshold", WitherLifecycle.SHARES_COUNTERS),
-        Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
-        Map.entry("withDeclaredTypeColumns", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withPushedFilter", WitherLifecycle.CREATES_COPY),
+        Map.entry("withDynamicThreshold", WitherLifecycle.CREATES_COPY),
+        Map.entry("withDeclaredDateFormats", WitherLifecycle.CREATES_COPY),
+        Map.entry("withDeclaredTypeColumns", WitherLifecycle.CREATES_COPY),
         Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withConfig", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
@@ -127,7 +129,7 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
         assertTrue(
             "wither(s) "
                 + undeclared
-                + " with no declared lifecycle: decide how it treats state — SHARES_COUNTERS (all ordinary withers)"
+                + " with no declared lifecycle: decide how it treats state — CREATES_COPY (all ordinary withers)"
                 + " or IDENTITY_NO_COPY (returns this) — add it to WITHER_LIFECYCLE and to sampleArgsFor(), and"
                 + " add a pin to the status-snapshot suite",
             undeclared.isEmpty()
@@ -148,11 +150,11 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
                     "wither ["
                         + m.getName()
                         + "] is declared IDENTITY_NO_COPY but returned a copy: it now has state, so decide its"
-                        + " lifecycle — reclassify it SHARES_COUNTERS",
+                        + " lifecycle — reclassify it CREATES_COPY",
                     receiver,
                     product
                 );
-                case SHARES_COUNTERS -> {
+                case CREATES_COPY -> {
                     assertNotSame(
                         "sample args for [" + m.getName() + "] hit a no-op shortcut; use args that force a copy",
                         receiver,

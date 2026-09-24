@@ -1695,11 +1695,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
             }
-            assertThat(
-                "rows emitted must be > 0 as drainEmptyTwoPhaseBatches() performs real decode work",
-                counters.snapshot().rowsEmitted(),
-                greaterThan(0L)
-            );
+            assertThat("filter id < 10 out of 5000 rows must emit some matching rows", counters.snapshot().rowsEmitted(), greaterThan(0L));
         }
     }
 

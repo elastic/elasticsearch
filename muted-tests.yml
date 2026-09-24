@@ -721,12 +721,3 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
   issue: https://github.com/elastic/elasticsearch/issues/160139
-# apache/lucene#16582 rewrites full-coverage doc-values ranges to FieldExistsQuery.
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesStringIT
-  methods:
-    - testAndNotCaseInsensitiveLike {SEMANTIC_TEXT_WITH_KEYWORD}
-    - testAndNotCaseInsensitiveRLike {SEMANTIC_TEXT_WITH_KEYWORD}
-    - testAndNotLike {SEMANTIC_TEXT_WITH_KEYWORD}
-    - testAndNotRLike {SEMANTIC_TEXT_WITH_KEYWORD}
-    - testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
-  issue: https://github.com/elastic/elasticsearch/issues/160197

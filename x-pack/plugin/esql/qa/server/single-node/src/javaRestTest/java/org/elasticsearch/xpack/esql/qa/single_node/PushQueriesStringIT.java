@@ -201,14 +201,16 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD ->
                 /*
-                 * FieldExistsQuery is because there are extra documents hiding in the index
-                 * that don't have the `foo` field. "*:*" is because sometimes we end up on
-                 * a shard where all `foo = 1`. single_value_match appears when multiple docs
-                 * with the same foo value are in the index.
+                 * FieldExistsQuery for foo appears when Lucene rewrites foo:[1 TO 1].
+                 * FieldExistsQuery for _primary_term filters extra documents hiding in the index.
+                 * "*:*" is because sometimes we end up on a shard where all `foo = 1`.
+                 * single_value_match appears when multiple docs with the same foo value are in the index.
                  */
                 List.of(
                     "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
                     "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
+                    "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                    "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
                     "foo:[1 TO 1]",
                     "FieldExistsQuery [field=_primary_term]"
                 );
@@ -679,7 +681,8 @@ public class PushQueriesStringIT extends ESRestTestCase {
             | WHERE foo == 1 AND NOT (test like "%different_value*")
             """;
         /*
-         * foo:[1 TO 1] is optimized away when all docs have foo=1. SEMANTIC adds single_value_match.
+         * foo:[1 TO 1] is optimized away or rewritten to FieldExistsQuery when all present values are 1.
+         * SEMANTIC adds single_value_match.
          */
         List<String> luceneQuery = switch (type) {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
@@ -688,7 +691,9 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
                 "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
         };
         ComputeSignature dataNodeSignature = switch (type) {
@@ -714,7 +719,9 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
                 "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
         };
         ComputeSignature dataNodeSignature = switch (type) {
@@ -739,7 +746,9 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
                 "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
         };
         ComputeSignature dataNodeSignature = switch (type) {
@@ -766,7 +775,9 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",
                 "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
-                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #FieldExistsQuery [field=_primary_term]",
+                "#FieldExistsQuery [field=foo] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
             );
         };
         ComputeSignature dataNodeSignature = switch (type) {

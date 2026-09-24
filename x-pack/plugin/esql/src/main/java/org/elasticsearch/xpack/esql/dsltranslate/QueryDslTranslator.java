@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -848,10 +847,6 @@ public final class QueryDslTranslator {
 
     private static boolean isDate(DataType type) {
         return type == DataType.DATETIME || type == DataType.DATE_NANOS;
-    }
-
-    private static Expression aNewTranslation(Expression f) {
-        return new MvAppend(Source.EMPTY, f, f);
     }
 
     private static Literal longLit(long value, DataType type) {

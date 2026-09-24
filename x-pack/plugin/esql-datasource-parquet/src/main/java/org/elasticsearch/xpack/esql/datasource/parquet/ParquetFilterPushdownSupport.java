@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -205,8 +209,37 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         return false;
     }
 
+    /**
+     * Returns {@code true} when {@code e} is a LIKE-family expression ({@link WildcardLike},
+     * {@link StartsWith}, {@link Contains}, or {@link EndsWith}) whose field is a non-virtual
+     * {@link NamedExpression}.
+     *
+     * <p>The virtual-column guard mirrors the equivalent check in {@link #canConvert}: virtual
+     * columns ({@code _file.*}) are materialized downstream by {@code VirtualColumnIterator} with
+     * real values, not nulls. They never receive a predicate block in the late-mat evaluator, so a
+     * conjunct on such a column must not be promoted to
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#YES}
+     * — doing so drops the {@code FilterExec} while the evaluator silently passes all rows.
+     * {@link #canConvert}'s {@code And} arm is disjunctive ({@code left || right}), so
+     * {@code And(realColLike, virtualColLike)} passes {@code canConvert} via the left arm even
+     * though the right arm fails it; {@code isFullyEvaluable}'s {@code And} arm is conjunctive
+     * ({@code left && right}), so without this guard the whole {@code And} would reach YES and
+     * drop {@code FilterExec} for the virtual-column conjunct. See elastic/esql-planning#2052.
+     */
     private static boolean isLikeFamily(Expression e) {
-        return e instanceof WildcardLike || e instanceof StartsWith || e instanceof Contains || e instanceof EndsWith;
+        Expression field;
+        if (e instanceof WildcardLike wl) {
+            field = wl.field();
+        } else if (e instanceof StartsWith sw) {
+            field = sw.singleValueField();
+        } else if (e instanceof Contains c) {
+            field = c.singleValueField();
+        } else if (e instanceof EndsWith ew) {
+            field = ew.singleValueField();
+        } else {
+            return false;
+        }
+        return field instanceof NamedExpression ne && PushdownPredicates.isVirtualColumn(ne) == false;
     }
 
     /**
@@ -248,6 +281,31 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             }
             return PushdownPredicates.isRange(range, TYPE_SUPPORTED);
         }
+        // The multivalue comparison functions are any-value existentials, so each carries the same statistics bound as
+        // its scalar sibling and pushes as RECHECK. isFullyEvaluable accepts only the LIKE family, Not over it and And
+        // of those, so it rejects these and canPush answers RECHECK. The exact predicate stays in the retained
+        // FilterExec.
+        if (expr instanceof MvContains mvContains) {
+            return PushdownPredicates.isMvContains(mvContains, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            return PushdownPredicates.isMvIntersects(mvIntersects, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            // BooleanColumn doesn't implement SupportsLtGt, so an ordered bound on one cannot be built. Unreachable
+            // through the analyzer — MvInRange.isSupportedRangeType already excludes BOOLEAN — and kept for the same
+            // reason the Range arm above keeps its own boolean check.
+            if (declinesOrderedBoolean(mvInRange.field())) {
+                return false;
+            }
+            return PushdownPredicates.isMvInRange(mvInRange, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvCompare mvCompare) {
+            if (declinesOrderedBoolean(mvCompare.field())) {
+                return false;
+            }
+            return PushdownPredicates.isMvCompare(mvCompare, TYPE_SUPPORTED);
+        }
         if (expr instanceof And and) {
             return canConvert(and.left()) || canConvert(and.right());
         }
@@ -285,5 +343,10 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
                 && wl.pattern() != null;
         }
         return false;
+    }
+
+    /** BooleanColumn implements SupportsEqNotEq but not SupportsLtGt, so an ordered bound on it cannot be built. */
+    private static boolean declinesOrderedBoolean(Expression field) {
+        return field instanceof NamedExpression ne && ne.dataType() == DataType.BOOLEAN;
     }
 }

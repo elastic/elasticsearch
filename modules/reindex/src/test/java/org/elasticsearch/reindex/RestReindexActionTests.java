@@ -73,6 +73,16 @@ public class RestReindexActionTests extends RestActionTestCase {
         assertEquals("10m", request.getScrollTime().toString());
     }
 
+    public void testRequestsPerSecondRejectsNaN() {
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(singletonMap("requests_per_second", "NaN"))
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> AbstractBaseReindexRestHandler.parseRequestsPerSecond(restRequest)
+        );
+        assertThat(exception.getMessage(), equalTo("[requests_per_second] must be a float greater than 0. Use -1 to disable throttling."));
+    }
+
     public void testDestSliceParsedWhenFeatureFlagEnabled() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexRequest request = action.buildRequest(buildRequestWithBody("""

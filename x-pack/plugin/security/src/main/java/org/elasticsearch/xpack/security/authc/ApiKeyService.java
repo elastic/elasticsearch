@@ -69,6 +69,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -1806,6 +1809,106 @@ public class ApiKeyService implements Closeable {
                 listener.onResponse(Map.of("total", apiKeyInfos.size(), "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsCcrKeys));
             }, listener::onFailure));
         }
+    }
+
+    /**
+     * Counts the REST API keys currently stored in the security index, for telemetry purposes.
+     * <p>
+     * Unlike {@link #crossClusterApiKeyUsageStats}, the counts come from a single aggregation over indexed fields and no key document is
+     * ever fetched. A cluster can hold orders of magnitude more REST API keys than cross-cluster ones, and usage is collected
+     * periodically rather than on demand, so reading every key would be prohibitively expensive.
+     * <p>
+     * The reported counts partition the REST API keys held in the index: {@code active} keys are neither invalidated nor expired, and a
+     * key that is both invalidated and expired is only counted as {@code invalidated}. Neither {@code invalidated} nor {@code expired}
+     * is a lifetime total, since {@link InactiveApiKeysRemover} deletes such keys once they fall outside
+     * {@link #DELETE_RETENTION_PERIOD}; they describe what the security index currently holds.
+     */
+    public void restApiKeyUsageStats(ActionListener<Map<String, Object>> listener) {
+        if (false == isEnabled()) {
+            listener.onResponse(Map.of());
+            return;
+        }
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(Map.of("active", 0L, "invalidated", 0L, "expired", 0L));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            final FiltersAggregationBuilder countsAgg = restApiKeyCountsAggregation(clock.instant().toEpochMilli());
+            final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+                        .filter(
+                            // API keys created before the `type` field was introduced carry no type at all and are REST keys
+                            QueryBuilders.boolQuery()
+                                .should(QueryBuilders.termQuery("type", ApiKey.Type.REST.value()))
+                                .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("type")))
+                                .minimumShouldMatch(1)
+                        )
+                )
+                .setSize(0)
+                .setTrackTotalHits(false)
+                .addAggregation(countsAgg)
+                .request();
+            projectSecurityIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    request,
+                    ActionListener.wrap(searchResponse -> {
+                        final InternalAggregations aggregations = searchResponse.getAggregations();
+                        final Filters counts = aggregations == null ? null : aggregations.get(countsAgg.getName());
+                        if (counts == null) {
+                            // report no counts rather than zeros, which would claim the cluster holds no API keys
+                            logger.debug("no [{}] aggregation in the search response for REST API key usage", countsAgg.getName());
+                            listener.onResponse(Map.of());
+                            return;
+                        }
+                        listener.onResponse(
+                            Map.of(
+                                "active",
+                                counts.getBucketByKey("active").getDocCount(),
+                                "invalidated",
+                                counts.getBucketByKey("invalidated").getDocCount(),
+                                "expired",
+                                counts.getBucketByKey("expired").getDocCount()
+                            )
+                        );
+                    }, listener::onFailure)
+                )
+            );
+        }
+    }
+
+    /**
+     * Builds the aggregation backing {@link #restApiKeyUsageStats}. The filters are mutually exclusive, so each API key document
+     * contributes to exactly one bucket.
+     */
+    private static FiltersAggregationBuilder restApiKeyCountsAggregation(long nowMillis) {
+        final QueryBuilder notInvalidated = QueryBuilders.termQuery("api_key_invalidated", false);
+        return new FiltersAggregationBuilder(
+            "rest_api_key_counts",
+            new KeyedFilter(
+                "active",
+                QueryBuilders.boolQuery()
+                    .filter(notInvalidated)
+                    .filter(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.rangeQuery("expiration_time").gt(nowMillis))
+                            .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")))
+                            .minimumShouldMatch(1)
+                    )
+            ),
+            new KeyedFilter("invalidated", QueryBuilders.termQuery("api_key_invalidated", true)),
+            new KeyedFilter(
+                "expired",
+                QueryBuilders.boolQuery().filter(notInvalidated).filter(QueryBuilders.rangeQuery("expiration_time").lte(nowMillis))
+            )
+        );
     }
 
     @Override

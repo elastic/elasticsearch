@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-VERSION="0.3.0"
+VERSION="0.4.0"
 ARTIFACT_ID="libsimdjson"
 VEC_NATIVE_DIR="$(cd "$(dirname "$0")/../../simdvec/native" && pwd)"
 LOCAL_TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"

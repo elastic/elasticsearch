@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
@@ -316,6 +317,18 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
+    /**
+     * The type {@code column} gives {@code doc}. A doc-values payload carrying a document that indexed nothing reports the field's
+     * index options itself, so the type is not the column's for every document it covers.
+     */
+    private static FieldType typeFor(Column column, int doc) {
+        final FieldType type = new FieldType(
+            column instanceof ColumnarPayloadColumn payload ? payload.fieldTypeFor(doc) : column.fieldType()
+        );
+        type.freeze();
+        return type;
+    }
+
     private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {
         final ColumnBatch batch = mc.toColumnBatch();
         for (Column column : batch.columns()) {
@@ -352,12 +365,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 if (isSparse || randomBoolean()) {
                     final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
                     for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.value())));
+                        perDoc.get(doc).add(new FieldDescriptor(name, typeFor(column, doc), null, BytesRef.deepCopyOf(cursor.value())));
                     }
                 } else {
                     final BytesRefValuesCursor cursor = binaryColumn.values();
                     for (int doc = 0; doc < cursor.size(); doc++) {
-                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.nextValue())));
+                        perDoc.get(doc).add(new FieldDescriptor(name, typeFor(column, doc), null, BytesRef.deepCopyOf(cursor.nextValue())));
                     }
                 }
             } else if (column instanceof TokenStreamColumn) {

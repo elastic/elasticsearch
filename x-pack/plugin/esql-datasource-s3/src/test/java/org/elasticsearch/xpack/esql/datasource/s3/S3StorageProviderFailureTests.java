@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -398,5 +399,43 @@ public class S3StorageProviderFailureTests extends ESTestCase {
             .message("S3 failure")
             .awsErrorDetails(AwsErrorDetails.builder().sdkHttpResponse(response.build()).build())
             .build();
+    }
+
+    public void testTestConnectionAnonymousIsUntestable() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, null, "anonymous");
+        S3StorageProvider provider = new S3StorageProvider(config, null);
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
+        assertThat(ex.getMessage(), containsString("anonymous"));
+    }
+
+    public void testTestConnectionAccessDeniedIsUntestable() {
+        S3Client client = mock(S3Client.class);
+        S3Exception accessDenied = (S3Exception) S3Exception.builder()
+            .statusCode(403)
+            .message("Access Denied")
+            .awsErrorDetails(
+                AwsErrorDetails.builder()
+                    .errorCode("AccessDenied")
+                    .sdkHttpResponse(SdkHttpResponse.builder().statusCode(403).build())
+                    .build()
+            )
+            .build();
+        when(client.listBuckets()).thenThrow(accessDenied);
+        // Non-anonymous config so the short-circuit does not fire; we test the 403-AccessDenied branch.
+        S3Configuration config = S3Configuration.fromFields("key", "secret", null, null);
+        S3StorageProvider provider = new S3StorageProvider(config, client);
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
+        assertThat(ex.getMessage(), containsString("AccessDenied"));
+    }
+
+    public void testTestConnectionAuthorizationHeaderMalformedIsUntestable() {
+        S3Client client = mock(S3Client.class);
+        S3Exception authMalformed = s3FailureWithErrorCode(400, "AuthorizationHeaderMalformed", "eu-west-1");
+        when(client.listBuckets()).thenThrow(authMalformed);
+        // Non-anonymous config so the anonymous short-circuit does not fire.
+        S3Configuration config = S3Configuration.fromFields("key", "secret", null, null);
+        S3StorageProvider provider = new S3StorageProvider(config, client);
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
+        assertThat(ex.getMessage(), containsString("AuthorizationHeaderMalformed"));
     }
 }

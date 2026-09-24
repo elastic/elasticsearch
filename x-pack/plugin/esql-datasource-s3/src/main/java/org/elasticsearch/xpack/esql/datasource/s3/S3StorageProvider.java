@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -251,6 +252,21 @@ public class S3StorageProvider implements StorageProvider {
     /** Test-only sugar: a 2-arg form with no IRSA provider. */
     static S3StorageProvider forTesting(S3Client s3Client, S3AsyncClient s3AsyncClient) {
         return new S3StorageProvider(s3Client, s3AsyncClient, null);
+    }
+
+    /**
+     * Test-only: accepts a configuration and pre-built (or null) S3 client.
+     * Pass {@code null} for the client when the test expects testConnection() to short-circuit
+     * before any client call (e.g. {@code auth=anonymous}).
+     */
+    S3StorageProvider(S3Configuration config, S3Client s3Client) {
+        this.config = config;
+        this.credentials = null;
+        this.stsAsyncClient = null;
+        this.webIdentityTokenCredentialsProvider = null;
+        this.s3Client = s3Client;
+        this.s3AsyncClient = null;
+        this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
     }
 
     /**
@@ -936,6 +952,56 @@ public class S3StorageProvider implements StorageProvider {
             key = key.substring(1);
         }
         return key;
+    }
+
+    /**
+     * Tests connectivity by attempting {@code ListBuckets}.
+     * <p>
+     * A {@code 403 AccessDenied} response means the credentials are valid but bucket-scoped — they
+     * signed and delivered the request, so authentication works; the IAM policy just does not grant
+     * {@code s3:ListAllMyBuckets}. Under the false-negative avoidance principle, this returns
+     * {@link TestConnectionNotSupportedException} (untestable) rather than success or failure:
+     * the same as GCS and Azure when facing bucket/container-scoped credentials. The user is
+     * directed to create a dataset to verify access at the bucket level.
+     *
+     * <p>An {@code AuthorizationHeaderMalformed} error (HTTP 400) means the request was signed for
+     * the wrong region. Queries avoid this via a one-shot HeadBucket region-discovery retry
+     * ({@link #shouldAttemptRegionRetry}), but {@code ListBuckets} has no bucket to discover the
+     * region from, so the probe cannot perform the same recovery. Because the data source works fine
+     * for queries, this is also reported as {@code untestable} rather than {@code failure}.
+     *
+     * <p>Invalid credentials ({@code InvalidClientTokenId}, {@code SignatureDoesNotMatch}) are re-thrown as failures.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     */
+    public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "S3 anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public buckets; create a dataset to validate read access."
+            );
+        }
+        try {
+            s3Client.listBuckets();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 403 && e.awsErrorDetails() != null && "AccessDenied".equals(e.awsErrorDetails().errorCode())) {
+                // Credentials are valid but bucket-scoped; cannot verify at the data-source level.
+                throw new TestConnectionNotSupportedException(
+                    "S3 returned 403 AccessDenied on ListBuckets; credentials may be bucket-scoped",
+                    "Bucket-scoped credentials cannot be verified at the data source level; create a dataset to validate access."
+                );
+            }
+            if (isAuthorizationHeaderMalformed(e)) {
+                // Custom endpoint with no region: ListBuckets fails with AuthorizationHeaderMalformed
+                // because the request was signed for the wrong region. Region is a dataset-level setting,
+                // not a data-source-level one, so the probe cannot discover it here. Queries recover via
+                // HeadBucket region-discovery, but that retry needs a bucket name from the dataset URI.
+                throw new TestConnectionNotSupportedException(
+                    "S3 returned AuthorizationHeaderMalformed on ListBuckets; region cannot be determined at the data source level",
+                    "Create a dataset with the region configured to validate access."
+                );
+            }
+            throw e;
+        }
     }
 
     public S3Client s3Client() {

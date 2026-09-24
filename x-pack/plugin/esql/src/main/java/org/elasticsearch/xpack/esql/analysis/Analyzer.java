@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -180,6 +181,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -313,6 +315,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Resolution",
                 new ResolveRefs(),
+                // Must run in a fixpoint batch, right after ResolveRefs: it inspects the child's output, which is only
+                // trustworthy once ResolveRefs has resolved the child (e.g. expanded wildcard projections such as KEEP *),
+                // and it must strip the wrapper before the union-type rules below inspect the UnionAll's parent.
+                new InjectOuterMetadataForSubqueries(),
                 new ImplicitCasting(),
                 new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
                 new ResolveUnionTypesInUnionAll(),
@@ -446,7 +452,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
+        private static List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
             LinkedHashMap<String, NamedExpression> resolved = new LinkedHashMap<>();
             Set<String> allTags = null;
             for (NamedExpression item : metadata) {
@@ -475,7 +481,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved.values().stream().toList();
         }
 
-        private List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, Set<String> allowedTags) {
+        private static List<NamedExpression> tryResolveMetadata(UnresolvedMetadataAttributeExpression um, Set<String> allowedTags) {
             Pattern pattern = Pattern.compile(StringUtils.wildcardToJavaPattern(um.pattern(), '\\'));
             List<String> matchingMetadata = allowedTags.stream().filter(x -> pattern.matcher(x).matches()).sorted().toList();
             List<NamedExpression> result = new ArrayList<>();
@@ -1197,6 +1203,89 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             scope.addAll(destinations);
             return scope;
+        }
+    }
+
+    /**
+     * Consumes {@link UnresolvedMetadata} nodes emitted by the parser and null-injects any
+     * outer {@code METADATA} field that is absent from a branch's output.
+     * Includes fields with wildcard patterns.
+     * <p>
+     * The wrapper is only consumed once its child is fully resolved: deciding whether a field is "absent" requires the
+     * child's final output, and before {@code ResolveRefs} has run a child ending in e.g. {@code KEEP *} still reports
+     * an unresolved star in its output. Until then the wrapper is left in place. While a requested field is missing it
+     * is unresolved and keeps its parents from resolving against an output that will still gain columns; once nothing
+     * is left to inject it is transparent (see {@link UnresolvedMetadata#expressionsResolved()}) and is stripped here,
+     * which is why this rule does not skip resolved nodes. If it is never consumed the {@link Verifier} reports it,
+     * being {@link Unresolvable}, instead of the plan reaching the physical planner.
+     */
+    private static class InjectOuterMetadataForSubqueries extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
+            LogicalPlan child = unresolvedMetadata.child();
+
+            // ExternalRelation owns its METADATA binding end-to-end; strip the wrapper and let it stand.
+            if (child instanceof ExternalRelation) {
+                return child;
+            }
+
+            List<NamedExpression> metadataFields = ResolveTable.resolveMetadata(unresolvedMetadata.metadataFields(), context);
+            // If anything remains unresolved, skip injection so the Verifier can throw an error.
+            if (metadataFields.stream().anyMatch(f -> f.resolved() == false)) {
+                return unresolvedMetadata;
+            }
+
+            // The child's output is not final yet (e.g. wildcard projections still unexpanded); try again on the next pass.
+            // Keep the resolved fields so the wrapper can tell whether it is transparent in the meantime.
+            if (child.resolved() == false) {
+                return metadataFields.equals(unresolvedMetadata.metadataFields())
+                    ? unresolvedMetadata
+                    : new UnresolvedMetadata(unresolvedMetadata.source(), child, metadataFields);
+            }
+
+            if (metadataFields.isEmpty()) {
+                // Nothing to inject; just strip the wrapper.
+                return child;
+            }
+
+            Source src = unresolvedMetadata.source();
+            if (child instanceof UnionAll unionAll) {
+                // Multi-source: inject into each branch that is missing the field.
+                List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+                boolean changed = false;
+                for (LogicalPlan branch : unionAll.children()) {
+                    LogicalPlan injected = injectMissing(branch, metadataFields, src);
+                    newChildren.add(injected);
+                    if (injected != branch) {
+                        changed = true;
+                    }
+                }
+                return changed ? unionAll.replaceChildren(newChildren) : child;
+            } else {
+                // Single source: inject directly.
+                return injectMissing(child, metadataFields, src);
+            }
+        }
+
+        /** Wraps {@code plan} in {@code Eval(null AS field, ...)} for each metadata field absent from its output. */
+        private static LogicalPlan injectMissing(LogicalPlan plan, List<NamedExpression> metadataFields, Source src) {
+            Set<String> present = plan.output().stream().map(Attribute::name).collect(Collectors.toSet());
+            List<Alias> nullFills = new ArrayList<>();
+            for (NamedExpression field : metadataFields) {
+                if (field.resolved() == false) {
+                    continue;
+                }
+                if (present.contains(field.name()) == false) {
+                    nullFills.add(new Alias(src, field.name(), new Literal(src, null, field.dataType())));
+                }
+            }
+            return nullFills.isEmpty() ? plan : new Eval(src, plan, nullFills);
         }
     }
 

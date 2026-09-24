@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160242
+summary: Fix positional binding of non-anchor CSV/TSV files under `first_file_wins`
+type: bug

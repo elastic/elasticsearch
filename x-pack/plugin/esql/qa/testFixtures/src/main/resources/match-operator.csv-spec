@@ -1062,6 +1062,25 @@ book_no:keyword | title:text
 2301            | Smith of Wootton Major & Farmer Giles of Ham
 ;
 
+// Same window as matchOnRuntimeText, but the LIMIT runs first: it drops 2301, which the unrestricted filter matches.
+matchOnRuntimeTextAfterLimit
+
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| LIMIT 6
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE content:"Tolkien"
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+;
+
 matchOnRuntimeTextAndIndexedField
 
 required_capability: match_operator_colon

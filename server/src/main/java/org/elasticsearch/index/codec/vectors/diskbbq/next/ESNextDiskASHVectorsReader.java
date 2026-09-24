@@ -70,6 +70,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             ESNextDiskASHVectorsFormat.VERSION_START,
             ESNextDiskASHVectorsFormat.VERSION_CURRENT,
             ESNextDiskASHVectorsFormat.VERSION_DIRECT_IO,
+            ESNextDiskASHVectorsFormat.VERSION_ON_DISK_MERGE,
             ESNextDiskASHVectorsFormat.DYNAMIC_VISIT_RATIO
         );
         this.ashMatrixCache = new ConcurrentHashMap<>();
@@ -215,10 +216,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 }
                 IndexInput slice = ivfCentroids.slice("ash-preconditioner", preconditionerOffset, preconditionerLength);
                 slice.seek(0);
-                var matrix = AshProjectionMatrix.read(slice);
-                // Eagerly compute wT so it's ready for concurrent search threads
-                matrix.wT();
-                return matrix;
+                return AshProjectionMatrix.read(slice);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

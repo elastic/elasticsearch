@@ -138,7 +138,7 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.hamcrest.Matcher;
@@ -180,6 +180,7 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest;
+import static org.elasticsearch.cluster.routing.IndexRoutingTestHelper.makeIdThatRoutesToShard;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.blobstore.OperationPurpose.INDICES;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
@@ -191,7 +192,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.indexMetadata;
-import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.makeIdThatRoutesToShard;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.both;
@@ -3895,7 +3895,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .values()
             .stream()
             .map(BlobMetadata::name)
-            .max(Comparator.comparingLong(StatelessCompoundCommit::parseGenerationFromBlobName))
+            .max(Comparator.comparingLong(BatchedCompoundCommit::parseGenerationFromBlobName))
             .orElseThrow();
         blobToBlock.set(latestBlob);
 

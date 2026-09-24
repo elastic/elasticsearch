@@ -26,6 +26,7 @@ public class Constants {
         "cluster:admin/esql/data_source/delete",
         "cluster:admin/esql/data_source/get",
         "cluster:admin/esql/data_source/put",
+        "cluster:admin/esql/data_source/test_connection",
         "cluster:admin/fleet/secrets/delete",
         "cluster:admin/fleet/secrets/get",
         "cluster:admin/fleet/secrets/post",
@@ -308,6 +309,7 @@ public class Constants {
         "cluster:admin/xpack/security/saml/logout",
         "cluster:admin/xpack/security/saml/prepare",
         "cluster:admin/xpack/security/service_account/get",
+        "cluster:admin/xpack/security/service_account/query",
         "cluster:admin/xpack/security/service_account/credential/get",
         "cluster:admin/xpack/security/service_account/credential/get[n]",
         "cluster:admin/xpack/security/service_account/token/create",
@@ -619,6 +621,7 @@ public class Constants {
         "indices:data/read/esql/resolve_fields",
         "indices:data/read/esql/resolve_views",
         "indices:data/read/esql/search_shards",
+        "indices:data/read/esql/stream",
         "indices:data/read/explain",
         "indices:data/read/field_caps",
         "indices:data/read/get",
@@ -708,6 +711,7 @@ public class Constants {
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate",
-        "internal:index/shard/recovery/cancel_recoveries"
+        "internal:index/shard/recovery/cancel_recoveries",
+        "internal:xpack/esql/datasource/test_connection/node"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

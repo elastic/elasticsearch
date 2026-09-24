@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -276,6 +277,11 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             throw new UnsupportedOperationException("validateConfig never lists storage objects");
+        }
+
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            throw new UnsupportedOperationException("validateConfig never lists storage children");
         }
 
         @Override

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -84,6 +85,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             "runtime_options",
             "runtime_analyzer",
             "runtime_score",
+            "runtime_anywhere",
             "to_text_on_indexed_field_fix",
             "to_string_on_indexed_field_fix"
         )
@@ -269,7 +271,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
      */
     private boolean hasNonStandardValuesAnalyzer() {
         String name = valuesAnalyzerName();
-        return name != null && name.equals("standard") == false;
+        return name != null && name.equals(AnalyzedTextExpression.STANDARD_ANALYZER) == false;
     }
 
     private Map<String, Object> matchPhraseQueryOptions() throws InvalidArgumentException {

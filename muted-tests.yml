@@ -629,12 +629,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=search/397_match_only_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecNullIT
-  method: test {csv-spec:null.nullFieldArgInMultiInputAggs}
-  issue: https://github.com/elastic/elasticsearch/issues/159877
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecNullIT
-  method: test {csv-spec:null.nullLiteralArgInMultiInputAggs}
-  issue: https://github.com/elastic/elasticsearch/issues/159878
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/159890

@@ -123,6 +123,8 @@ FROM access_logs METADATA _file.path, _file.name, _file.size
 | LIMIT 10
 ```
 
+{applies_to}`stack: experimental 9.6` If a field named in the `METADATA` clause matches a file column, the engine-generated value takes precedence and the file column is dropped. A warning identifies the file column that was dropped. To keep both values, rename the file column in the dataset mapping. If the query omits `METADATA`, the file column remains available as a regular data column.
+
 ## Use search functions
 
 [Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This runtime search does not use an inverted index. When using `METADATA _score`, `MATCH` and `MATCH_PHRASE` on dataset rows contribute to the relevance score based on the `boost` option and the query terms matched — not BM25, as there are no index statistics for a dataset. {applies_to}`stack: preview 9.6` In earlier versions, dataset rows do not contribute to `_score`.
@@ -154,6 +156,7 @@ The limitations below include operations that require structures available only 
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
 | More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
+| A file column whose name matches a requested `METADATA` name {applies_to}`stack: experimental 9.6` | The engine-generated value replaces the file column. Rename the file column in the dataset mapping to keep both. | A warning names the dropped column. |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Only local datasets can be queried. {applies_to}`stack: experimental 9.6` A dataset on a remote cluster is invisible: a wildcard that matches its name returns that cluster's indices beside it, and naming it directly resolves to nothing, so the remote's `skip_unavailable` setting decides whether the query fails or that cluster is skipped. In earlier versions, a query that matched a remote dataset failed. | {applies_to}`stack: experimental 9.6` `Unknown index [<cluster>:<dataset>]`, when `skip_unavailable` is `false`. In earlier versions, `ES\|QL queries with remote datasets are not supported. Matched [...]` |
 | Snapshot and restore | Data sources and datasets cannot be snapshotted or restored. | |

@@ -50,6 +50,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -676,10 +682,20 @@ public class FileSplitProvider implements SplitProvider {
         // Unified schema is query-wide. One unmodifiable map is shared by every file; the
         // concurrent split path only reads it.
         Map<String, DataType> reconciledTypes = unifiedSchema == null ? null : Map.copyOf(attributesToTypeMap(unifiedSchema.attributes()));
-        // Hive / _file.* listing values already live in partitionValues. Overlay the engine
-        // per-file constants only when a hint names one of them.
+        // Hive / _file.* listing values already live in the frozen partition map. Copy and strip
+        // unbound _file.* (or overlay engine per-file constants) only when a hint names one of those keys.
         boolean overlayPerFileConstants = filterHints.isEmpty() == false
             && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
+        Set<String> unboundFileMetadataNames = Set.of();
+        if (filterHints.isEmpty() == false) {
+            unboundFileMetadataNames = new LinkedHashSet<>();
+            for (String name : FileMetadataColumns.NAMES) {
+                if (metadataColumnNames.contains(name) == false) {
+                    unboundFileMetadataNames.add(name);
+                }
+            }
+        }
+        boolean copyFilterValues = overlayPerFileConstants || hintsReferenceUnboundFileMetadata(filterHints, unboundFileMetadataNames);
         for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -698,7 +714,9 @@ public class FileSplitProvider implements SplitProvider {
             SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
             if (filterHints.isEmpty() == false) {
-                Map<String, Object> filterValues = overlayPerFileConstants ? discoveryFilterValues(frozen, metadataColumnNames) : frozen;
+                Map<String, Object> filterValues = copyFilterValues
+                    ? discoveryFilterValues(frozen, metadataColumnNames, overlayPerFileConstants, unboundFileMetadataNames)
+                    : frozen;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
                     continue;
@@ -3097,18 +3115,31 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
-     * constants (the all-null standard names). Used only for discovery filter evaluation; the
-     * The survivor's frozen partition map carries hive + {@code _file.*} only.
-     * Only names bound as metadata in the relation's output receive constants, matching the
-     * reader. Data columns retain their physical values or missing-column null-fill.
+     * Discovery-only value map for filter evaluation: a fresh copy of the survivor's frozen
+     * partition map (hive partitions and {@code _file.*} listing values). Unbound {@code _file.*}
+     * keys are dropped, because those names are ordinary data columns and must not prune the
+     * listing by storage stat or block a missing-column skip. Bound per-file constants (the
+     * all-null standard names) are overlaid only when a hint names one of them, and only for
+     * names bound as metadata in the relation's output, matching the reader. Data columns retain
+     * their physical values or missing-column null-fill. The frozen map itself carries hive and
+     * {@code _file.*} only.
      */
-    private static Map<String, Object> discoveryFilterValues(Map<String, Object> partitionValues, Set<String> metadataColumnNames) {
+    private static Map<String, Object> discoveryFilterValues(
+        Map<String, Object> partitionValues,
+        Set<String> metadataColumnNames,
+        boolean overlayPerFileConstants,
+        Set<String> unboundFileMetadataNames
+    ) {
         Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
         filterValues.putAll(partitionValues);
-        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants().entrySet()) {
-            if (metadataColumnNames.contains(constant.getKey())) {
-                filterValues.put(constant.getKey(), constant.getValue());
+        for (String name : unboundFileMetadataNames) {
+            filterValues.remove(name);
+        }
+        if (overlayPerFileConstants) {
+            for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants().entrySet()) {
+                if (metadataColumnNames.contains(constant.getKey())) {
+                    filterValues.put(constant.getKey(), constant.getValue());
+                }
             }
         }
         return filterValues;
@@ -3121,6 +3152,18 @@ public class FileSplitProvider implements SplitProvider {
                 .anyMatch(
                     a -> metadataColumnNames.contains(a.name()) && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name())
                 )) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hintsReferenceUnboundFileMetadata(List<Expression> filterHints, Set<String> unboundFileMetadataNames) {
+        if (unboundFileMetadataNames.isEmpty()) {
+            return false;
+        }
+        for (Expression hint : filterHints) {
+            if (hint.references().stream().anyMatch(a -> unboundFileMetadataNames.contains(a.name()))) {
                 return true;
             }
         }
@@ -3162,6 +3205,11 @@ public class FileSplitProvider implements SplitProvider {
         return false;
     }
 
+    /** Whether the operand is a literal that is not null, which is what makes a missing column answer false. */
+    private static boolean isNonNullLiteral(Expression e) {
+        return e instanceof Literal literal && literal.value() != null;
+    }
+
     /**
      * Extracts the single column name from a simple leaf predicate, or {@code null} for
      * compound/multi-column expressions that cannot be evaluated for file skipping.
@@ -3187,6 +3235,23 @@ public class FileSplitProvider implements SplitProvider {
         }
         if (expr instanceof IsNotNull isNotNull) {
             return extractColumnName(isNotNull.field());
+        }
+        // The multivalue comparison functions name their column the same way, when their other operands are literals. A
+        // missing column is the empty set, so each of these is then false for every row of a file that lacks it — the
+        // same answer Equals gives, and the reason such a file can be skipped unread. The literal requirement is
+        // load-bearing for mv_contains: the empty set contains the empty set, so mv_contains(missing, b) is true on
+        // every row where b is null, and a column b can be.
+        if (expr instanceof MvContains mvContains) {
+            return isNonNullLiteral(mvContains.right()) ? extractColumnName(mvContains.left()) : null;
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            return isNonNullLiteral(mvIntersects.right()) ? extractColumnName(mvIntersects.left()) : null;
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            return isNonNullLiteral(mvInRange.lower()) && isNonNullLiteral(mvInRange.upper()) ? extractColumnName(mvInRange.field()) : null;
+        }
+        if (expr instanceof MvCompare mvCompare) {
+            return isNonNullLiteral(mvCompare.bound()) ? extractColumnName(mvCompare.field()) : null;
         }
         return null;
     }
@@ -3244,7 +3309,9 @@ public class FileSplitProvider implements SplitProvider {
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
                     if (listItem instanceof Literal lit) {
-                        if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
+                        if (zerosOfOppositeSign(partitionValue, lit.value())) {
+                            found = null;
+                        } else if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
                             found = true;
                             break;
                         }
@@ -3268,11 +3335,54 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 yield partitionValues.get(columnName) != null;
             }
+            // A partition value is single, so each of these reads as its scalar sibling does. Two differences live in
+            // the helpers below: they read `field OP literal` only, and the ordered forms take a value exactly on the
+            // bound from their default inclusivity.
+            case MvContains mvContains -> evaluateMvLeaf(
+                mvContains.left(),
+                mvContains.right(),
+                partitionValues,
+                PartitionValueMatcher::compareEquals
+            );
+            case MvIntersects mvIntersects -> evaluateMvIntersects(mvIntersects, partitionValues);
+            case MvInRange mvInRange -> {
+                Boolean onBound = onTheBound(mvInRange.options(), true);
+                yield nullableAnd(
+                    evaluateMvLeaf(mvInRange.field(), mvInRange.lower(), partitionValues, (v, b) -> above(v, b, onBound)),
+                    evaluateMvLeaf(mvInRange.field(), mvInRange.upper(), partitionValues, (v, b) -> below(v, b, onBound))
+                );
+            }
+            case MvGreater mvGreater -> evaluateMvLeaf(
+                mvGreater.field(),
+                mvGreater.bound(),
+                partitionValues,
+                (v, b) -> above(v, b, onTheBound(mvGreater.options(), false))
+            );
+            case MvLess mvLess -> evaluateMvLeaf(
+                mvLess.field(),
+                mvLess.bound(),
+                partitionValues,
+                (v, b) -> below(v, b, onTheBound(mvLess.options(), false))
+            );
             case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
             case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
             case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
             default -> null;
         };
+    }
+
+    /**
+     * The engine's {@code IN} orders doubles with {@code Double.compare}, so unlike {@code ==} it tells {@code -0.0}
+     * from {@code 0.0}, and the matcher does not. For such a pair {@code IN} is left unknown. The matcher's "equal"
+     * prunes matching files under {@code NOT IN}; copying the engine's current "not equal" is right only while
+     * {@code IN} disagrees with {@code ==}, and would prune matching files under plain {@code IN} once the two agree.
+     */
+    private static boolean zerosOfOppositeSign(Object a, Object b) {
+        return a instanceof Number na
+            && b instanceof Number nb
+            && na.doubleValue() == 0.0
+            && nb.doubleValue() == 0.0
+            && Double.compare(na.doubleValue(), nb.doubleValue()) != 0;
     }
 
     private static Boolean nullableAnd(Boolean a, Boolean b) {
@@ -3324,6 +3434,93 @@ public class FileSplitProvider implements SplitProvider {
             return partitionValue != null ? comparator.apply(literalValue, partitionValue) : null;
         }
         return null;
+    }
+
+    /**
+     * {@code field OP literal} for a multivalue comparison function, and only that way round. A binary comparison is
+     * symmetric under operand swap, which is why {@link #evaluateComparison} also tries {@code literal OP column}; these
+     * are not — {@code mv_contains(literal, column)} asks whether the column's values are a subset of the literal's,
+     * a different predicate — so a literal on the left is unknown rather than evaluated. So is a field that is not a
+     * plain column: a case-insensitive DSL term arrives as {@code mv_contains(TO_LOWER(p), lowered)}, and partition
+     * values hold the original case, so {@link #extractColumnName} returning null for it is what keeps that file.
+     * <p>
+     * A null partition value is unknown here, where the function itself would answer false (it reads a null as the
+     * empty set). Unknown is strictly less informative than the true answer, and the connectives below are monotone in
+     * that ordering, so the difference can only keep a file the exact answer would prune — never prune one it would
+     * keep, under {@code Not} included.
+     */
+    private static Boolean evaluateMvLeaf(
+        Expression field,
+        Expression literal,
+        Map<String, Object> partitionValues,
+        BiFunction<Object, Object, Boolean> comparator
+    ) {
+        String columnName = extractColumnName(field);
+        Object literalValue = extractLiteralValue(literal);
+        // A list-valued literal is "contains all of these", not the scalar bound.
+        if (columnName == null
+            || literalValue == null
+            || literalValue instanceof List
+            || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        Object partitionValue = partitionValues.get(columnName);
+        return partitionValue != null ? comparator.apply(partitionValue, literalValue) : null;
+    }
+
+    /**
+     * {@code mv_intersects(p, [v...])}: the partition value is in the set. The set arrives as a single list-valued
+     * literal, not the list of literals {@code In} carries. A set with no non-null member is unknown rather than false.
+     */
+    private static Boolean evaluateMvIntersects(MvIntersects mvIntersects, Map<String, Object> partitionValues) {
+        String columnName = extractColumnName(mvIntersects.left());
+        Object literalValue = extractLiteralValue(mvIntersects.right());
+        if (columnName == null || literalValue == null || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        Object partitionValue = partitionValues.get(columnName);
+        if (partitionValue == null) {
+            return null;
+        }
+        List<?> values = literalValue instanceof List<?> list ? list : List.of(literalValue);
+        boolean sawValue = false;
+        for (Object value : values) {
+            if (value != null) {
+                sawValue = true;
+                if (PartitionValueMatcher.compareEquals(partitionValue, value)) {
+                    return true;
+                }
+            }
+        }
+        return sawValue ? false : null;
+    }
+
+    /**
+     * What an ordered multivalue function answers for a value lying exactly on its bound. The inclusivity is an option
+     * — {@code mv_in_range} defaults to inclusive, {@code mv_greater} / {@code mv_less} to strict — and when no options
+     * were given, the default is the answer. That is not an edge case: a DSL {@code range} on an integer column always
+     * arrives as an optionless {@code mv_in_range} with its bounds already made inclusive, and integer range bounds land
+     * on partition values constantly ({@code year >= 2025} over {@code year=2025}). With options present the answer is
+     * left unknown rather than parse them here.
+     * <p>
+     * Guessing instead would be wrong rather than loose: {@code NOT mv_greater(year, 2022)} is true for every row of a
+     * {@code year=2022} file because the bound is strict, and reading it as inclusive negates {@code 2022 >= 2022} to
+     * false and prunes that file.
+     */
+    private static Boolean onTheBound(Expression options, boolean defaultInclusive) {
+        return options == null ? defaultInclusive : null;
+    }
+
+    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. */
+    private static Boolean above(Object value, Object bound, Boolean onBound) {
+        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        return cmp > 0 ? Boolean.TRUE : cmp < 0 ? Boolean.FALSE : onBound;
+    }
+
+    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. */
+    private static Boolean below(Object value, Object bound, Boolean onBound) {
+        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        return cmp < 0 ? Boolean.TRUE : cmp > 0 ? Boolean.FALSE : onBound;
     }
 
     private static String extractColumnName(Expression expr) {

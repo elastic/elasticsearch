@@ -2051,6 +2051,11 @@ public class ExternalSourceResolver {
                 }
 
                 if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+                    // ReservedPartitionNames.surface renames a layout key that collides with the
+                    // dedicated metadata namespace, so a partition column can never carry a bindable
+                    // metadata name into the schema the analyzer later binds against.
+                    assert partitionNames.stream().noneMatch(ReservedPartitionNames::isReserved)
+                        : "a partition key still carries a reserved metadata name after ReservedPartitionNames.surface";
                     // No-double-warning invariant: shadowPartitionCollisions above already pruned any physical
                     // column that collides with a partition key (and emitted the one shadow warning), so the
                     // post-shadow schema must be collision-free before enrich runs its own shadow detection.

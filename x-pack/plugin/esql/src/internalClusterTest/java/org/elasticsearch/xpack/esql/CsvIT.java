@@ -145,7 +145,7 @@ public class CsvIT extends ESTestCase {
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
-    private static final Set<String> GROUPS_WITH_VIEWS = Set.of("views", "approximation", "unmapped-load");
+    private static final Set<String> GROUPS_WITH_VIEWS = Set.of("views", "approximation", "unmapped-load", "metadata-views-and-subqueries");
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;

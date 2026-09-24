@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -426,7 +427,8 @@ public final class ParallelParsingCoordinator {
             splitIsFileFinal,
             metrics,
             null,
-            ExternalReadCounters.NOOP
+            ExternalReadCounters.NOOP,
+            null
         );
     }
 
@@ -461,7 +463,8 @@ public final class ParallelParsingCoordinator {
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics,
         @Nullable Consumer<String> warningSink,
-        ExternalReadCounters readCounters
+        ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -502,6 +505,7 @@ public final class ParallelParsingCoordinator {
             .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
             .statsColumnScope(statsColumnScope)
             .informationalWarningSink(warningSink)
+            .readCounters(formatCounters)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -533,7 +537,8 @@ public final class ParallelParsingCoordinator {
             splitIsFileFinal,
             metrics,
             warningSink,
-            readCounters
+            readCounters,
+            formatCounters
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -702,6 +707,8 @@ public final class ParallelParsingCoordinator {
         @Nullable
         private final Consumer<String> warningSink;
         private final ExternalReadCounters readCounters;
+        @Nullable
+        private final FormatReadCounters formatCounters;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -762,7 +769,8 @@ public final class ParallelParsingCoordinator {
             boolean splitIsFileFinal,
             ExternalSourceMetrics metrics,
             @Nullable Consumer<String> warningSink,
-            ExternalReadCounters readCounters
+            ExternalReadCounters readCounters,
+            @Nullable FormatReadCounters formatCounters
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -780,6 +788,7 @@ public final class ParallelParsingCoordinator {
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.warningSink = warningSink;
             this.readCounters = readCounters;
+            this.formatCounters = formatCounters;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -907,6 +916,7 @@ public final class ParallelParsingCoordinator {
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
                 .informationalWarningSink(warningSink)
+                .readCounters(formatCounters)
                 .build();
 
             // Bind the consumer-owned sink on this worker so the reader's close hook (which publishes its

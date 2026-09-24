@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -86,6 +87,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PushbackInputStream;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -444,9 +446,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
-    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
-    // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
-    private final CsvReaderCounters counters;
     /**
      * Notices this reader can raise about its own {@code WITH} options (today one: {@code mode: escaped} with a
      * {@code quote} override, which switches the escaped decode off). They are known when the options are parsed, but
@@ -576,45 +575,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean declaredProvenanceBinding,
         List<String> configWarnings
     ) {
-        this(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            declaredProvenanceBinding,
-            null,
-            configWarnings
-        );
-    }
-
-    /**
-     * As above, but adopting an existing counters instance rather than starting fresh ones. Used by the per-file
-     * withers: the operator snapshots its status envelope from the factory's shared reader, so a per-file copy that
-     * started its own counters would accumulate where nobody reads, and the reported figures would be zero.
-     */
-    private CsvFormatReader(
-        BlockFactory blockFactory,
-        CsvFormatOptions options,
-        String format,
-        List<String> extensions,
-        List<Attribute> resolvedSchema,
-        int schemaSampleSize,
-        ErrorPolicy effectivePolicy,
-        String canonicalConfig,
-        String readConfig,
-        boolean directBlockEnabled,
-        Map<String, String> declaredDateFormats,
-        boolean declaredProvenanceBinding,
-        CsvReaderCounters sharedCounters,
-        List<String> configWarnings
-    ) {
         this.blockFactory = blockFactory;
         this.options = options;
         this.format = format;
@@ -627,7 +587,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredProvenanceBinding = declaredProvenanceBinding;
-        this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
         this.configWarnings = List.copyOf(configWarnings);
         this.sharedCsvMapper = createMapper(options);
     }
@@ -1222,9 +1181,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (newReadConfig == null || newReadConfig.equals(readConfig)) {
             return this;
         }
-        // Shares this reader's counters. The status envelope is snapshotted from the factory's shared reader, but
-        // this wither runs at the per-file seam, so the copy is the instance that actually reads. Starting fresh
-        // counters leaves the reported read time at zero for every query — telemetry goes quiet, not the data.
         return new CsvFormatReader(
             blockFactory,
             options,
@@ -1238,7 +1194,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            counters,
             configWarnings
         );
     }
@@ -1340,6 +1295,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // primary failure rather than replacing it.
         try (Closeable abortOnExit = () -> object.abortStream(stream)) {
             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
+            stripLeadingBomFromReader(reader);
             CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
                 reader,
                 options.quoteChar(),
@@ -1963,9 +1919,31 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean useRecordReaderPath = useBracketAware
             || rowPositionProjected
             || (useDirectBlock == false && jacksonGrammarApplies() == false);
+        // Strip a leading UTF-8 BOM between CountingInputStream and CsvRecordCappingInputStream so
+        // that: (a) CountingInputStream counts all N file bytes including the 3 BOM bytes, keeping
+        // byteCounter.getBytesRead() == N; (b) CsvRecordCappingInputStream never sees the BOM bytes,
+        // so a BufferedReader fill cannot trip the per-record cap before the first real record; and
+        // (c) after seeding recordReader.bytesRead() at 3, inferredEndOffset == splitStartByte +
+        // chunkBytes and the stripe-capture tripwire does not fire.
+        // For non-BOM files the probed bytes are restored via PushbackInputStream so the downstream
+        // parse receives the complete stream content. Only UTF-8 is handled: the BOM is exactly 3
+        // bytes (EF BB BF). Non-UTF-8 encodings either have no BOM or a different byte width.
+        int bomBytesConsumed = 0;
+        InputStream streamAfterBom = stream;
+        if (context.firstSplit() && StandardCharsets.UTF_8.name().equals(options.encoding().name())) {
+            byte[] probe = new byte[3];
+            int n = stream.readNBytes(probe, 0, 3);
+            if (n == 3 && (probe[0] & 0xFF) == 0xEF && (probe[1] & 0xFF) == 0xBB && (probe[2] & 0xFF) == 0xBF) {
+                bomBytesConsumed = 3;
+            } else if (n > 0) {
+                PushbackInputStream pb = new PushbackInputStream(stream, n);
+                pb.unread(probe, 0, n);
+                streamAfterBom = pb;
+            }
+        }
         InputStream capped = (useRecordReaderPath || useDirectBlock)
-            ? stream
-            : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
+            ? streamAfterBom
+            : new CsvRecordCappingInputStream(streamAfterBom, context.maxRecordBytes());
         BufferedReader reader = new BufferedReader(new InputStreamReader(capped, options.encoding()), READER_BUFFER_SIZE);
         CsvLogicalRecordReader recordReader = recordEscapeAware
             ? new CsvLogicalRecordReader(
@@ -1986,6 +1964,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.encoding(),
                 options.quoting()
             );
+        if (bomBytesConsumed > 0) {
+            recordReader.setInitialByteOffset(bomBytesConsumed);
+        }
         // Bulk read-ahead is safe when this reader owns the stream end to end: the direct-to-block
         // path, and the house per-record path (useRecordReaderPath). The Jackson bulk path skips the
         // header through this reader then resumes on the same underlying BufferedReader, so it must
@@ -2142,7 +2123,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cacheable ? stream : null,
             pinnedMtimeMillis,
             chunkMode,
-            counters,
+            context.readCounters() instanceof CsvReaderCounters c ? c : null,
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
@@ -2153,13 +2134,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
     }
 
-    /**
-     * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
-     * envelope. Zero-valued counters when no batches have run.
-     */
     @Override
-    public CsvReaderStatus statusSnapshot() {
-        return counters.snapshot();
+    public FormatReadCounters newReadCounters() {
+        return new CsvReaderCounters(format);
     }
 
     @Override
@@ -2596,7 +2573,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code escaped}) treats a quote as literal data, so the raw delimiter split is correct there.
      */
     private static String[] splitFieldsForOptions(String line, CsvFormatOptions options) {
-        // The header is the file's first line, so a UTF-8 BOM (Excel/Windows) lands on its first field.
+        // A BOM on a header line that is not the file's first character (e.g. after a comment block)
+        // is not removed at the stream level; strip it here before splitting into field names.
         line = stripLeadingBom(line);
         if (options.quoting()) {
             return splitHeaderQuoteAware(
@@ -2728,11 +2706,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private static final char BOM = '\uFEFF';
 
     /**
-     * Strips a leading byte-order mark from the first line of a file. Excel/Windows CSV exports prepend a
-     * UTF-8 BOM ({@code EF BB BF}); without this the BOM would otherwise prefix the first column name.
+     * Strips a leading UTF-8 byte-order mark from {@code line} if present. Called for any header line
+     * that may carry a BOM — either at the file's start (covered upstream by {@link
+     * #stripLeadingBomFromReader}) or on a header line further in (after comments).
      */
     private static String stripLeadingBom(String line) {
         return line != null && line.isEmpty() == false && line.charAt(0) == BOM ? line.substring(1) : line;
+    }
+
+    /**
+     * Reads and discards a leading UTF-8 byte-order mark from {@code reader} if one is present.
+     * The {@link InputStreamReader} has already decoded the stream, so only a decoded {@code U+FEFF}
+     * character is stripped — non-BOM bytes are always restored via {@link java.io.Reader#mark}/{@link
+     * java.io.Reader#reset}. Called from {@code readSchema}; the data-read path strips the BOM at
+     * byte level before {@link CsvRecordCappingInputStream} to avoid tripping the cap on a
+     * {@link BufferedReader} fill.
+     */
+    private static boolean stripLeadingBomFromReader(BufferedReader reader) throws IOException {
+        reader.mark(1);
+        int first = reader.read();
+        if (first == BOM) {
+            return true;
+        }
+        reader.reset();
+        return false;
     }
 
     /**
@@ -3481,7 +3478,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /** True for parallel-parsing chunks — close-time publish carries the partial-chunk marker. */
         private final boolean chunkMode;
 
-        // Reader-level counters shared across this iterator and any sibling segments.
+        @Nullable
         private final CsvReaderCounters counters;
 
         /** True when the direct-to-block plain (unquoted) path is eligible (decided once in {@link #read}). */
@@ -3690,8 +3687,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;
-                counters.addRowsEmitted(deltaTotal - deltaErrors);
-                counters.addParseErrors(deltaErrors);
+                if (counters != null) {
+                    counters.addRowsEmitted(deltaTotal - deltaErrors);
+                    counters.addParseErrors(deltaErrors);
+                }
             }
         }
 
@@ -4025,7 +4024,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (headerLine == null) {
                         return null;
                     }
-                    counters.markHeaderDetected();
+                    if (counters != null) {
+                        counters.markHeaderDetected();
+                    }
                     schema = parseSchema(headerLine);
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);

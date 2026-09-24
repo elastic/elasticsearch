@@ -69,7 +69,9 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     private static final String INDEX = "test_idx";
     private static final String SORT_FIELD = "sort_field";
     private static final String LARGE_LIST_SCRIPT = "build_large_list";
-    private static final int LARGE_LIST_ENTRIES = 5_000;
+    // Must exceed search.memory_accounting_buffer_size (1 MB minimum) per hit so that a
+    // single-hit search exercises the circuit-breaker check path in FetchPhase#nextDoc.
+    private static final int LARGE_LIST_ENTRIES = 30_000;
 
     private static final String FAIL_AFTER_FIRST_CALL_SCRIPT = "fail_after_first_call";
     private static final AtomicInteger FAIL_AFTER_FIRST_CALL_COUNT = new AtomicInteger(0);

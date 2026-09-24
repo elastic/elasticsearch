@@ -2260,10 +2260,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // multi-file paths, and correct once filter adaptation is extended to the batch path.
         List<String> cols = dataProjectedColumns();
         String firstObjectName = objectNameOf(splitRefs.get(0).object());
-        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) wrapForObject(
-            readerForMapping(null),
-            firstObjectName
-        );
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) wrapForObject(readerForMapping(null), firstObjectName);
         CloseableIterator<Page> pages = null;
         try {
             pages = rangeReader.readAll(splitRefs, cols, batchSize);

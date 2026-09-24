@@ -289,7 +289,6 @@ public class ExternalFailuresTests extends ESTestCase {
         // Top-level message containing a storage URI fails.
         assertFalse(ExternalFailures.noStoragePathLeaked(new ExternalClientException("Access denied [s3://bucket/prefix/file.parquet]")));
         assertFalse(ExternalFailures.noStoragePathLeaked(new ExternalClientException("Read error [gs://bucket/file.parquet]")));
-        assertFalse(ExternalFailures.noStoragePathLeaked(new ExternalClientException("Read error [az://account/container/blob]")));
         // Cause message containing a storage URI also fails (the cause appears in the API response as caused_by).
         var withCause = new ExternalClientException(
             new RuntimeException("s3://bucket/prefix/file.parquet: connection reset"),

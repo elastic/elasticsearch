@@ -1220,7 +1220,12 @@ public final class ParallelParsingCoordinator {
             }
         }
 
-        /** Unregisters the inner GET on close. Abort must use {@link #inner()}, not this filter. */
+        /**
+         * Unregisters the inner GET on close. Abort must use {@link #inner()}, not this filter.
+         * Only closes the inner stream when this close is the one that removes it from {@code liveStreams};
+         * if {@link #abortRegistered} already removed and aborted it concurrently, calling {@code super.close()}
+         * again would double-close the underlying stream.
+         */
         private final class LiveStream extends FilterInputStream {
             private final InputStream inner;
 
@@ -1235,8 +1240,10 @@ public final class ParallelParsingCoordinator {
 
             @Override
             public void close() throws IOException {
-                liveStreams.remove(inner);
-                super.close();
+                if (liveStreams.remove(inner) != null) {
+                    super.close();
+                }
+                // else: already removed + aborted by abortRegistered; inner was already closed there.
             }
         }
     }

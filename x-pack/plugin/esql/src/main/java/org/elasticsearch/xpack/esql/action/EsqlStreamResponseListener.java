@@ -25,6 +25,7 @@ import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -42,9 +43,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * and streams results as NDJSON to the HTTP client, one JSON line per logical unit:
  *   - First line: {@code {"columns":[...]}}
  *   - One line per page: {@code {"values":[[...],...]}}
- *   - Last line (success): {@code {"status":200,"took":N,"is_partial":false,"warnings":[...],"documents_found":N,...}}
+ *   - Last line (success): {@code {"status":200,"took":N,"is_partial":false,"warnings":[...],"documents_found":N,...,"_clusters":{...}}}
+ *     ({@code _clusters} is omitted unless there is CCS metadata to report)
  *   - Last line (failure after header): {@code {"status":N,"took":N,"is_partial":false,"warnings":[...],
- *     "error":{"type":"...","reason":"..."}}}
+ *     "_clusters":{...},"error":{"type":"...","reason":"..."}}}
  *   - On pre-header error: same terminal-record shape with an error HTTP status code on the response line itself
  *
  * <p>Each logical unit maps to one {@link ChunkedRestResponseBodyPart}. The columns, footer and error
@@ -134,9 +136,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 false,
                 List.of(),
                 null,
+                null,
                 e
             );
-            channel.sendResponse(RestResponse.chunked(status, new NdjsonFooterBodyPart(footer), this::release));
+            channel.sendResponse(RestResponse.chunked(status, new NdjsonFooterBodyPart(footer, channel.request()), this::release));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);
@@ -202,9 +205,17 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 Exception e = throwable instanceof Exception ex ? ex : new RuntimeException(throwable);
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
                 if (footer == null) {
-                    footer = new PageStreamPublisher.StreamFooter(ExceptionsHelper.status(e).getStatus(), 0L, false, List.of(), null, e);
+                    footer = new PageStreamPublisher.StreamFooter(
+                        ExceptionsHelper.status(e).getStatus(),
+                        0L,
+                        false,
+                        List.of(),
+                        null,
+                        null,
+                        e
+                    );
                 }
-                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
+                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer, channel.request());
                 ActionListener<ChunkedRestResponseBodyPart> next;
                 synchronized (continuationMonitor) {
                     next = nextBodyPartListener;
@@ -224,7 +235,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         public void onComplete() {
             if (terminalEmitted.compareAndSet(false, true)) {
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
-                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
+                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer, channel.request());
                 ActionListener<ChunkedRestResponseBodyPart> next;
                 synchronized (continuationMonitor) {
                     next = nextBodyPartListener;
@@ -451,10 +462,12 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
     private static class NdjsonFooterBodyPart implements ChunkedRestResponseBodyPart {
         private final PageStreamPublisher.StreamFooter footer;
+        private final ToXContent.Params params;
         private boolean encoded = false;
 
-        NdjsonFooterBodyPart(PageStreamPublisher.StreamFooter footer) {
+        NdjsonFooterBodyPart(PageStreamPublisher.StreamFooter footer, ToXContent.Params params) {
             this.footer = footer;
+            this.params = params;
         }
 
         @Override
@@ -491,6 +504,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                         builder.field("bytes_read", ci.bytesRead());
                         builder.field("read_nanos", ci.readNanos());
                         builder.field("cpu_nanos", ci.cpuNanos());
+                    }
+                    if (footer.clusters() != null) {
+                        builder.field("_clusters");
+                        footer.clusters().toXContent(builder, params);
                     }
                     if (footer.error() != null) {
                         builder.startObject("error");

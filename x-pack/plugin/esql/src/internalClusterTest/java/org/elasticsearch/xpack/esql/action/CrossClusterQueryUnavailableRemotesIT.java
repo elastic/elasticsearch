@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterTestCase {
 
@@ -397,6 +398,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
             assertNotNull("publisher footer must be set after the stream completes", footer);
             assertThat(footer.status(), equalTo(200));
             assertThat("is_partial must be true because the remote was skipped", footer.isPartial(), is(true));
+            assertThat("clusters payload must be non-null for a partial CCS stream", footer.clusters(), notNullValue());
 
         } finally {
             clearSkipUnavailable(numClusters);

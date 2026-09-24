@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -57,6 +58,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         boolean isPartial,
         List<String> warnings,
         DriverCompletionInfo completionInfo,
+        ToXContent clusters,
         Exception error
     ) {}
 
@@ -201,7 +203,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     }
 
     public void completeWithFooter(long tookMillis, List<String> warnings, boolean isPartial) {
-        completeWithFooter(new StreamFooter(200, tookMillis, isPartial, warnings, null, null));
+        completeWithFooter(new StreamFooter(200, tookMillis, isPartial, warnings, null, null, null));
     }
 
     public synchronized StreamFooter footer() {

@@ -25,6 +25,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.io.IOException;
@@ -146,10 +147,34 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         assertThat(List.of(indices), contains("my-index"));
     }
 
+    public void testSystemViewCannotBeUpdatedOrDeleted() {
+        String viewName = "system-view";
+        assertAcked(createView(viewName, "FROM some-index", null, true));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("cannot modify system view [" + viewName + "]"),
+            () -> createView(viewName, "FROM something-else")
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("cannot delete system view [" + viewName + "]"),
+            () -> client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
+    }
+
     private AcknowledgedResponse createView(String viewName, String query) {
+        return createView(viewName, query, null, false);
+    }
+
+    private AcknowledgedResponse createView(String viewName, String query, String description, boolean system) {
         return client().execute(
             PutViewAction.INSTANCE,
-            new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query))
+            new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query, description, system))
         ).actionGet(30, TimeUnit.SECONDS);
     }
 }

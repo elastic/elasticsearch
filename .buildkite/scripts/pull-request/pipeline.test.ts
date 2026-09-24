@@ -172,17 +172,4 @@ describe("generatePipelines", () => {
   test("should not include a pipeline when no changed file is in an included region", () => {
     expect(anyIncludedRegionPipeline(["build.gradle"])).toBeUndefined();
   });
-
-  const anyIncludedRegionPipeline = (changedFiles: string[]) =>
-    generatePipelines(`${import.meta.dirname}/mocks/pipelines`, changedFiles).find(
-      (pipeline) => pipeline.name === "any-included-region",
-    );
-
-  test("should include a pipeline when any changed file is in an included region", () => {
-    expect(anyIncludedRegionPipeline(["build.gradle", "x-pack/plugin/esql/build.gradle"])).toBeDefined();
-  });
-
-  test("should not include a pipeline when no changed file is in an included region", () => {
-    expect(anyIncludedRegionPipeline(["build.gradle"])).toBeUndefined();
-  });
 });

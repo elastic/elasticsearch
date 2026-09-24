@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
@@ -1308,7 +1309,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             Map<String, Object> settings = (Map<String, Object>) forIndex.get(section);
             if (settings != null && settings.get("index.columnar_codec.enabled") != null) {
-                return Boolean.parseBoolean(settings.get("index.columnar_codec.enabled").toString());
+                return Booleans.parseBoolean(settings.get("index.columnar_codec.enabled").toString());
             }
         }
         return false;

@@ -21,6 +21,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
@@ -1617,7 +1618,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     Map<?, ?> settings = (Map<?, ?>) ((Map<?, ?>) forIndex).get(section);
                     Object enabled = settings == null ? null : settings.get("index.columnar_codec.enabled");
                     if (enabled != null) {
-                        usesColumnarCodec |= Boolean.parseBoolean(enabled.toString());
+                        usesColumnarCodec |= Booleans.parseBoolean(enabled.toString());
                         break;
                     }
                 }

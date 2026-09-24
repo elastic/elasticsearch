@@ -60,6 +60,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
@@ -3378,6 +3379,126 @@ public class IngestServiceTests extends ESTestCase {
 
             IndexRequest indexRequest = new IndexRequest("rollover-data-stream");
             assertTrue(IngestService.isRolloverOnWrite(metadata.getProject(), indexRequest));
+        }
+    }
+
+    public void testRemoveEmptyObjects() {
+        {   // flat empty object is removed
+            Map<String, Object> source = new HashMap<>(Map.of("empty", new HashMap<>(), "kept", "value"));
+            IngestService.removeEmptyObjects(source);
+            assertThat(source, equalTo(Map.of("kept", "value")));
+        }
+
+        {   // nested empty object is removed bottom-up: inner prune makes outer empty, then outer is pruned too
+            Map<String, Object> inner = new HashMap<>();
+            Map<String, Object> outer = new HashMap<>(Map.of("syslog", inner));
+            Map<String, Object> source = new HashMap<>(Map.of("system", outer, "message", "hello"));
+            IngestService.removeEmptyObjects(source);
+            assertThat(source, equalTo(Map.of("message", "hello")));
+        }
+
+        {   // container with a surviving sibling is kept; only the empty child is removed
+            Map<String, Object> inner = new HashMap<>(Map.of("b", new HashMap<>(), "c", 1));
+            Map<String, Object> source = new HashMap<>(Map.of("a", inner));
+            IngestService.removeEmptyObjects(source);
+            assertThat(source, equalTo(Map.of("a", Map.of("c", 1))));
+        }
+
+        {   // lists are not modified (removing elements would change array semantics)
+            List<Object> list = new ArrayList<>(List.of(new HashMap<>(), "item"));
+            Map<String, Object> source = new HashMap<>(Map.of("arr", list));
+            IngestService.removeEmptyObjects(source);
+            assertThat(source.get("arr"), equalTo(List.of(new HashMap<>(), "item")));
+        }
+
+        {   // null values are left untouched (only empty Maps are removed)
+            Map<String, Object> source = new HashMap<>();
+            source.put("nullField", null);
+            source.put("kept", "value");
+            IngestService.removeEmptyObjects(source);
+            assertThat(source.size(), equalTo(2));
+            assertThat(source.get("nullField"), nullValue());
+            assertThat(source.get("kept"), equalTo("value"));
+        }
+
+        {   // already-empty source map stays empty
+            Map<String, Object> source = new HashMap<>();
+            IngestService.removeEmptyObjects(source);
+            assertThat(source.isEmpty(), equalTo(true));
+        }
+    }
+
+    public void testIsStrictColumnarTarget() {
+        {   // null index name → false
+            IndexRequest indexRequest = new IndexRequest((String) null);
+            assertFalse(IngestService.isStrictColumnarTarget(indexRequest, ProjectMetadata.builder(randomUniqueProjectId()).build()));
+        }
+
+        {   // plain concrete index with STANDARD mode → false
+            IndexMetadata indexMetadata = IndexMetadata.builder("idx")
+                .settings(settings(IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, false).build();
+            assertFalse(IngestService.isStrictColumnarTarget(new IndexRequest("idx"), project));
+        }
+
+        {   // concrete index with LOGSDB_COLUMNAR mode → true
+            var backingIndex = ".ds-logs-01";
+            var indexUUID = randomUUID();
+            IndexMetadata indexMetadata = IndexMetadata.builder(backingIndex)
+                .settings(
+                    settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+                        .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, false).build();
+            assertTrue(IngestService.isStrictColumnarTarget(new IndexRequest(backingIndex), project));
+        }
+
+        {   // data stream with LOGSDB_COLUMNAR write index → true
+            var backingIndex = ".ds-logs-columnar-01";
+            var indexUUID = randomUUID();
+            IndexMetadata writeIndexMeta = IndexMetadata.builder(backingIndex)
+                .settings(
+                    settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+                        .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            var dataStream = DataStream.builder(
+                "logs-columnar",
+                DataStream.DataStreamIndices.backingIndicesBuilder(List.of(new Index(backingIndex, indexUUID))).build()
+            ).build();
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).put(writeIndexMeta, false).put(dataStream).build();
+            assertTrue(IngestService.isStrictColumnarTarget(new IndexRequest("logs-columnar"), project));
+        }
+
+        {   // data stream with STANDARD write index → false
+            var backingIndex = ".ds-logs-standard-01";
+            var indexUUID = randomUUID();
+            IndexMetadata writeIndexMeta = IndexMetadata.builder(backingIndex)
+                .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            var dataStream = DataStream.builder(
+                "logs-standard",
+                DataStream.DataStreamIndices.backingIndicesBuilder(List.of(new Index(backingIndex, indexUUID))).build()
+            ).build();
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).put(writeIndexMeta, false).put(dataStream).build();
+            assertFalse(IngestService.isStrictColumnarTarget(new IndexRequest("logs-standard"), project));
+        }
+
+        {   // index not in project (no matching template) → false
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
+            assertFalse(IngestService.isStrictColumnarTarget(new IndexRequest("nonexistent"), project));
         }
     }
 

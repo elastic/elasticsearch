@@ -2907,6 +2907,11 @@ public class EsqlCapabilities {
         MMR_V2,
 
         /**
+         * Support for the GRAPH EXPAND command (snapshot / stage-4 visited-set walk).
+         */
+        GRAPH_EXPAND(Build.current().isSnapshot()),
+
+        /**
          * Supports the {@code URI_PARTS}) command.
          */
         URI_PARTS_COMMAND,

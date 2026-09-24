@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -125,6 +126,7 @@ public enum FeatureMetric {
     SUBQUERY(node -> node instanceof Subquery && !(node instanceof NamedSubquery)),
     VIEW(plan -> false), // Views are counted in EsqlSession.gatherViewMetrics, not via plan traversal
     MMR(MMR.class::isInstance),
+    GRAPH_EXPAND(GraphExpand.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance),
     METRICS_INFO(MetricsInfo.class::isInstance),

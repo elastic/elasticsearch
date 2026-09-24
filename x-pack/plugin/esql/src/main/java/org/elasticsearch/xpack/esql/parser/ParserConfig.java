@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 
 public abstract class ParserConfig extends Parser {
@@ -21,6 +22,17 @@ public abstract class ParserConfig extends Parser {
 
     boolean isDevVersion() {
         return config == null || config.isDevVersion();
+    }
+
+    /**
+     * True when lookahead is an unquoted identifier spelling {@code keyword}.
+     * Used by GRAPH EXPAND so STATS / SORT / UNTIL can follow a clause that
+     * already switched the lexer into {@code EXPRESSION_MODE}, where those
+     * words are not command tokens.
+     */
+    boolean isIdent(String keyword) {
+        Token t = _input.LT(1);
+        return t != null && keyword.equalsIgnoreCase(t.getText());
     }
 
     void setEsqlConfig(EsqlConfig config) {

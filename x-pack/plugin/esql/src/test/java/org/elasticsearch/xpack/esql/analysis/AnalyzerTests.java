@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -107,6 +109,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -6648,5 +6651,80 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     private TestAnalyzer multiFieldWithNested() {
         return analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
+    }
+
+    public void testGraphExpandResolvesEdgeIndexAndSeedColumn() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping)));
+        var plan = a.query(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"max_hops\": 3, \"direction\": \"out\" }"
+        );
+        // Output attributes differ from the seed child, so a Project may sit above Limit.
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertThat(graphExpand.edgeRelation(), instanceOf(EsRelation.class));
+        assertThat(((EsRelation) graphExpand.edgeRelation()).indexPattern(), equalTo("idx"));
+        assertTrue(graphExpand.seedColumn().resolved());
+        assertThat(graphExpand.seedColumn().name(), equalTo("node_id"));
+        assertTrue(graphExpand.matchField().resolved());
+        assertThat(graphExpand.matchField().name(), equalTo("id"));
+        assertTrue(graphExpand.targetFields().stream().allMatch(Attribute::resolved));
+        assertThat(graphExpand.targetFields().get(0).name(), equalTo("manager"));
+        assertThat(graphExpand.resultAttributes(), notNullValue());
+        assertThat(graphExpand.resultAttributes().stream().map(Attribute::name).toList(), equalTo(List.of("node_from", "node_to", "node_reached", "hop")));
+    }
+
+    public void testGraphExpandResolvesStatsAgainstEdgeIndex() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "source",
+            new EsField("source", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "target",
+            new EsField("target", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "weight",
+            new EsField("weight", INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "label",
+            new EsField("label", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("edges", IndexResolution.valid(EsIndexGenerator.esIndex("edges", mapping)));
+        var plan = a.query(
+            """
+                ROW node_id = "a"
+                | GRAPH EXPAND edges ON node_id == source TO target
+                    STATS weight = SUM(weight), edges = COUNT(*) BY label
+                    WITH { "max_hops": 2, "direction": "out" }
+                """
+        );
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        assertNotNull(graphExpand.aggregates());
+        assertThat(graphExpand.aggregates().size(), equalTo(2));
+        assertTrue(Resolvables.resolved(graphExpand.aggregates()));
+        assertTrue(Resolvables.resolved(graphExpand.groupings()));
+        assertThat(graphExpand.groupings().size(), equalTo(1));
+        assertThat(Expressions.attribute(graphExpand.groupings().get(0)).name(), equalTo("label"));
+        // Aggregates resolve against the edge relation (weight/label), not the seed ROW.
+        Alias weightAgg = as(graphExpand.aggregates().get(0), Alias.class);
+        assertThat(weightAgg.name(), equalTo("weight"));
+        assertThat(Alias.unwrap(weightAgg), instanceOf(Sum.class));
+        Sum sum = as(Alias.unwrap(weightAgg), Sum.class);
+        assertTrue(sum.field().resolved());
+        assertThat(((Attribute) sum.field()).name(), equalTo("weight"));
+        assertThat(
+            graphExpand.resultAttributes().stream().map(Attribute::name).toList(),
+            equalTo(List.of("node_from", "node_to", "node_reached", "hop", "weight", "edges", "label"))
+        );
     }
 }

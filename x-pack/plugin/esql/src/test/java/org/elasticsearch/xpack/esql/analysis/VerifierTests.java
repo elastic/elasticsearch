@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -4952,6 +4953,38 @@ public class VerifierTests extends AnalyzerTestCase {
         }
     }
 
+    public void testGraphExpandKnownOptionsVerify() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().query(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager "
+                + "WITH { \"max_hops\": 3, \"direction\": \"out\", \"max_frontier\": 100 }"
+        );
+    }
+
+    public void testGraphExpandUnknownWithKeyFails() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"unknown\": 1 }",
+            equalTo("1:21: Invalid option [unknown] in [GRAPH EXPAND idx ON node_id == id TO manager WITH { \"unknown\": 1 }]")
+        );
+    }
+
+    public void testGraphExpandInvalidDirectionFails() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"direction\": \"sideways\" }",
+            equalTo("1:21: GRAPH EXPAND direction must be one of [in, out, both], got [\"sideways\"]")
+        );
+    }
+
+    public void testGraphExpandCapOfZeroFails() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"max_hops\": 0 }",
+            equalTo("1:21: GRAPH EXPAND option [max_hops] must be an integer >= 1, got [0]")
+        );
+    }
+
     public void testTopSnippetsQueryFoldableAfterOptimization() {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
     }
@@ -5200,6 +5233,18 @@ public class VerifierTests extends AnalyzerTestCase {
 
     private TestAnalyzer defaultAnalyzer() {
         return analyzer().addDefaultIndex().stripErrorPrefix(true);
+    }
+
+    private TestAnalyzer graphExpandAnalyzer() {
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "mentor",
+            new EsField("mentor", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        return analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping))).stripErrorPrefix(true);
     }
 
     private TestAnalyzer analyzerWithLanguagesLookup() {

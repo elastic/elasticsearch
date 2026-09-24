@@ -997,6 +997,96 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDenseVectorLiteralInput(EsqlBaseParser.DenseVectorLiteralInputContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#graphExpandCommand}.
+   * @param ctx the parse tree
+   */
+  void enterGraphExpandCommand(EsqlBaseParser.GraphExpandCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#graphExpandCommand}.
+   * @param ctx the parse tree
+   */
+  void exitGraphExpandCommand(EsqlBaseParser.GraphExpandCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#graphExpandTargets}.
+   * @param ctx the parse tree
+   */
+  void enterGraphExpandTargets(EsqlBaseParser.GraphExpandTargetsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#graphExpandTargets}.
+   * @param ctx the parse tree
+   */
+  void exitGraphExpandTargets(EsqlBaseParser.GraphExpandTargetsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#graphExpandWhere}.
+   * @param ctx the parse tree
+   */
+  void enterGraphExpandWhere(EsqlBaseParser.GraphExpandWhereContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#graphExpandWhere}.
+   * @param ctx the parse tree
+   */
+  void exitGraphExpandWhere(EsqlBaseParser.GraphExpandWhereContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#graphExpandStats}.
+   * @param ctx the parse tree
+   */
+  void enterGraphExpandStats(EsqlBaseParser.GraphExpandStatsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#graphExpandStats}.
+   * @param ctx the parse tree
+   */
+  void exitGraphExpandStats(EsqlBaseParser.GraphExpandStatsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#graphExpandStatsKeyword}.
+   * @param ctx the parse tree
+   */
+  void enterGraphExpandStatsKeyword(EsqlBaseParser.GraphExpandStatsKeywordContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#graphExpandStatsKeyword}.
+   * @param ctx the parse tree
+   */
+  void exitGraphExpandStatsKeyword(EsqlBaseParser.GraphExpandStatsKeywordContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#graphExpandSort}.
+   * @param ctx the parse tree
+   */
+  void enterGraphExpandSort(EsqlBaseParser.GraphExpandSortContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#graphExpandSort}.
+   * @param ctx the parse tree
+   */
+  void exitGraphExpandSort(EsqlBaseParser.GraphExpandSortContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#graphExpandSortKeyword}.
+   * @param ctx the parse tree
+   */
+  void enterGraphExpandSortKeyword(EsqlBaseParser.GraphExpandSortKeywordContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#graphExpandSortKeyword}.
+   * @param ctx the parse tree
+   */
+  void exitGraphExpandSortKeyword(EsqlBaseParser.GraphExpandSortKeywordContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#graphExpandUntil}.
+   * @param ctx the parse tree
+   */
+  void enterGraphExpandUntil(EsqlBaseParser.GraphExpandUntilContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#graphExpandUntil}.
+   * @param ctx the parse tree
+   */
+  void exitGraphExpandUntil(EsqlBaseParser.GraphExpandUntilContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#graphExpandUntilKeyword}.
+   * @param ctx the parse tree
+   */
+  void enterGraphExpandUntilKeyword(EsqlBaseParser.GraphExpandUntilKeywordContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#graphExpandUntilKeyword}.
+   * @param ctx the parse tree
+   */
+  void exitGraphExpandUntilKeyword(EsqlBaseParser.GraphExpandUntilKeywordContext ctx);
+  /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -2166,6 +2167,72 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
 
         return input -> new MMR(source, input, diversifyField, limitValue, queryVector, options);
+    }
+
+    @Override
+    public PlanFactory visitGraphExpandCommand(EsqlBaseParser.GraphExpandCommandContext ctx) {
+        Source source = source(ctx);
+
+        IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(List.of(ctx.index)));
+        // Edge index as UnresolvedRelation — Analyzer resolves it to EsRelation like FROM.
+        UnresolvedRelation edgeRelation = new UnresolvedRelation(
+            source,
+            indexPattern,
+            false,
+            List.of(),
+            IndexMode.STANDARD,
+            null
+        );
+        Attribute seedColumn = visitQualifiedName(ctx.seedColumn);
+        Attribute matchField = visitQualifiedName(ctx.matchField);
+
+        List<Attribute> targetFields = ctx.graphExpandTargets()
+            .qualifiedName()
+            .stream()
+            .map(this::visitQualifiedName)
+            .map(Attribute.class::cast)
+            .toList();
+
+        Expression documentFilter = ctx.docFilter != null ? expression(ctx.docFilter.booleanExpression()) : null;
+
+        List<? extends NamedExpression> aggregates = null;
+        List<Expression> groupings = null;
+        if (ctx.graphExpandStats() != null) {
+            var statsCtx = ctx.graphExpandStats();
+            aggregates = statsCtx.stats != null ? visitAggFields(statsCtx.stats) : List.of();
+            groupings = statsCtx.grouping != null
+                ? new ArrayList<Expression>(visitGrouping(statsCtx.grouping))
+                : List.of();
+        }
+
+        Expression aggregateFilter = ctx.aggFilter != null ? expression(ctx.aggFilter.booleanExpression()) : null;
+
+        List<Order> sorts = null;
+        if (ctx.graphExpandSort() != null) {
+            sorts = visitList(this, ctx.graphExpandSort().orderExpression(), Order.class);
+        }
+
+        Expression until = ctx.graphExpandUntil() != null ? expression(ctx.graphExpandUntil().booleanExpression()) : null;
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+
+        List<? extends NamedExpression> finalAggregates = aggregates;
+        List<Expression> finalGroupings = groupings;
+        List<Order> finalSorts = sorts;
+        return input -> new GraphExpand(
+            source,
+            input,
+            edgeRelation,
+            seedColumn,
+            matchField,
+            targetFields,
+            documentFilter,
+            finalAggregates,
+            finalGroupings,
+            aggregateFilter,
+            finalSorts,
+            until,
+            options
+        );
     }
 
     private Expression visitMMRQueryVector(EsqlBaseParser.MmrQueryVectorParamsContext ctx) {

@@ -605,6 +605,60 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitDenseVectorLiteralInput(EsqlBaseParser.DenseVectorLiteralInputContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#graphExpandCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGraphExpandCommand(EsqlBaseParser.GraphExpandCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#graphExpandTargets}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGraphExpandTargets(EsqlBaseParser.GraphExpandTargetsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#graphExpandWhere}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGraphExpandWhere(EsqlBaseParser.GraphExpandWhereContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#graphExpandStats}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGraphExpandStats(EsqlBaseParser.GraphExpandStatsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#graphExpandStatsKeyword}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGraphExpandStatsKeyword(EsqlBaseParser.GraphExpandStatsKeywordContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#graphExpandSort}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGraphExpandSort(EsqlBaseParser.GraphExpandSortContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#graphExpandSortKeyword}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGraphExpandSortKeyword(EsqlBaseParser.GraphExpandSortKeywordContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#graphExpandUntil}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGraphExpandUntil(EsqlBaseParser.GraphExpandUntilContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#graphExpandUntilKeyword}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGraphExpandUntilKeyword(EsqlBaseParser.GraphExpandUntilKeywordContext ctx);
+  /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

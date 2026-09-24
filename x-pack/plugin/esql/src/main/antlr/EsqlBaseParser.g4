@@ -83,6 +83,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? denseVectorCommand
+    | {this.isDevVersion()}? graphExpandCommand
     ;
 
 whereCommand
@@ -449,4 +450,56 @@ denseVectorNaming
     : targetField=qualifiedName ASSIGN                      # denseVectorTargetName
     | suffixKeyword=identifier ASSIGN suffix=string ON      # denseVectorSuffix
     | (targetField=qualifiedName ASSIGN)? literalInput=string  # denseVectorLiteralInput
+    ;
+
+// GRAPH EXPAND — clause order is fixed (WHERE may appear twice: documents, then aggregates).
+// WITH reuses commandNamedParameters (brace map). Pair form WITH key = value does not parse.
+graphExpandCommand
+    : DEV_GRAPH EXPAND index=indexPattern
+      ON seedColumn=qualifiedName EQ matchField=qualifiedName
+      TO graphExpandTargets
+      docFilter=graphExpandWhere?
+      graphExpandStats?
+      aggFilter=graphExpandWhere?
+      graphExpandSort?
+      graphExpandUntil?
+      commandNamedParameters
+    ;
+
+graphExpandTargets
+    : qualifiedName
+    | LP qualifiedName (COMMA qualifiedName)* RP
+    ;
+
+graphExpandWhere
+    : WHERE booleanExpression
+    ;
+
+graphExpandStats
+    : graphExpandStatsKeyword stats=aggFields? (BY grouping=fields)?
+    ;
+
+// STATS token when the clause opens GRAPH_EXPAND_MODE; identifier "stats" when a prior
+// clause already moved the lexer into EXPRESSION_MODE (WHERE/STATS/SORT/UNTIL/WITH).
+graphExpandStatsKeyword
+    : STATS
+    | {this.isIdent("stats")}? UNQUOTED_IDENTIFIER
+    ;
+
+graphExpandSort
+    : graphExpandSortKeyword orderExpression (COMMA orderExpression)*
+    ;
+
+graphExpandSortKeyword
+    : SORT
+    | {this.isIdent("sort")}? UNQUOTED_IDENTIFIER
+    ;
+
+graphExpandUntil
+    : graphExpandUntilKeyword booleanExpression
+    ;
+
+graphExpandUntilKeyword
+    : UNTIL
+    | {this.isIdent("until")}? UNQUOTED_IDENTIFIER
     ;

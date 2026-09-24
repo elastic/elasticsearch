@@ -161,6 +161,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -1233,6 +1234,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
+                case GraphExpand ge -> resolveGraphExpand(ge, childrenOutput, context);
                 case DenseVector e -> resolveDenseVector(e, childrenOutput);
                 default -> resolveExpressions(plan, childrenOutput);
             };
@@ -2742,6 +2744,201 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return resolved;
+        }
+
+        /**
+         * Resolves {@link GraphExpand}: edge index → {@link EsRelation} (same shape as
+         * {@link ResolveTable}), seed column against the child output, match/TO fields
+         * and STATS aggregates/groupings against the edge index output.
+         */
+        private LogicalPlan resolveGraphExpand(GraphExpand ge, List<Attribute> childrenOutput, AnalyzerContext context) {
+            LogicalPlan edgeRelation = ge.edgeRelation();
+            if (edgeRelation instanceof UnresolvedRelation ur) {
+                IndexResolution indexResolution = context.indexResolution().get(ur.indexPattern());
+                edgeRelation = resolveEdgeIndex(ur, indexResolution);
+            }
+
+            List<Attribute> edgeOutput = edgeRelation.output();
+
+            Attribute seedColumn = ge.seedColumn();
+            if (seedColumn instanceof UnresolvedAttribute ua) {
+                seedColumn = maybeResolveAttribute(ua, childrenOutput);
+            }
+
+            Attribute matchField = ge.matchField();
+            if (matchField instanceof UnresolvedAttribute ua) {
+                matchField = maybeResolveAttribute(ua, edgeOutput);
+            }
+
+            List<Attribute> targetFields = ge.targetFields();
+            boolean targetsChanged = false;
+            if (Resolvables.resolved(targetFields) == false) {
+                List<Attribute> resolvedTargets = new ArrayList<>(targetFields.size());
+                for (Attribute target : targetFields) {
+                    if (target instanceof UnresolvedAttribute ua) {
+                        Attribute resolved = maybeResolveAttribute(ua, edgeOutput);
+                        resolvedTargets.add(resolved);
+                        targetsChanged |= resolved != target;
+                    } else {
+                        resolvedTargets.add(target);
+                    }
+                }
+                if (targetsChanged) {
+                    targetFields = resolvedTargets;
+                }
+            }
+
+            List<? extends NamedExpression> aggregates = ge.aggregates();
+            List<Expression> groupings = ge.groupings();
+            boolean statsChanged = false;
+            if (edgeRelation.resolved() && aggregates != null) {
+                List<? extends NamedExpression> resolvedAggs = resolveGraphExpandAggregates(aggregates, edgeOutput);
+                List<Expression> resolvedGroups = resolveGraphExpandGroupings(groupings, edgeOutput);
+                statsChanged = resolvedAggs != aggregates || resolvedGroups != groupings;
+                aggregates = resolvedAggs;
+                groupings = resolvedGroups;
+            }
+
+            boolean needResultAttributes = ge.resultAttributes() == null
+                || statsChanged
+                || (ge.resultAttributes() != null
+                    && aggregates != null
+                    && ge.resultAttributes().size() == 4
+                    && (aggregates.isEmpty() == false || (groupings != null && groupings.isEmpty() == false)));
+
+            if (edgeRelation != ge.edgeRelation()
+                || seedColumn != ge.seedColumn()
+                || matchField != ge.matchField()
+                || targetsChanged
+                || statsChanged
+                || needResultAttributes) {
+                List<Attribute> resultAttributes = ge.resultAttributes();
+                if (Resolvables.resolved(targetFields)
+                    && targetFields.isEmpty() == false
+                    && (aggregates == null || Resolvables.resolved(aggregates))
+                    && (groupings == null || Resolvables.resolved(groupings))) {
+                    resultAttributes = org.elasticsearch.xpack.esql.session.GraphExpandDriver.buildResultAttributes(
+                        ge.source(),
+                        targetFields.get(0).dataType(),
+                        aggregates,
+                        groupings
+                    );
+                } else if (resultAttributes == null && Resolvables.resolved(targetFields) && targetFields.isEmpty() == false) {
+                    resultAttributes = org.elasticsearch.xpack.esql.session.GraphExpandDriver.buildResultAttributes(
+                        ge.source(),
+                        targetFields.get(0).dataType()
+                    );
+                }
+                return new GraphExpand(
+                    ge.source(),
+                    ge.child(),
+                    edgeRelation,
+                    seedColumn,
+                    matchField,
+                    targetFields,
+                    ge.documentFilter(),
+                    aggregates,
+                    groupings,
+                    ge.aggregateFilter(),
+                    ge.sorts(),
+                    ge.until(),
+                    ge.options(),
+                    resultAttributes
+                );
+            }
+            return ge;
+        }
+
+        /**
+         * Resolves STATS aggregate expressions against the edge index output. A bare field
+         * (resolved {@link Attribute} that is not already an aggregate) is sugar for
+         * {@code VALUES(field)} — ordinary ES|QL STATS rejects that form, so GRAPH EXPAND
+         * applies the wrap here once attributes resolve.
+         */
+        private List<? extends NamedExpression> resolveGraphExpandAggregates(
+            List<? extends NamedExpression> aggregates,
+            List<Attribute> edgeOutput
+        ) {
+            if (Resolvables.resolved(aggregates)) {
+                return wrapBareFieldsAsValues(aggregates);
+            }
+            List<NamedExpression> resolved = new ArrayList<>(aggregates.size());
+            boolean changed = false;
+            for (NamedExpression aggregate : aggregates) {
+                NamedExpression next = (NamedExpression) aggregate.transformUp(
+                    UnresolvedAttribute.class,
+                    ua -> maybeResolveAttribute(ua, edgeOutput)
+                );
+                changed |= next != aggregate;
+                resolved.add(next);
+            }
+            List<? extends NamedExpression> wrapped = wrapBareFieldsAsValues(resolved);
+            return changed || wrapped != resolved ? wrapped : aggregates;
+        }
+
+        private static List<? extends NamedExpression> wrapBareFieldsAsValues(List<? extends NamedExpression> aggregates) {
+            List<NamedExpression> wrapped = null;
+            for (int i = 0; i < aggregates.size(); i++) {
+                NamedExpression aggregate = aggregates.get(i);
+                if (aggregate instanceof Alias alias) {
+                    Expression child = alias.child();
+                    // Already VALUES(field) or any other aggregate — do not wrap again.
+                    if (child instanceof Attribute && (child instanceof AggregateFunction) == false) {
+                        if (wrapped == null) {
+                            wrapped = new ArrayList<>(aggregates);
+                        }
+                        wrapped.set(i, alias.replaceChild(new Values(child.source(), child)));
+                    }
+                }
+            }
+            return wrapped != null ? wrapped : aggregates;
+        }
+
+        private List<Expression> resolveGraphExpandGroupings(List<Expression> groupings, List<Attribute> edgeOutput) {
+            if (groupings == null || Resolvables.resolved(groupings)) {
+                return groupings;
+            }
+            List<Expression> resolved = new ArrayList<>(groupings.size());
+            boolean changed = false;
+            for (Expression grouping : groupings) {
+                Expression next = grouping.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, edgeOutput));
+                changed |= next != grouping;
+                resolved.add(next);
+            }
+            return changed ? resolved : groupings;
+        }
+
+        /**
+         * Turns an edge-index {@link UnresolvedRelation} into an {@link EsRelation},
+         * mirroring {@link ResolveTable#resolveIndex} without metadata fields.
+         */
+        private static LogicalPlan resolveEdgeIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
+            if (indexResolution == null || indexResolution.isValid() == false) {
+                String indexResolutionMessage = indexResolution == null ? "[none specified]" : indexResolution.toString();
+                return plan.unresolvedMessage().equals(indexResolutionMessage)
+                    ? plan
+                    : new UnresolvedRelation(
+                        plan.source(),
+                        plan.indexPattern(),
+                        plan.frozen(),
+                        plan.metadataFields(),
+                        plan.indexMode(),
+                        indexResolutionMessage,
+                        plan.telemetryLabel()
+                    );
+            }
+
+            EsIndex esIndex = indexResolution.get();
+            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            return new EsRelation(
+                plan.source(),
+                esIndex.name(),
+                plan.indexMode(),
+                esIndex.originalIndices(),
+                esIndex.concreteIndices(),
+                esIndex.indexProperties(),
+                attributes.isEmpty() ? NO_FIELDS : attributes
+            );
         }
 
         private static final List<DataType> GEO_TYPES = List.of(GEO_POINT, GEO_SHAPE);

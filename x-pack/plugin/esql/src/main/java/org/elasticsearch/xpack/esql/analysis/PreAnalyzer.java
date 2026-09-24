@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -100,6 +101,12 @@ public class PreAnalyzer {
                         "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
                     );
                 }
+            }
+        });
+        // GRAPH EXPAND's edge UnresolvedRelation is a field, not a child — collect it explicitly.
+        plan.forEachUp(GraphExpand.class, ge -> {
+            if (ge.edgeRelation() instanceof UnresolvedRelation ur && ur.indexMode() != IndexMode.LOOKUP) {
+                indexes.putIfAbsent(ur.indexPattern(), ur.indexMode());
             }
         });
         List<LookupIndexPattern> lookupIndices = new ArrayList<>();

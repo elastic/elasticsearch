@@ -13,6 +13,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.BlockRuns;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
@@ -45,6 +46,8 @@ public final class NumericColumnReader {
     private final int blockMask;
 
     private long cachedBlock = -1;
+    /** The block whose bytes {@link #blockBuffer} holds, which a run of repeats all share. */
+    private long cachedSource = -1;
 
     public NumericColumnReader(NumericColumnMetadata meta, IndexInput data) throws IOException {
         this.meta = meta;
@@ -142,14 +145,19 @@ public final class NumericColumnReader {
         if (block == cachedBlock) {
             return;
         }
-        long blockStart = valuesOffset + blockOffsets.get(block);
-        long blockEnd = valuesOffset + blockOffsets.get(block + 1);
-        data.seek(blockStart);
-        int length = (int) (blockEnd - blockStart);
-        DataInput blockData = blockBytesCodec.read(data, length);
-        // Full blocks hold blockSize values; the last block holds the remainder.
-        int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
-        encoder.decode(blockData, valueCount, blockBuffer);
+        final long source = BlockRuns.source(blockOffsets, block);
+        if (source != cachedSource) {
+            long blockStart = valuesOffset + blockOffsets.get(source);
+            long blockEnd = valuesOffset + blockOffsets.get(source + 1);
+            data.seek(blockStart);
+            int length = (int) (blockEnd - blockStart);
+            DataInput blockData = blockBytesCodec.read(data, length);
+            // Full blocks hold blockSize values; the last block holds the remainder. The count is the
+            // source block's, which is a full one: only the last block is short, and nothing repeats it.
+            int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - source * meta.blockSize());
+            encoder.decode(blockData, valueCount, blockBuffer);
+            cachedSource = source;
+        }
         cachedBlock = block;
     }
 

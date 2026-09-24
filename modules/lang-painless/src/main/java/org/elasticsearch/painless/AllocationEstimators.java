@@ -51,6 +51,12 @@ public final class AllocationEstimators {
     /** Element count assumed for a {@code String.join} over an iterable that cannot be sized without consuming it. */
     private static final long UNKNOWN_ELEMENT_COUNT = 16;
 
+    /** One {@code HashMap.Node}: header, hash {@code int}, and references to the key, the value and the next node. */
+    private static final long HASH_MAP_NODE_BYTES = 40;
+
+    /** One {@code LinkedHashMap.Entry}: a {@code HashMap.Node} plus the before and after references. */
+    private static final long LINKED_HASH_MAP_ENTRY_BYTES = 56;
+
     /**
      * Heap cost of a freshly allocated {@link String} holding {@code chars} UTF-16 characters: the {@code String} object plus
      * its backing array, {@link AllocSizes#STRING_CONCAT_RESULT_OVERHEAD} for the fixed part plus 2 bytes per char. A negative
@@ -113,12 +119,12 @@ public final class AllocationEstimators {
 
     /**
      * Cost of copying a {@link java.util.Map} into a new hash-based map ({@code new HashMap(m)}, {@code new LinkedHashMap(m)}):
-     * the map shell plus a table entry per source mapping. Conservative per-entry cost covers both {@code HashMap.Node} and the
-     * slightly larger {@code LinkedHashMap.Entry}.
+     * the map shell plus a table entry per source mapping. The per-entry cost is the larger {@code LinkedHashMap.Entry} so it
+     * covers both map types.
      */
     public static long mapCopyBytes(java.util.Map<?, ?> source) {
         long size = source == null ? 0 : source.size();
-        return 64 + AllocSizes.mulSat(size, 56);
+        return 64 + AllocSizes.mulSat(size, LINKED_HASH_MAP_ENTRY_BYTES);
     }
 
     /**
@@ -127,7 +133,7 @@ public final class AllocationEstimators {
      */
     public static long setCopyBytes(Collection<?> source) {
         long size = source == null ? 0 : source.size();
-        return 88 + AllocSizes.mulSat(size, 56);
+        return 88 + AllocSizes.mulSat(size, LINKED_HASH_MAP_ENTRY_BYTES);
     }
 
     /** Cost of copying a {@link Collection} into a {@code new LinkedList(c)}: the list shell plus one node per element. */
@@ -577,6 +583,19 @@ public final class AllocationEstimators {
         return ARRAY_LIST_SHELL_BYTES;
     }
 
+    /**
+     * Heap size of a list literal {@code [a, b, c]} holding {@code count} elements, read at compile time by the emitter for
+     * {@code visitListInitialization}. A list literal always builds an {@code ArrayList} and fills it with {@code add} (see
+     * {@code DefaultSemanticAnalysisPhase#visitListInit}, which hard-codes the type), so the cost is the list shell plus the
+     * backing array the adds grow to, never below {@code ArrayList}'s default capacity of ten. Arrays discarded while growing
+     * are not charged. An empty literal is charged a backing array it never allocates, which over-counts in the same
+     * direction as everything else here.
+     */
+    public static long listLiteralBytes(int count) {
+        long capacity = Math.max(10, count);
+        return AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(capacity, AllocSizes.REFERENCE_SIZE));
+    }
+
     /** {@code new java.util.BitSet()}: shell plus the default single-word backing array. */
     public static long bitSetShellBytes() {
         return 56;
@@ -585,6 +604,29 @@ public final class AllocationEstimators {
     /** {@code new java.util.HashMap()}: shell only; the table is created lazily on first put. */
     public static long hashMapShellBytes() {
         return 64;
+    }
+
+    /**
+     * Heap size of a map literal {@code ['k': v]} holding {@code count} entries, read at compile time by the emitter for
+     * {@code visitMapInitialization}. A map literal always builds a {@code HashMap} and fills it with {@code put} (see
+     * {@code DefaultSemanticAnalysisPhase#visitMapInit}, which hard-codes the type), so the cost is the map shell, the table
+     * the puts grow to, and one {@code HashMap.Node} per entry. Tables discarded while growing are not charged. An empty
+     * literal is charged a table it never allocates.
+     */
+    public static long mapLiteralBytes(int count) {
+        // A HashMap creates a 16-slot table on the first put and resizes once its size passes three quarters of the table,
+        // so double until the entries fit without another resize.
+        long table = 16;
+
+        while (table * 3 / 4 < count) {
+            table <<= 1;
+        }
+
+        long contents = AllocSizes.addSat(
+            AllocSizes.arrayBytes(table, AllocSizes.REFERENCE_SIZE),
+            AllocSizes.mulSat(count, HASH_MAP_NODE_BYTES)
+        );
+        return AllocSizes.addSat(hashMapShellBytes(), contents);
     }
 
     /** {@code new java.util.HashSet()}: set shell plus the backing {@link java.util.HashMap} shell. */

@@ -1380,10 +1380,15 @@ public class ComputeService {
         });
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
-            if (streamPublisher == null || streamPublisher.rowsPublished() == 0) {
-                failIfAllShardsFailed(execInfo, collectedPages);
+            // A non-null sink means this executePlan is one FORK / UNION ALL / FROM-subquery branch. Skip the query-wide all-targets check
+            // and markEndQuery; the root merge listener runs both after every branch has reported.
+            if (exchangeSinkSupplier == null) {
+                // Streaming does not collect pages; treat already-published rows as a successful result.
+                if (streamPublisher == null || streamPublisher.rowsPublished() == 0) {
+                    failIfAllShardsFailed(execInfo, collectedPages);
+                }
+                execInfo.markEndQuery();
             }
-            execInfo.markEndQuery();
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
         }))) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
@@ -1454,15 +1459,19 @@ public class ComputeService {
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
-                                execInfo.swapCluster(
-                                    LOCAL_CLUSTER,
-                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
-                                        .setSuccessfulShards(r.getSuccessfulShards())
-                                        .setSkippedShards(r.getSkippedShards())
-                                        .setFailedShards(r.getFailedShards())
-                                        .addFailures(r.failures)
-                                        .build()
-                                );
+                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
+                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v);
+                                    applyShardCounts(
+                                        builder,
+                                        v,
+                                        r.getTotalShards(),
+                                        r.getSuccessfulShards(),
+                                        r.getSkippedShards(),
+                                        r.getFailedShards(),
+                                        exchangeSinkSupplier != null
+                                    );
+                                    return builder.addFailures(r.failures).build();
+                                });
                                 dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
                                 if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
@@ -1508,6 +1517,7 @@ public class ComputeService {
                         cluster,
                         cancelQueryOnFailure,
                         execInfo,
+                        exchangeSinkSupplier != null,
                         computeListener.acquireCompute().delegateResponse((l, ex) -> {
                             /*
                              * At various points, when collecting failures before sending a response, we manually check
@@ -1630,6 +1640,37 @@ public class ComputeService {
                 });
             }
         }
+    }
+
+    /**
+     * Adds {@code incoming} shard counts onto {@code existing} when {@code accumulate} is true (FORK / UNION ALL / FROM-subquery branches
+     * sharing one {@link EsqlExecutionInfo}); otherwise replaces them. Merge branches must add so the query-wide
+     * {@link #failIfAllShardsFailed} sees every branch's targets, not the last writer.
+     */
+    static void applyShardCounts(
+        EsqlExecutionInfo.Cluster.Builder builder,
+        EsqlExecutionInfo.Cluster existing,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        int failedShards,
+        boolean accumulate
+    ) {
+        if (accumulate) {
+            builder.setTotalShards(zeroIfNull(existing.getTotalShards()) + totalShards)
+                .setSuccessfulShards(zeroIfNull(existing.getSuccessfulShards()) + successfulShards)
+                .setSkippedShards(zeroIfNull(existing.getSkippedShards()) + skippedShards)
+                .setFailedShards(zeroIfNull(existing.getFailedShards()) + failedShards);
+        } else {
+            builder.setTotalShards(totalShards)
+                .setSuccessfulShards(successfulShards)
+                .setSkippedShards(skippedShards)
+                .setFailedShards(failedShards);
+        }
+    }
+
+    private static int zeroIfNull(Integer value) {
+        return value == null ? 0 : value;
     }
 
     /**

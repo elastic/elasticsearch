@@ -136,6 +136,10 @@ final class SubPlansExecutor {
         this.rootPlanTimeProfile = planTimeProfile;
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         final ActionListener<DriverCompletionInfo> outerListener = ActionListener.wrap(info -> {
+            // For a plan with merge branches this must run only after the root merge has combined every branch's shard
+            // accounting, not at the end of each leaf executePlan, which shares the same EsqlExecutionInfo and would
+            // otherwise treat the first all-failed leaf as "all query targets failed".
+            ComputeService.failIfAllShardsFailed(execInfo, collectedPages);
             execInfo.markEndQuery();
             listener.onResponse(new Result(rootPlan.plan().output(), collectedPages, null, configuration, info, execInfo, null));
         }, e -> {

@@ -406,6 +406,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private long twoPhaseRowGroupsAllFiltered;
 
     /** Reader-level counters shared with the owning {@link ParquetFormatReader}. */
+    @Nullable
     private final ParquetReaderCounters counters;
 
     OptimizedParquetColumnIterator(
@@ -430,7 +431,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ParquetMetadata fullFooter,
         DynamicThreshold dynamicThreshold,
         ColumnDescriptor sortColumnDescriptor,
-        ParquetReaderCounters counters,
+        @Nullable ParquetReaderCounters counters,
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink,
         @Nullable SharedErrorBudget sharedErrorBudget
@@ -2633,7 +2634,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             : nextStandard(rowsToRead, firstRowOfBatchInRG);
         int droppedRows = useLateMaterialization == false && rowDropHelper != null ? rowDropHelper.failedCount() : 0;
         try {
-            listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
+            listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
         } catch (RuntimeException e) {
             result.releaseBlocks();
             throw e;
@@ -2813,7 +2814,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // or close().
             rowsRemainingInGroup = 0;
         }
-        counters.addRowsEmitted(emitCount);
+        if (counters != null) {
+            counters.addRowsEmitted(emitCount);
+        }
         return new Page(blocks);
     }
 
@@ -2946,7 +2949,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + "]"
             );
         }
-        counters.addRowsEmitted(producedRows);
+        if (counters != null) {
+            counters.addRowsEmitted(producedRows);
+        }
         return new Page(blocks);
     }
 
@@ -3038,7 +3043,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
             }
 
-            counters.addRowsEmitted(survivorCount);
+            if (counters != null) {
+                counters.addRowsEmitted(survivorCount);
+            }
             return new Page(blocks);
         } catch (CircuitBreakingException e) {
             ParquetReadFailures.closePreservingCause(e, blocks);
@@ -3188,9 +3195,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return null;
         }
         if (coercionWarnings == null) {
-            String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "their entire row is dropped" : "they are returned as null";
+            String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
             coercionWarnings = new SkipWarnings(
-                "Parquet file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
                 warningSink
             );
         }

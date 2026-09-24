@@ -11,15 +11,30 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Header;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.find;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.mapFinite;
 
 /**
  * Base class representing a PromQL vector selector.
@@ -100,5 +115,44 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException("should not serialize");
+    }
+
+    /** Translates a selector (instant, range, or literal); label matchers lower to a pending filter predicate. */
+    @Override
+    public IntermediateResult translate(TranslationContext context) {
+        LogicalPlan input = context.cmd().child();
+        LogicalPlan foldedPlan = PromqlLogicalPlanBuilder.tryFoldRelation(context.cmd(), input);
+        Expression matcher = labelMatchers().predicate(source(), labels(), context.configuration());
+
+        if (this instanceof LiteralSelector literalSelector) {
+            Expression literal = literalSelector.literal();
+            if (foldedPlan != null) {
+                // a compile-time relation carries its own step column
+                Attribute foldedStep = find(foldedPlan.output(), context.cmd().stepColumnName());
+                return new IntermediateResult(foldedPlan, Header.EMPTY, literal, foldedStep, matcher, Kind.CONSTANT);
+            }
+            return new IntermediateResult(input, Header.EMPTY, literal, context.stepAttr(), matcher);
+        }
+        if (foldedPlan != null) {
+            var empty = new LocalRelation(
+                context.cmd().source(),
+                List.of(context.cmd().valueAttribute(), context.cmd().stepAttribute()),
+                EmptyLocalSupplier.EMPTY
+            );
+            return new IntermediateResult(empty, Header.EMPTY, Literal.NULL, context.cmd().stepAttribute(), null, Kind.CONSTANT);
+        }
+
+        // An instant selector maps to LastOverTime to get the latest sample per time series.
+        Expression expr = this instanceof InstantSelector
+            ? new LastOverTime(source(), series(), AggregateFunction.NO_WINDOW, context.time())
+            : series();
+        List<Attribute> dimensions = input.output()
+            .stream()
+            .filter(attribute -> attribute instanceof FieldAttribute field && field.isDimension())
+            .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
+            .toList();
+        // Expose only required labels that exist on the relation. Consumers null-fill any required label that is absent.
+        Header header = context.required().project(mapFinite(dimensions));
+        return new IntermediateResult(input, header, expr, context.stepAttr(), matcher);
     }
 }

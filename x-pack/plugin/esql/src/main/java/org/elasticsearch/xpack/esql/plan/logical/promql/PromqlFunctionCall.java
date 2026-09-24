@@ -11,18 +11,25 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 
@@ -143,5 +150,26 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     @Override
     public final PromqlDataType returnType() {
         return functionType().outputType;
+    }
+
+    /** Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value. */
+    @Override
+    public IntermediateResult translate(TranslationContext context) {
+        IntermediateResult child = context.translate(child());
+        if (child.kind().constant) {
+            return child;
+        }
+        Expression window = AggregateFunction.NO_WINDOW;
+        if (child() instanceof RangeSelector rangeSelector) {
+            window = isImplicitRangePlaceholder(rangeSelector.range()) ? context.cmd().resolveImplicitRangeWindow() : rangeSelector.range();
+        }
+        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration());
+        return context.eval(child, buildEsqlFunction(child.value(), promqlCtx));
+    }
+
+    private static boolean isImplicitRangePlaceholder(Expression range) {
+        return range.foldable()
+            && range.fold(FoldContext.small()) instanceof Duration duration
+            && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
     }
 }

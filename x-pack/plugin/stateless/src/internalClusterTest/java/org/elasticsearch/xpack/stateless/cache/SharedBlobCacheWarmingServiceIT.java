@@ -1007,19 +1007,27 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             }
         });
 
-        // Only arm the stall once the commit registration succeeds. A registration can fail with a retryable error (e.g. the indexing
-        // node has not yet applied the cluster state that assigns the search shard), in which case the search node retries it and we
-        // must not stall the retry's getConnection: that would fail the recovery before warming even starts.
+        // Only arm the stall once the commit registration succeeds. A registration can fail with a retryable error,
+        // in which case the search node retries it, and we must not stall the retry's getConnection.
+        // Note that ShardNotFoundException is a valid (and retriable) response to the RegisterCommitForRecovery call,
+        // because the clusterStateVersion in the request comes from a clusterService.state() call,
+        // which might observe the previous cluster state, because RegisterCommitForRecovery is triggered for shard recoveries
+        // (on the generic thread pool), which are triggered from cluster state appliers,
+        // which themselves see the applied state before it's exposed to clusterService.state().
         MockTransportService.getInstance(indexNode)
             .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
                 handler.messageReceived(
                     request,
-                    new TestTransportChannel(new ChannelActionListener<TransportResponse>(channel).delegateFailure((l, response) -> {
-                        if (stoppedLatch.getCount() > 0) {
-                            shouldDelayGetConnection.set(true);
-                        }
-                        l.onResponse(response);
-                    })),
+                    new TestTransportChannel(
+                        new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, response) -> {
+                            if (stoppedLatch.getCount() > 0) {
+                                shouldDelayGetConnection.set(true);
+                            }
+                            l.onResponse(response);
+                        }).delegateResponse((l, exception) -> {
+                            logger.error("--> encountered unexpected exception during recovery commit registration", exception);
+                        })
+                    ),
                     task
                 );
             });

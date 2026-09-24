@@ -79,7 +79,7 @@ public final class DocumentParser {
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
         DocumentSource sourceObject = source.source();
-        if (sourceObject.isEmpty()) {
+        if (sourceObject.hasContent() == false) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;

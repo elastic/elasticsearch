@@ -563,7 +563,7 @@ public final class IndexOperationBatch {
     public Engine.Index toIndexOp(int i) {
         final int absIdx = abs(i);
         final String routing = routings != null && routings[absIdx] != null ? routings[absIdx].utf8ToString() : null;
-        // TODO: The SourceToParse using a size of 0 makes estimated sizes off in index listeners.
+        // TODO: BytesSource.EMPTY reports a size of 0, which makes estimated sizes off in index listeners.
         // We will eventually replace those listeners with batch calls.
         final ParsedDocument doc = new ParsedDocument(null, null, ids[absIdx], routing, List.of(), BytesSource.EMPTY, null, 0);
         return new Engine.Index(

@@ -17,31 +17,41 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 /**
- * A document's {@code _source} in whichever representation its producer already holds: the raw
- * x-content bytes that arrived on the request ({@link BytesSource}), or one row of a column-major
- * batch ({@link RowSource}).
+ * Gives the mapping layer one view of a document's {@code _source}, in whichever form its producer
+ * already holds it: the x-content bytes that arrived on the request ({@link BytesSource}), or one
+ * row of a column-major batch ({@link RowSource}).
  *
- * <p>Both representations answer the same questions, so the mapping layer and the indexing chain
- * work against this interface and stay agnostic of which one they were handed. Keeping the set
- * closed makes "a source has exactly one representation" a property of the type, rather than an
- * invariant each reader re-establishes by testing fields for absence.
+ * <p>Answers the same questions for both forms, so the mapping layer and the indexing chain work
+ * against this interface whichever form they were handed. Seals the set of implementations, so every
+ * source is exactly one of the two.
  *
- * <p>Implementations describe the source of a single document. A batch of documents is a
- * {@link org.elasticsearch.sourcebatch.SourceBatch}, from which each {@link RowSource} borrows one
- * row.
+ * <p>Describes the source of a single document. A batch of documents is a
+ * {@link org.elasticsearch.sourcebatch.SourceBatch}, and each {@link RowSource} borrows one of its
+ * rows.
  */
 // TODO: Eventually will want to combine this with our other source abstractions IndexSource, etc.
 public sealed interface DocumentSource permits BytesSource, RowSource {
 
+    /**
+     * Names the x-content type in which {@link #originalBytes()} expresses this document.
+     */
     XContentType xContentType();
 
-    boolean isEmpty();
+    /**
+     * Reports whether this source carries any x-content to parse. A document with no fields, such
+     * as {@code {}}, carries content; a source that arrived as zero bytes carries none. Matches the
+     * meaning of {@link org.elasticsearch.rest.RestRequest#hasContent()} at the ingest boundary,
+     * and differs from {@link org.elasticsearch.sourcebatch.SourceRow#isEmpty()}, which reports a
+     * row with no field values.
+     */
+    boolean hasContent();
 
     /**
-     * A cheap stand-in for this document's serialized size, for accounting that must not pay to
-     * materialize the x-content bytes. Byte-backed sources report their exact length; row-backed
-     * sources report the row's variable-length payload, which counts neither fixed-width values nor
-     * values held entirely in column metadata, and so reports zero for a row of only booleans.
+     * Returns a stand-in for this document's serialized size, computed without materializing the
+     * x-content bytes. Byte-backed sources report their exact length. Row-backed sources report the
+     * size of the row's encoded values, which can sit far from the serialized size, down to zero for
+     * a document that carries content, and take time proportional to the number of columns in the
+     * batch's schema. Use {@link #hasContent()} to tell whether there is anything to parse.
      */
     int estimatedSizeInBytes();
 
@@ -51,8 +61,8 @@ public sealed interface DocumentSource permits BytesSource, RowSource {
     XContentParser parser(XContentParserConfiguration configuration) throws IOException;
 
     /**
-     * The document as x-content bytes in {@link #xContentType()}. Row-backed sources serialize on
-     * the first call and cache the result, so prefer {@link #parser} or
+     * Returns the document as x-content bytes in {@link #xContentType()}. Row-backed sources serialize
+     * on the first call and cache the result, so prefer {@link #parser} or
      * {@link #estimatedSizeInBytes} where either will do.
      */
     BytesReference originalBytes();

@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A {@link DocumentSource} backed by the x-content bytes the producer received.
+ * Holds a document as the x-content bytes its producer received.
  *
  * @param originalBytes       the document, normalized to an array-backed {@link BytesReference}
  * @param xContentType        the x-content type of {@code originalBytes}
@@ -29,10 +29,10 @@ import java.util.Objects;
 public record BytesSource(BytesReference originalBytes, XContentType xContentType, boolean includeSourceOnError) implements DocumentSource {
 
     /**
-     * A stand-in for a document whose source travels separately from it. Readers see an empty
-     * document rather than a missing one, so size accounting reports zero instead of failing.
+     * Stands in for a document whose source travels separately from it, carrying no content and
+     * reporting a size of zero.
      */
-    public static final BytesSource EMPTY = new BytesSource(BytesArray.EMPTY, XContentType.JSON);
+    public static final BytesSource EMPTY = new BytesSource(BytesArray.EMPTY, XContentType.JSON, false);
 
     public BytesSource {
         Objects.requireNonNull(originalBytes);
@@ -42,13 +42,9 @@ public record BytesSource(BytesReference originalBytes, XContentType xContentTyp
         originalBytes = originalBytes.hasArray() ? originalBytes : new BytesArray(originalBytes.toBytesRef());
     }
 
-    public BytesSource(BytesReference originalBytes, XContentType xContentType) {
-        this(originalBytes, xContentType, false);
-    }
-
     @Override
-    public boolean isEmpty() {
-        return originalBytes.length() == 0;
+    public boolean hasContent() {
+        return originalBytes.length() > 0;
     }
 
     @Override

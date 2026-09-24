@@ -18,6 +18,12 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Describes one document for {@link DocumentMapper#parse(SourceToParse)} to parse: its source, in
+ * either {@link DocumentSource} form, plus the request metadata parsing needs — id, routing, dynamic
+ * template choices, the metering decorator, and the time-series id when the coordinating node
+ * computed one during routing.
+ */
 public class SourceToParse {
 
     private final String id;

@@ -23,9 +23,12 @@ import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
- * A {@link DocumentSource} backed by one row of a column-major batch, together with the schema tree
- * that every row in that batch shares. Reading the document walks the schema and pulls values
- * straight out of the row, so the x-content bytes exist only once a caller asks for them.
+ * Holds a document as one row of a column-major batch, together with the schema tree that every row
+ * of that batch shares, so batch indexing reads documents straight out of the batch. Parsing walks
+ * the schema and pulls values from the row, and the x-content bytes exist only once a caller asks
+ * for them.
+ *
+ * <p>Borrows the row: it reads from the batch's buffers, so it stays valid while the batch stays open.
  */
 public final class RowSource implements DocumentSource {
 
@@ -34,6 +37,10 @@ public final class RowSource implements DocumentSource {
     private final XContentType xContentType;
     private BytesReference materializedBytes;
 
+    /**
+     * Wraps {@code row} for reading through {@code schemaTree}, which must be built from the schema of
+     * the batch {@code row} belongs to, since the tree addresses that batch's columns by index.
+     */
     public RowSource(SourceRowXContentParser.SchemaNode schemaTree, SourceRow row, XContentType xContentType) {
         this.schemaTree = Objects.requireNonNull(schemaTree);
         this.row = Objects.requireNonNull(row);
@@ -45,9 +52,13 @@ public final class RowSource implements DocumentSource {
         return xContentType;
     }
 
+    /**
+     * Returns {@code true}: the encoder produces a row only from a top-level object, so every row
+     * stands for a document that arrived with content, including one with no fields.
+     */
     @Override
-    public boolean isEmpty() {
-        return row.isEmpty();
+    public boolean hasContent() {
+        return true;
     }
 
     @Override
@@ -56,6 +67,10 @@ public final class RowSource implements DocumentSource {
         return row.sizeInBytes();
     }
 
+    /**
+     * Streams every field of the row as is; {@code configuration}, including its filtering and
+     * include-source-on-error setting, leaves the output unchanged.
+     */
     @Override
     public XContentParser parser(XContentParserConfiguration configuration) {
         // TODO: batch row parsing does not currently support XContentParserConfiguration or includeSourceOnError. Need to evaluate

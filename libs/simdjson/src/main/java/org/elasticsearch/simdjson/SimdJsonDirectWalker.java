@@ -154,8 +154,14 @@ public final class SimdJsonDirectWalker {
                     throw new JsonParsingException("Expected field name or '}' but got '" + (char) buffer[keyIdx] + "'");
                 }
 
-                String fieldName = resolveFieldName(buffer, keyIdx);
-                consumeToCloseQuote(buffer, bi);
+                int keyEnd = bi.getAndAdvance();
+                String fieldName;
+                if (buffer[keyEnd] == '"') {
+                    fieldName = resolveFieldName(buffer, keyIdx + 1, keyEnd - keyIdx - 1);
+                } else {
+                    skipEscapesToCloseQuote(buffer, bi);
+                    fieldName = resolveEscapedFieldName(buffer, keyIdx, keyIdx + 1);
+                }
 
                 int colonIdx = bi.getAndAdvance();
                 if (buffer[colonIdx] != ':') {
@@ -873,55 +879,29 @@ public final class SimdJsonDirectWalker {
     // Field name resolution
     // ------------------------------------------------------------------
 
-    private static final long QUOTE_XOR = 0x2222222222222222L;
-    private static final long BACKSLASH_XOR = 0x5C5C5C5C5C5C5C5CL;
-    private static final long LO_BITS = 0x0101010101010101L;
-    private static final long HI_BITS = 0x8080808080808080L;
     private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
-    private String resolveFieldName(byte[] buffer, int quoteIdx) {
-        int start = quoteIdx + 1;
-        int pos = start;
-        int loopBound = buffer.length - 8;
+    /** Longest field name whose hash can be taken from a single 8-byte word; see FieldNameHash#hashWord. */
+    private static final int WORD_HASH_MAX_LEN = 8;
 
-        if (pos <= loopBound) {
-            long word = (long) LONG_LE.get(buffer, pos);
-            long xq = word ^ QUOTE_XOR;
-            long xb = word ^ BACKSLASH_XOR;
-            long qh = (xq - LO_BITS) & ~xq & HI_BITS;
-            long bh = (xb - LO_BITS) & ~xb & HI_BITS;
-
-            if ((qh | bh) != 0) {
-                if (bh != 0 && (qh == 0 || (Long.numberOfTrailingZeros(bh) <= Long.numberOfTrailingZeros(qh)))) {
-                    return resolveEscapedFieldName(buffer, quoteIdx, start);
-                }
-                int len = Long.numberOfTrailingZeros(qh) >>> 3;
-                int h = FieldNameHash.hashWord(word, len);
-                long pfx = FieldNameHash.maskWord(word, len);
-                String s = nameCache.lookup(buffer, start, len, h, pfx);
-                return s != null ? s : nameCache.insert(buffer, start, len, h);
-            }
-            pos = start + 8;
-            while (pos <= loopBound) {
-                word = (long) LONG_LE.get(buffer, pos);
-                xq = word ^ QUOTE_XOR;
-                xb = word ^ BACKSLASH_XOR;
-                qh = (xq - LO_BITS) & ~xq & HI_BITS;
-                bh = (xb - LO_BITS) & ~xb & HI_BITS;
-
-                if ((qh | bh) != 0) {
-                    if (bh != 0 && (qh == 0 || (Long.numberOfTrailingZeros(bh) <= Long.numberOfTrailingZeros(qh)))) {
-                        return resolveEscapedFieldName(buffer, quoteIdx, start);
-                    }
-                    int len = (pos - start) + (Long.numberOfTrailingZeros(qh) >>> 3);
-                    int h = FieldNameHash.hashName(buffer, start, len);
-                    String s = nameCache.lookup(buffer, start, len, h);
-                    return s != null ? s : nameCache.insert(buffer, start, len, h);
-                }
-                pos += 8;
-            }
+    /**
+     * Resolves an escape-free field name of known extent to its interned {@link String}.
+     *
+     * <p>The length comes from the structural index (the key's closing quote), so unlike the
+     * scan this replaced, no search for the closing quote is needed: names up to
+     * {@link #WORD_HASH_MAX_LEN} bytes are hashed straight out of a single 8-byte load.
+     */
+    private String resolveFieldName(byte[] buffer, int start, int len) {
+        if (len <= WORD_HASH_MAX_LEN && start <= buffer.length - Long.BYTES) {
+            long word = (long) LONG_LE.get(buffer, start);
+            int h = FieldNameHash.hashWord(word, len);
+            long pfx = FieldNameHash.maskWord(word, len);
+            String s = nameCache.lookup(buffer, start, len, h, pfx);
+            return s != null ? s : nameCache.insert(buffer, start, len, h);
         }
-        return resolveFieldNameScalar(buffer, quoteIdx, start, pos);
+        int h = FieldNameHash.hashName(buffer, start, len);
+        String s = nameCache.lookup(buffer, start, len, h);
+        return s != null ? s : nameCache.insert(buffer, start, len, h);
     }
 
     /** Handles field names containing backslash escapes. */
@@ -938,22 +918,6 @@ public final class SimdJsonDirectWalker {
     }
 
     /** Byte-at-a-time fallback when the field name is near the end of the buffer. */
-    private String resolveFieldNameScalar(byte[] buffer, int quoteIdx, int start, int pos) {
-        while (true) {
-            byte b = buffer[pos];
-            if (b == '"') {
-                int len = pos - start;
-                int h = FieldNameHash.hashName(buffer, start, len);
-                String s = nameCache.lookup(buffer, start, len, h);
-                return s != null ? s : nameCache.insert(buffer, start, len, h);
-            }
-            if (b == '\\') {
-                return resolveEscapedFieldName(buffer, quoteIdx, start);
-            }
-            pos++;
-        }
-    }
-
     // ------------------------------------------------------------------
     // String helpers
     // ------------------------------------------------------------------
@@ -972,15 +936,6 @@ public final class SimdJsonDirectWalker {
             idx = bi.getAndAdvance();
         } while (buffer[idx] != '"');
         return idx;
-    }
-
-    /**
-     * Consumes all index entries belonging to the string that has just opened, returning the offset
-     * of its closing quote.
-     */
-    private static int consumeToCloseQuote(byte[] buffer, BitIndexes bi) {
-        int idx = bi.getAndAdvance();
-        return buffer[idx] == '"' ? idx : skipEscapesToCloseQuote(buffer, bi);
     }
 
     private byte[] ensureStringBuf(int minLen) {

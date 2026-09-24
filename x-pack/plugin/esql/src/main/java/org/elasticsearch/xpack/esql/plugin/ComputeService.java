@@ -563,7 +563,8 @@ public class ComputeService {
         // LocalMapper lowers each one to a physical ExternalSourceExec. Splits already attached to a
         // top-level ExternalSourceExec were accounted for by discoverSplits, so only the fragment path
         // needs to record scan stats here. On that top-level path the phase already swapped any
-        // exhaustively-pruned ExternalSourceExec to FileList.EMPTY, so the plan is returned unchanged here.
+        // exhaustively-pruned ExternalSourceExec to FileList.EMPTY. A non-empty split list is the read
+        // path, so the resolved fileList and schemaMap are dropped after the splits have been copied.
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
@@ -583,6 +584,8 @@ public class ComputeService {
                 return new CollectedSplits(rewritten, splits);
             }
             // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
+        } else {
+            plan = dropCopiedListingState(plan);
         }
         return new CollectedSplits(plan, splits);
     }
@@ -601,7 +604,7 @@ public class ComputeService {
         List<ExternalSplit> splits = new ArrayList<>();
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty() == false) {
-            listener.onResponse(new CollectedSplits(plan, splits));
+            listener.onResponse(new CollectedSplits(dropCopiedListingState(plan), splits));
             return;
         }
         if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
@@ -751,15 +754,29 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled
     ) {
+        return discoverSplitsFromFragments(plan, splits, maxRecordBytes, execInfo, isCancelled, operatorFactoryRegistry);
+    }
+
+    /**
+     * Fragment-path discovery. Package-visible so tests can run it without a full {@link ComputeService}.
+     */
+    static PhysicalPlan discoverSplitsFromFragments(
+        PhysicalPlan plan,
+        List<ExternalSplit> splits,
+        int maxRecordBytes,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled,
+        OperatorFactoryRegistry operatorFactoryRegistry
+    ) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
         return plan.transformDown(FragmentExec.class, fragment -> {
-            // Relations whose coordinator-side discovery pruned every file. Their fragment must be rewritten to read
-            // FileList.EMPTY so the operator scans nothing; a downstream row filter still runs, so the answer (0 rows)
-            // is unchanged. Identity is stable because guardedRelations returns the relation instances living in the
-            // fragment tree, so the transformDown below can swap them by reference.
-            List<ExternalRelation> exhaustivelyPruned = new ArrayList<>();
+            // Relations whose listing the coordinator must drop before execution. An exhaustive prune (fileList
+            // swapped to FileList.EMPTY, no splits) scans nothing. A non-empty split list was copied above and stays
+            // the read path. Both drop fileList and schemaMap. Identity is stable because guardedRelations returns
+            // the relation instances living in the fragment tree, so the transformDown below can swap them by reference.
+            List<ExternalRelation> dropListing = new ArrayList<>();
             // Each relation is discovered with the Filter conjuncts that guard it inside the fragment. Lowering a
             // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
             // recovered before the lowering or partition pruning never sees the predicate at all.
@@ -773,27 +790,19 @@ public class ComputeService {
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
-                    // The phase swaps an exhaustively-pruned source's fileList to FileList.EMPTY (its authoritative,
-                    // row-count-safe verdict). Detect that swap by identity and propagate it into the fragment's logical
-                    // relation so coordinator-local execution reads nothing; a downstream row filter still runs, so the
-                    // answer (0 rows) is unchanged.
-                    if (withSplits.fileList() == FileList.EMPTY) {
-                        exhaustivelyPruned.add(guarded.relation());
+                    // FileList.EMPTY is the phase's exhaustive-prune verdict: no splits, scan nothing. A non-empty
+                    // split list is the other verdict: splits were copied above. Neither leaves the listing map
+                    // on the coordinator. A no-split result that is not a prune keeps the original list.
+                    if (withSplits.fileList() == FileList.EMPTY || withSplits.splits().isEmpty() == false) {
+                        dropListing.add(guarded.relation());
                     }
                 }
                 recordExternalScanStats(execInfo, result);
             }
-            if (exhaustivelyPruned.isEmpty()) {
+            LogicalPlan rewrittenFragment = rewriteFragmentListing(fragment.fragment(), dropListing);
+            if (rewrittenFragment == fragment.fragment()) {
                 return fragment;
             }
-            LogicalPlan rewrittenFragment = fragment.fragment().transformDown(ExternalRelation.class, relation -> {
-                for (ExternalRelation pruned : exhaustivelyPruned) {
-                    if (relation == pruned) {
-                        return relation.withFileList(FileList.EMPTY);
-                    }
-                }
-                return relation;
-            });
             return fragment.withFragment(rewrittenFragment);
         });
     }
@@ -825,18 +834,18 @@ public class ComputeService {
             listener.onResponse(plan);
             return;
         }
-        Map<FragmentExec, List<ExternalRelation>> pruned = new IdentityHashMap<>();
+        Map<FragmentExec, List<ExternalRelation>> dropListing = new IdentityHashMap<>();
         Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
         discoverFragmentWork(
             workItems,
             0,
             splits,
-            pruned,
+            dropListing,
             maxRecordBytes,
             execInfo,
             isCancelled,
             ioExecutor,
-            ActionListener.wrap(ignored -> listener.onResponse(rewritePrunedFragments(plan, pruned)), listener::onFailure)
+            ActionListener.wrap(ignored -> listener.onResponse(rewritePrunedFragments(plan, dropListing)), listener::onFailure)
         );
     }
 
@@ -844,7 +853,7 @@ public class ComputeService {
         List<FragmentWork> workItems,
         int index,
         List<ExternalSplit> splits,
-        Map<FragmentExec, List<ExternalRelation>> pruned,
+        Map<FragmentExec, List<ExternalRelation>> dropListing,
         int maxRecordBytes,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
@@ -867,8 +876,8 @@ public class ComputeService {
                 try {
                     if (result.plan() instanceof ExternalSourceExec withSplits) {
                         splits.addAll(withSplits.splits());
-                        if (withSplits.fileList() == FileList.EMPTY) {
-                            pruned.computeIfAbsent(work.fragment(), k -> new ArrayList<>()).add(work.guarded().relation());
+                        if (withSplits.fileList() == FileList.EMPTY || withSplits.splits().isEmpty() == false) {
+                            dropListing.computeIfAbsent(work.fragment(), k -> new ArrayList<>()).add(work.guarded().relation());
                         }
                     }
                     recordExternalScanStats(execInfo, result);
@@ -880,7 +889,7 @@ public class ComputeService {
                     workItems,
                     index + 1,
                     splits,
-                    pruned,
+                    dropListing,
                     maxRecordBytes,
                     execInfo,
                     isCancelled,
@@ -896,25 +905,58 @@ public class ComputeService {
         );
     }
 
-    private static PhysicalPlan rewritePrunedFragments(PhysicalPlan plan, Map<FragmentExec, List<ExternalRelation>> pruned) {
-        if (pruned.isEmpty()) {
+    private static PhysicalPlan rewritePrunedFragments(PhysicalPlan plan, Map<FragmentExec, List<ExternalRelation>> dropListing) {
+        if (dropListing.isEmpty()) {
             return plan;
         }
         return plan.transformDown(FragmentExec.class, fragment -> {
-            List<ExternalRelation> exhaustivelyPruned = pruned.get(fragment);
-            if (exhaustivelyPruned == null || exhaustivelyPruned.isEmpty()) {
+            List<ExternalRelation> relations = dropListing.getOrDefault(fragment, List.of());
+            LogicalPlan rewrittenFragment = rewriteFragmentListing(fragment.fragment(), relations);
+            if (rewrittenFragment == fragment.fragment()) {
                 return fragment;
             }
-            LogicalPlan rewrittenFragment = fragment.fragment().transformDown(ExternalRelation.class, relation -> {
-                for (ExternalRelation prunedRelation : exhaustivelyPruned) {
-                    if (relation == prunedRelation) {
-                        return relation.withFileList(FileList.EMPTY);
-                    }
-                }
-                return relation;
-            });
             return fragment.withFragment(rewrittenFragment);
         });
+    }
+
+    /**
+     * Drops coordinator listing state once splits have been copied off an {@link ExternalSourceExec}.
+     * The split list stays, so this is not an exhaustive prune.
+     */
+    static PhysicalPlan dropCopiedListingState(PhysicalPlan plan) {
+        return plan.transformDown(ExternalSourceExec.class, exec -> {
+            if (exec.splits().isEmpty()) {
+                return exec;
+            }
+            return exec.withFileList(FileList.EMPTY).withSchemaMap(Map.of());
+        });
+    }
+
+    /**
+     * Drops {@code fileList} and {@code schemaMap} on relations whose listing is no longer the read path.
+     * An exhaustive prune has no splits, so the operator scans nothing. A relation whose splits were copied
+     * onto the slice queue keeps those splits. No-split results that were not pruned are absent from
+     * {@code dropListing} and keep the original list.
+     */
+    private static LogicalPlan rewriteFragmentListing(LogicalPlan fragment, List<ExternalRelation> dropListing) {
+        if (dropListing.isEmpty()) {
+            return fragment;
+        }
+        return fragment.transformDown(ExternalRelation.class, relation -> {
+            if (sameRelation(dropListing, relation)) {
+                return relation.withFileList(FileList.EMPTY).withSchemaMap(Map.of());
+            }
+            return relation;
+        });
+    }
+
+    private static boolean sameRelation(List<ExternalRelation> relations, ExternalRelation relation) {
+        for (ExternalRelation candidate : relations) {
+            if (candidate == relation) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int maxRecordBytes(Configuration configuration) {

@@ -30,8 +30,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
      * The units a string column's streams are written in: what a block addresses, and what closes a chunk of
      * the streams that are compressed.
      *
-     * @param valuesPerBlock              values behind one offset in a stream of byte values, which a read
-     *                                    of one value walks the lengths of
+     * @param valuesPerBlock              values a read takes as one unit: one span of a plain column's bytes,
+     *                                    or the values behind one offset in a stream of byte values
      * @param plainChunks                 what closes a chunk of a plain column's values
      * @param escapeChunks                what closes a chunk of the values no term names
      * @param packedOrdinalBlockSize      ordinals a block holds when they are stored packed
@@ -40,6 +40,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
      *                                    ordinals a read counts to learn how many values escaped before one
      * @param slotCountsBlockSize         documents a block of slot counts holds, and so how many of them a
      *                                    read sums to reach a document outside the block it last read
+     * @param lengthBlockSize             lengths a block of a plain column's lengths holds, and so how many
+     *                                    of them a read sums to place a value; no smaller than valuesPerBlock
      */
     public record Sizes(
         int valuesPerBlock,
@@ -48,7 +50,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
         int packedOrdinalBlockSize,
         int compressedOrdinalBlockSize,
         int escapeRankBlockSize,
-        int slotCountsBlockSize
+        int slotCountsBlockSize,
+        int lengthBlockSize
     ) {
 
         public Sizes {
@@ -57,6 +60,13 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
             blockSize("compressedOrdinalBlockSize", compressedOrdinalBlockSize);
             blockSize("escapeRankBlockSize", escapeRankBlockSize);
             blockSize("slotCountsBlockSize", slotCountsBlockSize);
+            blockSize("lengthBlockSize", lengthBlockSize);
+            if (valuesPerBlock > lengthBlockSize) {
+                // A block of values is placed by the block of lengths it falls in.
+                throw new IllegalArgumentException(
+                    "valuesPerBlock [" + valuesPerBlock + "] must not exceed lengthBlockSize [" + lengthBlockSize + "]"
+                );
+            }
             if (plainChunks == null || escapeChunks == null) {
                 throw new IllegalArgumentException("chunk bounds are required");
             }
@@ -90,8 +100,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
     public static final DictionaryPolicy DEFAULT_DICTIONARY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
 
     /**
-     * Values behind one offset in a stream of byte values. Larger trades a longer walk on random access for
-     * a smaller offset table.
+     * Values a read takes as one unit. Larger trades more bytes read on random access for fewer, larger
+     * reads on a scan.
      */
     public static final int DEFAULT_VALUES_PER_BLOCK = 128;
 
@@ -146,6 +156,9 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
      */
     public static final int DEFAULT_SLOT_COUNTS_BLOCK_SIZE = 128;
 
+    /** Lengths a block of a plain column's length column holds; reaching one value decodes its block. */
+    public static final int DEFAULT_LENGTH_BLOCK_SIZE = 128;
+
     public static final Sizes DEFAULT_SIZES = new Sizes(
         DEFAULT_VALUES_PER_BLOCK,
         DEFAULT_PLAIN_CHUNKS,
@@ -153,7 +166,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, SummaryPolicy sum
         DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
         DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
         DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
-        DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+        DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+        DEFAULT_LENGTH_BLOCK_SIZE
     );
 
     /**

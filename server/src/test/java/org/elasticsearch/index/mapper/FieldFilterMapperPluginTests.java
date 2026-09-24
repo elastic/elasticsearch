@@ -22,7 +22,6 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -50,7 +49,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     public void putMappings() {
         assertAcked(indicesAdmin().prepareCreate("index1"));
         assertAcked(indicesAdmin().prepareCreate("filtered"));
-        assertAcked(indicesAdmin().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, XContentType.JSON));
+        assertAcked(indicesAdmin().preparePutMapping("index1", "filtered").setSource(TEST_ITEM));
     }
 
     public void testGetMappings() {

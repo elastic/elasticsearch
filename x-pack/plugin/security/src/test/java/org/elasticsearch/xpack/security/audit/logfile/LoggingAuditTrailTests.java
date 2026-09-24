@@ -1648,6 +1648,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
         final List<String> accountRoles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
+        final String description = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
         final String expectedAccountRolesJson = accountRoles.stream()
             .map(role -> "\"" + role + "\"")
             .collect(Collectors.joining(",", "[", "]"));
@@ -1655,7 +1656,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             namespace,
             serviceName,
             accountRoles,
-            enabled
+            enabled,
+            description
         );
 
         auditTrail.accessGranted(
@@ -1669,13 +1671,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedPutUserManagedServiceAccountAuditEventString = output.get(1);
 
+        // The description is logged only when the request carries one.
+        final String expectedDescriptionJson = description == null ? "" : ",\"description\":\"" + description + "\"";
         final String expectedPutUserManagedServiceAccountAuditEventString = Strings.format(
             """
-                "put":{"user_managed_service_account":{"namespace":"%s","service":"%s","roles":%s,"enabled":%s}}""",
+                "put":{"user_managed_service_account":{"namespace":"%s","service":"%s","roles":%s,"enabled":%s%s}}""",
             namespace,
             serviceName,
             expectedAccountRolesJson,
-            enabled
+            enabled,
+            expectedDescriptionJson
         );
         assertThat(
             generatedPutUserManagedServiceAccountAuditEventString,
@@ -2412,7 +2417,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
             ),
             new Tuple<>(
                 PutUserManagedServiceAccountAction.NAME,
-                new PutUserManagedServiceAccountRequest(namespace, serviceName, List.of(randomAlphaOfLengthBetween(3, 8)), randomBoolean())
+                new PutUserManagedServiceAccountRequest(
+                    namespace,
+                    serviceName,
+                    List.of(randomAlphaOfLengthBetween(3, 8)),
+                    randomBoolean(),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)
+                )
             ),
             new Tuple<>(DeleteUserManagedServiceAccountAction.NAME, new DeleteUserManagedServiceAccountRequest(namespace, serviceName)),
             new Tuple<>(ActivateProfileAction.NAME, new ActivateProfileRequest()),

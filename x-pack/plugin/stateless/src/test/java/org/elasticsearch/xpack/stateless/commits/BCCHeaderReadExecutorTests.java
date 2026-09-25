@@ -109,16 +109,10 @@ public class BCCHeaderReadExecutorTests extends ESTestCase {
             final var prefix = "es.throttled_task_runner.bcc_header_read.tasks.";
 
             // a task is queued due to MAX_CONCURRENCY_SETTING
-            assertThat(
-                recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "queue.size"),
-                measures(1L)
-            );
+            assertThat(recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "queue.size"), measures(1L));
 
             // a task is still running due to `taskCanFinish`
-            assertThat(
-                recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"),
-                measures(1L)
-            );
+            assertThat(recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"), measures(1L));
 
             taskCanFinish.countDown();
             safeAwait(allTasksDone);
@@ -130,10 +124,7 @@ public class BCCHeaderReadExecutorTests extends ESTestCase {
             assertBusy(() -> {
                 recorder.resetCalls();
                 recorder.collect();
-                assertThat(
-                    recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"),
-                    measures(0L)
-                );
+                assertThat(recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"), measures(0L));
             });
         } finally {
             terminate(threadPool);

@@ -3383,10 +3383,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertBusy(() -> {
                 recorder.resetCalls();
                 recorder.collect();
-                assertThat(
-                    recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"),
-                    measures(0L)
-                );
+                assertThat(recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"), measures(0L));
             });
         }
     }

@@ -206,10 +206,11 @@ public final class SearchResponseMerger implements Releasable {
         setTopDocsShardIndex(shards, topDocsList);
         TopDocs topDocs = mergeTopDocs(topDocsList, size, from);
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
+        List<SearchHits> topHitsToRelease = null;
         try {
             setSuggestShardIndex(shards, groupedSuggestions);
             Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-            final List<SearchHits> topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
+            topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
             InternalAggregations reducedAggs = aggs.isEmpty()
                 ? InternalAggregations.EMPTY
                 : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));
@@ -238,6 +239,10 @@ public final class SearchResponseMerger implements Releasable {
             );
         } finally {
             mergedSearchHits.decRef();
+            // the reduce took a ref on every top_hits hit it kept, and remote hits pin the inbound network buffer until released
+            if (topHitsToRelease != null) {
+                topHitsToRelease.forEach(SearchHits::decRef);
+            }
         }
     }
 

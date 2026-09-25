@@ -4064,6 +4064,15 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN,
 
         /**
+         * An external dataset read into {@code integer}, {@code long}, or {@code unsigned_long} accepts only
+         * values that are exactly whole numbers. A non-whole decimal ({@code 1.9}) is a value error under
+         * {@code error_mode} — it is never rounded ({@code ::integer}/{@code ::long}) or truncated
+         * ({@code ::unsigned_long}). Gates csv-spec cases that assert refuse / {@code null_field} for such
+         * values, since a pre-change node still returns the coerced whole number.
+         */
+        EXTERNAL_DATASET_WHOLE_NUMBER_READ_IS_EXACT,
+
+        /**
          * When {@code METADATA} names a column that also exists as a physical file column, the
          * engine-generated metadata value is used and the physical column is dropped, with a warning.
          * Without {@code METADATA}, the physical column is used. {@code METADATA} of a name that is
@@ -4119,6 +4128,17 @@ public class EsqlCapabilities {
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING(Build.current().isSnapshot()),
+
+        /**
+         * The external-dataset warning and error texts were rewritten; csv-spec tests that assert them require this so an
+         * older coordinator's texts are not asserted.
+         */
+        EXTERNAL_DATASET_MESSAGES,
+
+        /**
+         * Adds a pre-filter below a limited aggregation grouped by a long and other fields.
+         */
+        TOPN_PREFILTER_LONG,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

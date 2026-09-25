@@ -19,8 +19,10 @@ import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.AbstractBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -262,6 +264,8 @@ public class NdJsonPageDecoder implements Closeable {
     @Nullable
     private Consumer<String> absentColumnWarningSink;
     private final ErrorPolicy errorPolicy;
+    /** The file as messages name it; callers pass it already redacted. */
+    private final String sourceLocation;
     private final SkipWarnings skipWarnings;
     @Nullable
     private final NdJsonReaderCounters counters;
@@ -677,16 +681,16 @@ public class NdJsonPageDecoder implements Closeable {
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
+        this.sourceLocation = sourceLocation;
         this.counters = counters;
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
+        // Under null_field a whole-line failure still drops the line (onNdjsonLineParseError), so that summary names both.
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
-            "NDJSON read from ["
-                + sourceLocation
-                + "] encountered parse errors handled per policy (policy: "
-                + errorPolicy.modeName()
-                + "); affected rows are listed below",
+            errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
+                ? "Some rows in [" + sourceLocation + "] cannot be read; skipping them"
+                : "Some values in [" + sourceLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed",
             warningSink
         );
 
@@ -847,16 +851,10 @@ public class NdJsonPageDecoder implements Closeable {
      * {@code onRowError} rather than {@code onFieldError}.
      */
     private void onNdjsonLineParseError(JsonProcessingException e, long logicalRowIndex, String phaseLabel) {
-        // Described once, for the strict message, the client warning and the log alike. The row index is the
-        // one part a user can act on -- it names the line to go and look at -- and CsvFormatReader's own
-        // "at row [N]" says so too, so the strict message carries it rather than the phase alone.
-        String description = lineFailureKind(e)
-            + " NDJSON at logical row ["
-            + logicalRowIndex
-            + "] ("
-            + phaseLabel
-            + "): "
-            + e.getOriginalMessage();
+        // Described once, for the strict message and the client warning alike: the row and the kind of failure.
+        // Jackson's own message is never rendered to the client, since it names Jackson's classes and features;
+        // the node log below keeps it, with the phase, for the operator.
+        String description = "row [" + logicalRowIndex + "]: " + lineFailureKind(e);
         if (errorPolicy.isStrict()) {
             // The remedy hint mirrors coercionFailure and CsvFormatReader.onRowErrorImpl, phrased for a
             // whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way
@@ -865,12 +863,7 @@ public class NdJsonPageDecoder implements Closeable {
             // 500): a line this reader cannot interpret is bad input, not a broken invariant of ours, which is
             // the split ExternalFailures documents and CsvFormatReader.onRowErrorImpl already implements. The
             // single "{}" arg keeps LoggerMessageFormat away from the braces an NDJSON record is full of.
-            throw new ParsingException(
-                e,
-                Source.EMPTY,
-                "{}",
-                description + "; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing"
-            );
+            throw new ParsingException(e, Source.EMPTY, "{}", description + "; set [error_mode] to [skip_row] to skip the row instead");
         }
         if (e instanceof StreamConstraintsException) {
             // String length is validated LAZILY: only a projected column's decode arm reads the value, so a
@@ -885,13 +878,16 @@ public class NdJsonPageDecoder implements Closeable {
             // Once per record across the two sinks: a per-cell coercion failure earlier in this same record may
             // already have charged it. (Per-cell charges among themselves are still per-cell under null_field --
             // see coercionFailure, whose own suppression is gated on skip_row.) Warn either way: under null_field
-            // that earlier warning said the cell was nulled and the record kept, which this failure overrides by
-            // dropping the record whole.
+            // that earlier failure nulled the cell and kept the record, which this failure overrides by dropping
+            // the record whole.
             chargeErrorBudget();
         }
         skipWarnings.add(description);
         checkErrorBudgetOrThrow();
-        logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, description);
+        logger.log(
+            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
+            LoggerMessageFormat.format("{} ({}): {}", description, phaseLabel, e.getOriginalMessage())
+        );
     }
 
     /**
@@ -904,14 +900,13 @@ public class NdJsonPageDecoder implements Closeable {
     private static String lineFailureKind(JsonProcessingException e) {
         return switch (e) {
             // Ordered before JsonParseException, which it extends.
-            case JsonEOFException ignored -> "Truncated";
+            case JsonEOFException ignored -> "incomplete JSON";
             // Well-formed JSON that exceeds one of StreamReadConstraints' limits -- number length, field-name
-            // length or nesting depth -- so "malformed" would misdescribe it. Jackson's own message, appended
-            // by the caller, names which limit.
-            case StreamConstraintsException ignored -> "Over-limit";
+            // length or nesting depth -- so "malformed" would misdescribe it. Only the node log names which limit.
+            case StreamConstraintsException ignored -> "JSON over a parser limit";
             // A repeated field name is also well-formed JSON, rejected for being ambiguous rather than for
             // being unparseable, so it is named apart from a syntax error for the same reason.
-            case JsonParseException parseFailure -> isDuplicateFieldFailure(parseFailure) ? "Ambiguous" : "Malformed";
+            case JsonParseException parseFailure -> isDuplicateFieldFailure(parseFailure) ? "duplicate field name" : "malformed JSON";
             default -> throw new AssertionError("unexpected NDJSON whole-line failure [" + e.getClass().getName() + "]");
         };
     }
@@ -922,7 +917,7 @@ public class NdJsonPageDecoder implements Closeable {
      * <p>
      * Jackson raises both as a bare {@link JsonParseException} with no type to tell them apart, so this matches
      * its message. Only the label depends on the match: should a Jackson upgrade reword the message, the line
-     * still drops under exactly the same policy and is merely named "Malformed" instead. {@code NdJsonPageDecoderTests}
+     * still drops under exactly the same policy and is merely named "malformed JSON" instead. {@code NdJsonPageDecoderTests}
      * asserts the text so that upgrade reddens a test rather than quietly renaming the failure.
      */
     private static boolean isDuplicateFieldFailure(JsonParseException e) {
@@ -956,7 +951,7 @@ public class NdJsonPageDecoder implements Closeable {
 
     /**
      * Throws when the non-strict error budget ({@code max_errors}/{@code max_error_ratio}) has been
-     * exceeded, after first surfacing a client warning describing what tripped it. Shared by every
+     * exceeded, naming the limit that tripped. Shared by every
      * non-strict error path ({@link #onNdjsonLineParseError} and {@link BlockDecoder#coercionFailure})
      * so the budget is enforced consistently regardless of which kind of
      * error incremented {@link #errorCount}. Callers must have already settled the current error's charge via
@@ -964,26 +959,14 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private void checkErrorBudgetOrThrow() {
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
-            // Surface the budget-exceeded condition as a warning so clients see exactly what tripped it.
-            skipWarnings.add(
-                "NDJSON error budget exceeded at row ["
-                    + totalRowCount
-                    + "]: ["
-                    + errorCount
-                    + "] errors, maximum ["
-                    + errorPolicy.maxErrors()
-                    + "] or ratio ["
-                    + errorPolicy.maxErrorRatio()
-                    + "]"
-            );
             // Client-class for the same reason as the whole-line failure above: the budget was set by the user
             // and exhausted by the user's data.
             throw new ParsingException(
-                "NDJSON error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
+                "[{}] errors in [{}] rows of [{}]; {}",
                 errorCount,
                 totalRowCount,
-                errorPolicy.maxErrors(),
-                errorPolicy.maxErrorRatio()
+                sourceLocation,
+                errorPolicy.trippedLimit(errorCount)
             );
         }
     }
@@ -1062,15 +1045,12 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
-     * Throws the strict-policy {@code external_max_record_size} failure for a record whose parsed span is
-     * {@code spanBytes}. Shares {@link NdJsonRecordSplitter}'s {@code NDJSON line exceeded external_max_record_size [N]}
-     * prefix so the user-facing wording is consistent regardless of which layer detects the overflow, and
-     * appends the decode-time span for diagnostics.
+     * Throws the strict-policy {@code external_max_record_size} failure. Same text as
+     * {@link NdJsonRecordSplitter#recordTooLargeException()}, so the wording does not depend on which layer
+     * detects the overflow.
      */
-    private IOException recordTooLarge(long spanBytes) {
-        return new IOException(
-            "NDJSON line exceeded external_max_record_size [" + maxRecordBytes + "]: spans at least [" + spanBytes + "] bytes"
-        );
+    private IOException recordTooLarge() {
+        return new IOException("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]");
     }
 
     /**
@@ -1163,7 +1143,7 @@ public class NdJsonPageDecoder implements Closeable {
                 if (span > maxRecordBytes) {
                     // Keep the failed row out of the emitted-rows counter (the finally adds totalRowCount).
                     totalRowCount--;
-                    throw recordTooLarge(span);
+                    throw recordTooLarge();
                 }
             }
 
@@ -1264,13 +1244,7 @@ public class NdJsonPageDecoder implements Closeable {
                             // Rows already in blockBuilders are a partial prefix. Emit a one-shot partial-results
                             // warning (best-effort, via the same thread-bound HeaderWarning path as skip warnings);
                             // NdJsonPageIterator keeps the under-count out of the stats cache (see truncated()).
-                            skipWarnings.add(
-                                "NDJSON read truncated at byte ["
-                                    + recordOffset
-                                    + "]: a record exceeded external_max_record_size ["
-                                    + maxRecordBytes
-                                    + "]; results are partial"
-                            );
+                            skipWarnings.add("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial");
                             truncated = true;
                             truncatedAtByte = recordOffset;
                             break;
@@ -2206,12 +2180,13 @@ public class NdJsonPageDecoder implements Closeable {
          * The scalar-coercion arms below make an NDJSON read match the columnar and CSV readers, routing every
          * unrepresentable cell through {@link #coercionFailure} so the outcome depends only on {@code error_mode}:
          * <ul>
-         *   <li>A <b>supported</b> coercion — a JSON string for any scalar column, a fractional number for a
-         *       whole-number column, an epoch number for a datetime column — is coerced through the same
-         *       {@code ::} cast engine (string→number rounds like {@code ::long}; string→boolean is strict
-         *       case-insensitive; string→double preserves NaN). A parse failure or numeric overflow on such a
-         *       token is a genuine value error and is routed through {@link #coercionFailure} — so it fails
-         *       {@code fail_fast}, warns, and counts against the error budget exactly like a malformed CSV value.</li>
+         *   <li>A <b>supported</b> coercion — a JSON string for any scalar column, a number for a whole-number
+         *       column (exact whole numbers only via {@link DeclaredTypeCoercions#exactToInt} and siblings; a
+         *       non-whole decimal is a value error), an epoch number for a datetime column, string→boolean
+         *       (strict case-insensitive), string→double (preserves NaN). A parse failure or numeric overflow
+         *       on such a token is a genuine value error and is routed through {@link #coercionFailure} — so it
+         *       fails {@code fail_fast}, warns, and counts against the error budget exactly like a malformed
+         *       CSV value.</li>
          *   <li>An <b>unsupported cross-kind</b> token — a boolean in a numeric/datetime column, a number in a
          *       boolean column: {@code supports(from, to)} is false, the pair the columnar readers reject at
          *       resolution. NDJSON has no physical schema to reject upfront, so {@link #crossKindDrift} routes the
@@ -2265,9 +2240,9 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
                 try {
-                    // fractional number or string: parse + ROUND through :: (matches ::integer / columnar / CSV)
-                    ((IntBlock.Builder) blockBuilder).appendInt(EsqlDataTypeConverter.stringToInt(parser.getValueAsString()));
-                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    // fractional number or string: exact whole-number parse (refuses non-whole decimals)
+                    ((IntBlock.Builder) blockBuilder).appendInt(DeclaredTypeCoercions.exactToInt(parser.getValueAsString()));
+                } catch (InvalidArgumentException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.INTEGER);
                 }
             } else {
@@ -2284,8 +2259,8 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
                 try {
-                    ((LongBlock.Builder) blockBuilder).appendLong(EsqlDataTypeConverter.stringToLong(parser.getValueAsString()));
-                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    ((LongBlock.Builder) blockBuilder).appendLong(DeclaredTypeCoercions.exactToLong(parser.getValueAsString()));
+                } catch (InvalidArgumentException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.LONG);
                 }
             } else {
@@ -2297,27 +2272,24 @@ public class NdJsonPageDecoder implements Closeable {
          * The {@code unsigned_long} twin of {@link #decodeLongValue}. A JSON integer is read as a
          * {@link BigInteger} rather than a {@code long} because the interesting half of the domain --
          * {@code (2^63, 2^64)} -- does not fit a signed long and would trip {@code getLongValue}. Float and
-         * string tokens go through the same {@link DeclaredTypeCoercions#coerceToUnsignedLong} scalar the CSV
-         * and columnar readers use, so truncation-toward-zero and the {@code [0, 2^64-1]} range check are
+         * string tokens go through the same {@link DeclaredTypeCoercions#exactToUnsignedLong} scalar the CSV
+         * and columnar readers use, so exact-whole acceptance and the {@code [0, 2^64-1]} range check are
          * identical across every format. A bad value fails the cell through the error policy; only a
          * cross-kind token (a boolean in a numeric column) takes the drift path.
          */
         private void decodeUnsignedLongValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
             if (token == JsonToken.VALUE_NUMBER_INT) {
                 try {
-                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getBigIntegerValue());
+                    long encoded = DeclaredTypeCoercions.exactToUnsignedLong(parser.getBigIntegerValue());
                     ((LongBlock.Builder) blockBuilder).appendLong(encoded);
-                } catch (IllegalArgumentException | InputCoercionException e) {
+                } catch (InvalidArgumentException | InputCoercionException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
                 }
             } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
                 try {
-                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getValueAsString());
+                    long encoded = DeclaredTypeCoercions.exactToUnsignedLong(parser.getValueAsString());
                     ((LongBlock.Builder) blockBuilder).appendLong(encoded);
-                } catch (IllegalArgumentException e) {
-                    // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard,
-                    // the ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
-                    // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
+                } catch (InvalidArgumentException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
                 }
             } else {
@@ -2507,31 +2479,27 @@ public class NdJsonPageDecoder implements Closeable {
             String value = parser.getValueAsString();
             // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
             // (e.g. a bad string in an inferred long), where the target type was not declared.
-            String base = "column ["
-                + name
-                + "] at line ["
+            // The outcome (row skipped or value nulled) is stated once, in the summary, not per detail.
+            String message = "row ["
                 + totalRowCount
-                + "]: value ["
+                + "], column ["
+                + name
+                + "]: cannot read ["
                 + value
-                + "] could not be coerced to type ["
+                + "] as ["
                 + target.typeName()
                 + "]";
             parser.skipChildren();
             if (errorPolicy.isStrict()) {
                 // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable,
                 // and its client-class exception so an unrepresentable value is a 400 rather than a 500.
-                throw new ParsingException(
-                    Source.EMPTY,
-                    "{}",
-                    base + "; set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing"
-                );
+                throw new ParsingException(Source.EMPTY, "{}", message + "; set [error_mode] to [null_field] to return null instead");
             }
             // A value coercion failure under skip_row drops the whole record (matching CsvFormatReader and the
             // Mode.SKIP_ROW "drop the entire bad row" contract); null_field keeps the record and nulls this one cell.
             // Both warn. crossKindDrift routes here too, for declared and inferred columns alike, so every
             // unrepresentable cell drops under skip_row uniformly.
             boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
-            String message = base + (skipRow ? " — this record is skipped" : " — this record's [" + name + "] is null");
             nullPolicyDecidedCell(builder, inArray);
             if (skipRow) {
                 rowDroppedBySkipRow = true;

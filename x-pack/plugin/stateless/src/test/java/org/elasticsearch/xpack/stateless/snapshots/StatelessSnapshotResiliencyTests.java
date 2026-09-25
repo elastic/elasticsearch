@@ -811,7 +811,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         public Collection<?> createComponents(PluginServices services) {
             this.projectResolver = services.projectResolver();
             this.threadPool = services.threadPool();
-            this.bccHeaderReadExecutor = new BCCHeaderReadExecutor(threadPool);
+            this.bccHeaderReadExecutor = new BCCHeaderReadExecutor(settings, threadPool, MeterRegistry.NOOP);
             this.client = services.client();
             this.clusterService = services.clusterService();
 

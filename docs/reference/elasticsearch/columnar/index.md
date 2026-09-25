@@ -215,6 +215,76 @@ Columnar index modes don't store the original JSON `_source` on disk. Two `_sour
 **Columnar stored `_source`**
 :   Materializes and stores the columnar `_source` representation on disk at index time as doc values. Used automatically when synthetic columnar `_source` is not licensed, and can also be configured explicitly to speed up `_source` retrieval. For more information, see [Columnar source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#columnar-stored).
 
+Both modes return the same content. `columnar_stored` changes only **when** the columnar `_source` is built (at index time instead of at query time), not what it contains.
+
+### What columnar `_source` preserves [columnar-source-fidelity]
+
+Columnar `_source` is reconstructed from the values of mapped fields, over an [auto-flattened](#auto-flattening) mapping. It reflects how your data is stored rather than the exact content you sent at index time, so `_source` differs from the indexed document in the following ways:
+
+**Field paths are flat**
+:   Objects are returned as dotted leaf paths, so a document indexed as `{"host": {"name": "host-1"}}` is returned as `{"host.name": "host-1"}`. Use the dotted paths in `_source` include and exclude filters as well.
+
+**Leaf arrays are preserved**
+:   A multi-valued leaf field is returned as it was indexed, including the original order of its values and any duplicates.
+
+**Arrays of objects lose their grouping**
+:   Auto-flattening turns an array of objects into one multi-valued leaf field per property. Which values belonged to which object is not retained and can't be recovered.
+
+**Nested fields keep their objects**
+:   [`nested`](/reference/elasticsearch/mapping-reference/nested.md) fields are not auto-flattened, so an array of nested objects is returned as an array of objects, with each object's values intact. Columnar modes support only a single level of nesting.
+
+**Unmapped content is dropped**
+:   Anything in a document that doesn't reach a mapped field is lost: fields skipped because of `dynamic: false`, subtrees under `enabled: false`, and dynamic fields skipped because a field limit was reached. Values that a mapped field accepts but can't index normally are still returned in `_source`.
+
+::::{note}
+There's no way to opt a single field or object into keeping its original source. The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are all rejected in columnar modes.
+::::
+
+For example, take this document:
+
+```json
+{
+  "@timestamp": "2026-09-18T10:00:00.000Z",
+  "host": { "name": "host-1" },
+  "tags": [ "prod", "web", "prod" ],
+  "links": [
+    { "trace_id": "t1", "span_id": "s1" },
+    { "trace_id": "t2", "span_id": "s2" }
+  ]
+}
+```
+
+In a `logsdb_columnar` index where `links` is a plain object, `_source` comes back as:
+
+```json
+{
+  "@timestamp": "2026-09-18T10:00:00.000Z",
+  "host.name": "host-1",
+  "tags": [ "prod", "web", "prod" ],
+  "links.trace_id": [ "t1", "t2" ],
+  "links.span_id": [ "s1", "s2" ]
+}
+```
+
+The `tags` array survives unchanged, including the duplicate `prod` and the original ordering. The `links` array is gone: the pairing of each `trace_id` with its `span_id` can no longer be recovered. If necessary, mapping `links` as `nested` would keep the array of objects.
+
+### Differences from `logsdb` synthetic `_source` [columnar-source-vs-logsdb]
+
+Both `logsdb` and the columnar modes default to synthetic `_source`, but they make different trade-offs, so migrating an index from `logsdb` to `logsdb_columnar` can change the `_source` you get back:
+
+| | `logsdb` | `logsdb_columnar` |
+| --- | --- | --- |
+| Object structure | Objects as named in the mapping; dotted input is expanded into objects | Always flat, dotted leaf paths |
+| Leaf arrays | Preserved by default; order and duplicates are lost where `synthetic_source_keep` is set to `none` | Always preserved |
+| Arrays of objects | Preserved | Flattened into one multi-valued field per property, grouping lost |
+| Nested fields | Preserved, any depth | Preserved, single level of nesting only |
+| Unmapped, `dynamic: false`, or `enabled: false` content | Retained in `_source` | Dropped |
+| Per-field source retention | `synthetic_source_keep`, `store` | Not available |
+
+`logsdb` achieves its higher fidelity by defaulting [`index.mapping.synthetic_source_keep`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-keep) to `arrays` and by retaining the parts of a document that synthetic source can't otherwise reconstruct, at the cost of extra storage. Columnar modes trade that fidelity for a smaller storage footprint and improved indexing throughput.
+
+If a consumer of your data depends on an object array being returned faithfully, map that field as [`nested`](/reference/elasticsearch/mapping-reference/nested.md) before migrating to a columnar mode.
+
 ## Limitations [columnar-limitations]
 
 The following features are not supported in columnar index modes:
@@ -227,4 +297,5 @@ The following features are not supported in columnar index modes:
 - **Turning off `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
 - **Stored source mode**: The traditional `stored` source mode is not supported; only synthetic columnar and columnar stored modes are available. See [Columnar `_source`](#columnar-source).
 - **`dynamic: false` and `enabled: false`** are lossy: Setting `dynamic: false` on an object prevents unmapped sub-fields from being stored; their data is permanently lost. Setting `enabled: false` ignores the entire object subtree; its data is permanently lost.
+- **Per-field source retention**: The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are rejected. A field or object can't opt into keeping its original source, so the flattening described in [What columnar `_source` preserves](#columnar-source-fidelity) can't be avoided for individual fields.
 - **Default query fields**: The `index.query.default_field` index setting in columnar mode will by default only include fields that are indexed (by default text based fields are indexed).

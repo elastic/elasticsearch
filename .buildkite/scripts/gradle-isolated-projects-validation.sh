@@ -2,13 +2,19 @@
 
 set -euo pipefail
 
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+readonly WORKSPACE_DIR="${WORKSPACE:-$REPO_ROOT}"
+
 # Lower this baseline as isolated-projects issues are fixed. The target is zero.
 # Locally measured 2950 violations; the ceiling adds headroom for CI-specific
 # setups (extra init scripts, agents, environment) that can surface a few more.
 readonly DEFAULT_MAX_ISOLATED_PROJECTS_VIOLATIONS=3000
 readonly MAX_ISOLATED_PROJECTS_VIOLATIONS="${GRADLE_ISOLATED_PROJECTS_MAX_VIOLATIONS:-$DEFAULT_MAX_ISOLATED_PROJECTS_VIOLATIONS}"
-readonly REPORT_FILE="${WORKSPACE:-$PWD}/build/problems-status.json"
+readonly REPORT_ARTIFACT_PATH="build/problems-status.json"
+readonly REPORT_FILE="$WORKSPACE_DIR/$REPORT_ARTIFACT_PATH"
 readonly ANNOTATION_CONTEXT="ctx-gradle-isolated-projects-validation"
+readonly REPORT_ARTIFACT_LINK="<a href=\"artifact://$REPORT_ARTIFACT_PATH\">$REPORT_ARTIFACT_PATH</a>"
 
 annotate() {
   local style="$1"
@@ -18,11 +24,19 @@ annotate() {
   fi
 }
 
+upload_report_artifact() {
+  if command -v buildkite-agent >/dev/null 2>&1; then
+    (
+      cd "$WORKSPACE_DIR"
+      buildkite-agent artifact upload "$REPORT_ARTIFACT_PATH"
+    ) || echo "Failed to upload problems report artifact: $REPORT_FILE"
+  fi
+}
+
 rm -f "$REPORT_FILE"
 
 set +e
-GRADLE_CAPTURE_PROBLEMS_STATUS=true \
-  .ci/scripts/run-gradle.sh --isolated-projects -Dorg.gradle.isolated-projects.diagnostics=true :server:precommit
+"$REPO_ROOT/.ci/scripts/run-gradle.sh" --isolated-projects -Dorg.gradle.isolated-projects.diagnostics=true :server:precommit
 gradle_exit=$?
 set -e
 
@@ -46,6 +60,8 @@ EOF
   fi
   exit 1
 fi
+
+upload_report_artifact
 
 violation_count=$(jq -r '[.problems[] | select(.id | startswith("validation:configuration-cache:")) | .count] | add // 0' "$REPORT_FILE")
 summary=$(jq -r '
@@ -71,6 +87,7 @@ annotation=$(cat <<EOF
 - Violations: $violation_count
 - Threshold: $MAX_ISOLATED_PROJECTS_VIOLATIONS
 - Report: $REPORT_FILE
+- Artifact: $REPORT_ARTIFACT_LINK
 
 $summary
 EOF
@@ -80,6 +97,10 @@ annotate "$annotation_style" "$annotation"
 echo "Gradle exit code: $gradle_exit"
 echo "Isolated projects validation violations: $violation_count"
 echo "Allowed threshold: $MAX_ISOLATED_PROJECTS_VIOLATIONS"
+echo "Problems report: $REPORT_FILE"
+if command -v buildkite-agent >/dev/null 2>&1; then
+  echo "Problems report artifact: $REPORT_ARTIFACT_PATH"
+fi
 printf '%s\n' "$summary"
 
 if (( gradle_exit != 0 )); then

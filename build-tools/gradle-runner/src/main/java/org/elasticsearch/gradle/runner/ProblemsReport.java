@@ -9,9 +9,12 @@
 
 package org.elasticsearch.gradle.runner;
 
+import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
 
 /**
@@ -23,6 +26,8 @@ import java.util.List;
  */
 public record ProblemsReport(int totalProblems, List<SeverityEntry> severities, List<ProblemEntry> problems) {
 
+    private static final JsonFactory JSON_FACTORY = new JsonFactory();
+
     public record SeverityEntry(String severity, int count) {}
 
     public record ProblemEntry(String id, String displayName, String severity, int count) {}
@@ -32,34 +37,30 @@ public record ProblemsReport(int totalProblems, List<SeverityEntry> severities, 
      */
     public void writeTo(File file) throws IOException {
         file.getParentFile().mkdirs();
-        try (PrintWriter writer = new PrintWriter(file, "UTF-8")) {
-            writer.println("{");
-            writer.printf("  \"totalProblems\" : %d,%n", totalProblems);
-            writer.println("  \"severities\" : [");
-            for (int i = 0; i < severities.size(); i++) {
-                SeverityEntry severity = severities.get(i);
-                writer.printf(
-                    "    { \"severity\" : %s, \"count\" : %d }",
-                    JsonStrings.jsonString(severity.severity()),
-                    severity.count()
-                );
-                writer.println(i < severities.size() - 1 ? "," : "");
+        try (JsonGenerator generator = JSON_FACTORY.createGenerator(file, JsonEncoding.UTF8)) {
+            generator.useDefaultPrettyPrinter();
+            generator.writeStartObject();
+            generator.writeNumberField("totalProblems", totalProblems);
+            generator.writeArrayFieldStart("severities");
+            for (SeverityEntry severity : severities) {
+                generator.writeStartObject();
+                generator.writeStringField("severity", severity.severity());
+                generator.writeNumberField("count", severity.count());
+                generator.writeEndObject();
             }
-            writer.println("  ],");
-            writer.println("  \"problems\" : [");
-            for (int i = 0; i < problems.size(); i++) {
-                ProblemEntry problem = problems.get(i);
-                writer.printf(
-                    "    { \"id\" : %s, \"displayName\" : %s, \"severity\" : %s, \"count\" : %d }",
-                    JsonStrings.jsonString(problem.id()),
-                    JsonStrings.jsonString(problem.displayName()),
-                    JsonStrings.jsonString(problem.severity()),
-                    problem.count()
-                );
-                writer.println(i < problems.size() - 1 ? "," : "");
+            generator.writeEndArray();
+            generator.writeArrayFieldStart("problems");
+            for (ProblemEntry problem : problems) {
+                generator.writeStartObject();
+                generator.writeStringField("id", problem.id());
+                generator.writeStringField("displayName", problem.displayName());
+                generator.writeStringField("severity", problem.severity());
+                generator.writeNumberField("count", problem.count());
+                generator.writeEndObject();
             }
-            writer.println("  ]");
-            writer.println("}");
+            generator.writeEndArray();
+            generator.writeEndObject();
+            generator.writeRaw(System.lineSeparator());
         }
     }
 }

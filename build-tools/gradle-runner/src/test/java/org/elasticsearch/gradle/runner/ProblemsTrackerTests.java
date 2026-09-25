@@ -35,11 +35,7 @@ class ProblemsTrackerTests {
         ProblemGroup validation = problemGroup("validation", null);
         ProblemGroup configurationCache = problemGroup("configuration-cache", validation);
 
-        ProblemId repeatedProblemId = problemId(
-            "cannot-access-another-project",
-            "Cannot access another project",
-            configurationCache
-        );
+        ProblemId repeatedProblemId = problemId("cannot-access-another-project", "Cannot access another project", configurationCache);
         tracker.statusChanged(singleProblemEvent(problem(repeatedProblemId, Severity.ERROR)));
         tracker.statusChanged(problemSummariesEvent(problemSummary(repeatedProblemId, 4)));
 
@@ -155,12 +151,16 @@ class ProblemsTrackerTests {
 
     @SuppressWarnings("unchecked")
     private static <T> T proxy(Class<T> type, Function<String, Object> handler) {
-        return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, (proxy, method, args) -> switch (method.getName()) {
-            case "equals" -> proxy == args[0];
-            case "hashCode" -> System.identityHashCode(proxy);
-            case "toString" -> type.getSimpleName();
-            default -> handler.apply(method.getName());
-        });
+        return (T) Proxy.newProxyInstance(
+            type.getClassLoader(),
+            new Class<?>[] { type },
+            (proxy, method, args) -> switch (method.getName()) {
+                case "equals" -> proxy == args[0];
+                case "hashCode" -> System.identityHashCode(proxy);
+                case "toString" -> type.getSimpleName();
+                default -> handler.apply(method.getName());
+            }
+        );
     }
 
     private static Object unsupported(String methodName) {

@@ -89,8 +89,7 @@ public class GradleRunner {
         canceller.install();
 
         TaskTracker tracker = new TaskTracker(canceller);
-        boolean captureProblemsStatus = Boolean.parseBoolean(System.getenv("GRADLE_CAPTURE_PROBLEMS_STATUS"));
-        ProblemsTracker problemsTracker = captureProblemsStatus ? new ProblemsTracker() : null;
+        ProblemsTracker problemsTracker = new ProblemsTracker();
 
         GradleConnector connector = GradleConnector.newConnector().forProjectDirectory(projectDir);
         if (gradleHome != null) {
@@ -106,10 +105,8 @@ public class GradleRunner {
                 .setStandardOutput(System.out)
                 .setStandardError(System.err)
                 .withCancellationToken(tokenSource.token())
-                .addProgressListener(tracker, OperationType.TASK, OperationType.TEST);
-            if (problemsTracker != null) {
-                launcher.addProgressListener(problemsTracker, OperationType.PROBLEMS);
-            }
+                .addProgressListener(tracker, OperationType.TASK, OperationType.TEST)
+                .addProgressListener(problemsTracker, OperationType.PROBLEMS);
 
             launcher.run();
         } catch (GradleConnectionException e) {
@@ -127,9 +124,7 @@ public class GradleRunner {
         }
 
         writeStatusReport(tracker, projectDir);
-        if (problemsTracker != null) {
-            writeProblemsReport(problemsTracker, projectDir);
-        }
+        writeProblemsReport(problemsTracker, projectDir);
 
         if (GcpPreemptionWatchdog.isPreempted()) {
             int preemptionExitCode = getPreemptionExitCode();

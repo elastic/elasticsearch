@@ -33,6 +33,9 @@ import java.util.TreeMap;
  * <p>Gradle emits individual {@link SingleProblemEvent}s up to an internal per-problem threshold,
  * then reports the remaining duplicate count via {@link ProblemSummariesEvent}. Counting both gives
  * the full number of reported problems without parsing the generated HTML report.
+ *
+ * <p>The tracker stores only aggregate counts per fully-qualified problem id, so memory usage stays
+ * bounded by the number of distinct problem types rather than the total number of reported events.
  */
 public class ProblemsTracker implements ProgressListener {
 
@@ -63,11 +66,17 @@ public class ProblemsTracker implements ProgressListener {
             problems.add(new ProblemsReport.ProblemEntry(entry.id, entry.displayName, entry.severity, entry.count));
         }
 
-        problems.sort(Comparator.comparingInt(ProblemsReport.ProblemEntry::count).reversed().thenComparing(ProblemsReport.ProblemEntry::id));
+        problems.sort(
+            Comparator.comparingInt(ProblemsReport.ProblemEntry::count).reversed().thenComparing(ProblemsReport.ProblemEntry::id)
+        );
         List<ProblemsReport.SeverityEntry> severities = severityCounts.entrySet()
             .stream()
             .map(entry -> new ProblemsReport.SeverityEntry(entry.getKey(), entry.getValue()))
-            .sorted(Comparator.comparingInt(ProblemsReport.SeverityEntry::count).reversed().thenComparing(ProblemsReport.SeverityEntry::severity))
+            .sorted(
+                Comparator.comparingInt(ProblemsReport.SeverityEntry::count)
+                    .reversed()
+                    .thenComparing(ProblemsReport.SeverityEntry::severity)
+            )
             .toList();
         return new ProblemsReport(totalProblems, severities, problems);
     }

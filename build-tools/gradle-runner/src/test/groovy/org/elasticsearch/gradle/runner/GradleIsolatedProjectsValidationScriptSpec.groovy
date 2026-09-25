@@ -77,6 +77,57 @@ exit 9
         !result.output.contains('Isolated projects violations are within threshold')
     }
 
+    def "uploads problems report artifact and annotates with a link when buildkite agent is available"() {
+        given:
+        def sandbox = createSandbox(
+            '''
+#!/bin/bash
+set -euo pipefail
+mkdir -p "${WORKSPACE}/build"
+cat > "${WORKSPACE}/build/problems-status.json" <<'EOF'
+{
+  "totalProblems" : 2,
+  "severities" : [
+    { "severity" : "ERROR", "count" : 2 }
+  ],
+  "problems" : [
+    {
+      "id" : "validation:configuration-cache:cannot-access-another-project",
+      "displayName" : "Cannot access another project",
+      "severity" : "ERROR",
+      "count" : 2
+    }
+  ]
+}
+EOF
+''',
+            '''
+#!/bin/bash
+set -euo pipefail
+echo "$*" >> "${WORKSPACE}/buildkite-agent.log"
+if [[ "$1" == "annotate" ]]; then
+  cat >> "${WORKSPACE}/buildkite-annotation.md"
+fi
+'''
+        )
+
+        when:
+        def result = runValidationScript(sandbox)
+
+        then:
+        result.exitCode == 0
+        result.output.contains('Problems report artifact: build/problems-status.json')
+
+        and:
+        def agentLog = new File(sandbox, 'workspace/buildkite-agent.log').text
+        agentLog.contains('artifact upload build/problems-status.json')
+        agentLog.contains('annotate --context ctx-gradle-isolated-projects-validation --style info')
+
+        and:
+        def annotation = new File(sandbox, 'workspace/buildkite-annotation.md').text
+        annotation.contains('<a href="artifact://build/problems-status.json">build/problems-status.json</a>')
+    }
+
     private RunResult runValidationScript(File sandbox, Map<String, String> env = [:]) {
         def pb = new ProcessBuilder('bash', '.buildkite/scripts/gradle-isolated-projects-validation.sh')
         pb.directory(sandbox)
@@ -94,7 +145,7 @@ exit 9
         return new RunResult(exitCode: process.exitValue(), output: output.toString())
     }
 
-    private File createSandbox(String runGradleScript) {
+    private File createSandbox(String runGradleScript, String buildkiteAgentScript = null) {
         File sandbox = java.nio.file.Files.createTempDirectory('isolated-projects-validation-script').toFile()
         File workspace = new File(sandbox, 'workspace')
         workspace.mkdirs()
@@ -148,6 +199,12 @@ else:
 PY
 '''.stripIndent().trim() + '\n'
         jq.setExecutable(true)
+
+        if (buildkiteAgentScript != null) {
+            File buildkiteAgent = new File(binDir, 'buildkite-agent')
+            buildkiteAgent.text = buildkiteAgentScript.stripIndent().trim() + '\n'
+            buildkiteAgent.setExecutable(true)
+        }
 
         return sandbox
     }

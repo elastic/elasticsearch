@@ -21,12 +21,11 @@ import spock.lang.Specification
  * <p>Three scenarios are tested:
  * <ol>
  *   <li><b>Normal build</b> &ndash; runs the {@code help} task without preemption
- *       and validates that {@code task-status.json} is written correctly.</li>
- *   <li><b>Problems capture build</b> &ndash; runs the {@code help} task with
- *       {@code GRADLE_CAPTURE_PROBLEMS_STATUS=true} and validates that
- *       {@code problems-status.json} is written correctly.</li>
+ *       and validates that {@code task-status.json} and {@code problems-status.json}
+ *       are written correctly.</li>
  *   <li><b>Preemption build</b> &ndash; runs with simulated GCP preemption and
  *       validates the exit code, marker file, exit file, and task-status.json.</li>
+ *   <li><b>Custom exit code build</b> &ndash; verifies the preemption exit code override.</li>
  * </ol>
  */
 class GradleRunnerFuncSpec extends Specification {
@@ -53,7 +52,7 @@ class GradleRunnerFuncSpec extends Specification {
         new File(preemptionExitFile).delete()
     }
 
-    def "normal build writes task-status.json and exits with 0"() {
+    def "normal build writes status reports and exits with 0"() {
         when:
         def result = runGradleRunner([:], 'help')
 
@@ -72,18 +71,6 @@ class GradleRunnerFuncSpec extends Specification {
         and: 'tasks have recorded outcomes'
         status.tasks.every { it.path != null && it.outcome != null }
 
-        and: 'preemption artifacts are absent'
-        !new File(projectDir, 'build/.preemption-marker.json').exists()
-        !new File(preemptionExitFile).exists()
-    }
-
-    def "problems capture build writes problems-status.json when enabled"() {
-        when:
-        def result = runGradleRunner([GRADLE_CAPTURE_PROBLEMS_STATUS: 'true'], 'help')
-
-        then: 'exit code is 0'
-        result.exitCode == 0
-
         and: 'problems-status.json exists with correct structure'
         def problems = parseJson('build/problems-status.json')
         problems != null
@@ -92,8 +79,9 @@ class GradleRunnerFuncSpec extends Specification {
         problems.severities instanceof List
         problems.problems instanceof List
 
-        and: 'task-status.json is still written'
-        parseJson('build/task-status.json') != null
+        and: 'preemption artifacts are absent'
+        !new File(projectDir, 'build/.preemption-marker.json').exists()
+        !new File(preemptionExitFile).exists()
     }
 
     def "preempted build exits with 47 and writes all preemption artifacts"() {

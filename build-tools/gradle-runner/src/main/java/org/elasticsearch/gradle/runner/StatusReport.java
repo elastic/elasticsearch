@@ -9,9 +9,12 @@
 
 package org.elasticsearch.gradle.runner;
 
+import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
 
 /**
@@ -34,6 +37,8 @@ import java.util.List;
  */
 public record StatusReport(List<TaskEntry> tasks, List<SuiteEntry> suites, List<TestEntry> tests, boolean cancelled, String preemptedAt) {
 
+    private static final JsonFactory JSON_FACTORY = new JsonFactory();
+
     public record TaskEntry(String path, String outcome) {}
 
     public record SuiteEntry(String taskPath, String className, String result) {}
@@ -41,52 +46,48 @@ public record StatusReport(List<TaskEntry> tasks, List<SuiteEntry> suites, List<
     public record TestEntry(String taskPath, String className, String methodName, String result) {}
 
     /**
-     * Writes this report as JSON to the given file. Uses simple string building to avoid
-     * requiring Jackson or other JSON libraries in the fat JAR.
+     * Writes this report as JSON to the given file.
      */
     public void writeTo(File file) throws IOException {
         file.getParentFile().mkdirs();
-        try (PrintWriter w = new PrintWriter(file, "UTF-8")) {
-            w.println("{");
-            w.println("  \"tasks\" : [");
-            for (int i = 0; i < tasks.size(); i++) {
-                TaskEntry t = tasks.get(i);
-                w.printf(
-                    "    { \"path\" : %s, \"outcome\" : %s }",
-                    JsonStrings.jsonString(t.path()),
-                    JsonStrings.jsonString(t.outcome())
-                );
-                w.println(i < tasks.size() - 1 ? "," : "");
+        try (JsonGenerator generator = JSON_FACTORY.createGenerator(file, JsonEncoding.UTF8)) {
+            generator.useDefaultPrettyPrinter();
+            generator.writeStartObject();
+            generator.writeArrayFieldStart("tasks");
+            for (TaskEntry task : tasks) {
+                generator.writeStartObject();
+                generator.writeStringField("path", task.path());
+                generator.writeStringField("outcome", task.outcome());
+                generator.writeEndObject();
             }
-            w.println("  ],");
-            w.println("  \"suites\" : [");
-            for (int i = 0; i < suites.size(); i++) {
-                SuiteEntry s = suites.get(i);
-                w.printf(
-                    "    { \"taskPath\" : %s, \"className\" : %s, \"result\" : %s }",
-                    JsonStrings.jsonString(s.taskPath()),
-                    JsonStrings.jsonString(s.className()),
-                    JsonStrings.jsonString(s.result())
-                );
-                w.println(i < suites.size() - 1 ? "," : "");
+            generator.writeEndArray();
+            generator.writeArrayFieldStart("suites");
+            for (SuiteEntry suite : suites) {
+                generator.writeStartObject();
+                generator.writeStringField("taskPath", suite.taskPath());
+                generator.writeStringField("className", suite.className());
+                generator.writeStringField("result", suite.result());
+                generator.writeEndObject();
             }
-            w.println("  ],");
-            w.println("  \"tests\" : [");
-            for (int i = 0; i < tests.size(); i++) {
-                TestEntry t = tests.get(i);
-                w.printf(
-                    "    { \"taskPath\" : %s, \"className\" : %s, \"methodName\" : %s, \"result\" : %s }",
-                    JsonStrings.jsonString(t.taskPath()),
-                    JsonStrings.jsonString(t.className()),
-                    JsonStrings.jsonString(t.methodName()),
-                    JsonStrings.jsonString(t.result())
-                );
-                w.println(i < tests.size() - 1 ? "," : "");
+            generator.writeEndArray();
+            generator.writeArrayFieldStart("tests");
+            for (TestEntry test : tests) {
+                generator.writeStartObject();
+                generator.writeStringField("taskPath", test.taskPath());
+                generator.writeStringField("className", test.className());
+                generator.writeStringField("methodName", test.methodName());
+                generator.writeStringField("result", test.result());
+                generator.writeEndObject();
             }
-            w.println("  ],");
-            w.printf("  \"cancelled\" : %s,%n", cancelled);
-            w.printf("  \"preemptedAt\" : %s%n", preemptedAt != null ? JsonStrings.jsonString(preemptedAt) : "null");
-            w.println("}");
+            generator.writeEndArray();
+            generator.writeBooleanField("cancelled", cancelled);
+            if (preemptedAt == null) {
+                generator.writeNullField("preemptedAt");
+            } else {
+                generator.writeStringField("preemptedAt", preemptedAt);
+            }
+            generator.writeEndObject();
+            generator.writeRaw(System.lineSeparator());
         }
     }
 }

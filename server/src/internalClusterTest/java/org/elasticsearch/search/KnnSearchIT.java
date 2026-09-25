@@ -165,7 +165,9 @@ public class KnnSearchIT extends ESIntegTestCase {
             assertEquals(standard.getHits().getTotalHits().value(), base64.getHits().getTotalHits().value());
             for (int i = 0; i < standard.getHits().getHits().length; i++) {
                 assertEquals(standard.getHits().getAt(i).getId(), base64.getHits().getAt(i).getId());
-                assertEquals(standard.getHits().getAt(i).getScore(), base64.getHits().getAt(i).getScore(), 0f);
+                // TODO: LUCENE11 knn scores can differ by an ULP between float[] and base64 query
+                // paths (0.90163904 vs 0.9016389 on CI). Exact 0f was Lucene 10.
+                assertEquals(standard.getHits().getAt(i).getScore(), base64.getHits().getAt(i).getScore(), 1e-5f);
             }
         } finally {
             standard.decRef();

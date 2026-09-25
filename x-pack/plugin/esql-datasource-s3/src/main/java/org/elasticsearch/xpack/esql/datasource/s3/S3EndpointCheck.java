@@ -21,8 +21,10 @@ import java.util.function.Predicate;
 
 /**
  * Restricts the {@code endpoint} and {@code sts_endpoint} data-source settings at
- * {@code PUT /_query/data_source} time, via
- * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withDatasourceCheck}.
+ * {@code PUT /_query/data_source} time (via
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withDatasourceCheck})
+ * and when the storage provider factory builds a client for a read or connection test
+ * (see {@code S3DataSourcePlugin.storageProviders}).
  *
  * <p>A host is admitted by membership in sets built at class load from the SDK's region metadata, or by matching
  * the PrivateLink shape, so a region the pinned SDK does not know is refused. A region must follow the service label: without

@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -20,6 +22,8 @@ import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -34,10 +38,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RequestFilterRewriterTests extends ESTestCase {
@@ -100,6 +107,65 @@ public class RequestFilterRewriterTests extends ESTestCase {
         LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, randomBoolean());
         assertSame(relation, result);
         assertWarnings("Request filter not applied to external datasets [ds], a node is too old to evaluate it; use WHERE instead");
+    }
+
+    // ---- per-function version gating (elastic/elasticsearch#159672) ----
+    //
+    // CURRENT here is the rewrite's OWN pin, which is below esql_mv_compare — so it is exactly the window this gate
+    // exists for: the rewrite runs, and a single-bound range needs a function the targeted nodes cannot read.
+
+    /** Strict policy: the query fails, naming the construct and the dataset. */
+    public void testGatedFunctionFailsUnderStrictPolicy() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER), attr("k", DataType.KEYWORD));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.rangeQuery("k").gt("m"), CONFIG, CURRENT, false)
+        );
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("single lower bound on keyword"),
+                containsString("dataset [ds]"),
+                // The cause, not just the construct: "unsupported" would be wrong for a clause the cluster is merely
+                // too old for, and without this the assertion passes on a message that misstates it.
+                containsString(QueryDslTranslator.VERSION_REASON),
+                not(containsString("unsupported on dataset"))
+            )
+        );
+    }
+
+    /** Partial mode: the gated conjunct is dropped with a warning, and the rest of the filter is still applied. */
+    public void testGatedFunctionIsDroppedInPartialModeAndTheRestApplies() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER), attr("k", DataType.KEYWORD));
+        QueryBuilder filter = QueryBuilders.boolQuery()
+            .must(QueryBuilders.rangeQuery("k").gt("m"))
+            .must(QueryBuilders.rangeQuery("a").gte(1).lte(10));
+
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, filter, CONFIG, CURRENT, true);
+
+        assertThat(result, instanceOf(Filter.class));
+        Expression condition = ((Filter) result).condition();
+        assertThat("the survivable conjunct is installed", condition.anyMatch(MvInRange.class::isInstance), equalTo(true));
+        assertThat("the gated conjunct is not", condition.anyMatch(MvCompare.class::isInstance), equalTo(false));
+        assertWarnings(
+            "Request filter not fully applied to external datasets; not applied, "
+                + "[range[single lower bound on keyword]] on dataset [ds] because "
+                + QueryDslTranslator.VERSION_REASON
+                + "; use WHERE instead"
+        );
+    }
+
+    /**
+     * A filter naming a field the dataset does not have needs no function at all — the leaf folds to false either
+     * way — so below the pin it is answered exactly rather than dropped. Without this the most ordinary input there
+     * is would loosen the filter and tell the operator a construct was unsupported when nothing about it is.
+     */
+    public void testMissingFieldIsAnsweredExactlyRatherThanDropped() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.rangeQuery("absent").gt("m"), CONFIG, CURRENT, true);
+        assertThat(result, instanceOf(Filter.class));
+        assertThat(((Filter) result).condition().anyMatch(MvCompare.class::isInstance), equalTo(false));
+        ensureNoWarnings();
     }
 
     private static ExternalRelation relation(String name, Attribute... attrs) {

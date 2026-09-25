@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.esql.PutDataSourceAuditInfo;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -39,7 +40,7 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements DataSourceRequestInfo {
+    public static class Request extends AcknowledgedRequest<Request> implements DataSourceRequestInfo, PutDataSourceAuditInfo {
         private static final ParseField TYPE = new ParseField("type");
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
@@ -151,6 +152,11 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
         @Override
         public String dataSourceClusterActionName() {
             return NAME;
+        }
+
+        @Override
+        public String dataSourceType() {
+            return type;
         }
 
         public String type() {

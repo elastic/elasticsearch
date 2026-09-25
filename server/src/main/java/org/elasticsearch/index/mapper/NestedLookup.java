@@ -45,6 +45,13 @@ public interface NestedLookup {
     String getNestedParent(String path);
 
     /**
+     * {@code true} if {@code path} sits under a nested parent.
+     */
+    default boolean hasNestedParent(String path) {
+        return getNestedParent(path) != null;
+    }
+
+    /**
      * Given a nested object path, returns a list of paths of its
      * immediate children
      */

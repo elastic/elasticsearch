@@ -1,0 +1,213 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.java'
+// Applied BY CLASS, deliberately: 'elasticsearch.internal-java-rest-test' would create a
+// javaRestTest task AND wire it into `check` (InternalJavaRestTestPlugin does
+// check.dependsOn(javaRestTest)). This suite queries real remote object stores and must never run
+// on `check`/PR CI. RestTestBasePlugin alone registers zero tasks and zero source sets; it only
+// adds the clusterModules/clusterPlugins configurations and the usesDefaultDistribution(reason)
+// extension on StandaloneRestIntegTestTask.
+apply plugin: org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+
+// The cluster ITs live in their own source set (not javaRestTest) so no convention plugin ever
+// wires them to `check`. Checkstyle and ForbiddenApis iterate every source set
+// (SourceSetContainer.all / configureEach), so this code is linted with no extra wiring.
+sourceSets {
+  publicDataTest {
+    java.srcDirs = ['src/publicDataTest/java']
+    resources.srcDirs = ['src/publicDataTest/resources']
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
+  // AUTHORING-ONLY oracle machinery (ClickHouse/DuckDB script generation). Its own source set so
+  // it is never on the suite's compile or runtime classpath: nothing under src/main or
+  // src/publicDataTest may reference it (enforced by verifyOracleToolsIsolation below). The code
+  // is checked in to keep expected-result regeneration repeatable; its outputs never are.
+  oracleTools {
+    java.srcDirs = ['tools/oracle/java']
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
+}
+
+dependencies {
+  // Catalog model + pin probes + reports: plain Java plus YAML/JSON parsing. No new dependency:
+  // x-content is the repo-wide parsing abstraction.
+  implementation project(':libs:x-content')
+  implementation project(':libs:core')
+
+  testImplementation project(':test:framework')
+
+  publicDataTestImplementation project(':test:framework')
+  publicDataTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  publicDataTestImplementation project(xpackModule('esql:qa:server'))
+  publicDataTestImplementation project(xpackModule('esql'))
+  publicDataTestImplementation project(':libs:x-content')
+  publicDataTestImplementation project(':libs:core')
+
+  oracleToolsImplementation project(':libs:x-content')
+  oracleToolsImplementation project(':libs:core')
+}
+
+/*
+ * The remote suite. Reads ONLY pinned, publicly-published remote objects (S3 anonymous); no local
+ * fixture, no checked-in data, no credentials. Compiled and linted on `check` (see below), never
+ * run there — it needs the network and a default distribution.
+ */
+def publicDataTest = tasks.register('publicDataTest', StandaloneRestIntegTestTask) {
+  description = 'Runs the ES|QL public-data combinatorial suite against real object stores.'
+  group = 'verification'
+  // The esql-datasource-* modules under test ship only in the DEFAULT distribution, and no
+  // minimal-distribution + clusterPlugins configuration reproduces that set (they are modules of
+  // the default distro, not standalone plugins here).
+  usesDefaultDistribution("esql-datasource-* modules ship only in the default distribution")
+  testClassesDirs = sourceSets.publicDataTest.output.classesDirs
+  classpath = sourceSets.publicDataTest.runtimeClasspath
+  // The dataset: name is fixed by the query text (FROM <corpus>), so successive variants re-PUT
+  // the same dataset name against the shared cluster; parallel forks would race on it.
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  // The real input is remote object-store state; never consider this task up to date.
+  outputs.upToDateWhen { false }
+  // Remote scans over multi-GiB objects: outlast the cluster's own retry budget plus transfer.
+  // The property ESRestTestCase actually honors is tests.client.socket.timeout (default 60s,
+  // which systematically kills any minutes-long remote scan in SYNC mode).
+  systemProperty 'tests.client.socket.timeout', '600s'
+  // Gradle test JVMs do not inherit launcher properties: forward every suite filter/knob.
+  System.properties.each { key, value ->
+    if (key.toString().startsWith('tests.public_data.')) {
+      systemProperty key.toString(), value.toString()
+    }
+  }
+}
+
+// Offline structural validation of the catalog + shipped csv-specs; the single source of truth
+// (CatalogValidator) is also exercised by the unit tests. On `check`.
+def validatePublicDataCatalog = tasks.register('validatePublicDataCatalog', JavaExec) {
+  description = 'Validates public-data-catalog.yml and the public-*.csv-spec files (offline).'
+  group = 'verification'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.qa.publicdata.catalog.CatalogValidatorCli'
+  args = ['--project-dir', projectDir.path]
+}
+
+// Metadata-only pin verification (HTTP HEAD / S3 ListObjectsV2); never fetches object bodies.
+// The scheduled pipeline's first step; NOT on `check` (needs the network).
+tasks.register('verifyPublicDataPins', JavaExec) {
+  description = 'Verifies catalog pins against live object-store metadata (HEAD/LIST only).'
+  group = 'verification'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.qa.publicdata.pin.PinVerifierCli'
+  args = ['--output', layout.buildDirectory.dir('public-data-results').get().asFile.path]
+}
+
+tasks.register('refreshPublicDataPins', JavaExec) {
+  description = 'Prints refreshed pin: YAML blocks from live metadata for the operator to paste.'
+  group = 'other'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.qa.publicdata.pin.PinRefreshCli'
+}
+
+tasks.register('publicDataCoverageReport', JavaExec) {
+  description = 'Emits coverage.json + coverage.md for the catalog-derived matrix.'
+  group = 'verification'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.qa.publicdata.report.CoverageInventoryCli'
+  args = ['--output', layout.buildDirectory.dir('public-data-results').get().asFile.path]
+}
+
+// The end deliverable: every ES defect the suite surfaced, with reproducers, for triage.
+tasks.register('publicDataDefectReport', JavaExec) {
+  description = 'Emits build/public-data-results/defects.md from -Ignore/// defect: blocks and disabled failure variants.'
+  group = 'verification'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.qa.publicdata.report.DefectReportGenerator'
+  args = ['--output', layout.buildDirectory.dir('public-data-results').get().asFile.path]
+}
+
+// The pipeline's merge step: combines per-shard JUnit XML artifacts into one verdict; the task's
+// exit code IS the run's pass/fail. Locally it evaluates the last publicDataTest run.
+tasks.register('publicDataVerdict', JavaExec) {
+  description = 'Evaluates JUnit results against the catalog-derived expectation into verdict.json + annotation.'
+  group = 'verification'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.qa.publicdata.report.VerdictCli'
+  ignoreExitValue = false
+  args = [
+    '--results', layout.buildDirectory.dir('test-results/publicDataTest').get().asFile.path,
+    '--pin-report', layout.buildDirectory.file('public-data-results/pin-report.json').get().asFile.path,
+    '--output', layout.buildDirectory.dir('public-data-results').get().asFile.path
+  ]
+}
+
+// AUTHORING AID ONLY: extracts // oracle-sql: provenance into runnable oracle scripts. Nothing in
+// the suite or the pipeline depends on it.
+tasks.register('generateOracleScripts', JavaExec) {
+  description = 'Generates ClickHouse/DuckDB scripts from spec provenance (authoring aid only).'
+  group = 'other'
+  classpath = sourceSets.oracleTools.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.qa.publicdata.oracle.OracleScriptGenerator'
+  args = ['--output', layout.buildDirectory.dir('public-data-results/oracle').get().asFile.path]
+}
+
+// tools/oracle is authoring machinery: the suite must stay fully runnable with no oracle binary,
+// no network access to one, and no code path that could consult one. Enforce the no-reference
+// direction structurally.
+def verifyOracleToolsIsolation = tasks.register('verifyOracleToolsIsolation') {
+  description = 'Fails if suite sources reference the authoring-only oracle package.'
+  group = 'verification'
+  def suiteDirs = files('src/main/java', 'src/publicDataTest/java', 'src/test/java')
+  inputs.files(suiteDirs.asFileTree.matching { include '**/*.java' })
+  doLast {
+    def offenders = []
+    suiteDirs.asFileTree.matching { include '**/*.java' }.each { file ->
+      if (file.text.contains('publicdata.oracle')) {
+        offenders.add(file.path)
+      }
+    }
+    if (offenders.isEmpty() == false) {
+      throw new GradleException(
+        "Suite sources must not reference the authoring-only oracle tools (tools/oracle): ${offenders}"
+      )
+    }
+  }
+}
+
+// The main and oracleTools source sets do not depend on server or Lucene, so the default
+// es-server signature set cannot resolve (same situation and same fix as the libs/ projects).
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+tasks.named('forbiddenApisOracleTools').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// Compile + lint the IT and oracle-tool sources on `check` so the manual suite cannot silently
+// rot, WITHOUT running it: `publicDataTest` needs the network and a default distribution.
+// Checkstyle/ForbiddenApis already cover the extra source sets; compilation is not implied by
+// them (checkstyle runs with an emptied classpath), hence the explicit compile dependencies.
+// `check.dependsOn publicDataTest` is intentionally ABSENT: the suite runs on its own nightly
+// Buildkite schedule, never on check/PR CI.
+tasks.named('check').configure {
+  dependsOn 'compilePublicDataTestJava'
+  dependsOn 'compileOracleToolsJava'
+  dependsOn validatePublicDataCatalog
+  dependsOn verifyOracleToolsIsolation
+}
+
+tasks.named('validatePublicDataCatalog').configure {
+  dependsOn tasks.named('processResources')
+}

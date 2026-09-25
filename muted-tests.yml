@@ -186,6 +186,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/160279
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/160281
+- class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
+  issue: https://github.com/elastic/elasticsearch/issues/160282
 
 # Examples:
 #

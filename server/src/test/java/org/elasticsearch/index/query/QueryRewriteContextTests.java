@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.index.query.CoordinatorRewriteContext.TIER_FIELD_TYPE;
 import static org.hamcrest.Matchers.is;

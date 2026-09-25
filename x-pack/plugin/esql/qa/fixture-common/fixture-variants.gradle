@@ -1,0 +1,58 @@
+/*
+ * Registers the per-vector dialect fixture tree for one format.
+ *
+ * Mirrors fixture-layouts.gradle, with one deliberate difference: enumeration lives INSIDE the
+ * generator, not here. The slugs come from the contract, and re-deriving them in Groovy would put a
+ * second implementation of that derivation in a language that cannot see the contract's validation --
+ * which is how fixture-matrix.properties came to have two parsers that broke identically.
+ *
+ * A format with no dialect variants declared (ndjson and parquet today) registers a task that finds
+ * nothing and says so, rather than being special-cased here. The contract decides; this file wires.
+ *
+ * Apply AFTER fixture-matrix.gradle, having set:
+ *   - vectorVariantFormat     the format token, e.g. 'csv'
+ *   - vectorVariantRoot       the iceberg-fixtures directory to write the vector/ tree under
+ *   - vectorVariantMainClass  the generator's main class
+ *   - vectorVariantGenerator  the generator's configuration/sourceSet name on serverProject
+ *   - serverProject, testFixturesDataDir
+ *   - vectorVariantTasks      list to append the registered task provider to
+ */
+
+def fixtureCommon = project(xpackModule('esql:qa:fixture-common'))
+def variantFormat = ext.vectorVariantFormat
+def variantRoot = ext.vectorVariantRoot
+def mainClassName = ext.vectorVariantMainClass
+def generatorName = ext.vectorVariantGenerator
+def serverProj = ext.serverProject
+def dataDir = ext.testFixturesDataDir
+def registered = ext.vectorVariantTasks
+
+def contractResource = fixtureCommon.file(
+  'src/main/resources/org/elasticsearch/xpack/esql/datasources/fixtures/fixture-dimensions.properties'
+)
+def matrixResource = fixtureCommon.file(
+  'src/main/resources/org/elasticsearch/xpack/esql/datasources/fixtures/fixture-matrix.properties'
+)
+
+def taskName = "generate${variantFormat.replaceAll(/[^A-Za-z0-9]/, '').capitalize()}VectorVariants"
+tasks.register(taskName, JavaExec) {
+  description = "Renders the per-vector dialect fixture trees the contract declares for ${variantFormat}."
+  dependsOn serverProj.tasks.named("compile${generatorName.capitalize()}Java")
+  classpath = serverProj.configurations.getByName(generatorName) + serverProj.sourceSets.getByName(generatorName).output
+  mainClass = mainClassName
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
+  // Captured at configuration time: reading these inside the action resolves against the task rather
+  // than the project, which Gradle 9 treats as an error rather than a warning.
+  def capturedData = dataDir
+  def capturedRoot = file(variantRoot)
+  def capturedFormat = variantFormat
+  argumentProviders.add({ [capturedData.path, capturedRoot.path, '--vector-variants', capturedFormat] } as CommandLineArgumentProvider)
+  // The contract is an input because it decides which slugs exist: change a dialect value and the tree
+  // must be rebuilt, even though no source CSV moved.
+  inputs.file(contractResource)
+  inputs.file(matrixResource)
+  inputs.dir(dataDir)
+  outputs.dir(file("${variantRoot}/vector"))
+}
+registered.add(tasks.named(taskName))

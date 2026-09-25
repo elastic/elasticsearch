@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelT
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -26,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -98,6 +101,23 @@ public class LoadAllCancellationIT extends AbstractEsqlIntegTestCase {
 
         // The fix must release the partially built pages on the cancellation path: the request breaker returns to zero.
         ensureBlocksReleased();
+
+        // Mirrors T4 of the manual "graceful termination" report: the node is healthy after a cancelled expansion. Clear the hook so
+        // the next expansion runs unimpeded, confirm no ESQL task lingers, then run a fresh LOAD_ALL and check it expands cleanly -
+        // proving a cancelled expansion left behind neither a stuck task nor corrupt breaker/seam state.
+        ExpandUnmappedFieldsPostProcessor.expansionStartedForTest = null;
+        assertBusy(
+            () -> assertThat(client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks(), empty())
+        );
+        try (
+            EsqlQueryResponse response = client().execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest("SET unmapped_fields=\"LOAD_ALL\"; FROM load-all-cancel | LIMIT 1000")
+            ).actionGet(DEFAULT_REQUEST_TIMEOUT)
+        ) {
+            List<String> columns = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(columns, hasItems("mapped", "unmapped_a", "unmapped_b"));
+        }
     }
 
     private void cancelWithoutWaiting(TaskId taskId) {

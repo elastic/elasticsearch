@@ -626,6 +626,30 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertThat("expand leaked pages when cancelled", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    /**
+     * The manual "graceful termination" test on esql-planning#1778 flagged both expansion loops - {@code collectFieldNames} and
+     * {@code rewritePages} - as running to completion without checking for cancellation. {@link
+     * #testCancellationDuringExpansionThrowsAndReleasesPages} pins the first loop: a checker that reports cancelled up front trips on
+     * {@code collectFieldNames}' opening poll, before {@code rewritePage} ever runs. This pins the second: name collection scans every
+     * row first and only then does {@code rewritePage}, so with a single-row page the checker is polled once while collecting names and
+     * again while rewriting. Reporting cancelled only from the second poll lets collection finish and lands the cancellation inside
+     * {@code rewritePage}, proving that loop's checkpoint both throws and releases the input page together with the half-built expansion.
+     */
+    public void testCancellationDuringPageRewriteThrowsAndReleasesPages() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'pet':'Rex'}")));
+        assertThat("input page should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
+
+        AtomicInteger polls = new AtomicInteger();
+        expectThrows(
+            TaskCancelledException.class,
+            () -> ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> polls.incrementAndGet() > 1)
+        );
+
+        assertThat("cancellation should have been observed during rewritePage, not name collection", polls.get(), greaterThan(1));
+        assertThat("expand leaked pages when cancelled during rewrite", bf.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testExpansionPollsForCancellation() {
         BlockFactory bf = blockFactory();
         Result result = result(

@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalQueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
@@ -167,6 +168,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -226,6 +228,8 @@ public class EsqlSession {
     private final ViewResolver viewResolver;
     private final DatasetResolver datasetResolver;
     private final ExternalSourceResolver externalSourceResolver;
+    private final ExternalQueryAdmission datasetQueryAdmission;
+    private final BooleanSupplier cancelled;
 
     private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
@@ -341,6 +345,8 @@ public class EsqlSession {
         ViewResolver viewResolver,
         DatasetResolver datasetResolver,
         ExternalSourceResolver externalSourceResolver,
+        ExternalQueryAdmission datasetQueryAdmission,
+        BooleanSupplier cancelled,
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
@@ -363,6 +369,8 @@ public class EsqlSession {
         this.viewResolver = viewResolver;
         this.datasetResolver = datasetResolver;
         this.externalSourceResolver = externalSourceResolver;
+        this.datasetQueryAdmission = datasetQueryAdmission;
+        this.cancelled = cancelled;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
@@ -1619,8 +1627,8 @@ public class EsqlSession {
 
         TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
         datasetResolutionProfile.start();
-        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation so analysis treats them like the inline
-        // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
+        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation, the plan node analysis resolves against external
+        // storage. The resolver first read-authorizes the names through the security filter — they are
         // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
         // no FROM pattern can match a registered dataset.
         datasetResolver.replaceDatasets(
@@ -1647,6 +1655,29 @@ public class EsqlSession {
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
+        // A query over an external dataset takes a slot on this node before it lists anything, and holds it until it completes
+        // (PlanExecutor releases it). Taken here, once, because resolveIndicesAndAnalyze, which resolves the dataset, runs a
+        // second time when analysis is retried without the request filter. A query that has to wait resumes on SEARCH, as
+        // asserted above.
+        if (preAnalysis.icebergPaths().isEmpty() == false && executionInfo.holdsDatasetQuerySlot() == false) {
+            datasetQueryAdmission.acquire(cancelled, logicalPlanListener.delegateFailureAndWrap((l, slot) -> {
+                executionInfo.holdDatasetQuerySlot(slot);
+                analyzeAfterPreAnalysis(parsed, unmappedResolution, configuration, executionInfo, requestFilter, preAnalysis, l);
+            }));
+            return;
+        }
+        analyzeAfterPreAnalysis(parsed, unmappedResolution, configuration, executionInfo, requestFilter, preAnalysis, logicalPlanListener);
+    }
+
+    private void analyzeAfterPreAnalysis(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also
         // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
         // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may

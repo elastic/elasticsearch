@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -341,6 +342,81 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Heap set aside for each dataset query admitted by {@link ExternalQueryAdmission}: the default concurrency limit
+     * is the blob-store memory budget {@code M = min(heap/4, half of indices.breaker.request.limit)} divided by this.
+     * It is a calibration constant rather than a measurement: a query's planning state grows with the number of files
+     * it lists, which is not known until the listing is done.
+     */
+    static final long ADMISSION_QUERY_ALLOWANCE_BYTES = 64L * 1024 * 1024;
+    static final int ADMISSION_MAX_CONCURRENT_QUERIES_FLOOR = 2;
+    static final int ADMISSION_MAX_CONCURRENT_QUERIES_CEILING = 64;
+
+    /**
+     * Default number of dataset queries a node runs at once: the blob-store memory budget divided by
+     * {@link #ADMISSION_QUERY_ALLOWANCE_BYTES}, clamped to
+     * [{@value #ADMISSION_MAX_CONCURRENT_QUERIES_FLOOR}, {@value #ADMISSION_MAX_CONCURRENT_QUERIES_CEILING}]. A 1 GB heap
+     * gets 4 and a 4 GB heap 16. Like {@link #defaultBlobStoreConcurrency(Settings)}, it is sampled from the node-start
+     * request breaker limit.
+     */
+    static int defaultMaxConcurrentDatasetQueries(Settings settings) {
+        return defaultMaxConcurrentDatasetQueries(
+            JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes()
+        );
+    }
+
+    // visible for testing
+    static int defaultMaxConcurrentDatasetQueries(long heapBytes, long requestBreakerLimitBytes) {
+        long memoryBudget = Math.min(heapBytes / BLOB_STORE_MEMORY_HEAP_DIVISOR, requestBreakerLimitBytes / 2);
+        long slots = memoryBudget / ADMISSION_QUERY_ALLOWANCE_BYTES;
+        return (int) Math.min(Math.max(slots, ADMISSION_MAX_CONCURRENT_QUERIES_FLOOR), ADMISSION_MAX_CONCURRENT_QUERIES_CEILING);
+    }
+
+    /**
+     * How many ES|QL queries over external datasets this node runs at once; further ones wait (see
+     * {@link #ADMISSION_MAX_QUEUED_QUERIES}) or are refused with 429. Each such query builds per-file planning state on
+     * the coordinator, and a dashboard sends one query per panel at the same moment, so without this limit the number
+     * of dashboards open decides whether the node runs out of heap. Default: derived from heap, see
+     * {@link #defaultMaxConcurrentDatasetQueries(Settings)}. {@code 0} turns the limit off. Queries over indices are
+     * not affected.
+     */
+    public static final Setting<Integer> ADMISSION_MAX_CONCURRENT_QUERIES = Setting.intSetting(
+        "esql.external.admission.max_concurrent_queries",
+        s -> Integer.toString(defaultMaxConcurrentDatasetQueries(s)),
+        0,
+        10000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * How many dataset queries may wait for a slot when {@link #ADMISSION_MAX_CONCURRENT_QUERIES} are already running.
+     * A waiting query holds no thread and has not touched storage. Once the queue is full, further queries are refused
+     * with 429. Default: four times the concurrency limit, so one dashboard's panels render in waves rather than fail.
+     * {@code 0} refuses as soon as every slot is taken.
+     */
+    public static final Setting<Integer> ADMISSION_MAX_QUEUED_QUERIES = Setting.intSetting(
+        "esql.external.admission.max_queued_queries",
+        s -> Integer.toString(4 * ADMISSION_MAX_CONCURRENT_QUERIES.get(s)),
+        0,
+        10000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * How long a dataset query waits for a slot before it is refused with 429. {@code 0} refuses as soon as every slot is
+     * taken, like a zero {@link #ADMISSION_MAX_QUEUED_QUERIES}. Default: 30 seconds.
+     */
+    public static final Setting<TimeValue> ADMISSION_QUEUE_TIMEOUT = Setting.timeSetting(
+        "esql.external.admission.queue_timeout",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings
      * were unified under {@code esql.external.*}. It shipped in released versions, so it stays registered — a node
      * carrying it in {@code elasticsearch.yml} would otherwise fail startup on an unregistered setting. Unlike the
@@ -530,6 +606,9 @@ public final class ExternalSourceSettings {
             MAX_DISCOVERED_FILES,
             MAX_LISTED_OBJECTS,
             MAX_GLOB_EXPANSION,
+            ADMISSION_MAX_CONCURRENT_QUERIES,
+            ADMISSION_MAX_QUEUED_QUERIES,
+            ADMISSION_QUEUE_TIMEOUT,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

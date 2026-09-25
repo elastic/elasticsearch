@@ -2904,7 +2904,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // first (releasing the Arena) then aborts raw through the provider's abort path (S3
                 // ResponseInputStream.abort()), keeping both codecs with and without JDK Cleaner support
                 // on equal footing and matching the abort-chain contract tested in StorageObjectAbortChainTests.
-                DecompressingStorageObject decompressing = new DecompressingStorageObject(obj, codec, streamingBreaker);
+                DecompressingStorageObject decompressing = new DecompressingStorageObject(
+                    obj,
+                    codec,
+                    streamingBreaker,
+                    cdr.maxDecompressionRatio()
+                );
                 InputStream stream = decompressing.newStream();
                 try {
                     return StreamingParallelParsingCoordinator.parallelRead(

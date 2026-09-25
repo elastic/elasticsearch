@@ -341,6 +341,38 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Default maximum decompression ratio for stream-only compressed text objects (CSV, TSV, NDJSON with gzip
+     * or zstd). A read fails with {@code 400} once the decompressed bytes exceed this multiple of the
+     * object's compressed size (checked from 1 MiB on). {@code 0} disables the check. The actual limit is the
+     * per-codec setting ({@link #MAX_DECOMPRESSION_RATIO_ZSTD} for zstd), falling back to this value.
+     * <p>
+     * Default 200 sits above the 65:1 that DuckDB's 3 GB genome CSV reaches with gzip, while a typical
+     * gzip bomb reaches 515:1 or more.
+     * [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting).
+     */
+    public static final Setting<Integer> MAX_DECOMPRESSION_RATIO = Setting.intSetting(
+        "esql.external.max_decompression_ratio",
+        200,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum decompression ratio for zstd-compressed objects; overrides {@link #MAX_DECOMPRESSION_RATIO}
+     * for zstd. Default 2000: zstd can legitimately reach 583:1 on the DuckDB genome CSV at ultra compression,
+     * while a zstd bomb reaches 11,915:1 or more. {@code 0} disables the check for zstd only.
+     * [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting).
+     */
+    public static final Setting<Integer> MAX_DECOMPRESSION_RATIO_ZSTD = Setting.intSetting(
+        "esql.external.max_decompression_ratio.zstd",
+        2000,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings
      * were unified under {@code esql.external.*}. It shipped in released versions, so it stays registered — a node
      * carrying it in {@code elasticsearch.yml} would otherwise fail startup on an unregistered setting. Unlike the
@@ -530,6 +562,8 @@ public final class ExternalSourceSettings {
             MAX_DISCOVERED_FILES,
             MAX_LISTED_OBJECTS,
             MAX_GLOB_EXPANSION,
+            MAX_DECOMPRESSION_RATIO,
+            MAX_DECOMPRESSION_RATIO_ZSTD,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,
             MANAGED_IDENTITY_ENABLED,

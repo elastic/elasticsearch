@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.util.List;
@@ -91,6 +93,26 @@ public class FormatReaderRegistryTests extends ESTestCase {
         registry.byName("csv"); // materialize
         assertTrue(registry.hasExtension(".txt"));
         assertThat(registry.byExtension("data.txt"), sameInstance(csv));
+    }
+
+    /** The registry picks the ratio by codec and reads it live, so a dynamic setting update reaches existing readers. */
+    public void testDecompressionRatioFollowsCodecAndLiveUpdates() {
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new GzipDecompressionCodec());
+        codecs.register(new ZstdDecompressionCodec());
+        FormatReaderRegistry registry = new FormatReaderRegistry(codecs);
+        FormatReader csv = reader("csv", ".csv");
+        when(csv.supportsWholeFileCompression()).thenReturn(true);
+
+        var gz = (CompressionDelegatingFormatReader) registry.wrapForObject(csv, "data.csv.gz");
+        var zst = (CompressionDelegatingFormatReader) registry.wrapForObject(csv, "data.csv.zst");
+        assertEquals(200, gz.maxDecompressionRatio());
+        assertEquals(2000, zst.maxDecompressionRatio());
+
+        registry.setMaxDecompressionRatio(50);
+        registry.setMaxDecompressionRatioZstd(0);
+        assertEquals(50, gz.maxDecompressionRatio());
+        assertEquals(0, zst.maxDecompressionRatio());
     }
 
     /**

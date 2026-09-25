@@ -45,7 +45,7 @@ public interface ConvertFunction {
      * An explicit {@code NULL} literal, or a cast / conversion of one ({@code null::string}, {@code TO_INTEGER(NULL)}).
      * A typed null is not itself a misuse; callers that consume it still are.
      */
-    public static boolean isExplicitNull(Expression e) {
+    static boolean isExplicitNull(Expression e) {
         if (e instanceof Literal literal && literal.value() == null && literal.sourceText().equalsIgnoreCase("null")) {
             return true;
         }

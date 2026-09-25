@@ -16,7 +16,15 @@ public class TimestampFieldHitExtractor extends FieldHitExtractor {
     }
 
     @Override
+    protected Object unwrapCustomValue(Object values) {
+        if (values instanceof String || values instanceof Number || values instanceof Timestamp) {
+            return Timestamp.from(values);
+        }
+        return super.unwrapCustomValue(values);
+    }
+
+    @Override
     protected Object parseEpochMillisAsString(String str) {
-        return Timestamp.of(str);
+        return Timestamp.from(str);
     }
 }

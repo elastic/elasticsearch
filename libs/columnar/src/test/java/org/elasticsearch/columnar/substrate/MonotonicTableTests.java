@@ -89,36 +89,80 @@ public class MonotonicTableTests extends ESTestCase {
         }
     }
 
-    /** The temporary file the table is staged in must not outlive the write. */
-    public void testTemporaryFileRemoved() throws IOException {
+    /**
+     * Tables written into one file at the same time, as a column's navigation is, each read back whole. Enough
+     * entries that every table spans several blocks, so their blocks interleave in the file.
+     */
+    public void testTablesInterleavedInOneFile() throws IOException {
+        final int tables = between(2, 5);
+        final long[][] values = new long[tables][];
+        for (int t = 0; t < tables; t++) {
+            values[t] = new long[between(1, 3) * (1 << MonotonicWriter.BLOCK_SHIFT) + between(0, 5000)];
+            for (int i = 1; i < values[t].length; i++) {
+                values[t][i] = values[t][i - 1] + between(0, 1 << (t + 3));
+            }
+        }
         try (Directory dir = newDirectory()) {
-            try (IndexOutput out = dir.createOutput("table.bin", IOContext.DEFAULT)) {
-                try (MonotonicWriter writer = new MonotonicWriter(dir, IOContext.DEFAULT, "table", 100)) {
-                    for (int i = 0; i < 100; i++) {
-                        writer.add(i * 3L);
+            final MonotonicWriter.Table[] written = new MonotonicWriter.Table[tables];
+            try (IndexOutput out = dir.createOutput("tables.bin", IOContext.DEFAULT)) {
+                final MonotonicWriter[] writers = new MonotonicWriter[tables];
+                for (int t = 0; t < tables; t++) {
+                    writers[t] = new MonotonicWriter(out);
+                }
+                // In turn, one entry of each table at a time, so a block of one lands between blocks of another.
+                int longest = 0;
+                for (long[] table : values) {
+                    longest = Math.max(longest, table.length);
+                }
+                for (int i = 0; i < longest; i++) {
+                    for (int t = 0; t < tables; t++) {
+                        if (i < values[t].length) {
+                            writers[t].add(values[t][i]);
+                        }
                     }
-                    writer.finish(out);
+                }
+                for (int t = 0; t < tables; t++) {
+                    written[t] = writers[t].finish();
                 }
             }
-            for (String file : dir.listAll()) {
-                assertFalse("a temporary file was left behind: " + file, file.contains("columnar-monotonic"));
+            assertArrayEquals("nothing is written but the file the tables were given", new String[] { "tables.bin" }, dir.listAll());
+            try (IndexInput in = dir.openInput("tables.bin", IOContext.DEFAULT)) {
+                for (int t = 0; t < tables; t++) {
+                    final MonotonicWriter.Table table = written[t];
+                    final LongValues read = MonotonicReader.open(
+                        in,
+                        table.meta(),
+                        values[t].length,
+                        table.dataOffset(),
+                        table.dataLength()
+                    );
+                    for (int i = 0; i < values[t].length; i++) {
+                        assertEquals("table " + t + " at " + i, values[t][i], read.get(i));
+                    }
+                }
             }
         }
     }
 
-    /** An abandoned write must clean up after itself too. */
-    public void testTemporaryFileRemovedWhenUnfinished() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (IndexOutput out = dir.createOutput("table.bin", IOContext.DEFAULT)) {
-                try (MonotonicWriter writer = new MonotonicWriter(dir, IOContext.DEFAULT, "table", 100)) {
-                    writer.add(0);
-                    writer.add(1);
-                }
-                out.writeByte((byte) 0);
+    /**
+     * A table that went backwards would read back as wrong offsets rather than as a failure, so the writer
+     * refuses the entry. Checked within a block and across one, since a block is flushed and reused.
+     */
+    public void testRejectsEntriesOutOfOrder() throws IOException {
+        try (Directory dir = newDirectory(); IndexOutput out = dir.createOutput("table.bin", IOContext.DEFAULT)) {
+            final MonotonicWriter writer = new MonotonicWriter(out);
+            writer.add(10);
+            writer.add(20);
+            final IllegalArgumentException within = expectThrows(IllegalArgumentException.class, () -> writer.add(19));
+            assertTrue(within.getMessage(), within.getMessage().contains("[20], [19]"));
+
+            final MonotonicWriter spanning = new MonotonicWriter(out);
+            final int blockSize = 1 << MonotonicWriter.BLOCK_SHIFT;
+            for (int i = 0; i < blockSize; i++) {
+                spanning.add(i);
             }
-            for (String file : dir.listAll()) {
-                assertFalse("a temporary file was left behind: " + file, file.contains("columnar-monotonic"));
-            }
+            final IllegalArgumentException across = expectThrows(IllegalArgumentException.class, () -> spanning.add(blockSize - 2));
+            assertTrue(across.getMessage(), across.getMessage().contains("[" + (blockSize - 1) + "], [" + (blockSize - 2) + "]"));
         }
     }
 
@@ -129,12 +173,11 @@ public class MonotonicTableTests extends ESTestCase {
             try (IndexOutput out = dir.createOutput("table.bin", IOContext.DEFAULT)) {
                 // A leading byte, so the table does not begin at zero and its recorded offset has to be used.
                 out.writeByte((byte) 42);
-                try (MonotonicWriter writer = new MonotonicWriter(dir, IOContext.DEFAULT, "table", values.length)) {
-                    for (long value : values) {
-                        writer.add(value);
-                    }
-                    table = writer.finish(out);
+                final MonotonicWriter writer = new MonotonicWriter(out);
+                for (long value : values) {
+                    writer.add(value);
                 }
+                table = writer.finish();
             }
             try (IndexInput in = dir.openInput("table.bin", IOContext.DEFAULT)) {
                 final LongValues read = MonotonicReader.open(in, table.meta(), values.length, table.dataOffset(), table.dataLength());

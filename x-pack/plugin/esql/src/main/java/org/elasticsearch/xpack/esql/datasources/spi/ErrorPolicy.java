@@ -211,6 +211,19 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     }
 
     /**
+     * Names the limit an exceeded budget tripped, as {@code over [<setting>] of [<limit>]}, for a budget error message.
+     * Checked in the order {@link #isBudgetExceeded} checks them, so an unset limit, which holds a sentinel
+     * ({@link Long#MAX_VALUE}, {@code 0.0}), is never printed as if it were one. Each branch renders its own limit: one
+     * conditional over a {@code long} and a {@code double} would widen the count and print {@code [10]} as {@code [10.0]}.
+     */
+    public String trippedLimit(long errorCount) {
+        if (errorCount > maxErrors) {
+            return "over [" + CONFIG_MAX_ERRORS + "] of [" + maxErrors + "]";
+        }
+        return "over [" + CONFIG_MAX_ERROR_RATIO + "] of [" + maxErrorRatio + "]";
+    }
+
+    /**
      * {@link #fromConfig} against the policy {@code reader} defaults to, or {@link #STRICT} when the reader is
      * unknown (unregistered format, no registry in the optimizer context).
      * <p>

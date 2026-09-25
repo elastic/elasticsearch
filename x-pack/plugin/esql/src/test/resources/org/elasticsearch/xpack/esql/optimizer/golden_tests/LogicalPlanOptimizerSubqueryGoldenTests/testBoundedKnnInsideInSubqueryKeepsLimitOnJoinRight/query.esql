@@ -1,0 +1,8 @@
+FROM colors,
+     (FROM colors
+      | WHERE id IN (FROM colors METADATA _score
+                     | WHERE knn(rgb_vector, "007800")
+                     | LIMIT 7
+                     | KEEP id)
+     )
+| STATS c = COUNT(*)

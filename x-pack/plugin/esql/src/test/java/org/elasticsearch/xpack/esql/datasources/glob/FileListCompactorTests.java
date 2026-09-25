@@ -149,8 +149,8 @@ public class FileListCompactorTests extends ESTestCase {
         assertRoundTrip(base, listOf(warnings::add, base + "**/*.parquet", base + "_index=foo/f.parquet"));
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
@@ -367,12 +367,10 @@ public class FileListCompactorTests extends ESTestCase {
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
     }
 
-    /** Compaction must copy {@code file_exclusions} warnings onto the compact encoding. */
-    public void testCompactPreservesExclusionWarnings() {
+    /** Compaction must copy listing notices onto the compact encoding. */
+    public void testCompactPreservesListingWarnings() {
         String base = "s3://b/data/";
-        String warning = "1 of 3 objects matching the resource under ["
-            + base
-            + "] was excluded by the [file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+        String warning = "partition key [_index] is named [_partition._index]";
         GenericFileList raw = new GenericFileList(
             List.of(
                 new StorageEntry(StoragePath.of(base + "a.parquet"), 100L, Instant.EPOCH),
@@ -436,5 +434,24 @@ public class FileListCompactorTests extends ESTestCase {
         }
         PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
+    }
+
+    /**
+     * Neither compacted encoding carries the truncation flag, and the check keeping a bounded listing out of the
+     * shared listing cache reads exactly that flag, so a truncated list must come back uncompacted and unchanged.
+     */
+    public void testCompactRefusesATruncatedListing() {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/year=2024/f-" + i + ".parquet"), 100L, Instant.EPOCH));
+        }
+        String pattern = "s3://b/*" + "*/*.parquet";
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
+        GenericFileList truncated = new GenericFileList(entries, pattern, pm, List.of(), true);
+        GenericFileList complete = new GenericFileList(entries, pattern, pm, List.of(), false);
+
+        assertSame("a truncated listing must not be compacted", truncated, FileListCompactor.compact("s3://b/", truncated));
+        assertTrue(FileListCompactor.compact("s3://b/", truncated).isTruncated());
+        assertFalse("the same listing untruncated is the control", FileListCompactor.compact("s3://b/", complete).isTruncated());
     }
 }

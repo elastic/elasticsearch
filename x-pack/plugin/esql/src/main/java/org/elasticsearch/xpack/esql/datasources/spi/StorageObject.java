@@ -40,6 +40,18 @@ public interface StorageObject {
      */
     int TRANSFER_BUFFER_SIZE = 8192;
 
+    /**
+     * Opaque string that identifies the storage configuration (endpoint, credential identity) this
+     * object was obtained from. Two objects with the same storage identity, path, and length may share a footer
+     * cache entry; objects with different scopes must not. The default empty string is appropriate for
+     * providers where every instance shares one global configuration (local files, GCS with a single
+     * service account). Override when a provider can be instantiated with different configurations in
+     * the same JVM — notably S3, where endpoint and access key differ per data source.
+     */
+    default String storageIdentity() {
+        return "";
+    }
+
     // === SYNC API (required) ===
 
     /**

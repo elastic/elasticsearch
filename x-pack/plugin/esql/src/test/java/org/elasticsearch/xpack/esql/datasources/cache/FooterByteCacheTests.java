@@ -36,12 +36,12 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testGetReturnsNullOnMiss() {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "file.parquet", 1000);
         assertNull(cache.get(key));
     }
 
     public void testPutAndGet() {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(256);
         cache.put(key, data);
         assertArrayEquals(data, cache.get(key));
@@ -49,14 +49,14 @@ public class FooterByteCacheTests extends ESTestCase {
 
     public void testPutSkipsOversizedEntries() {
         FooterByteCache cache = new FooterByteCache(1024 * 1024, 100, TTL);
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "file.parquet", 1000);
         byte[] oversized = randomByteArrayOfLength(200);
         cache.put(key, oversized);
         assertNull(cache.get(key));
     }
 
     public void testGetOrLoadPopulatesCache() throws ExecutionException {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "file.parquet", 1000);
         byte[] expected = randomByteArrayOfLength(256);
         byte[] result = cache.getOrLoad(key, k -> expected);
         assertArrayEquals(expected, result);
@@ -65,7 +65,7 @@ public class FooterByteCacheTests extends ESTestCase {
 
     public void testGetOrLoadEvictsOversizedEntries() throws ExecutionException {
         FooterByteCache smallMaxEntry = new FooterByteCache(1024 * 1024, 100, TTL);
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "file.parquet", 1000);
         byte[] oversized = randomByteArrayOfLength(200);
 
         byte[] result = smallMaxEntry.getOrLoad(key, k -> oversized);
@@ -74,7 +74,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testGetOrLoadEvictsEmptyEntries() throws ExecutionException {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "file.parquet", 1000);
         byte[] result = cache.getOrLoad(key, k -> new byte[0]);
         assertEquals(0, result.length);
         assertNull("Empty entry should be evicted after getOrLoad", cache.get(key));
@@ -86,9 +86,9 @@ public class FooterByteCacheTests extends ESTestCase {
         byte[] data2 = randomByteArrayOfLength(150);
         byte[] data3 = randomByteArrayOfLength(150);
 
-        FooterByteCache.Key key1 = new FooterByteCache.Key("a.parquet", 1000);
-        FooterByteCache.Key key2 = new FooterByteCache.Key("b.parquet", 2000);
-        FooterByteCache.Key key3 = new FooterByteCache.Key("c.parquet", 3000);
+        FooterByteCache.Key key1 = new FooterByteCache.Key("", "a.parquet", 1000);
+        FooterByteCache.Key key2 = new FooterByteCache.Key("", "b.parquet", 2000);
+        FooterByteCache.Key key3 = new FooterByteCache.Key("", "c.parquet", 3000);
 
         tinyCache.put(key1, data1);
         tinyCache.put(key2, data2);
@@ -99,7 +99,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testInvalidateAll() {
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "file.parquet", 1000);
         cache.put(key, randomByteArrayOfLength(100));
         assertNotNull(cache.get(key));
         cache.invalidateAll();
@@ -107,8 +107,8 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testSamePathDifferentLengthAreDifferentKeys() {
-        FooterByteCache.Key key1 = new FooterByteCache.Key("file.parquet", 1000);
-        FooterByteCache.Key key2 = new FooterByteCache.Key("file.parquet", 2000);
+        FooterByteCache.Key key1 = new FooterByteCache.Key("", "file.parquet", 1000);
+        FooterByteCache.Key key2 = new FooterByteCache.Key("", "file.parquet", 2000);
         byte[] data1 = randomByteArrayOfLength(100);
         byte[] data2 = randomByteArrayOfLength(100);
 
@@ -120,8 +120,8 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testSamePathSameLengthSharesCacheEntry() throws ExecutionException {
-        FooterByteCache.Key key1 = new FooterByteCache.Key("file.parquet", 1000);
-        FooterByteCache.Key key2 = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key1 = new FooterByteCache.Key("", "file.parquet", 1000);
+        FooterByteCache.Key key2 = new FooterByteCache.Key("", "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(100);
 
         cache.getOrLoad(key1, k -> data);
@@ -140,7 +140,7 @@ public class FooterByteCacheTests extends ESTestCase {
      * invoke the loader exactly once.
      */
     public void testThunderingHerdCoalescesConcurrentLoads() throws Exception {
-        FooterByteCache.Key key = new FooterByteCache.Key("shared.parquet", 5000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "shared.parquet", 5000);
         byte[] expected = randomByteArrayOfLength(256);
         AtomicInteger loadCount = new AtomicInteger();
         CountDownLatch start = new CountDownLatch(1);
@@ -181,7 +181,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testGetOrLoadPropagatesLoaderException() {
-        FooterByteCache.Key key = new FooterByteCache.Key("bad.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "bad.parquet", 1000);
         ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(key, k -> {
             throw new RuntimeException("simulated I/O failure");
         }));
@@ -231,7 +231,7 @@ public class FooterByteCacheTests extends ESTestCase {
     public void testEachConstructionIsIndependent() {
         // Distinct cache instances must not share entries.
         FooterByteCache other = new FooterByteCache(1024 * 1024, 512 * 1024, TTL);
-        FooterByteCache.Key key = new FooterByteCache.Key("file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key("", "file.parquet", 1000);
         cache.put(key, randomByteArrayOfLength(100));
         assertNull("distinct cache instances must not share entries", other.get(key));
     }

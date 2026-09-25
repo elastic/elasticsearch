@@ -139,6 +139,8 @@ public final class SplitDiscoveryPhase {
      * through by contract. Everything else discards it.
      */
     private static int limitForChildren(LogicalPlan plan, int rowLimit) {
+        // A parsed LIMIT is an INTEGER literal, which is a Java Integer; anything else is not a limit this can read
+        // and leaves the demand unset rather than guessing at it.
         if (plan instanceof Limit limit && limit.limit() instanceof Literal literal && literal.value() instanceof Integer value) {
             return rowLimit == FormatReader.NO_LIMIT ? value : Math.min(rowLimit, value);
         }

@@ -110,6 +110,30 @@ public record SplitDiscoveryContext(
         );
     }
 
+    /**
+     * The same context over a different file set: what a provider resolved the query's files to be, when the
+     * listing it was handed answered the schema rather than the scan. Every reader downstream takes the file set
+     * from the context, so replacing it once here is what keeps them all on the same answer.
+     */
+    public SplitDiscoveryContext withFileList(FileList resolved) {
+        return new SplitDiscoveryContext(
+            metadata,
+            resolved,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            metadataColumnNames,
+            retainedPartitionKeys,
+            rowLimit
+        );
+    }
+
     /** Without a row demand: the shape every caller had before a limit could reach split discovery. */
     public SplitDiscoveryContext(
         SourceMetadata metadata,

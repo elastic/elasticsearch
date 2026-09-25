@@ -5473,6 +5473,39 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * The invariant this class must not lose: a listing that covers part of a dataset is the schema's answer, never
+     * the query's file set. Resolution hands one over under {@code first_file_wins}, where one file defines the
+     * columns, and split discovery has to discover the rest for itself.
+     * <p>
+     * Every reader of the file set inside this class takes it from the context, so the resolved set is put back on
+     * the context once rather than held in a local: a reader left on the handed context would plan the prefix and
+     * the query would answer from part of the dataset without saying so. That is not a hypothetical — it shipped in
+     * this branch and a dataset of 90,567 files answered from 1,000 of them, which no test caught because a unit
+     * test's listing is never a prefix. These two are that test.
+     */
+    public void testAPrefixIsNeverUsedAsTheQuerysFileSet() {
+        List<StorageEntry> prefix = List.of(new StorageEntry(StoragePath.of("s3://b/data-0.parquet"), 2000, Instant.EPOCH));
+        SplitDiscoveryContext handed = rangeAwareContext(1).withFileList(GlobExpander.truncatedFileListOf(prefix, "s3://b/*.parquet"));
+        FileSplitProvider provider = rangeAwareProvider(createMockRangeReader(List.of(new SplitRange(0, 2000))), null);
+
+        // No storage provider is reachable here, so the files beyond the prefix cannot be discovered. Refusing is
+        // the point: the alternative is scanning the prefix and calling it the dataset.
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> provider.discoverSplits(handed));
+        assertThat(e.getMessage(), containsString("cannot discover the files for"));
+        assertThat(e.getMessage(), containsString("covers part of the dataset"));
+    }
+
+    /** And the complete case is untouched: a listing that is the whole dataset is the query's file set already. */
+    public void testACompleteListingIsUsedAsTheQuerysFileSet() {
+        FileSplitProvider provider = rangeAwareProvider(createMockRangeReader(List.of(new SplitRange(0, 2000))), null);
+
+        SplitDiscoveryResult result = provider.discoverSplits(rangeAwareContext(3));
+
+        assertEquals("three files, each contributing its one range", 3, result.filesScanned());
+        assertEquals(3, result.splits().size());
+    }
+
+    /**
      * A file's units say how many records they hold, so producing splits in listing order can stop at the file that
      * covers what the query asked for. Every file past that one is one nobody opens.
      */

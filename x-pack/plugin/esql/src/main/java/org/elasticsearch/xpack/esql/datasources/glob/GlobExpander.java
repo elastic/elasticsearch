@@ -65,6 +65,15 @@ public final class GlobExpander {
         return new GenericFileList(entries, pattern, partitionMetadata);
     }
 
+    /**
+     * A file list that is a prefix of what the pattern matches, as a bounded listing produces. For tests that need
+     * the shape a schema-only listing has: {@link FileList#isTruncated()} is what tells a reader of such a list
+     * that it is not the dataset.
+     */
+    public static FileList truncatedFileListOf(List<StorageEntry> entries, String pattern) {
+        return new GenericFileList(entries, pattern, null, List.of(), true);
+    }
+
     /** Compresses a raw file list into a compact representation (dictionary or Hive-partitioned). */
     public static FileList compact(FileList raw, String basePath) {
         if (raw instanceof GenericFileList generic) {

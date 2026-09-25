@@ -405,9 +405,12 @@ public class FileSplitProvider implements SplitProvider {
      * of it and under others the whole of it; when what it established does not cover the query's needs, this
      * discovers the rest for itself, with the query's own filters applied.
      * <p>
-     * One place answers this so no caller has to ask whether the listing it was handed happens to be complete. The
-     * mode-dependent half — how far resolution listed, and whether this continues from it or starts over — arrives
-     * with the schema's own bound; today resolution always hands over a complete set, so this returns it unchanged.
+     * One place answers this so no caller has to ask whether the listing it was handed happens to be complete. A
+     * complete one — {@code union_by_name}, {@code strict}, whose schemas span every file — is the query's file set
+     * already and is returned unchanged. A prefix — {@code first_file_wins}, whose schema needed one file — is not,
+     * so this lists the dataset with the query's own filters. Continuing from the prefix rather than listing again
+     * is the obvious refinement and is not done yet: the page the schema read is listed twice, one request against
+     * the full listing's many.
      */
     private FileList scanFileSet(SplitDiscoveryContext context) throws IOException {
         DatasetDiscovery discovery = DatasetDiscovery.shared(context.fileList());
@@ -423,13 +426,24 @@ public class FileSplitProvider implements SplitProvider {
      * with one listing and must therefore intersect them — narrowing to them starves no sibling branch.
      */
     private FileList listForQuery(SplitDiscoveryContext context) throws IOException {
-        String pattern = context.metadata().location();
+        String pattern = context.metadata() == null ? null : context.metadata().location();
         Map<String, Object> config = context.config();
-        StoragePath storagePath = StoragePath.of(pattern);
-        StorageProvider provider = storageRegistry == null ? null : storageRegistry.createProvider(storagePath.scheme(), settings, config);
-        if (provider == null) {
-            return context.fileList();
+        StorageProvider provider = null;
+        if (pattern != null && storageRegistry != null) {
+            provider = storageRegistry.createProvider(StoragePath.of(pattern).scheme(), settings, config);
         }
+        if (provider == null) {
+            // Returning what we were handed would turn a prefix of the dataset into the query's file set, and the
+            // query would answer from part of it without saying so. A schema's listing is not a scan's: if the scan
+            // cannot discover its own files, it must not pretend the schema's listing will do.
+            throw new IllegalStateException(
+                "cannot discover the files for ["
+                    + pattern
+                    + "]: the schema's listing covers part of the dataset and no storage provider is available to "
+                    + "list the rest"
+            );
+        }
+        StoragePath storagePath = StoragePath.of(pattern);
         try {
             List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
                 context.filterHints(),
@@ -452,16 +466,17 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     @Override
-    public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
-        if (context.fileList() == null || context.fileList().isResolved() == false) {
+    public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext handedContext) {
+        if (handedContext.fileList() == null || handedContext.fileList().isResolved() == false) {
             return SplitDiscoveryResult.EMPTY;
         }
-        final FileList fileList;
+        final SplitDiscoveryContext context;
         try {
-            fileList = scanFileSet(context);
+            context = handedContext.withFileList(scanFileSet(handedContext));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        final FileList fileList = context.fileList();
 
         Map<String, Object> config = context.config();
         long requestedStrideBytes = resolveTargetSplitSize(config);
@@ -560,21 +575,22 @@ public class FileSplitProvider implements SplitProvider {
      */
     @Override
     public void discoverSplitsAsync(
-        SplitDiscoveryContext context,
+        SplitDiscoveryContext handedContext,
         Executor requestedExecutor,
         ActionListener<SplitDiscoveryResult> listener
     ) {
-        if (context.fileList() == null || context.fileList().isResolved() == false) {
+        if (handedContext.fileList() == null || handedContext.fileList().isResolved() == false) {
             listener.onResponse(SplitDiscoveryResult.EMPTY);
             return;
         }
-        final FileList fileList;
+        final SplitDiscoveryContext context;
         try {
-            fileList = scanFileSet(context);
+            context = handedContext.withFileList(scanFileSet(handedContext));
         } catch (IOException e) {
             listener.onFailure(e);
             return;
         }
+        final FileList fileList = context.fileList();
 
         Map<String, Object> config = context.config();
         final long requestedStrideBytes;
@@ -1205,7 +1221,10 @@ public class FileSplitProvider implements SplitProvider {
                 }
             });
             // Cached ranges cost nothing to plan, so they count towards the demand before any file is opened.
-            RowBudget budget = RowBudget.of(batch.context(), null);
+            RowBudget budget = RowBudget.of(
+                batch.context(),
+                fileList.fileCount() > 0 ? resolveConfiguredReader(fileList.path(0), config) : null
+            );
             for (int i = 0; i < n; i++) {
                 if (slots[i] != null) {
                     budget.account(slots[i]);

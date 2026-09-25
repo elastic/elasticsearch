@@ -76,9 +76,7 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
      * configuration-cache incompatibility. New entries must not be added here without
      * first filing a follow-up to fix the underlying incompatibility.
      */
-    private static final Set<String> KNOWN_CC_INCOMPATIBLE = [
-        "SnykDependencyMonitoringGradlePluginFuncTest",
-    ] as Set
+    private static final Set<String> KNOWN_CC_INCOMPATIBLE = [] as Set
 
     private static final Set<String> KNOWN_UNCOVERED = [
         // --- plugins lacking a *FuncTest ---
@@ -113,7 +111,7 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneTestPlugin",
         "org.elasticsearch.gradle.internal.test.TestWithDependenciesPlugin",
-        "org.elasticsearch.gradle.internal.test.InternalResourceExhaustionTestPlugin",
+        "org.elasticsearch.gradle.internal.test.InternalHeapPressureTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",

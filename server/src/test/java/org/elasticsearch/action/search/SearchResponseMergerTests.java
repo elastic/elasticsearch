@@ -807,13 +807,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             }
         };
         try (
-            SearchResponseMerger merger = new SearchResponseMerger(
-                0,
-                10,
-                0,
-                new SearchTimeProvider(0, 0, () -> 0),
-                reduceContextBuilder
-            )
+            SearchResponseMerger merger = new SearchResponseMerger(0, 10, 0, new SearchTimeProvider(0, 0, () -> 0), reduceContextBuilder)
         ) {
             merger.add(remoteResponse);
             remoteResponse.decRef();

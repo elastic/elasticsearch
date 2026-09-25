@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -582,6 +583,10 @@ public class FileSplitProvider implements SplitProvider {
      * Non-joining Phase-2 discovery. Phase-1 filtering stays on the calling thread (no object-store IO).
      * Per-file planning and probes fan out through {@link ThrottledIterator}; the caller must not await.
      * Production wires {@code esql_external_io} as {@code requestedExecutor}.
+     * <p>
+     * When the listing we were handed answered the schema rather than the scan, discovering the query's own file
+     * set is object-store IO, so that and everything after it move to {@code requestedExecutor} — the calling
+     * thread still does none.
      */
     @Override
     public void discoverSplitsAsync(
@@ -593,13 +598,21 @@ public class FileSplitProvider implements SplitProvider {
             listener.onResponse(SplitDiscoveryResult.EMPTY);
             return;
         }
-        final SplitDiscoveryContext context;
-        try {
-            context = handedContext.withScanFileSet(scanFileSet(handedContext));
-        } catch (IOException e) {
-            listener.onFailure(e);
+        if (DatasetDiscovery.shared(handedContext.fileList()).schemaListingIsComplete()) {
+            // The listing is the query's file set already: nothing to discover, so nothing leaves this thread that
+            // did not leave it before.
+            planSplitsAsync(handedContext, requestedExecutor, listener);
             return;
         }
+        // Otherwise the file set is a walk of the object store — on the dataset this was measured against, ninety-one
+        // sequential page requests — and this method's contract is that the calling thread waits for no such thing.
+        discoveryFanOutExecutor(requestedExecutor).execute(ActionRunnable.wrap(listener, resolved -> {
+            planSplitsAsync(handedContext.withScanFileSet(scanFileSet(handedContext)), requestedExecutor, resolved);
+        }));
+    }
+
+    /** Phase-1 filtering and the Phase-2 fan-out, over a context whose file set is the query's own. */
+    private void planSplitsAsync(SplitDiscoveryContext context, Executor requestedExecutor, ActionListener<SplitDiscoveryResult> listener) {
         final FileList fileList = context.fileList();
 
         Map<String, Object> config = context.config();

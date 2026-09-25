@@ -328,53 +328,75 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * The convergence contract (audit F-NUM / F-CAST-INT): a declared numeric read is value-identical
-     * to the ES|QL {@code ::} cast, which <b>rounds</b> string&rarr;whole-number (the former
-     * {@code NumberType.parse} path truncated). Fractional, scientific, and signed tokens are accepted.
-     * {@code unsigned_long} truncates — the documented per-target split ({@code ::long} rounds,
-     * {@code ::unsigned_long} truncates).
+     * A declared whole-number read accepts only exact whole numbers. Tokens that name a whole number
+     * ({@code 2.0}, {@code 1e3}) succeed; a non-zero fractional part is refused — deliberately unlike
+     * {@code ::integer}/{@code ::long} (which round) and {@code ::unsigned_long} (which truncates).
      */
-    public void testDeclaredNumericReadMatchesCastEngineRounding() {
-        assertLongCast("1.9", 2L);   // == "1.9"::long (was 1 under truncate)
-        assertLongCast("-1.9", -2L);
-        assertLongCast("2.5", 3L);
+    public void testDeclaredNumericReadIsExactWholeNumber() {
         assertLongCast("1e3", 1000L);
+        assertLongCast("2.0", 2L);
         assertLongCast("+5", 5L);
         assertLongCast("42", 42L);
-        assertIntCast("1.9", 2);
-        assertIntCast("-2.6", -3);
+        assertIntCast("2.0", 2);
+        assertIntCast("1e2", 100);
+        InvalidArgumentException fraction = expectThrows(InvalidArgumentException.class, () -> assertLongCast("1.9", 2L));
+        assertThat(fraction.getMessage(), containsString("not a whole number"));
+        assertThat(fraction.getMessage(), not(containsString("out of range")));
+        expectThrows(InvalidArgumentException.class, () -> assertLongCast("-1.9", -2L));
+        expectThrows(InvalidArgumentException.class, () -> assertLongCast("2.5", 3L));
+        expectThrows(InvalidArgumentException.class, () -> assertIntCast("1.9", 2));
+        expectThrows(InvalidArgumentException.class, () -> assertIntCast("-2.6", -3));
         try (Block src = bytesBlock("1.9"); Block d = castStrict(src, DataType.KEYWORD, DataType.DOUBLE)) {
             assertThat(((DoubleBlock) d).getDouble(0), equalTo(1.9));
         }
-        // unsigned_long truncates where long rounds (F-CAST-INT)
-        try (Block src = bytesBlock("2.5"); Block ul = castStrict(src, DataType.KEYWORD, DataType.UNSIGNED_LONG)) {
+        // unsigned_long also refuses a fraction (does not truncate); message names a fraction, not "out of range"
+        InvalidArgumentException ulFraction = expectThrows(InvalidArgumentException.class, () -> {
+            try (Block src = bytesBlock("2.5"); Block ul = castStrict(src, DataType.KEYWORD, DataType.UNSIGNED_LONG)) {
+                fail("expected refuse, got " + NumericUtils.unsignedLongAsNumber(((LongBlock) ul).getLong(0)));
+            }
+        });
+        assertThat(ulFraction.getMessage(), containsString("not a whole number"));
+        assertThat(ulFraction.getMessage(), not(containsString("out of range")));
+        try (Block src = bytesBlock("2.0"); Block ul = castStrict(src, DataType.KEYWORD, DataType.UNSIGNED_LONG)) {
             assertThat(NumericUtils.unsignedLongAsNumber(((LongBlock) ul).getLong(0)).longValue(), equalTo(2L));
         }
+        // Unmaterializable whole vs fractional tiny: message must not conflate the two
+        InvalidArgumentException huge = expectThrows(InvalidArgumentException.class, () -> assertLongCast("1e999999999", 0L));
+        assertThat(huge.getMessage(), containsString("out of range"));
+        assertThat(huge.getMessage(), not(containsString("not a whole number")));
+        InvalidArgumentException tiny = expectThrows(InvalidArgumentException.class, () -> assertLongCast("1e-999999999", 0L));
+        assertThat(tiny.getMessage(), containsString("not a whole number"));
     }
 
     /**
-     * A physical DOUBLE column declared {@code long}/{@code integer} rounds like {@code ::long}/{@code ::integer}
-     * (not truncates) — the "declared read is value-identical to the cast engine" claim, exercised for a numeric
-     * (non-string) source. {@code testDeclaredNumericReadMatchesCastEngineRounding} only proves it for strings.
+     * A physical DOUBLE column declared {@code long}/{@code integer} accepts only already-whole values.
+     * Fractional doubles are refused — unlike {@code ::long}/{@code ::integer}, which round.
      */
-    public void testCastDoubleToLongAndIntegerRounds() {
+    public void testCastDoubleToLongAndIntegerRequiresWholeNumber() {
         try (
-            Block src = blockFactory.newDoubleArrayVector(new double[] { 2.5, -1.9, 1000.0 }, 3).asBlock();
+            Block src = blockFactory.newDoubleArrayVector(new double[] { 1000.0, 2.0 }, 2).asBlock();
             Block cast = castStrict(src, DataType.DOUBLE, DataType.LONG)
         ) {
             LongBlock l = (LongBlock) cast;
-            assertEquals(3L, l.getLong(0));   // 2.5 rounds to 3, not truncates to 2
-            assertEquals(-2L, l.getLong(1));  // -1.9 rounds to -2
-            assertEquals(1000L, l.getLong(2));
+            assertEquals(1000L, l.getLong(0));
+            assertEquals(2L, l.getLong(1));
         }
-        try (
-            Block src = blockFactory.newDoubleArrayVector(new double[] { 2.5, -2.6 }, 2).asBlock();
-            Block cast = castStrict(src, DataType.DOUBLE, DataType.INTEGER)
-        ) {
-            org.elasticsearch.compute.data.IntBlock i = (org.elasticsearch.compute.data.IntBlock) cast;
-            assertEquals(3, i.getInt(0));
-            assertEquals(-3, i.getInt(1));
-        }
+        expectThrows(InvalidArgumentException.class, () -> {
+            try (
+                Block src = blockFactory.newDoubleArrayVector(new double[] { 2.5 }, 1).asBlock();
+                Block cast = castStrict(src, DataType.DOUBLE, DataType.LONG)
+            ) {
+                fail("expected refuse, got " + ((LongBlock) cast).getLong(0));
+            }
+        });
+        expectThrows(InvalidArgumentException.class, () -> {
+            try (
+                Block src = blockFactory.newDoubleArrayVector(new double[] { -1.9 }, 1).asBlock();
+                Block cast = castStrict(src, DataType.DOUBLE, DataType.INTEGER)
+            ) {
+                fail("expected refuse, got " + ((org.elasticsearch.compute.data.IntBlock) cast).getInt(0));
+            }
+        });
     }
 
     /**
@@ -1108,15 +1130,13 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
         assertThat(warnings, hasSize(1));
-        // The overflow now flows through the :: cast engine's range check (safeToInt), whose
-        // message names the target type — declared read == ::integer.
-        assertThat(warnings.get(0), containsString("out of [integer] range"));
+        assertThat(warnings.get(0), containsString("out of range for an integer"));
     }
 
     public void testStrictCoercionThrows() {
         try (Block source = bytesBlock("not-a-number")) {
-            // Reusing the :: cast engine, an unparseable token throws InvalidArgumentException
-            // (a QlClientException -> HTTP 400), not a raw IllegalArgumentException (500).
+            // An unparseable token throws InvalidArgumentException (a QlClientException -> HTTP 400),
+            // not a raw IllegalArgumentException (500).
             expectThrows(
                 InvalidArgumentException.class,
                 () -> DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, null, null).close()
@@ -1161,9 +1181,9 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * The reused {@code ::} cast engine already throws {@link InvalidArgumentException} on an unparseable numeric
-     * token; the chokepoint re-wraps it with column + declared-type context. The outer type stays
-     * {@code InvalidArgumentException} (a client 400), the cast-engine exception is preserved as the cause, and the
+     * Exact whole-number conversion throws {@link InvalidArgumentException} on an unparseable numeric token; the
+     * chokepoint re-wraps it with column + declared-type context. The outer type stays
+     * {@code InvalidArgumentException} (a client 400), the original exception is preserved as the cause, and the
      * message reads cleanly without a duplicated clause.
      */
     public void testStrictCoercionFailureWrapsCastEngineException() {

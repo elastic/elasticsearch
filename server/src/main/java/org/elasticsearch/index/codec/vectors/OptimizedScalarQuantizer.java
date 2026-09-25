@@ -11,12 +11,24 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
+import org.elasticsearch.simdvec.OptimizedScalarQuantization;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 
+/**
+ * A variation of Lucene's {@link org.apache.lucene.util.quantization.OptimizedScalarQuantizer}.
+ * <p>
+ * This has various optimizations applied on top of the lucene version,
+ * including Panama implementations of key loops, less allocations,
+ * extra overloads, and different return types.
+ */
 public class OptimizedScalarQuantizer {
+    private static final OptimizedScalarQuantization IMPL = ESVectorizationProvider.getInstance()
+        .getVectorScorerFactory()
+        .newOptimizedScalarQuantization();
+
     public static void initInterval(byte bits, float vecStd, float vecMean, float min, float max, float[] initInterval) {
         initInterval[0] = (float) clamp(MINIMUM_MSE_GRID[bits - 1][0] * vecStd + vecMean, min, max);
         initInterval[1] = (float) clamp(MINIMUM_MSE_GRID[bits - 1][1] * vecStd + vecMean, min, max);
@@ -68,9 +80,9 @@ public class OptimizedScalarQuantizer {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert bits.length == destinations.length;
         if (similarityFunction == EUCLIDEAN) {
-            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, residualDestination, statsScratch);
+            IMPL.centerAndCalculateStatsEuclidean(vector, centroid, residualDestination, statsScratch);
         } else {
-            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, residualDestination, statsScratch);
+            IMPL.centerAndCalculateStatsDp(vector, centroid, residualDestination, statsScratch);
         }
         float vecMean = statsScratch[0];
         float vecVar = statsScratch[1];
@@ -90,7 +102,7 @@ public class OptimizedScalarQuantizer {
             if (hasQuantization) {
                 sumQuery = getSumQuery(destinations[i]);
             } else {
-                sumQuery = ESVectorUtil.quantizeVectorWithIntervals(
+                sumQuery = IMPL.quantizeWithIntervals(
                     residualDestination,
                     destinations[i],
                     intervalScratch[0],
@@ -115,9 +127,9 @@ public class OptimizedScalarQuantizer {
         assert bits > 0 && bits <= 8;
         int points = 1 << bits;
         if (similarityFunction == EUCLIDEAN) {
-            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, residualDestination, statsScratch);
+            IMPL.centerAndCalculateStatsEuclidean(vector, centroid, residualDestination, statsScratch);
         } else {
-            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, residualDestination, statsScratch);
+            IMPL.centerAndCalculateStatsDp(vector, centroid, residualDestination, statsScratch);
         }
         float vecMean = statsScratch[0];
         float vecVar = statsScratch[1];
@@ -133,13 +145,7 @@ public class OptimizedScalarQuantizer {
         if (hasQuantization) {
             sumQuery = getSumQuery(destination);
         } else {
-            sumQuery = ESVectorUtil.quantizeVectorWithIntervals(
-                residualDestination,
-                destination,
-                intervalScratch[0],
-                intervalScratch[1],
-                bits
-            );
+            sumQuery = IMPL.quantizeWithIntervals(residualDestination, destination, intervalScratch[0], intervalScratch[1], bits);
         }
         return new QuantizationResult(
             intervalScratch[0],
@@ -163,9 +169,9 @@ public class OptimizedScalarQuantizer {
         assert bits > 0 && bits <= 8;
         int points = 1 << bits;
         if (similarityFunction == EUCLIDEAN) {
-            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, residualDestination, statsScratch);
+            IMPL.centerAndCalculateStatsEuclidean(vector, centroid, residualDestination, statsScratch);
         } else {
-            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, residualDestination, statsScratch);
+            IMPL.centerAndCalculateStatsDp(vector, centroid, residualDestination, statsScratch);
         }
         float vecMean = statsScratch[0];
         float vecVar = statsScratch[1];
@@ -179,13 +185,7 @@ public class OptimizedScalarQuantizer {
         if (hasQuantization) {
             sumQuery = getSumQuery(destination);
         } else {
-            sumQuery = ESVectorUtil.quantizeVectorWithIntervals(
-                residualDestination,
-                destination,
-                intervalScratch[0],
-                intervalScratch[1],
-                bits
-            );
+            sumQuery = IMPL.quantizeWithIntervals(residualDestination, destination, intervalScratch[0], intervalScratch[1], bits);
         }
         return new QuantizationResult(
             intervalScratch[0],
@@ -213,9 +213,9 @@ public class OptimizedScalarQuantizer {
     ) {
         assert bits.length == destinations.length;
         if (similarityFunction == EUCLIDEAN) {
-            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, residualDestination, statsScratch);
+            IMPL.centerAndCalculateStatsEuclidean(vector, centroid, residualDestination, statsScratch);
         } else {
-            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, residualDestination, statsScratch);
+            IMPL.centerAndCalculateStatsDp(vector, centroid, residualDestination, statsScratch);
         }
         float vecMean = statsScratch[0];
         float vecVar = statsScratch[1];
@@ -233,7 +233,7 @@ public class OptimizedScalarQuantizer {
             if (hasQuantization) {
                 sumQuery = getSumQuery(destinations[i]);
             } else {
-                sumQuery = ESVectorUtil.quantizeVectorWithIntervals(
+                sumQuery = IMPL.quantizeWithIntervals(
                     residualDestination,
                     destinations[i],
                     intervalScratch[0],
@@ -263,14 +263,14 @@ public class OptimizedScalarQuantizer {
      * @return true if {@param destination} contains the quantize vector and we can skip the quantization.
      */
     private boolean optimizeIntervals(float[] initInterval, int[] destination, float[] vector, float norm2, int points) {
-        double initialLoss = ESVectorUtil.calculateOSQLoss(vector, initInterval[0], initInterval[1], points, norm2, lambda, destination);
+        double initialLoss = IMPL.calculateLoss(vector, initInterval[0], initInterval[1], points, norm2, lambda, destination);
         final float scale = (1.0f - lambda) / norm2;
         if (Float.isFinite(scale) == false) {
             return true;
         }
         for (int i = 0; i < iters; ++i) {
             // calculate the grid points for coordinate descent
-            ESVectorUtil.calculateOSQGridPoints(vector, destination, points, gridScratch);
+            IMPL.calculateGridPoints(vector, destination, points, gridScratch);
             float daa = gridScratch[0];
             float dab = gridScratch[1];
             float dbb = gridScratch[2];
@@ -294,7 +294,7 @@ public class OptimizedScalarQuantizer {
                 // This can happen if the optimal interval is very small and we have numerical instability, in which case we can stop
                 return true;
             }
-            double newLoss = ESVectorUtil.calculateOSQLoss(vector, aOpt, bOpt, points, norm2, lambda, destination);
+            double newLoss = IMPL.calculateLoss(vector, aOpt, bOpt, points, norm2, lambda, destination);
             // If the new loss is worse, don't update the interval and exit
             // This optimization, unlike kMeans, does not always converge to better loss
             // So exit if we are getting worse

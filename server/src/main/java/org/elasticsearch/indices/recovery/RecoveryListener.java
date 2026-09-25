@@ -28,10 +28,7 @@ public interface RecoveryListener {
         ) {}
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {}
-
-        @Override
-        public void onRecoveryAborted() {}
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {}
     };
 
     /// Called when recovery finishes successfully.
@@ -42,10 +39,7 @@ public interface RecoveryListener {
     );
 
     /// Called when recovery fails with an exception.
-    void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
-
-    /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
-    void onRecoveryAborted();
+    void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy);
 
     static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
         return new RecoveryListener() {
@@ -61,21 +55,15 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try (ThreadContext.StoredContext ignore = context.get()) {
-                    listener.onRecoveryFailure(e, sendShardFailure);
-                }
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                try (ThreadContext.StoredContext ignore = context.get()) {
-                    listener.onRecoveryAborted();
+                    listener.onRecoveryFailure(e, failureStrategy);
                 }
             }
         };
     }
 
+    /// Returns a listener that delegates all outcomes to the given listener, running `runAfter` after each outcome.
     static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
         return new RecoveryListener() {
             @Override
@@ -92,18 +80,9 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try {
-                    listener.onRecoveryFailure(e, sendShardFailure);
-                } finally {
-                    runAfter.run();
-                }
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                try {
-                    listener.onRecoveryAborted();
+                    listener.onRecoveryFailure(e, failureStrategy);
                 } finally {
                     runAfter.run();
                 }
@@ -111,8 +90,59 @@ public interface RecoveryListener {
         };
     }
 
-    /// Returns a listener which delegates `onRecoveryDone` and `onRecoveryAborted` unchanged to the given listener.
-    //// Before delegating `onRecoveryFailure`, it first runs `beforeFailure`.
+    /// Returns a listener that delegates all outcomes to the given listener, running `runBefore` before each outcome.
+    static RecoveryListener runBefore(RecoveryListener listener, Runnable runBefore) {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                try {
+                    runBefore.run();
+                } finally {
+                    listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+                }
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+                try {
+                    runBefore.run();
+                } finally {
+                    listener.onRecoveryFailure(e, failureStrategy);
+                }
+            }
+        };
+    }
+
+    /// Returns a listener which delegates [onRecoveryFailure] unchanged to the given listener.
+    /// Before delegating [onRecoveryDone], it first runs `beforeDone`.
+    static RecoveryListener runBeforeDone(RecoveryListener listener, Runnable beforeDone) {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                try {
+                    beforeDone.run();
+                } finally {
+                    listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+                }
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+                listener.onRecoveryFailure(e, failureStrategy);
+            }
+        };
+    }
+
+    /// Returns a listener which delegates [onRecoveryDone] unchanged to the given listener.
+    /// Before delegating [onRecoveryFailure], it first runs `beforeFailure`.
     static RecoveryListener runBeforeFailure(RecoveryListener listener, Consumer<RecoveryFailedException> beforeFailure) {
         return new RecoveryListener() {
             @Override
@@ -125,17 +155,12 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try {
                     beforeFailure.accept(e);
                 } finally {
-                    listener.onRecoveryFailure(e, sendShardFailure);
+                    listener.onRecoveryFailure(e, failureStrategy);
                 }
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                listener.onRecoveryAborted();
             }
         };
     }
@@ -170,27 +195,16 @@ public interface RecoveryListener {
                 }
 
                 @Override
-                public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                     assertFirstRun();
                     try {
-                        delegate.onRecoveryFailure(e, sendShardFailure);
+                        delegate.onRecoveryFailure(e, failureStrategy);
                     } catch (RuntimeException ex) {
                         if (e != null && ex != e) {
                             ex.addSuppressed(e);
                         }
                         assert false : ex;
                         throw ex;
-                    }
-                }
-
-                @Override
-                public void onRecoveryAborted() {
-                    assertFirstRun();
-                    try {
-                        delegate.onRecoveryAborted();
-                    } catch (Exception e) {
-                        assert false : new AssertionError("listener [" + delegate + "] must handle its own exceptions", e);
-                        throw e;
                     }
                 }
             };

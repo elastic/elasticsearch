@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -20,6 +21,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -44,6 +47,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
     protected final Client client;
     protected final AggregationDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final DatafeedSearchTelemetry searchTelemetry;
     private boolean hasNext;
     private volatile boolean isCancelled;
     private AggregationToJsonProcessor aggregationToJsonProcessor;
@@ -53,11 +57,13 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
     AbstractAggregationDataExtractor(
         Client client,
         AggregationDataExtractorContext dataExtractorContext,
-        DatafeedTimingStatsReporter timingStatsReporter
+        DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry
     ) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
         this.hasNext = true;
         this.isCancelled = false;
         this.outputStream = new ByteArrayOutputStream();
@@ -100,6 +106,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         if (aggregationToJsonProcessor == null) {
             InternalAggregations aggs = search();
             if (aggs == null) {
+                searchTelemetry.recordSearchResults(ExtractorType.AGGREGATION, 0, null);
                 hasNext = false;
                 return new Result(searchInterval, Optional.empty(), lastLinkedClusterStates);
             }
@@ -109,12 +116,15 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         outputStream.reset();
         // We can cancel immediately as we process whole date_histogram buckets at a time
         aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
+        searchTelemetry.recordSearchResults(ExtractorType.AGGREGATION, aggregationToJsonProcessor.getWrittenDocumentCount(), null);
         // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
         hasNext = false;
 
         return new Result(
             searchInterval,
-            aggregationToJsonProcessor.getKeyValueCount() > 0
+            // Every emitted document retains the time field (queueDocToWrite), so document count and
+            // key-value count cross zero together; this gate matches the former getKeyValueCount() check.
+            aggregationToJsonProcessor.getWrittenDocumentCount() > 0
                 ? Optional.of(new ByteArrayInputStream(outputStream.toByteArray()))
                 : Optional.empty(),
             lastLinkedClusterStates
@@ -125,7 +135,18 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = buildSearchRequest(buildBaseSearchSource());
         assert searchRequest.request().allowPartialSearchResults() == false;
-        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequest);
+        SearchResponse searchResponse;
+        try {
+            searchResponse = executeSearchRequest(client, context.queryContext, searchRequest);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            // Re-throw the original ResourceNotFoundException so callers and exception unwrappers
+            // see the same type and HTTP status as before this wrapper was introduced.
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
@@ -137,6 +158,11 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         } finally {
             searchResponse.decRef();
         }
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
     }
 
     private void initAggregationProcessor(InternalAggregations aggs) throws IOException {
@@ -165,6 +191,11 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         try {
             DataExtractorUtils.checkForSkippedClusters(searchResponse);
             success = true;
+        } catch (ResourceNotFoundException e) {
+            // Extract cluster states before the response is released so the caller can propagate
+            // them to CrossClusterSearchStats even though extraction is about to fail.
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(searchResponse);
+            throw new SkippedClustersException(e, states);
         } finally {
             if (success == false) {
                 searchResponse.decRef();
@@ -228,7 +259,16 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = buildSearchRequest(
             DataExtractorUtils.getSearchSourceBuilderForSummary(context.queryContext)
         );
-        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        SearchResponse searchResponse;
+        try {
+            searchResponse = executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());

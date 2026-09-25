@@ -10,8 +10,8 @@
 package org.elasticsearch.foreign.processor;
 
 /**
- * Tests that {@code @VectorSegment}/{@code @MatrixSegment} (backed by {@code BoundsCheckModel})
- * emit the correct diagnostics for invalid parameter combinations.
+ * Tests that {@code @VectorSegment}/{@code @MatrixSegment}/{@code @SlicedSegment} (backed by
+ * {@code BoundsCheckModel}) emit the correct diagnostics for invalid parameter combinations.
  * Positive/structural cases (where a correctly-shaped {@code $Impl} class is generated) live in
  * {@link ImplClassWriterTests}, the test suite for class codegen.
  */
@@ -409,6 +409,182 @@ public class BoundsCheckTests extends ProcessorTestCase {
                 .stream()
                 .anyMatch(msg -> msg.contains("@MatrixSegment.aligned") && msg.contains("requires 'elementBits' to be a multiple of 8"))
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // @SlicedSegment
+    // -------------------------------------------------------------------------
+
+    public void testSlicedSegmentOnNonMemorySegmentParamFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") int offset, int size);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about non-MemorySegment parameter but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("can only be applied to a MemorySegment parameter"))
+        );
+    }
+
+    public void testSlicedSegmentUnknownOffsetParamFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@SlicedSegment(offsetParam = "nope", sizeParam = "size") MemorySegment buf, int offset, int size);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about unknown offsetParam but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@SlicedSegment.offsetParam references unknown parameter [nope]"))
+        );
+    }
+
+    public void testSlicedSegmentUnknownSizeParamFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "nope") MemorySegment buf, int offset, int size);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about unknown sizeParam but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@SlicedSegment.sizeParam references unknown parameter [nope]"))
+        );
+    }
+
+    public void testSlicedSegmentOffsetParamWrongTypeFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, MemorySegment offset, int size);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about offsetParam type but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@SlicedSegment.offsetParam parameter [offset] must be int or long"))
+        );
+    }
+
+    public void testSlicedSegmentSizeParamWrongTypeFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, int offset, MemorySegment size);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about sizeParam type but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@SlicedSegment.sizeParam parameter [size] must be int or long"))
+        );
+    }
+
+    public void testSlicedSegmentValidCompiles() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface GoodLib {
+                @Function("native_fn")
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, int offset, int size);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    public void testSlicedSegmentValidCompilesWithLongParams() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface GoodLib {
+                @Function("native_fn")
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, long offset, long size);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    public void testSlicedSegmentValidCompilesWithMixedIntLongParams() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.SlicedSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface GoodLib {
+                @Function("native_fn")
+                int fn(@SlicedSegment(offsetParam = "offset", sizeParam = "size") MemorySegment buf, int offset, long size);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
     }
 
     // -------------------------------------------------------------------------

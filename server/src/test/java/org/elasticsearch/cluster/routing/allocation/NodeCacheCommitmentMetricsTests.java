@@ -264,12 +264,12 @@ public class NodeCacheCommitmentMetricsTests extends ESTestCase {
 
     private static List<Measurement> boostedMeasurements(TestEnvironment env) {
         return env.registry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, NodeCacheCommitmentMetrics.BOOSTED_CACHE_COMMITMENT_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, NodeCacheCommitmentMetrics.BOOSTED_CACHE_COMMITMENT_METRIC_NAME);
     }
 
     private static List<Measurement> totalMeasurements(TestEnvironment env) {
         return env.registry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, NodeCacheCommitmentMetrics.TOTAL_CACHE_COMMITMENT_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, NodeCacheCommitmentMetrics.TOTAL_CACHE_COMMITMENT_METRIC_NAME);
     }
 
     private static Measurement measurementForNode(List<Measurement> measurements, String nodeId) {

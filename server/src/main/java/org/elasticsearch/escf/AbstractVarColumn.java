@@ -57,7 +57,7 @@ abstract class AbstractVarColumn extends EscfColumn {
      */
     @Override
     public final ObjectTupleCursor<BytesRef> bytesRefCursor(boolean retainValues) {
-        return new BytesRefTupleCursor(this, retainValues);
+        return new BytesRefTupleCursor(presentDocs(), new DenseBytesRefValuesCursor(docCount, this, retainValues));
     }
 
     /**
@@ -77,7 +77,7 @@ abstract class AbstractVarColumn extends EscfColumn {
     }
 
     @Override
-    final BytesRef getBinaryValue(int row) {
+    public final BytesRef getBinaryValue(int row) {
         int off = intAt(offsets, row);
         return data.slice(off, intAt(offsets, row + 1) - off).toBytesRef();
     }
@@ -95,15 +95,15 @@ abstract class AbstractVarColumn extends EscfColumn {
         return EscfColumnData.ofVarWidth(kind(), docCount, validity, newOffsets, newData);
     }
 
-    private static final class BytesRefTupleCursor extends ObjectTupleCursor<BytesRef> {
+    static final class BytesRefTupleCursor extends ObjectTupleCursor<BytesRef> {
         private final PresentDocIterator present;
         private final DenseBytesRefValuesCursor values;
         private int lastRow = -1;
         private BytesRef currentValue;
 
-        BytesRefTupleCursor(AbstractVarColumn column, boolean retainValues) {
-            this.present = column.presentDocs();
-            this.values = new DenseBytesRefValuesCursor(column.docCount, column, retainValues);
+        BytesRefTupleCursor(PresentDocIterator present, DenseBytesRefValuesCursor values) {
+            this.present = present;
+            this.values = values;
         }
 
         @Override
@@ -142,11 +142,16 @@ abstract class AbstractVarColumn extends EscfColumn {
         private int pos;
 
         DenseBytesRefValuesCursor(int count, AbstractVarColumn column, boolean retainValues) {
+            this(count, column.offsets, column.data, retainValues);
+        }
+
+        /** Constructs a cursor directly from raw offset and data buffers. */
+        DenseBytesRefValuesCursor(int count, IntsRef offsets, BytesReference data, boolean retainValues) {
             super(count);
-            this.iter = sliceData(column.offsets, column.data, count).iterator();
-            this.offsets = column.offsets.ints;
-            this.nextOffsetIndex = column.offsets.offset + 1;
-            this.valueOffset = offsets[column.offsets.offset];
+            this.iter = sliceData(offsets, data, count).iterator();
+            this.offsets = offsets.ints;
+            this.nextOffsetIndex = offsets.offset + 1;
+            this.valueOffset = this.offsets[offsets.offset];
             this.retainValues = retainValues;
         }
 

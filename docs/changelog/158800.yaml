@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158800
+summary: Support partitioning in count aggregation
+type: enhancement

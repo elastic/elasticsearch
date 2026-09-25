@@ -63,6 +63,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -1051,7 +1052,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             BlobContainer sourceBlobContainer,
             String sourceBlobName,
             String blobName,
-            long blobSize
+            long blobSize,
+            @Nullable Executor executor
         ) throws IOException {
             assertThat(sourceBlobContainer, instanceOf(DisruptableBlobContainer.class));
             assertPurpose(purpose);

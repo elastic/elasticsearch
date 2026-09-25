@@ -34,12 +34,14 @@ import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TopNPreFilter;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -67,10 +69,12 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNPreFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
@@ -159,6 +163,19 @@ public class MapperUtils {
             );
         }
 
+        if (p instanceof DenseVector denseVector) {
+            return new DenseVectorExec(
+                denseVector.source(),
+                child,
+                denseVector.inferenceId(),
+                denseVector.fields(),
+                denseVector.generatedAttributes(),
+                denseVector.timeout(),
+                denseVector.inputType(),
+                denseVector.endpointTaskType()
+            );
+        }
+
         if (p instanceof Enrich enrich) {
             return new EnrichExec(
                 enrich.source(),
@@ -224,6 +241,17 @@ public class MapperUtils {
 
         if (p instanceof Sample sample) {
             return new SampleExec(sample.source(), child, sample.probability());
+        }
+
+        if (p instanceof TopNPreFilter preFilter) {
+            return new TopNPreFilterExec(
+                preFilter.source(),
+                child,
+                preFilter.key(),
+                preFilter.limit(),
+                preFilter.asc(),
+                preFilter.nullsFirst()
+            );
         }
 
         if (p instanceof SparklineGenerateEmptyBuckets sparklineGenerateEmptyBuckets) {
@@ -304,8 +332,7 @@ public class MapperUtils {
                 aggMode,
                 intermediateAttributes,
                 null,
-                ts.timeBucket(),
-                ts.outputTimeBucket()
+                ts.timeBucket()
             );
             case SampledAggregate sample -> new SampledAggregateExec(
                 sample.source(),

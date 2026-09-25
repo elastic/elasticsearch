@@ -64,11 +64,19 @@ public class GlobMatcherTests extends ESTestCase {
     }
 
     @SuppressWarnings("RegexpMultiline")
+    /**
+     * A recursive listing is needed for a globstar, and also for any glob spanning more than one segment: a
+     * non-recursive listing returns only the prefix's immediate children, so {@code data/*.csv} would see the
+     * directory {@code data} and never the files in it. This used to test only for {@code **}, which meant a
+     * multi-segment glob without one silently matched nothing.
+     */
     public void testNeedsRecursion() {
         assertTrue(new GlobMatcher("**/*.parquet").needsRecursion());
         assertTrue(new GlobMatcher("data/**" + "/file.csv").needsRecursion());
-        assertFalse(new GlobMatcher("*.parquet").needsRecursion());
-        assertFalse(new GlobMatcher("data/*.csv").needsRecursion());
+        assertTrue("spans two segments", new GlobMatcher("data/*.csv").needsRecursion());
+        assertTrue("spans three", new GlobMatcher("a/*/b.csv").needsRecursion());
+        assertFalse("one segment is satisfied by the immediate children", new GlobMatcher("*.parquet").needsRecursion());
+        assertFalse(new GlobMatcher("file.csv").needsRecursion());
     }
 
     public void testLiteralDotsEscaped() {
@@ -79,5 +87,131 @@ public class GlobMatcherTests extends ESTestCase {
 
     public void testGlob() {
         assertEquals("*.parquet", new GlobMatcher("*.parquet").glob());
+    }
+
+    // -- edge and failure cases. Driven by measured coverage: every one of these closed a line or branch that no
+    // test reached, on a class that decides which objects every dataset reads.
+
+    public void testNullGlobIsRejected() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GlobMatcher(null));
+        assertEquals("glob pattern cannot be null", e.getMessage());
+    }
+
+    public void testNullPathNeverMatches() {
+        assertFalse(new GlobMatcher("*").matches(null));
+    }
+
+    public void testToStringNamesThePattern() {
+        assertEquals("GlobMatcher[a/*.csv]", new GlobMatcher("a/*.csv").toString());
+    }
+
+    /**
+     * A class is a single-character construct, so like {@code *} it must never span a separator. A negated class
+     * used to: {@code x[!a]y} matched {@code x/y}, silently crossing a segment. A class holding a separator is
+     * refused outright, since segments are split before the class is parsed.
+     */
+    public void testCharacterClassNeverMatchesTheSeparator() {
+        assertFalse("a negated class must exclude the separator", new GlobMatcher("a[!x]b").matches("a/b"));
+        assertFalse("a range spanning the separator's code point must still exclude it", new GlobMatcher("a[.-0]b").matches("a/b"));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GlobMatcher("a[/]b"));
+        assertTrue(e.getMessage(), e.getMessage().contains("cannot contain or span a path separator"));
+    }
+
+    public void testQuestionMarkNeverMatchesTheSeparator() {
+        assertFalse(new GlobMatcher("a?b").matches("a/b"));
+    }
+
+    /** Wildcards inside a brace alternative, which reach the alternative-matching path rather than the plain one. */
+    public void testWildcardsInsideBraceAlternatives() {
+        GlobMatcher anyChar = new GlobMatcher("{a?,b}.csv");
+        assertTrue(anyChar.matches("ax.csv"));
+        assertTrue(anyChar.matches("b.csv"));
+        assertFalse(anyChar.matches("a.csv"));
+        assertFalse("an alternative's ? must not span a separator", new GlobMatcher("{a?,b}c").matches("a/c"));
+
+        GlobMatcher charClass = new GlobMatcher("{a[0-9],b}.csv");
+        assertTrue(charClass.matches("a5.csv"));
+        assertTrue(charClass.matches("b.csv"));
+        assertFalse(charClass.matches("ax.csv"));
+
+        GlobMatcher star = new GlobMatcher("{a*,b}.csv");
+        assertTrue(star.matches("a.csv"));
+        assertTrue(star.matches("axyz.csv"));
+        assertTrue(star.matches("b.csv"));
+        assertFalse(star.matches(".csv"));
+    }
+
+    /** A trailing {@code -} is a literal, not the start of a range; a reversed range is refused. */
+    public void testRangeEdges() {
+        assertTrue(new GlobMatcher("a[x-]b").matches("a-b"));
+        assertTrue(new GlobMatcher("a[x-]b").matches("axb"));
+        assertTrue(new GlobMatcher("a[-x]b").matches("a-b"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GlobMatcher("a[z-a]b"));
+        assertTrue(e.getMessage(), e.getMessage().contains("reversed range"));
+    }
+
+    /** A {@code ]} immediately after the opener is a literal member rather than the terminator. */
+    public void testClosingBracketAsTheFirstClassMember() {
+        assertTrue(new GlobMatcher("a[]]b").matches("a]b"));
+        assertFalse(new GlobMatcher("a[]]b").matches("ab"));
+    }
+
+    /**
+     * A brace group can be undexpandable for more than one reason, so the message names both rather than reporting
+     * a cap that was not what actually failed.
+     */
+    public void testUnexpandableBraceGroupIsRejected() {
+        IllegalArgumentException tooWide = expectThrows(IllegalArgumentException.class, () -> new GlobMatcher("f{1..99999}.csv"));
+        assertTrue(tooWide.getMessage(), tooWide.getMessage().contains("cannot be expanded"));
+        assertTrue(tooWide.getMessage(), tooWide.getMessage().contains("at most 1024"));
+
+        IllegalArgumentException unparseable = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GlobMatcher("f{99999999999999999999..2}.csv")
+        );
+        assertTrue(unparseable.getMessage(), unparseable.getMessage().contains("parseable endpoints"));
+    }
+
+    /** Degenerate inputs: the empty pattern, bare separators, and repeated separators. */
+    public void testDegenerateInputs() {
+        assertTrue(new GlobMatcher("").matches(""));
+        assertFalse(new GlobMatcher("").matches("a"));
+        assertTrue(new GlobMatcher("a//b").matches("a//b"));
+        assertFalse("a doubled separator is two segments, one of them empty", new GlobMatcher("a/b").matches("a//b"));
+        assertTrue(new GlobMatcher("*").matches(""));
+        assertFalse(new GlobMatcher("?").matches(""));
+    }
+
+    /** A character above a range's upper bound must be refused, not only one below its lower bound. */
+    public void testRangeUpperBoundIsEnforced() {
+        GlobMatcher m = new GlobMatcher("a[b-d]e");
+        assertTrue(m.matches("ace"));
+        assertFalse("below the range", m.matches("aae"));
+        assertFalse("above the range", m.matches("aze"));
+    }
+
+    /**
+     * The memo is keyed on (pattern segment, path segment) and caches negative results as well as positive ones —
+     * caching only the hits would leave the exponential re-exploration this rewrite exists to remove. A globstar
+     * pattern that fails deep in a wide tree revisits the same pairs repeatedly, so it exercises the cached-false
+     * path rather than only the cached-true one.
+     */
+    public void testNegativeResultsAreMemoisedToo() {
+        GlobMatcher m = new GlobMatcher("**" + "/x/**" + "/y.csv");
+        // Every globstar split lands on the same (pattern segment, path segment) pairs, all of which fail. Without
+        // caching the misses this is the exponential re-exploration the rewrite exists to remove.
+        assertFalse(m.matches("a/a/a/a/a/a/a/a/z.csv"));
+        assertFalse(m.matches("x/x/x/x/x/x/x/x/z.csv"));
+        assertTrue(m.matches("a/x/b/y.csv"));
+    }
+
+    /** The memo is keyed on (pattern segment, path segment); repeated probes must give the same answer. */
+    public void testRepeatedMatchesAreStable() {
+        GlobMatcher m = new GlobMatcher("a/**" + "/z.csv");
+        for (int i = 0; i < 3; i++) {
+            assertTrue(m.matches("a/b/c/z.csv"));
+            assertFalse(m.matches("a/b/c/y.csv"));
+        }
     }
 }

@@ -91,6 +91,17 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
             {"field":[null]}""", syntheticSource(mapper, b -> b.startArray("field").nullValue().endArray()));
     }
 
+    /**
+     * A scalar {@code null} (written via {@code b.nullField("field")}) is the field being absent, the same as
+     * {@link #testEmptyArray()}. In a strictly columnar index a null counts only where it is an element of the field's own array,
+     * which is the position synthetic source has to put it back into; a null standing on its own has no such position and writes
+     * no slot. See {@link MultiValuedBinaryDocValuesField#keepsNullSlot}.
+     */
+    public void testScalarNullIsAbsent() throws IOException {
+        var mapper = columnarMapper();
+        assertEquals("{}", syntheticSource(mapper, b -> b.nullField("field")));
+    }
+
     public void testEmptyArray() throws IOException {
         var mapper = columnarMapper();
         // An empty array has no values to store in a doc-value column and isn't field-owned, so columnar drops it

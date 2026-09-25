@@ -22,11 +22,17 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.FileTypeHint;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
+import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
+import org.elasticsearch.columnar.string.StringColumnMetadata;
+import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
@@ -43,11 +49,16 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     private final int maxDoc;
     private final IndexInput data;
+    private final IndexInput addressing;
+    private final IndexInput lengths;
+    private final IndexInput navigation;
+    private final IndexInput skipIndex;
+    private final ColumnInputs inputs;
     private final Map<Integer, Column> columns = new HashMap<>();
     private boolean closed = false;
 
     /** A read-side column: its declared type and the metadata needed to open it. */
-    private record Column(ColumnarFieldType type, NumericColumnMetadata numeric) {}
+    private record Column(ColumnarFieldType type, ColumnMetadata metadata) {}
 
     ColumNARDocValuesProducer(SegmentReadState state) throws IOException {
         this.maxDoc = state.segmentInfo.maxDoc();
@@ -79,25 +90,37 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
         boolean success = false;
         try {
-            String dataName = IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                ColumNARDocValuesFormat.DATA_EXTENSION
+            data = openInput(state, state.context, ColumNARDocValuesFormat.DATA_EXTENSION, ColumNARDocValuesFormat.DATA_CODEC, metaVersion);
+            addressing = openInput(
+                state,
+                state.context,
+                ColumNARDocValuesFormat.ADDRESSING_EXTENSION,
+                ColumNARDocValuesFormat.ADDRESSING_CODEC,
+                metaVersion
             );
-            data = state.directory.openInput(dataName, state.context);
-            final FormatVersion dataVersion = ColumnarCodecUtil.checkHeader(
-                data,
-                ColumNARDocValuesFormat.DATA_CODEC,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
+            lengths = openInput(
+                state,
+                state.context,
+                ColumNARDocValuesFormat.LENGTHS_EXTENSION,
+                ColumNARDocValuesFormat.LENGTHS_CODEC,
+                metaVersion
             );
-            if (metaVersion.equals(dataVersion) == false) {
-                throw new CorruptIndexException(
-                    "Format versions mismatch: meta=" + metaVersion.version() + ", data=" + dataVersion.version(),
-                    data
-                );
-            }
-            CodecUtil.retrieveChecksum(data);
+            // Index-like: every read consults the navigation, and the skip index decides what to read.
+            navigation = openInput(
+                state,
+                state.context.withHints(FileTypeHint.INDEX),
+                ColumNARDocValuesFormat.NAVIGATION_EXTENSION,
+                ColumNARDocValuesFormat.NAVIGATION_CODEC,
+                metaVersion
+            );
+            skipIndex = openInput(
+                state,
+                state.context.withHints(FileTypeHint.INDEX),
+                ColumNARDocValuesFormat.SKIP_EXTENSION,
+                ColumNARDocValuesFormat.SKIP_CODEC,
+                metaVersion
+            );
+            inputs = new ColumnInputs(data, addressing, lengths, navigation);
             success = true;
         } finally {
             if (success == false) {
@@ -106,10 +129,34 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    /** Opens one of the segment's files, checking its header against the metadata's format version. */
+    private static IndexInput openInput(SegmentReadState state, IOContext context, String extension, String codec, FormatVersion expected)
+        throws IOException {
+        final String name = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, extension);
+        final IndexInput in = state.directory.openInput(name, context);
+        boolean success = false;
+        try {
+            final FormatVersion version = ColumnarCodecUtil.checkHeader(in, codec, state.segmentInfo.getId(), state.segmentSuffix);
+            if (expected.equals(version) == false) {
+                throw new CorruptIndexException(
+                    "Format versions mismatch: meta=" + expected.version() + ", " + extension + "=" + version.version(),
+                    in
+                );
+            }
+            CodecUtil.retrieveChecksum(in);
+            success = true;
+            return in;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(in);
+            }
+        }
+    }
+
     private Column readColumn(ColumnarFieldType type, ChecksumIndexInput meta, final FormatVersion formatVersion) throws IOException {
         return switch (type) {
             case LONG, DOUBLE -> new Column(type, NumericColumnMetadata.readFrom(meta, maxDoc, formatVersion));
-            case STRING -> throw new UnsupportedOperationException("ColumNAR [" + type + "] column is not implemented yet");
+            case STRING -> new Column(type, StringColumnMetadata.readFrom(meta, maxDoc, formatVersion));
         };
     }
 
@@ -119,19 +166,23 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
         if (column == null) {
             throw new IllegalStateException("field [" + field.name + "] is not a ColumNAR column");
         }
-        return switch (column.type()) {
-            case LONG, DOUBLE -> numericBinary(column.numeric());
-            case STRING -> throw new UnsupportedOperationException("ColumNAR [" + column.type() + "] column is not implemented yet");
+        // The metadata a column carries follows from its type, so the two always agree; the sealed
+        // interface is what lets a second column type arrive without another shape here.
+        return switch (column.metadata()) {
+            case NumericColumnMetadata numeric -> numericBinary(numeric);
+            case StringColumnMetadata string -> stringBinary(string);
         };
     }
 
+    private BinaryDocValues stringBinary(StringColumnMetadata metadata) throws IOException {
+        StringColumnReader reader = StringColumnReader.open(metadata, inputs);
+        return new ColumnarStringBinaryDocValues(reader, reader.iterator());
+    }
+
     private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {
-        NumericColumnReader reader = new NumericColumnReader(metadata, data);
+        NumericColumnReader reader = new NumericColumnReader(metadata, inputs);
         ColumnIterator iterator = reader.iterator();
-        // Dense single-valued columns map a document id onto its value ordinal, which unlocks the
-        // vectorized range and bulk-read fast paths; every other shape falls back to per-doc reads.
-        boolean vectorizable = iterator.isDense() && metadata.multiValued() == false;
-        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, vectorizable, metadata.skipper(), data);
+        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), skipIndex);
     }
 
     @Override
@@ -172,6 +223,10 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     @Override
     public void checkIntegrity() throws IOException {
         CodecUtil.checksumEntireFile(data);
+        CodecUtil.checksumEntireFile(addressing);
+        CodecUtil.checksumEntireFile(lengths);
+        CodecUtil.checksumEntireFile(navigation);
+        CodecUtil.checksumEntireFile(skipIndex);
     }
 
     @Override
@@ -180,6 +235,6 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
             return;
         }
         closed = true;
-        IOUtils.close(data);
+        IOUtils.close(data, addressing, lengths, navigation, skipIndex);
     }
 }

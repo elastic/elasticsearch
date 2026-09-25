@@ -22,19 +22,48 @@ import static org.hamcrest.Matchers.not;
 public class AllocationDisabledBytecodeTests extends ScriptTestCase {
 
     private static String bytecode(String source, long maxAllocationBytes) {
+        return bytecode(source, maxAllocationBytes, false);
+    }
+
+    private static String bytecode(String source, long maxAllocationBytes, boolean allocationMetricsEnabled) {
         CompilerSettings settings = new CompilerSettings();
         settings.setMaxAllocationBytes(maxAllocationBytes);
+        settings.setAllocationMetricsEnabled(allocationMetricsEnabled);
         return Debugger.toString(PainlessTestScript.class, source, settings, PAINLESS_BASE_WHITELIST);
     }
 
     public void testNoCounterBytecodeWhenDisabled() {
-        // A script with an allocation site must still be bit-clean of tracking bytecode when the limit is off.
+        // "Disabled" now means neither the limit nor metrics; either one alone enables the counter.
         String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", -1L);
         assertThat(asm, not(containsString("$allocBytes")));
         assertThat(asm, not(containsString("$incAllocBytes")));
         assertThat(asm, not(containsString("getAllocBytes")));
         assertThat(asm, not(containsString("$checkAllocBytes")));
         assertThat(asm, not(containsString("AllocationGuard")));
+        assertThat(asm, not(containsString("recordExecutionAllocation")));
+    }
+
+    public void testMetricsAloneEnableTheCounterWithoutTheLimitPath() {
+        // Metrics-only emits the counter and the record, but nothing can fail the script, so no breach helper.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", -1L, true);
+        assertThat(asm, containsString("$allocBytes"));
+        assertThat(asm, containsString("$checkAllocBytes"));
+        assertThat(asm, containsString("recordExecutionAllocation"));
+        assertThat(asm, not(containsString("allocationLimitExceeded")));
+    }
+
+    public void testLimitAloneEmitsNoRecordingCall() {
+        // Enforcement-only keeps the pre-existing shape: no metrics call on the return path.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", 1024L);
+        assertThat(asm, containsString("$allocBytes"));
+        assertThat(asm, containsString("allocationLimitExceeded"));
+        assertThat(asm, not(containsString("recordExecutionAllocation")));
+    }
+
+    public void testBothEmitEnforcementAndRecording() {
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", 1024L, true);
+        assertThat(asm, containsString("allocationLimitExceeded"));
+        assertThat(asm, containsString("recordExecutionAllocation"));
     }
 
     public void testCounterBytecodePresentWhenEnabled() {
@@ -108,6 +137,32 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, containsString("$checkAllocBytes"));
     }
 
+    public void testNoForEachIteratorChargeBytecodeWhenDisabled() {
+        // The loop codegen emits its own iterator() call, so it needs its own guard.
+        String asm = bytecode("long n = 0; List l = new ArrayList(); for (def e : l) { n++; } return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("iteratorBytes")));
+        assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
+
+    public void testForEachIteratorChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("long n = 0; List l = new ArrayList(); for (def e : l) { n++; } return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("iteratorBytes"));
+        assertThat(asm, containsString("sanitizeEstimate"));
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoDefForEachIteratorChargeBytecodeWhenDisabled() {
+        String asm = bytecode("long n = 0; def l = new ArrayList(); for (def e : l) { n++; } return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+    }
+
+    public void testDefForEachIteratorChargeBytecodePresentWhenEnabled() {
+        // Charged inline, so there is no estimator call to look for.
+        String asm = bytecode("long n = 0; def l = new ArrayList(); for (def e : l) { n++; } return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
     public void testNoDefConcatChargeBytecodeWhenDisabled() {
         // A def '+' (possible runtime string concat) must be clean when tracking is off.
         String asm = bytecode("def a = 'ab'; def b = 'cd'; def c = a + b; return 1;", -1L);
@@ -153,6 +208,43 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         // With tracking on, an annotated constructor reference links through the allocation-charging lambda bootstrap.
         String asm = bytecode("int c(Supplier s) { s.get(); return 1; } return c(ArrayList::new);", 1024 * 1024L);
         assertThat(asm, containsString("lambdaBootstrapWithAllocation"));
+    }
+
+    public void testNoRegexOperatorChargeBytecodeWhenDisabled() {
+        // The regex operators emit their own Augmentation.matcher call, so they need their own guard.
+        String asm = bytecode("boolean b = 'foo' ==~ /foo/; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testRegexOperatorChargeBytecodePresentWhenEnabled() {
+        // Charged inline as a constant, so there is no estimator call to look for.
+        String asm = bytecode("boolean b = 'foo' ==~ /foo/; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoListLiteralChargeBytecodeWhenDisabled() {
+        // A list literal emits its own constructor and adds, so it needs its own guard.
+        String asm = bytecode("List l = ['a', 'b']; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testListLiteralChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("List l = ['a', 'b']; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoMapLiteralChargeBytecodeWhenDisabled() {
+        // Same for a map literal.
+        String asm = bytecode("Map m = ['a': 'b']; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testMapLiteralChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("Map m = ['a': 'b']; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
     }
 
     public void testDefCallChargeIsBootstrapSideNotEmittedWhenEnabled() {

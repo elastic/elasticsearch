@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 148516
-pr: 155600
-summary: Integrate circuit breaker into `BestBucketsDeferringCollector`
-type: bug

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -38,7 +39,7 @@ public final class PruneConstantSortKeysFromOrderBy extends ParameterizedRule<Lo
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
         return plan.transformDownSkipBranch((p, skipBranch) -> {
             // Pushed-down per-branch sorts keep _fork keys the coordinator merge needs; don't touch them.
-            if (p instanceof Fork) {
+            if (p instanceof MergePlan) {
                 skipBranch.set(true);
                 return p;
             }
@@ -59,7 +60,7 @@ public final class PruneConstantSortKeysFromOrderBy extends ParameterizedRule<Lo
         AttributeMap<Expression> foldables = RuleUtils.foldableReferencesSkipMVGroupings(
             orderBy.child(),
             ctx,
-            p -> p instanceof Fork || p instanceof Aggregate || p instanceof InlineJoin
+            p -> p instanceof MergePlan || p instanceof Aggregate || p instanceof InlineJoin
         );
         List<Order> keep = orderBy.order().stream().filter(o -> {
             // Never prune the Fork branch identifier. Within a per-branch fragment seen at the

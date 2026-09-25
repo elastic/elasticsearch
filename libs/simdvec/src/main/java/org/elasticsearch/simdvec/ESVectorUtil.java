@@ -67,6 +67,17 @@ public class ESVectorUtil {
         return SCORERS.newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
+    /** Creates an ASH float-query scorer. */
+    public static AshScorer<float[]> getAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
+        return SCORERS.newESNextAshFloatVectorsScorer(input, nDims, bitsPerDim);
+    }
+
+    /** Creates an ASH integer-query scorer. */
+    public static AshScorer<byte[]> getAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+        throws IOException {
+        return SCORERS.newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
+    }
+
     public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(
         IndexInput input,
         int dimension,
@@ -530,122 +541,6 @@ public class ESVectorUtil {
         }
     }
 
-    /**
-     * Calculate the loss for optimized-scalar quantization for the given parameteres
-     * @param target The vector being quantized, assumed to be centered
-     * @param lowerInterval The lower interval value for which to calculate the loss
-     * @param upperInterval The upper interval value for which to calculate the loss
-     * @param points the quantization points
-     * @param norm2 The norm squared of the target vector
-     * @param lambda The lambda parameter for controlling anisotropic loss calculation
-     * @param quantize array to store the computed quantize vector.
-     *
-     * @return The loss for the given parameters
-     */
-    public static float calculateOSQLoss(
-        float[] target,
-        float lowerInterval,
-        float upperInterval,
-        int points,
-        float norm2,
-        float lambda,
-        int[] quantize
-    ) {
-        assert upperInterval >= lowerInterval
-            : "upperInterval must be greater than or equal to lowerInterval, but was: " + upperInterval + " < " + lowerInterval;
-        float step = ((upperInterval - lowerInterval) / (points - 1.0F));
-        float invStep = 1f / step;
-        return IMPL.calculateOSQLoss(target, lowerInterval, upperInterval, step, invStep, norm2, lambda, quantize);
-    }
-
-    /**
-     * Calculate the grid points for optimized-scalar quantization
-     * @param target The vector being quantized, assumed to be centered
-     * @param quantize The quantize vector which should have at least the target vector length
-     * @param points the quantization points
-     * @param pts The array to store the grid points, must be of length 5
-     */
-    public static void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
-        assert target.length <= quantize.length;
-        assert pts.length == 5;
-        IMPL.calculateOSQGridPoints(target, quantize, points, pts);
-    }
-
-    /**
-     * Center the target vector and calculate the optimized-scalar quantization statistics
-     * @param target The vector being quantized
-     * @param centroid The centroid of the target vector
-     * @param centered The destination of the centered vector, will be overwritten
-     * @param stats The array to store the statistics, must be of length 5
-     */
-    public static void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats) {
-        assert target.length == centroid.length;
-        assert stats.length == 5;
-        if (target.length != centroid.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
-        }
-        if (centered.length != target.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
-        }
-        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
-    }
-
-    /**
-     * Center the target vector and calculate the optimized-scalar quantization statistics
-     * @param target The vector being quantized
-     * @param centroid The centroid of the target vector
-     * @param centered The destination of the centered vector, will be overwritten
-     * @param stats The array to store the statistics, must be of length 6
-     */
-    public static void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
-        if (target.length != centroid.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
-        }
-        if (centered.length != target.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
-        }
-        assert stats.length == 6;
-        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
-    }
-
-    /**
-     * Center the byte target vector against a byte centroid and calculate the optimized-scalar quantization statistics
-     * for euclidean similarity.
-     * @param target The byte vector being quantized
-     * @param centroid The byte centroid of the target vector
-     * @param centered The destination of the centered vector, will be overwritten
-     * @param stats The array to store the statistics, must be of length 5
-     */
-    public static void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats) {
-        assert stats.length == 5;
-        if (target.length != centroid.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
-        }
-        if (centered.length != target.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
-        }
-        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
-    }
-
-    /**
-     * Center the byte target vector against a byte centroid and calculate the optimized-scalar quantization statistics
-     * for dot-product similarity.
-     * @param target The byte vector being quantized
-     * @param centroid The byte centroid of the target vector
-     * @param centered The destination of the centered vector, will be overwritten
-     * @param stats The array to store the statistics, must be of length 6
-     */
-    public static void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats) {
-        if (target.length != centroid.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
-        }
-        if (centered.length != target.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
-        }
-        assert stats.length == 6;
-        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
-    }
-
     /** Calculates the difference between two vectors and stores the result in a third vector.
      * @param v1 the first vector
      * @param v2 the second vector
@@ -701,27 +596,6 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
         }
         return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
-    }
-
-    /**
-     * Optimized-scalar quantization of the provided vector to the provided destination array.
-     *
-     * @param vector the vector to quantize
-     * @param destination the array to store the result
-     * @param lowInterval the minimum value, lower values in the original array will be replaced by this value
-     * @param upperInterval the maximum value, bigger values in the original array will be replaced by this value
-     * @param bit the number of bits to use for quantization, must be between 1 and 8
-     *
-     * @return return the sum of all the elements of the resulting quantized vector.
-     */
-    public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bit) {
-        if (vector.length > destination.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + vector.length + "!=" + destination.length);
-        }
-        if (bit <= 0 || bit > Byte.SIZE) {
-            throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
-        }
-        return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
     }
 
     /**
@@ -1180,12 +1054,147 @@ public class ESVectorUtil {
      * @return transposed matrix in row-major order, length cols*rows
      */
     public static float[] transposeMatrix(float[] m, int rows, int cols) {
-        float[] t = new float[cols * rows];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                t[j * rows + i] = m[i * cols + j];
+        float[] result = new float[rows * cols];
+        transposeMatrix(m, rows, cols, result);
+        return result;
+    }
+
+    /**
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @param result output matrix in row-major order, length cols*rows
+     */
+    public static void transposeMatrix(float[] m, int rows, int cols, float[] result) {
+        if (result.length != cols * rows) {
+            throw new IllegalArgumentException("Invalid a array size [" + result.length + "] for matrix transposition");
+        }
+
+        // work in tiles of 16x16 floats, rather than whole rows at a time
+        // A 16-wide row is 64 bytes, which is 1 cache line, x16 rows.
+        // both read & write tiles fit in L1 at once.
+        final int transposeBlock = 16;
+
+        for (int ii = 0; ii < rows; ii += transposeBlock) {
+            int iMax = Math.min(ii + transposeBlock, rows);
+            for (int jj = 0; jj < cols; jj += transposeBlock) {
+                int jMax = Math.min(jj + transposeBlock, cols);
+                for (int i = ii; i < iMax; i++) {
+                    int mBase = i * cols;
+                    for (int j = jj; j < jMax; j++) {
+                        result[j * rows + i] = m[mBase + j];
+                    }
+                }
             }
         }
-        return t;
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
+     * Result C is (m x n).
+     */
+    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        float[] result = new float[m * n];
+        matrixMultiply(a, b, m, k, n, result);
+        return result;
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
+     * Result C is (m x n).
+     */
+    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+        if (a.length != m * k) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        }
+        if (b.length != k * n) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        }
+        if (result.length != m * n) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        }
+        IMPL.matrixMultiply(a, b, m, k, n, result);
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a    flat row-major matrix, length rows*cols
+     * @param rows number of rows in A
+     * @param cols number of columns in A, and length of v
+     * @param v    input vector, length cols
+     * @return output vector, length rows
+     */
+    public static float[] matrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+        float[] result = new float[rows];
+        matrixVectorMultiply(a, rows, cols, v, result);
+        return result;
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A, and length of v
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    public static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        if (a.length != rows * cols) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
+        }
+        if (v.length != cols) {
+            throw new IllegalArgumentException("Invalid v array size [" + v.length + "] for matrix vector multiplication");
+        }
+        if (result.length != rows) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix vector multiplication");
+        }
+        IMPL.matrixVectorMultiply(a, rows, cols, v, result);
+    }
+
+    /**
+     * Packs multi-bit quantized codes into a byte array using bit-plane layout.
+     * The input codes come from {@code AshSphericalScalarQuantizer} and have values
+     * sign * (0.5 + idx) for idx in [0, numAbsLevels-1] where numAbsLevels = 2^(bitsPerDim-1).
+     * The full level set is centered at 0 with spacing 1.
+     *
+     * @param codes float array of quantized levels from AshSphericalScalarQuantizer
+     * @param bitsPerDim number of bits per dimension
+     * @return packed bytes in bit-plane layout
+     */
+    public static byte[] ashPack(float[] codes, int bitsPerDim) {
+        int nDims = codes.length;
+        int planeBytes = (nDims + 7) >>> 3;
+        int numLevels = 1 << bitsPerDim;
+        float offset = (numLevels - 1) / 2.0f;
+
+        int[] rounded = new int[nDims];
+        for (int i = 0; i < nDims; i++) {
+            rounded[i] = Math.clamp(Math.round(codes[i] + offset), 0, numLevels - 1);
+        }
+
+        byte[] packed = new byte[bitsPerDim * planeBytes];
+        switch (bitsPerDim) {
+            case 1 -> pack1BitValues(rounded, packed);
+            case 2 -> stride2BitValues(rounded, packed);
+            case 4 -> stride4BitValues(rounded, packed);
+            case 3, 8 -> {
+                for (int j = 0; j < nDims; j++) {
+                    int byteIdx = j >>> 3;
+                    int bitIdx = 7 - (j & 7);
+                    for (int p = 0; p < bitsPerDim; p++) {
+                        if ((rounded[j] & (1 << p)) != 0) {
+                            packed[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+                        }
+                    }
+                }
+            }
+            default -> throw new IllegalArgumentException("Unsupported bitsPerDim: " + bitsPerDim);
+        }
+
+        return packed;
     }
 }

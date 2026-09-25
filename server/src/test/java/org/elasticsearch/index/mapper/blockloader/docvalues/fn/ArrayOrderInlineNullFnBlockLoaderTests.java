@@ -20,13 +20,13 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -129,12 +129,15 @@ public class ArrayOrderInlineNullFnBlockLoaderTests extends ESTestCase {
     }
 
     private static BlockLoader.ColumnAtATimeReader referenceReader(CircuitBreaker breaker, LeafReaderContext ctx) throws IOException {
-        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(FIELD, ArrayOrderSource.INLINE).reader(breaker, ctx);
+        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(FIELD, BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL).reader(
+            breaker,
+            ctx
+        );
     }
 
     public void testMvMax() throws IOException {
         withIndex(scenarioDocs(), ctx -> {
-            var loader = new MvMaxBytesRefsFromBinaryBlockLoader(FIELD, ArrayOrderSource.INLINE);
+            var loader = new MvMaxBytesRefsFromBinaryBlockLoader(FIELD, BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL);
             try (var reference = referenceReader(BREAKER, ctx); var reader = loader.reader(BREAKER, ctx)) {
                 assertThat(reader, hasToString("MvMaxBytesRefsFromBinary.ArrayOrderInlineNull"));
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
@@ -147,7 +150,7 @@ public class ArrayOrderInlineNullFnBlockLoaderTests extends ESTestCase {
 
     public void testMvMin() throws IOException {
         withIndex(scenarioDocs(), ctx -> {
-            var loader = new MvMinBytesRefsFromBinaryBlockLoader(FIELD, ArrayOrderSource.INLINE);
+            var loader = new MvMinBytesRefsFromBinaryBlockLoader(FIELD, BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL);
             try (var reference = referenceReader(BREAKER, ctx); var reader = loader.reader(BREAKER, ctx)) {
                 assertThat(reader, hasToString("MvMinBytesRefsFromBinary.ArrayOrderInlineNull"));
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
@@ -160,7 +163,7 @@ public class ArrayOrderInlineNullFnBlockLoaderTests extends ESTestCase {
 
     public void testByteLength() throws IOException {
         checkLength("ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull", warnings -> {
-            var loader = new ByteLengthFromBytesRefDocValuesBlockLoader(warnings, FIELD, ArrayOrderSource.INLINE);
+            var loader = new ByteLengthFromBytesRefDocValuesBlockLoader(warnings, FIELD, BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL);
             return loader;
         }, bytes -> bytes.length);
     }
@@ -171,7 +174,7 @@ public class ArrayOrderInlineNullFnBlockLoaderTests extends ESTestCase {
                 warnings,
                 FIELD,
                 ByteSizeValue.ofKb(between(1, 100)),
-                ArrayOrderSource.INLINE
+                BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
             );
             return loader;
         }, bytes -> bytes.utf8ToString().codePointCount(0, bytes.utf8ToString().length()));

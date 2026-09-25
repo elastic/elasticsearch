@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.StatusHeuristic;
+import org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Endpoint metadata contains descriptive information for an inference endpoint. This information allows an upstream service to communicate
@@ -36,6 +38,7 @@ import java.util.Optional;
  * <p>
  * The Elastic Inference Service populates these fields so that Kibana and semantic text fields determine the correct defaults.
  *
+ * @param modelIdentity        identifies the model behind the endpoint (creator, family, tier, version).
  * @param heuristics           contains information so clients of the Inference API can determine which models should be used as defaults
  *                             and presented to users in different scenarios.
  * @param internal             contains information that is only used within Elasticsearch. The internal information helps the Inference
@@ -44,32 +47,41 @@ import java.util.Optional;
  * @param display              contains information for how to display the endpoint in user interfaces (descriptive name, etc).
  * @param regions              the availability regions for this endpoint.
  * @param deniedByRegionPolicy {@code true} when the caller's region policy prohibits access to this endpoint.
+ * @param capabilities         model capability metadata (supported reasoning effort levels, context window) surfaced for Kibana and
+ *                             other consumers. Omitted when {@link Capabilities#isEmpty()} is {@code true}.
  */
 public record EndpointMetadata(
+    ModelIdentity modelIdentity,
     Heuristics heuristics,
     Internal internal,
     Display display,
     List<EndpointRegion> regions,
-    boolean deniedByRegionPolicy
+    boolean deniedByRegionPolicy,
+    Capabilities capabilities
 ) implements ToXContentObject, Writeable {
 
     public static final TransportVersion INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED = TransportVersion.fromName(
         "inference_endpoint_metadata_fields_added"
     );
     public static final TransportVersion REGIONS_ADDED = TransportVersion.fromName("inference_endpoint_metadata_regions_added");
+    public static final TransportVersion CAPABILITIES_ADDED = TransportVersion.fromName("inference_endpoint_metadata_capabilities_added");
     public static final EndpointMetadata EMPTY_INSTANCE = new EndpointMetadata(
+        ModelIdentity.EMPTY_INSTANCE,
         Heuristics.EMPTY_INSTANCE,
         Internal.EMPTY_INSTANCE,
         Display.EMPTY_INSTANCE,
         List.of(),
-        false
+        false,
+        Capabilities.EMPTY_INSTANCE
     );
     public static final String METADATA_FIELD_NAME = "metadata";
     public static final String HEURISTICS_FIELD_NAME = "heuristics";
     public static final String INTERNAL_FIELD_NAME = "internal";
     public static final String DISPLAY_FIELD_NAME = "display";
+    public static final String MODEL_IDENTITY_FIELD_NAME = "model_identity";
     public static final String REGIONS_FIELD_NAME = "regions";
     public static final String DENIED_BY_REGION_POLICY_FIELD_NAME = "denied_by_region_policy";
+    public static final String CAPABILITIES_FIELD_NAME = "capabilities";
 
     private static final String INCLUDE_INTERNAL_FIELDS_PARAM_NAME = "include_internal_fields";
 
@@ -78,15 +90,22 @@ public record EndpointMetadata(
         "endpoint_metadata_fields",
         true,
         args -> new EndpointMetadata(
-            args[0] == null ? Heuristics.EMPTY_INSTANCE : (Heuristics) args[0],
-            args[1] == null ? Internal.EMPTY_INSTANCE : (Internal) args[1],
-            args[2] == null ? Display.EMPTY_INSTANCE : (Display) args[2],
-            args[3] == null ? List.of() : (List<EndpointRegion>) args[3],
-            args[4] == null ? false : (Boolean) args[4]
+            args[0] == null ? ModelIdentity.EMPTY_INSTANCE : (ModelIdentity) args[0],
+            args[1] == null ? Heuristics.EMPTY_INSTANCE : (Heuristics) args[1],
+            args[2] == null ? Internal.EMPTY_INSTANCE : (Internal) args[2],
+            args[3] == null ? Display.EMPTY_INSTANCE : (Display) args[3],
+            args[4] == null ? List.of() : (List<EndpointRegion>) args[4],
+            args[5] == null ? false : (Boolean) args[5],
+            args[6] == null ? Capabilities.EMPTY_INSTANCE : (Capabilities) args[6]
         )
     );
 
     static {
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ModelIdentity.parse(p),
+            new ParseField(MODEL_IDENTITY_FIELD_NAME)
+        );
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> Heuristics.parse(p),
@@ -108,6 +127,11 @@ public record EndpointMetadata(
             new ParseField(REGIONS_FIELD_NAME)
         );
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY_FIELD_NAME));
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> Capabilities.parse(p),
+            new ParseField(CAPABILITIES_FIELD_NAME)
+        );
     }
 
     public static EndpointMetadata parse(XContentParser parser) throws IOException {
@@ -115,34 +139,39 @@ public record EndpointMetadata(
     }
 
     public EndpointMetadata {
+        Objects.requireNonNull(modelIdentity);
         Objects.requireNonNull(heuristics);
         Objects.requireNonNull(internal);
         Objects.requireNonNull(display);
         Objects.requireNonNull(regions);
+        Objects.requireNonNull(capabilities);
+    }
+
+    public EndpointMetadata(
+        ModelIdentity modelIdentity,
+        Heuristics heuristics,
+        Internal internal,
+        Display display,
+        List<EndpointRegion> regions,
+        boolean deniedByRegionPolicy
+    ) {
+        this(modelIdentity, heuristics, internal, display, regions, deniedByRegionPolicy, Capabilities.EMPTY_INSTANCE);
     }
 
     public EndpointMetadata(StreamInput in) throws IOException {
         this(
+            in.getTransportVersion().supports(ModelIdentity.MODEL_IDENTITY_ADDED) ? new ModelIdentity(in) : ModelIdentity.EMPTY_INSTANCE,
             new Heuristics(in),
             new Internal(in),
             new Display(in),
             in.getTransportVersion().supports(REGIONS_ADDED) ? in.readCollectionAsList(EndpointRegion::new) : List.of(),
-            in.getTransportVersion().supports(REGIONS_ADDED) ? in.readBoolean() : false
+            in.getTransportVersion().supports(REGIONS_ADDED) ? in.readBoolean() : false,
+            in.getTransportVersion().supports(CAPABILITIES_ADDED) ? new Capabilities(in) : Capabilities.EMPTY_INSTANCE
         );
     }
 
     public boolean isEmpty() {
         return this.equals(EMPTY_INSTANCE);
-    }
-
-    public boolean fingerprintMatches(EndpointMetadata other) {
-        return Objects.equals(internal.fingerprint(), other.internal.fingerprint());
-    }
-
-    public boolean hasNewerVersionThan(EndpointMetadata other) {
-        long thisVersion = Optional.ofNullable(internal.version()).orElse(0L);
-        long otherVersion = Optional.ofNullable(other.internal.version()).orElse(0L);
-        return thisVersion > otherVersion;
     }
 
     public Params getXContentParamsExcludeInternalFields() {
@@ -154,19 +183,21 @@ public record EndpointMetadata(
         builder.startObject();
 
         builder.field(HEURISTICS_FIELD_NAME, heuristics);
-
         if (params.paramAsBoolean(INCLUDE_INTERNAL_FIELDS_PARAM_NAME, true)) {
             builder.field(INTERNAL_FIELD_NAME, internal);
         }
-
         builder.field(DISPLAY_FIELD_NAME, display);
-
+        if (modelIdentity.isEmpty() == false) {
+            builder.field(MODEL_IDENTITY_FIELD_NAME, modelIdentity);
+        }
         if (regions.isEmpty() == false) {
             builder.xContentList(REGIONS_FIELD_NAME, regions);
         }
-
         if (deniedByRegionPolicy) {
             builder.field(DENIED_BY_REGION_POLICY_FIELD_NAME, true);
+        }
+        if (capabilities.isEmpty() == false) {
+            builder.field(CAPABILITIES_FIELD_NAME, capabilities);
         }
 
         builder.endObject();
@@ -175,6 +206,9 @@ public record EndpointMetadata(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ModelIdentity.MODEL_IDENTITY_ADDED)) {
+            modelIdentity.writeTo(out);
+        }
         heuristics.writeTo(out);
         internal.writeTo(out);
         display.writeTo(out);
@@ -182,34 +216,44 @@ public record EndpointMetadata(
             out.writeCollection(regions);
             out.writeBoolean(deniedByRegionPolicy);
         }
+        if (out.getTransportVersion().supports(CAPABILITIES_ADDED)) {
+            capabilities.writeTo(out);
+        }
     }
 
     /**
      * Describes an availability region for an inference endpoint.
      *
-     * @param csp    the cloud service provider (e.g., "aws", "gcp", "azure")
-     * @param region the provider-specific region identifier (e.g., "us-east-1")
-     * @param geo    the geographic area (e.g., "us", "eu")
+     * @param csp               the cloud service provider (e.g., "aws", "gcp", "azure")
+     * @param region            the provider-specific region identifier (e.g., "us-east-1")
+     * @param geo               the geographic area (e.g., "us", "eu")
+     * @param regionDisplayName an optional human-readable label for the region (e.g., "US East (N. Virginia)")
      */
-    public record EndpointRegion(@Nullable String csp, @Nullable String region, @Nullable String geo)
+    public record EndpointRegion(@Nullable String csp, @Nullable String region, @Nullable String geo, @Nullable String regionDisplayName)
         implements
             ToXContentObject,
             Writeable {
 
+        public static final TransportVersion REGION_DISPLAY_NAME_ADDED = TransportVersion.fromName(
+            "inference_endpoint_metadata_region_display_name_added"
+        );
+
         public static final ParseField CSP_FIELD = new ParseField("csp");
         public static final ParseField REGION_FIELD = new ParseField("region");
         public static final ParseField GEO_FIELD = new ParseField("geo");
+        public static final ParseField REGION_DISPLAY_NAME_FIELD = new ParseField("region_display_name");
 
         private static final ConstructingObjectParser<EndpointRegion, Void> PARSER = new ConstructingObjectParser<>(
             "endpoint_region",
             true,
-            args -> new EndpointRegion((String) args[0], (String) args[1], (String) args[2])
+            args -> new EndpointRegion((String) args[0], (String) args[1], (String) args[2], (String) args[3])
         );
 
         static {
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CSP_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REGION_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), GEO_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REGION_DISPLAY_NAME_FIELD);
         }
 
         public static EndpointRegion parse(XContentParser parser) throws IOException {
@@ -217,7 +261,12 @@ public record EndpointMetadata(
         }
 
         public EndpointRegion(StreamInput in) throws IOException {
-            this(in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+            this(
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.getTransportVersion().supports(REGION_DISPLAY_NAME_ADDED) ? in.readOptionalString() : null
+            );
         }
 
         @Override
@@ -232,6 +281,9 @@ public record EndpointMetadata(
             if (geo != null) {
                 builder.field(GEO_FIELD.getPreferredName(), geo);
             }
+            if (regionDisplayName != null) {
+                builder.field(REGION_DISPLAY_NAME_FIELD.getPreferredName(), regionDisplayName);
+            }
             builder.endObject();
             return builder;
         }
@@ -241,6 +293,9 @@ public record EndpointMetadata(
             out.writeOptionalString(csp);
             out.writeOptionalString(region);
             out.writeOptionalString(geo);
+            if (out.getTransportVersion().supports(REGION_DISPLAY_NAME_ADDED)) {
+                out.writeOptionalString(regionDisplayName);
+            }
         }
     }
 
@@ -297,6 +352,274 @@ public record EndpointMetadata(
 
         public boolean isEmpty() {
             return this.equals(EMPTY_INSTANCE);
+        }
+    }
+
+    /**
+     * Identifies the model behind an inference endpoint. Populated from the Elastic Inference Service authorization response.
+     *
+     * @param creator the model creator / lab (e.g. "anthropic", "openai", "jina")
+     * @param family  the model family within the creator (e.g. "claude", "gpt", "gemini")
+     * @param tier    the performance/size tier within the family (e.g. "sonnet", "mini"); {@code null} when the model has no tier variant
+     * @param version the model version identifier (e.g. "4.8", "v5", "3.0"); {@code null} when not applicable
+     */
+    public record ModelIdentity(@Nullable String creator, @Nullable String family, @Nullable String tier, @Nullable String version)
+        implements
+            ToXContentObject,
+            Writeable {
+
+        public static final ModelIdentity EMPTY_INSTANCE = new ModelIdentity(null, null, null, null);
+
+        public static final TransportVersion MODEL_IDENTITY_ADDED = TransportVersion.fromName(
+            "inference_endpoint_metadata_model_identity_added"
+        );
+
+        public static final String CREATOR_FIELD = "creator";
+        public static final String FAMILY_FIELD = "family";
+        public static final String TIER_FIELD = "tier";
+        public static final String VERSION_FIELD = "version";
+
+        private static final ConstructingObjectParser<ModelIdentity, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_model_identity",
+            true,
+            args -> new ModelIdentity((String) args[0], (String) args[1], (String) args[2], (String) args[3])
+        );
+
+        static {
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CREATOR_FIELD));
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(FAMILY_FIELD));
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(TIER_FIELD));
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(VERSION_FIELD));
+        }
+
+        public static ModelIdentity parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public ModelIdentity(StreamInput in) throws IOException {
+            this(in.readOptionalString(), in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (creator != null) {
+                builder.field(CREATOR_FIELD, creator);
+            }
+            if (family != null) {
+                builder.field(FAMILY_FIELD, family);
+            }
+            if (tier != null) {
+                builder.field(TIER_FIELD, tier);
+            }
+            if (version != null) {
+                builder.field(VERSION_FIELD, version);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(creator);
+            out.writeOptionalString(family);
+            out.writeOptionalString(tier);
+            out.writeOptionalString(version);
+        }
+
+        public boolean isEmpty() {
+            return this.equals(EMPTY_INSTANCE);
+        }
+    }
+
+    /**
+     * Model capability metadata: which reasoning effort levels the model supports and its context window limits.
+     *
+     * @param reasoning     reasoning effort capability; {@code null} when the endpoint does not support reasoning effort control
+     * @param contextWindow context window limits; {@code null} when not advertised by the upstream service
+     */
+    public record Capabilities(@Nullable ReasoningCapability reasoning, @Nullable ContextWindow contextWindow)
+        implements
+            ToXContentObject,
+            Writeable {
+
+        public static final Capabilities EMPTY_INSTANCE = new Capabilities(null, null);
+
+        public static final String REASONING_FIELD_NAME = "reasoning";
+        public static final String CONTEXT_WINDOW_FIELD_NAME = "context_window";
+
+        private static final ConstructingObjectParser<Capabilities, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_capabilities",
+            true,
+            args -> new Capabilities((ReasoningCapability) args[0], (ContextWindow) args[1])
+        );
+
+        static {
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ReasoningCapability.parse(p),
+                new ParseField(REASONING_FIELD_NAME)
+            );
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ContextWindow.parse(p),
+                new ParseField(CONTEXT_WINDOW_FIELD_NAME)
+            );
+        }
+
+        public static Capabilities parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public Capabilities(StreamInput in) throws IOException {
+            this(in.readOptionalWriteable(ReasoningCapability::new), in.readOptionalWriteable(ContextWindow::new));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (reasoning != null) {
+                builder.field(REASONING_FIELD_NAME, reasoning);
+            }
+            if (contextWindow != null) {
+                builder.field(CONTEXT_WINDOW_FIELD_NAME, contextWindow);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalWriteable(reasoning);
+            out.writeOptionalWriteable(contextWindow);
+        }
+
+        public boolean isEmpty() {
+            return this.equals(EMPTY_INSTANCE);
+        }
+    }
+
+    /**
+     * Reasoning effort capability: which effort levels the model supports and which applies when effort is not specified.
+     *
+     * @param supportedEffortLevels the effort levels accepted by the model; unknown values are silently filtered on parse
+     * @param defaultEffortLevel    the effort level used when the caller omits it; {@code null} when unspecified
+     */
+    public record ReasoningCapability(List<ReasoningEffort> supportedEffortLevels, @Nullable ReasoningEffort defaultEffortLevel)
+        implements
+            ToXContentObject,
+            Writeable {
+
+        public static final String SUPPORTED_EFFORT_LEVELS_FIELD_NAME = "supported_effort_levels";
+        public static final String DEFAULT_EFFORT_LEVEL_FIELD_NAME = "default_effort_level";
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<ReasoningCapability, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_reasoning_capability",
+            true,
+            args -> {
+                var levelStrings = args[0] != null ? (List<String>) args[0] : List.<String>of();
+                var levels = levelStrings.stream().flatMap(s -> {
+                    try {
+                        return Stream.of(ReasoningEffort.fromString(s));
+                    } catch (Exception ignored) {
+                        return Stream.empty();
+                    }
+                }).toList();
+                ReasoningEffort defaultLevel = null;
+                if (args[1] instanceof String s) {
+                    try {
+                        defaultLevel = ReasoningEffort.fromString(s);
+                    } catch (Exception ignored) {}
+                }
+                return new ReasoningCapability(levels, defaultLevel);
+            }
+        );
+
+        static {
+            PARSER.declareStringArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                new ParseField(SUPPORTED_EFFORT_LEVELS_FIELD_NAME)
+            );
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DEFAULT_EFFORT_LEVEL_FIELD_NAME));
+        }
+
+        public static ReasoningCapability parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public ReasoningCapability(StreamInput in) throws IOException {
+            this(in.readCollectionAsList(i -> i.readEnum(ReasoningEffort.class)), in.readOptionalEnum(ReasoningEffort.class));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, supportedEffortLevels);
+            if (defaultEffortLevel != null) {
+                builder.field(DEFAULT_EFFORT_LEVEL_FIELD_NAME, defaultEffortLevel.toString());
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(supportedEffortLevels, StreamOutput::writeEnum);
+            out.writeOptionalEnum(defaultEffortLevel);
+        }
+    }
+
+    /**
+     * Context window limits advertised by the upstream service.
+     *
+     * @param maxInputTokens  maximum number of input tokens; {@code null} when not advertised
+     * @param maxOutputTokens maximum number of output tokens; {@code null} when not advertised
+     */
+    public record ContextWindow(@Nullable Integer maxInputTokens, @Nullable Integer maxOutputTokens)
+        implements
+            ToXContentObject,
+            Writeable {
+
+        public static final String MAX_INPUT_TOKENS_FIELD_NAME = "max_input_tokens";
+        public static final String MAX_OUTPUT_TOKENS_FIELD_NAME = "max_output_tokens";
+
+        private static final ConstructingObjectParser<ContextWindow, Void> PARSER = new ConstructingObjectParser<>(
+            "endpoint_metadata_context_window",
+            true,
+            args -> new ContextWindow((Integer) args[0], (Integer) args[1])
+        );
+
+        static {
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MAX_INPUT_TOKENS_FIELD_NAME));
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MAX_OUTPUT_TOKENS_FIELD_NAME));
+        }
+
+        public static ContextWindow parse(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public ContextWindow(StreamInput in) throws IOException {
+            this(in.readOptionalVInt(), in.readOptionalVInt());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (maxInputTokens != null) {
+                builder.field(MAX_INPUT_TOKENS_FIELD_NAME, maxInputTokens);
+            }
+            if (maxOutputTokens != null) {
+                builder.field(MAX_OUTPUT_TOKENS_FIELD_NAME, maxOutputTokens);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalVInt(maxInputTokens);
+            out.writeOptionalVInt(maxOutputTokens);
         }
     }
 
@@ -461,6 +784,16 @@ public record EndpointMetadata(
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(fingerprint);
             out.writeOptionalVLong(version);
+        }
+
+        public boolean fingerprintMatches(Internal other) {
+            return Objects.equals(fingerprint, other.fingerprint);
+        }
+
+        public boolean isNewerThan(Internal other) {
+            long thisVersion = Optional.ofNullable(version).orElse(0L);
+            long otherVersion = Optional.ofNullable(other.version).orElse(0L);
+            return thisVersion > otherVersion;
         }
 
         public boolean isEmpty() {

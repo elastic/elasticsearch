@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 157536
+summary: Skip restoring shards in partial snapshots
+type: enhancement

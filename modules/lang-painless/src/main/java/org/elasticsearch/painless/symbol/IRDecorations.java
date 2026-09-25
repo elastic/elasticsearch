@@ -383,6 +383,18 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * describes a function whose return path records the execution's allocation total. Attached only when metrics are
+     * enabled; metrics also enable the counter on their own, so it joins {@link IRDMaxAllocationBytes} in the writer's
+     * "is tracking on" test.
+     */
+    public static class IRCRecordAllocationMetrics implements IRCondition {
+
+        private IRCRecordAllocationMetrics() {
+
+        }
+    }
+
     /** the resolved {@code @allocates} estimator for a call/construction site; attached only when tracking is enabled */
     public static class IRDAllocationEstimator extends IRDecoration<Method> {
 

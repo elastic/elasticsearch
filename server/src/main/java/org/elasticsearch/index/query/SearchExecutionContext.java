@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.logging.LogManager;
@@ -363,6 +364,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fields;
     }
 
+    /**
+     * Whether {@code index.query.default_field} is configured as the all-fields wildcard, answered from
+     * the setting rather than from the possibly expanded {@link #defaultFields()}. Query builders force
+     * leniency on all-fields queries so that one field failing to parse the value does not fail the whole
+     * query, and that decision has to reflect what the user asked for.
+     */
+    public boolean hasAllFieldsWildcardDefaultField() {
+        return QueryParserHelper.hasAllFieldsWildcard(indexSettings.getDefaultFields());
+    }
+
     public boolean queryStringLenient() {
         return indexSettings.isQueryStringLenient();
     }
@@ -492,7 +503,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
             );
         }
-        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());
+        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics(), null);
     }
 
     /**
@@ -551,7 +562,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
-        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics());
+        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics(), getNestedDocuments());
     }
 
     /**
@@ -765,6 +776,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public NestedDocuments getNestedDocuments() {
+        if (bitsetFilterCache == null) {
+            return null;
+        }
         return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
     }
 

@@ -150,6 +150,12 @@ changelogs:
     area: Infra/Core
     type: upgrade
     issues: []
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        The 9.4.4 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 152163
   - pr: 152385
     summary: Add more defensive protections when parsing `query_string`
     area: Search

@@ -12,7 +12,6 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -87,12 +86,12 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary2 = newStartedShard(true);
 
         final var task = newRecoveryTask();
-        // onRecoveryCompleted fires after sourceRecoveryCompleted()
+        // onPeerRecoveryCompletedOnSource fires after sourceRecoveryCompleted()
         final var completedListener = new CountDownLatch(2);
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onPeerRecoveryCompletedOnSource() {
                 completedListener.countDown();
             }
         });
@@ -136,12 +135,12 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
+            public void onPeerRecoveryQueuedOnSource() {
                 callOrder.add("queued");
             }
 
             @Override
-            public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+            public void onPeerRecoveryDequeuedAndStartedOnSource() {
                 callOrder.add("dequeued");
                 allRecoveriesStarted.countDown();
             }
@@ -175,7 +174,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onPeerRecoveryCompletedOnSource() {
                 allRecoveriesCompleted.countDown();
             }
         });
@@ -366,11 +365,11 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var request = newStartRecoveryRequest(primary, randomAlphaOfLength(10));
         final var firstComplete = new CountDownLatch(1);
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
-        // onRecoveryCompleted fires after remove() completes inside the synchronized block, so awaiting it
+        // onPeerRecoveryCompletedOnSource fires after remove() completes inside the synchronized block, so awaiting it
         // guarantees the handler is gone from activeRecoveries.
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onPeerRecoveryCompletedOnSource() {
                 firstComplete.countDown();
             }
         });
@@ -409,7 +408,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             final var secondComplete = new CountDownLatch(1);
             schedulingListeners.addListener(new RecoverySchedulingListener() {
                 @Override
-                public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                public void onPeerRecoveryCompletedOnSource() {
                     secondComplete.countDown();
                 }
             });
@@ -755,7 +754,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             final var dequeuedCount = new AtomicInteger();
             schedulingListeners.addListener(new RecoverySchedulingListener() {
                 @Override
-                public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+                public void onPeerRecoveryDequeuedAndStartedOnSource() {
                     dequeuedCount.incrementAndGet();
                 }
             });
@@ -793,12 +792,12 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             final var dequeuedCount = new AtomicInteger();
             schedulingListeners.addListener(new RecoverySchedulingListener() {
                 @Override
-                public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+                public void onPeerRecoveryDequeuedAndStartedOnSource() {
                     dequeuedCount.incrementAndGet();
                 }
             });
 
-            // Queue is empty, so raising the limit dequeues nothing and must not fire onRecoveryDequeuedAndStarted
+            // Queue is empty, so raising the limit dequeues nothing and must not fire onPeerRecoveryDequeuedAndStartedOnSource
             clusterSettings.applySettings(
                 Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
             );
@@ -852,13 +851,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
         final IndexShard primary5 = newStartedShard(true);
-        // onRecoveryCompleted fires after remove() decrements activeRecoveryHandlerCount, so awaiting
+        // onPeerRecoveryCompletedOnSource fires after remove() decrements activeRecoveryHandlerCount, so awaiting
         // all 3 guarantees the active count is stable before we assert.
         final var recoveriesCompleted = new CountDownLatch(3);
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onPeerRecoveryCompletedOnSource() {
                 recoveriesCompleted.countDown();
             }
         });
@@ -907,13 +906,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
         final IndexShard primary5 = newStartedShard(true);
-        // onRecoveryCompleted fires after remove() decrements activeRecoveryHandlerCount, so awaiting
+        // onPeerRecoveryCompletedOnSource fires after remove() decrements activeRecoveryHandlerCount, so awaiting
         // all 3 guarantees the active count is stable before we assert.
         final var recoveriesCompleted = new CountDownLatch(3);
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onPeerRecoveryCompletedOnSource() {
                 recoveriesCompleted.countDown();
             }
         });
@@ -970,7 +969,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var schedulingListeners = new CompositeRecoverySchedulingListener();
         schedulingListeners.addListener(new RecoverySchedulingListener() {
             @Override
-            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+            public void onPeerRecoveryCompletedOnSource() {
                 recoveriesCompleted.countDown();
             }
         });

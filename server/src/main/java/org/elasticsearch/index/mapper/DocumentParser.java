@@ -18,8 +18,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -61,9 +59,6 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_
 public final class DocumentParser {
 
     public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
-    static final NodeFeature FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE = new NodeFeature(
-        "mapper.fix_parsing_subobjects_false_dynamic_false"
-    );
     private static final String NOOP_FIELD_MAPPER_NAME = "no-op";
 
     private final XContentParserConfiguration parserConfiguration;
@@ -83,8 +78,8 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        SourceToParse.Source sourceObject = source.source();
-        if (sourceObject.isEmpty()) {
+        DocumentSource sourceObject = source.source();
+        if (sourceObject.hasContent() == false) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
@@ -670,8 +665,7 @@ public final class DocumentParser {
         }
         Mapper.Builder builderFromTemplate = DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName);
         if (builderFromTemplate == null) {
-            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()
-                && context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1)) {
+            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit() && context.fieldBudgetExhausted()) {
                 try {
                     FallbackPostMapper.capture(
                         context,
@@ -778,7 +772,7 @@ public final class DocumentParser {
                 context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
             } else if (mapper.storesArrayValuesInOrder()) {
                 // In-order values live in the field's own binary doc-values column, so the field name is just its full path.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(context.doc(), mapper.fullPath());
+                mapper.recordEmptyArrayInOrder(context.doc());
             }
         }
         postProcessDynamicArrayMapping(context, lastFieldName, valueElements);
@@ -789,7 +783,7 @@ public final class DocumentParser {
      */
     private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, int arraySize) {
         // cheap/free early return checks
-        final int minDims = context.indexSettings().getMode() == IndexMode.VECTORDB_DOCUMENT
+        final int minDims = context.indexSettings().getMode().isVectorDb()
             ? MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB
             : MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
         if (arraySize < minDims
@@ -1121,8 +1115,9 @@ public final class DocumentParser {
                 && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions) {
                 // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
-                SourceToParse.Source sourceObject = source.source();
-                // TODO: this can likely operate on eirf if present opposed to materlizing the originl source bytes if not present.
+                DocumentSource sourceObject = source.source();
+                // TODO: this can likely operate on the batch row if present opposed to materializing the original source bytes if not
+                // present.
                 tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalBytes());
             }
             this.tsid = tsid;

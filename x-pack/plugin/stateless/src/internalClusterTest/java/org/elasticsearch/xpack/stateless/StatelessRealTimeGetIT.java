@@ -298,7 +298,8 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
         var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
         var map = indexEngine.getLiveVersionMap();
-        if (randomBoolean()) {
+        final boolean forceUnsafe = randomBoolean();
+        if (forceUnsafe) {
             // Make sure the map is marked as unsafe
             indexDocs(indexName, randomIntBetween(1, 10));
             assertTrue(isUnsafe(map));
@@ -313,12 +314,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertNoFailures(bulkResponse);
         assertNotNull(get(map, "1"));
         assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
+        if (forceUnsafe) {
+            // The map was unsafe, so the get above forced a flush and the archive stays unsafe until the search shard acks that
+            // commit. A second get before the ack forces another flush, whose ack can prune "1" from the archive before the
+            // engine looks it up, making the get legitimately return null. Wait for the ack so the next get is deterministic.
+            assertBusy(() -> assertFalse(isUnsafe(map)));
+        }
         // A local refresh doesn't prune the LVM archive
         indexEngine.refresh("test");
         assertNotNull(get(map, "1"));
         assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
         final long lastUnsafeGenerationForGets = indexEngine.getLastUnsafeSegmentGenerationForGets();
-        // Create a new commit explicitly where once ack'ed by the unpronmotables we are sure the docs that were
+        // Create a new commit explicitly where once ack'ed by the unpromotables we are sure the docs that were
         // in the archive are visible on the unpromotable shards.
         indexDocs(indexName, randomIntBetween(1, 10));
         safeGet(client().admin().indices().refresh(new RefreshRequest(indexName)));
@@ -434,8 +441,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
             }
         } finally {
             assertThat(finalRefreshFuture.actionGet(), nullValue()); // ensure all refreshes completed with no exception
-            // TODO: Actively deleting the index until ES-8407 is resolved
-            assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
         }
     }
 
@@ -551,8 +556,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         for (Thread thread : threads) {
             thread.join();
         }
-        // TODO: Actively deleting the index until ES-8407 is resolved
-        assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
     }
 
     public void testLiveVersionMapMemoryBytesUsed() throws Exception {

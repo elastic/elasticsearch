@@ -40,7 +40,8 @@ public class OrcReaderStatusTests extends AbstractWireSerializingTestCase<OrcRea
             randomList(0, 4, () -> randomAlphaOfLength(6)).stream().sorted().toList(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            0L,
+            0L
         );
     }
 
@@ -57,20 +58,21 @@ public class OrcReaderStatusTests extends AbstractWireSerializingTestCase<OrcRea
             instance.predicatePushdownUsed(),
             instance.predicateColumns(),
             instance.columnsProjected(),
-            instance.columnsTotal(),
-            randomValueOtherThan(instance.readNanos(), () -> randomNonNegativeLong())
+            randomValueOtherThan(instance.columnsTotal(), () -> randomNonNegativeLong()),
+            0L,
+            0L
         );
     }
 
     public void testToXContent() throws IOException {
-        OrcReaderStatus status = new OrcReaderStatus(100L, 5L, 6L, 1L, 2L, 3L, 4L, true, List.of("host"), 7L, 9L, 150L);
+        OrcReaderStatus status = new OrcReaderStatus(100L, 5L, 6L, 1L, 2L, 3L, 4L, true, List.of("host"), 7L, 9L, 0L, 0L);
         assertThat(
             toJson(status),
             equalTo(
                 "{\"format\":\"orc\",\"rows_emitted\":100,\"footer_read_nanos\":5,\"footer_size_bytes\":6,"
                     + "\"footer_cache_hits\":1,\"footer_cache_misses\":2,\"stripes_in_file\":3,\"stripes_total\":4,"
                     + "\"predicate_pushdown_used\":true,\"predicate_columns\":[\"host\"],"
-                    + "\"columns_projected\":7,\"columns_total\":9,\"read_nanos\":150}"
+                    + "\"columns_projected\":7,\"columns_total\":9}"
             )
         );
     }

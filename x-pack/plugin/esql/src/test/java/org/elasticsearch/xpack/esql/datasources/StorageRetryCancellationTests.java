@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -122,5 +123,41 @@ public class StorageRetryCancellationTests extends ESTestCase {
         assertFalse("worker should have aborted the sleep and finished", worker.isAlive());
         assertThat(thrown.get(), instanceOf(TaskCancelledException.class));
         assertThat("a cross-thread cancel must not wait out the full delay", elapsedMs, lessThan(15_000L));
+    }
+
+    public void testGetWithCancellationChecksAbortsStuckFuture() throws Exception {
+        CompletableFuture<String> hang = new CompletableFuture<>();
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+        CountDownLatch started = new CountDownLatch(1);
+
+        Thread worker = new Thread(() -> {
+            try {
+                StorageRetryCancellation.runWithCancellation(cancelled::get, () -> {
+                    started.countDown();
+                    StorageRetryCancellation.getWithCancellationChecks(hang);
+                });
+            } catch (Throwable t) {
+                thrown.set(t);
+            }
+        }, "storage-retry-join-cancellation-test");
+
+        try {
+            worker.start();
+            assertTrue("worker did not start waiting", started.await(5, TimeUnit.SECONDS));
+            cancelled.set(true);
+            worker.join(TimeUnit.SECONDS.toMillis(2));
+            assertFalse("join must not stay blocked after cancel", worker.isAlive());
+            assertThat(thrown.get(), instanceOf(TaskCancelledException.class));
+        } finally {
+            hang.complete("done");
+            worker.join(TimeUnit.SECONDS.toMillis(5));
+        }
+    }
+
+    public void testGetWithCancellationChecksMapsCancelledFutureToTaskCancelled() {
+        CompletableFuture<String> cancelled = new CompletableFuture<>();
+        cancelled.cancel(true);
+        expectThrows(TaskCancelledException.class, () -> StorageRetryCancellation.getWithCancellationChecks(cancelled));
     }
 }

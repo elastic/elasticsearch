@@ -22,12 +22,14 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -45,7 +47,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -90,6 +94,69 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     public void testPhraseQuerySyntheticSource() throws IOException {
         assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/132352: phrase queries on
+     * match_only_text fields inside nested objects must correctly load the nested source slice rather
+     * than the empty source that a plain stored-source loader returns for nested child doc IDs.
+     */
+    public void testPhraseQueryInsideNestedObject() throws IOException {
+        assertNestedPhraseQueries(false, "the quick brown fox", "the slow lazy dog", "quick brown");
+    }
+
+    /**
+     * Reproduces #156803: the per-query cached source-loader leaf shares forward-only child iterators across searches, so the
+     * second search re-reads the segment at a LOWER nested-child doc id and threw "Cannot find object path for document" before
+     * the fix in NestedDocuments.findObjectPath. The first phrase matches the child at the higher doc id, advancing the shared
+     * iterators past the lower one; both docs must land in one segment for the leaf to be shared, hence the force-merge.
+     */
+    public void testPhraseQueryInsideNestedObjectBackwardDocAccess() throws IOException {
+        assertNestedPhraseQueries(true, "the slow lazy dog", "the quick brown fox", "quick brown", "lazy dog");
+    }
+
+    /**
+     * Indexes two root documents, each with one nested child holding the given text, then runs each phrase query against
+     * children.text on one shared SearchExecutionContext and asserts exactly one hit per phrase.
+     */
+    private void assertNestedPhraseQueries(boolean forceMerge, String firstChildText, String secondChildText, String... phrases)
+        throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("children");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("text").field("type", "match_only_text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        withLuceneIndex(mapperService, iw -> {
+            for (String childText : new String[] { firstChildText, secondChildText }) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+                    b.startArray("children");
+                    b.startObject().field("text", childText).endObject();
+                    b.endArray();
+                }));
+                iw.addDocuments(doc.docs());
+            }
+            if (forceMerge) {
+                iw.forceMerge(1);
+            }
+        }, reader -> {
+            DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId(mapperService.index(), 0));
+            // Pass false to avoid random reader re-wrapping (e.g. SlowCompositeReaderWrapper) that would break
+            // the ElasticsearchLeafReader chain needed by BitsetFilterCache to resolve the shard ID.
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(wrapped, false));
+            for (String phrase : phrases) {
+                NestedQueryBuilder query = new NestedQueryBuilder(
+                    "children",
+                    new MatchPhraseQueryBuilder("children.text", phrase),
+                    ScoreMode.None
+                );
+                TopDocs docs = context.searcher().search(query.toQuery(context), 10);
+                assertThat("phrase [" + phrase + "]", docs.totalHits.value(), equalTo(1L));
+            }
+        });
     }
 
     private void assertPhraseQuery(MapperService mapperService) throws IOException {
@@ -700,6 +767,11 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
         return true;
     }
 

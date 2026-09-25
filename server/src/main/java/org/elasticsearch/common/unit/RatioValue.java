@@ -20,6 +20,7 @@ import java.io.IOException;
  * Utility class to represent ratio and percentage values between 0 and 100
  */
 public class RatioValue implements Writeable {
+    public static final RatioValue ZERO_PERCENT = new RatioValue(0);
     public static final RatioValue ONE_HUNDRED_PERCENT = new RatioValue(100);
 
     private final double percent;
@@ -42,17 +43,49 @@ public class RatioValue implements Writeable {
     }
 
     /**
+     * Creates a {@link RatioValue} from a percentage value (i.e., in [0,100]).
+     *
+     * @param percent the percentage value
+     * @return a {@link RatioValue} representing the given percentage
+     */
+    public static RatioValue ofPercent(double percent) {
+        return new RatioValue(percent);
+    }
+
+    /**
      * Parses the provided string as a {@link RatioValue}, the string can
      * either be in percentage format (eg. 73.5%), or a floating-point ratio
      * format (eg. 0.735)
+     *
+     * @throws ElasticsearchParseException if the provided string represents a percentage outside [0,100] or ratio outside [0,1],
+     *                                     or if the provided string cannot be parsed as a double
      */
     public static RatioValue parseRatioValue(String sValue) {
+        return parseRatioValue(sValue, RatioValue.ZERO_PERCENT, RatioValue.ONE_HUNDRED_PERCENT);
+    }
+
+    /**
+     * Parses the provided string as a {@link RatioValue}, the string can
+     * either be in percentage format (eg. 73.5%), or a floating-point ratio
+     * format (eg. 0.735)
+     *
+     * @throws ElasticsearchParseException if the provided string represents a value outside
+     *                                     [{@code lowerBoundInclusive},{@code upperBoundInclusive}],
+     *                                     or if the provided string cannot be parsed as a double
+     */
+    public static RatioValue parseRatioValue(String sValue, RatioValue lowerBoundInclusive, RatioValue upperBoundInclusive) {
+        assert lowerBoundInclusive.getAsPercent() <= upperBoundInclusive.getAsPercent();
         if (sValue.endsWith("%")) {
             final String percentAsString = sValue.substring(0, sValue.length() - 1);
             try {
                 final double percent = Double.parseDouble(percentAsString);
-                if (percent < 0 || percent > 100) {
-                    throw new ElasticsearchParseException("Percentage should be in [0-100], got [{}]", percentAsString);
+                if (percent < lowerBoundInclusive.getAsPercent() || percent > upperBoundInclusive.getAsPercent()) {
+                    throw new ElasticsearchParseException(
+                        "Percentage should be in [{}-{}], got [{}]",
+                        formatNoTrailingZeros(lowerBoundInclusive.getAsPercent()),
+                        formatNoTrailingZeros(upperBoundInclusive.getAsPercent()),
+                        percentAsString
+                    );
                 }
                 return new RatioValue(Math.abs(percent));
             } catch (NumberFormatException e) {
@@ -61,14 +94,18 @@ public class RatioValue implements Writeable {
         } else {
             try {
                 double ratio = Double.parseDouble(sValue);
-                if (ratio < 0 || ratio > 1.0) {
-                    throw new ElasticsearchParseException("Ratio should be in [0-1.0], got [{}]", ratio);
+                if (ratio < lowerBoundInclusive.getAsRatio() || ratio > upperBoundInclusive.getAsRatio()) {
+                    throw new ElasticsearchParseException(
+                        "Ratio should be in [{}-{}], got [{}]",
+                        formatNoTrailingZeros(lowerBoundInclusive.getAsRatio()),
+                        formatNoTrailingZeros(upperBoundInclusive.getAsRatio()),
+                        formatNoTrailingZeros(ratio)
+                    );
                 }
                 return new RatioValue(100.0 * Math.abs(ratio));
             } catch (NumberFormatException e) {
                 throw new ElasticsearchParseException("Invalid ratio or percentage [{}]", sValue);
             }
-
         }
     }
 
@@ -76,17 +113,21 @@ public class RatioValue implements Writeable {
      * Returns the percent as a string with no trailing zeros and the '%' suffix.
      */
     public String formatNoTrailingZerosPercent() {
-        String value = String.valueOf(getAsPercent());
+        return formatNoTrailingZeros(getAsPercent()) + "%";
+    }
+
+    private static String formatNoTrailingZeros(double doubleValue) {
+        String value = String.valueOf(doubleValue);
         int i = value.length() - 1;
         while (i >= 0 && value.charAt(i) == '0') {
             i--;
         }
         if (i < 0) {
-            return "0%";
+            return "0";
         } else if (value.charAt(i) == '.') {
-            return value.substring(0, i) + "%";
+            return value.substring(0, i);
         } else {
-            return value.substring(0, Math.min(i + 1, value.length())) + "%";
+            return value.substring(0, Math.min(i + 1, value.length()));
         }
     }
 

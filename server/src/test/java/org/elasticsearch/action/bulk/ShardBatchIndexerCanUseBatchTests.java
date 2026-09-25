@@ -16,6 +16,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
@@ -28,6 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Logic-only tests for {@link ShardBatchIndexer#canUseBatchIndexing(BulkShardRequest)}. Separated out
@@ -39,13 +41,11 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
 
     private static ShardBatchIndexer indexer(boolean enabled) {
         if (enabled) {
-            assumeTrue(
-                "batch indexing requires the batch_indexing feature flag",
-                ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
-            );
+            assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         }
+        Settings s = Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), enabled).build();
         return new ShardBatchIndexer(
-            Settings.builder().put(ShardBatchIndexer.BATCH_INDEXING.getKey(), enabled).build(),
+            new BatchIndexingEnabled(new ClusterSettings(s, Set.of(BatchIndexingEnabled.BATCH_INDEXING))),
             BytesRefRecycler.NON_RECYCLING_INSTANCE
         );
     }
@@ -129,5 +129,32 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, indexRequest("2")) };
         assertFalse(indexer(true).canUseBatchIndexing(requestWithoutBatch(items)));
+    }
+
+    public void testDynamicSettingUpdate() throws IOException {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(BatchIndexingEnabled.BATCH_INDEXING));
+        BatchIndexingEnabled gate = new BatchIndexingEnabled(clusterSettings);
+        ShardBatchIndexer batchIndexer = new ShardBatchIndexer(gate, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+
+        BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
+        try (EscfBatch batch = buildBatch(1)) {
+            BulkShardRequest request = requestWithBatch(items, batch);
+
+            assertFalse(batchIndexer.canUseBatchIndexing(request));
+
+            if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+                clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build());
+                assertTrue(batchIndexer.canUseBatchIndexing(request));
+
+                clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false).build());
+                assertFalse(batchIndexer.canUseBatchIndexing(request));
+            } else {
+                IllegalArgumentException ex = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build())
+                );
+                assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("batch_indexing feature flag"));
+            }
+        }
     }
 }

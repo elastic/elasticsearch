@@ -27,14 +27,21 @@ import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
  */
 public class LinkerHelper {
     private static final Linker LINKER = Linker.nativeLinker();
+    private static final boolean IS_WINDOWS = Platform.current() == Platform.WINDOWS_X64;
     private static final SymbolLookup SYMBOL_LOOKUP;
 
     static {
         // We first check the loader lookup, which contains libs loaded by System.load and System.loadLibrary.
         // If the symbol isn't found there, we fall back to the default lookup, which is "common libraries" for
-        // the platform, typically eg libc
+        // the platform, typically eg libc on POSIX. On Windows the default lookup covers ucrtbase.dll and
+        // ntdll.dll but not kernel32.dll, so we add an explicit kernel32 lookup on that platform.
         SymbolLookup loaderLookup = SymbolLookup.loaderLookup();
-        SYMBOL_LOOKUP = (name) -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name));
+        if (IS_WINDOWS) {
+            SymbolLookup kernel32 = SymbolLookup.libraryLookup("kernel32.dll", Arena.global());
+            SYMBOL_LOOKUP = name -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name)).or(() -> kernel32.find(name));
+        } else {
+            SYMBOL_LOOKUP = name -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name));
+        }
     }
 
     public static SymbolLookup defaultLookup() {
@@ -60,8 +67,6 @@ public class LinkerHelper {
     ) {
         return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
-
-    private static final boolean IS_WINDOWS = Platform.current() == Platform.WINDOWS_X64;
 
     /**
      * Shared capture-state buffer for {@code @CaptureSystemError} calls. A single segment is enough on
@@ -144,5 +149,21 @@ public class LinkerHelper {
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
+    }
+
+    /**
+     * Marshals a native {@code char*} return value into a Java {@code String}, or {@code null} for a null
+     * pointer. A pointer returned from a downcall arrives as a zero-length {@link MemorySegment}; reading
+     * the C string first requires {@link MemorySegment#reinterpret(long) reinterpreting} it to a bound so
+     * the terminating NUL can be found. {@code reinterpret} is a restricted (native-access) method, so
+     * hosting it here keeps the {@code load_native_libraries} entitlement on this shared module instead of
+     * forcing it onto every library that binds a string-returning function. Generated {@code $Impl} classes
+     * call this rather than inlining the reinterpret themselves.
+     */
+    public static String readString(MemorySegment segment) {
+        if (segment.address() == 0) {
+            return null;
+        }
+        return MemorySegmentAdapter.getString(segment.reinterpret(Long.MAX_VALUE), 0);
     }
 }

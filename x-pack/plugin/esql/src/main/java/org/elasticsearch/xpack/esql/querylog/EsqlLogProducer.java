@@ -58,6 +58,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
             msg.field(PROFILE_PREFIX + "rows_emitted", rollup.rowsEmitted());
             msg.field(PROFILE_PREFIX + "bytes_read", rollup.bytesRead());
             msg.field(PROFILE_PREFIX + "read_nanos", rollup.readNanos());
+            msg.field(PROFILE_PREFIX + "read_cpu_nanos", rollup.readCpuNanos());
             msg.field(PROFILE_PREFIX + "cpu_nanos", rollup.cpuNanos());
         });
         var clusters = context.getClusters();

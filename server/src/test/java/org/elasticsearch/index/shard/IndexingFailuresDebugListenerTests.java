@@ -12,17 +12,24 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -135,4 +142,78 @@ public class IndexingFailuresDebugListenerTests extends ESTestCase {
         assertThat(appender.getLastEventAndReset(), nullValue());
     }
 
+    public void testPostIndexBatchFailure() {
+        var shardId = ShardId.fromString("[index][123]");
+        var mockShard = mock(IndexShard.class);
+        var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
+        when(mockShard.routingEntry()).thenReturn(shardRouting);
+        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        IndexingFailuresDebugListener listener = new IndexingFailuresDebugListener(mockShard);
+
+        IndexOperationBatch batch = primaryBatch(1);
+        Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
+        when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(indexResult.getFailure()).thenReturn(new RuntimeException("test exception"));
+        listener.postIndexBatch(shardId, batch, List.of(indexResult));
+        String message = appender.getLastEventAndReset().getMessage().getFormattedMessage();
+        assertThat(
+            message,
+            equalTo(
+                "index-fail [doc-0] seq# [-2] allocation-id ["
+                    + shardRouting.allocationId()
+                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY]"
+            )
+        );
+    }
+
+    public void testPostIndexBatchEngineException() {
+        var shardId = ShardId.fromString("[index][123]");
+        var mockShard = mock(IndexShard.class);
+        var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
+        when(mockShard.routingEntry()).thenReturn(shardRouting);
+        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        IndexingFailuresDebugListener listener = new IndexingFailuresDebugListener(mockShard);
+
+        final int docCount = randomIntBetween(1, 8);
+        IndexOperationBatch batch = primaryBatch(docCount);
+        listener.postIndexBatch(shardId, batch, new RuntimeException("test exception"));
+        // engine-level failure: one line summarises the whole batch, not one line per doc
+        String message = appender.getLastEventAndReset().getMessage().getFormattedMessage();
+        assertThat(
+            message,
+            equalTo(
+                "index-fail batch docCount ["
+                    + docCount
+                    + "] startingSeqNo [-2] allocation-id ["
+                    + shardRouting.allocationId()
+                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY]"
+            )
+        );
+    }
+
+    public void testPostIndexBatchSuccessNotLogged() {
+        var shardId = ShardId.fromString("[index][123]");
+        var mockShard = mock(IndexShard.class);
+        var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
+        when(mockShard.routingEntry()).thenReturn(shardRouting);
+        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
+        IndexingFailuresDebugListener listener = new IndexingFailuresDebugListener(mockShard);
+
+        IndexOperationBatch batch = primaryBatch(1);
+        Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
+        when(indexResult.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
+        listener.postIndexBatch(shardId, batch, List.of(indexResult));
+        assertThat(appender.getLastEventAndReset(), nullValue());
+    }
+
+    private static IndexOperationBatch primaryBatch(int docCount) {
+        final BulkItemRequest[] items = new BulkItemRequest[docCount];
+        for (int d = 0; d < docCount; d++) {
+            items[d] = new BulkItemRequest(
+                d,
+                new IndexRequest("index").id("doc-" + d).source(new BytesArray("{\"n\":" + d + "}"), XContentType.JSON)
+            );
+        }
+        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+    }
 }

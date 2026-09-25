@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.nullableChunk;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DATA_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FORMAT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
@@ -230,7 +230,7 @@ public abstract sealed class ReasoningDetail implements Accountable, ToXContentO
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(chunkNullable(FORMAT_FIELD, format()), chunkNullable(ID_FIELD, id()), chunkNullable(INDEX_FIELD, index()));
+        return Iterators.concat(nullableChunk(FORMAT_FIELD, format()), nullableChunk(ID_FIELD, id()), nullableChunk(INDEX_FIELD, index()));
     }
 
     public String format() {
@@ -508,8 +508,8 @@ public abstract sealed class ReasoningDetail implements Accountable, ToXContentO
                 ChunkedToXContentHelper.startObject(),
                 chunk((b, p) -> b.field(TYPE_FIELD, ReasoningDetailType.TEXT.value)),
                 super.toXContentChunked(params),
-                chunkNullable(TEXT_FIELD, text),
-                chunkNullable(SIGNATURE_FIELD, signature),
+                nullableChunk(TEXT_FIELD, text),
+                nullableChunk(SIGNATURE_FIELD, signature),
                 ChunkedToXContentHelper.endObject()
             );
         }

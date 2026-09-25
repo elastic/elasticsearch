@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 

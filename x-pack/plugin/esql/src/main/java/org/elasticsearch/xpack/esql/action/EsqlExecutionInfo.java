@@ -42,7 +42,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -121,11 +120,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // Project routing telemetry — coordinator-only, not serialized
     private transient ProjectRoutingRequestInfo projectRoutingInfo;
     /**
-     * Bytes currently held on the request breaker for external-datasource planning. Coordinator-only, like the
-     * other transient fields on this class: {@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)}
-     * does not read it. Released once when the query finishes.
+     * Request-breaker reservation for external-datasource planning. Coordinator-only, like the other transient
+     * fields on this class: {@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)} does
+     * not read it. The query listener closes it once.
      */
-    private final transient AtomicLong planningBytes = new AtomicLong();
+    private transient ExternalPlanningReservation externalPlanning;
     private transient boolean hasLinkedProjects;
 
     private final EsqlQueryProfile queryProfile;
@@ -236,10 +235,17 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * Ledger of external-planning bytes admitted on the request breaker for this query. Not serialized.
+     * Installs the query's external-planning reservation. One query, one reservation, set from
+     * {@code EsqlSession.execute} before resolution. Not serialized.
      */
-    public AtomicLong planningBytes() {
-        return planningBytes;
+    public void externalPlanning(ExternalPlanningReservation reservation) {
+        this.externalPlanning = reservation;
+    }
+
+    /** @return the reservation installed for this query, or {@code null} when planning has nothing to charge */
+    @Nullable
+    public ExternalPlanningReservation externalPlanning() {
+        return externalPlanning;
     }
 
     /**

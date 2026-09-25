@@ -170,9 +170,9 @@ public interface FileList {
 
     /**
      * Heap reserved while planning this listing. {@link #estimatedBytes()} stays the listing-cache weight and does
-     * not include per-file partition maps; this adds that allowance so planning can charge it before the schema map
-     * is built. When {@link #partitionMetadata()} is missing or empty, the result is {@link #estimatedBytes()}.
-     * Otherwise it adds 560 bytes for each file in {@link PartitionMetadata#filePartitionValues()}.
+     * not include per-file partition maps; this adds a fixed allowance so planning can charge it before the schema
+     * map is built. Not a measured deep size. When {@link #partitionMetadata()} is missing or empty, the result is
+     * {@link #estimatedBytes()}. Otherwise it adds 560 bytes for each file in {@link PartitionMetadata#filePartitionValues()}.
      */
     default long planningBytes() {
         PartitionMetadata metadata = partitionMetadata();

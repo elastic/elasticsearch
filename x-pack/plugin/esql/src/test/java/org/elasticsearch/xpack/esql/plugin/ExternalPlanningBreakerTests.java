@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -99,8 +100,8 @@ import static org.mockito.Mockito.when;
 /**
  * Phase-2 planning reservations. Local queries enter through {@link ComputeService#startPhase2OrSkip}, the
  * same call {@code execute} makes, which charges resolved {@link ExternalSourceExec} file lists before
- * discovery. Fragment discovery charges the relation file count. A warm skip charges nothing. One release
- * returns seam 1 and seam 2 together.
+ * discovery. Fragment discovery charges the relation file count. A warm skip charges nothing. Phase-2 bytes
+ * belong to one {@link ExternalPlanningReservation.Run}; listing bytes stay until the reservation closes.
  */
 public class ExternalPlanningBreakerTests extends ESTestCase {
 
@@ -114,14 +115,15 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         EsqlExecutionInfo info = executionInfo();
         ExternalSourceExec exec = relation(resolvedFiles(2), Map.of()).toPhysicalExec();
         assertFalse(ComputeService.canSkipSplitDiscovery(exec, service.formatReaderRegistry()));
+        ExternalPlanningReservation.Run run = bind(info, breaker).openRun();
         PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
 
-        service.startPhase2OrSkip(exec, configuration(), info, () -> false, done);
+        service.startPhase2OrSkip(exec, configuration(), info, () -> false, run, done);
 
         done.actionGet(30, TimeUnit.SECONDS);
         assertEquals(1, discoveries.get());
         assertEquals(baseline + 2 * PHASE2_BYTES_PER_FILE, breaker.getUsed());
-        assertEquals(2 * PHASE2_BYTES_PER_FILE, info.planningBytes().get());
+        assertEquals(2 * PHASE2_BYTES_PER_FILE, run.held());
     }
 
     public void testLocalPhase2TripsBeforeDiscoveryAndLeavesLedgerAtZero() {
@@ -131,14 +133,15 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         ComputeService service = service(breaker, discoveries);
         EsqlExecutionInfo info = executionInfo();
         ExternalSourceExec exec = relation(resolvedFiles(2), Map.of()).toPhysicalExec();
+        ExternalPlanningReservation.Run run = bind(info, breaker).openRun();
         PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
 
-        service.startPhase2OrSkip(exec, configuration(), info, () -> false, done);
+        service.startPhase2OrSkip(exec, configuration(), info, () -> false, run, done);
         CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, () -> done.actionGet(30, TimeUnit.SECONDS));
 
         assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
         assertEquals(0, discoveries.get());
-        assertEquals(0L, info.planningBytes().get());
+        assertEquals(0L, run.held());
         assertEquals(baseline, breaker.getUsed());
     }
 
@@ -150,14 +153,15 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         EsqlExecutionInfo info = executionInfo();
         FragmentExec fragment = new FragmentExec(relation(resolvedFiles(3), Map.of()));
         assertFalse(ComputeService.canSkipSplitDiscovery(fragment, service.formatReaderRegistry()));
+        ExternalPlanningReservation.Run run = bind(info, breaker).openRun();
         PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
 
-        service.startPhase2OrSkip(fragment, configuration(), info, () -> false, done);
+        service.startPhase2OrSkip(fragment, configuration(), info, () -> false, run, done);
 
         done.actionGet(30, TimeUnit.SECONDS);
         assertEquals(1, discoveries.get());
         assertEquals(baseline + 3 * PHASE2_BYTES_PER_FILE, breaker.getUsed());
-        assertEquals(3 * PHASE2_BYTES_PER_FILE, info.planningBytes().get());
+        assertEquals(3 * PHASE2_BYTES_PER_FILE, run.held());
     }
 
     public void testFragmentWorkTripsBeforeDiscoveryAndLeavesLedgerAtZero() {
@@ -168,14 +172,15 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         EsqlExecutionInfo info = executionInfo();
         FragmentExec fragment = new FragmentExec(relation(resolvedFiles(3), Map.of()));
         assertFalse(ComputeService.canSkipSplitDiscovery(fragment, service.formatReaderRegistry()));
+        ExternalPlanningReservation.Run run = bind(info, breaker).openRun();
         PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
 
-        service.startPhase2OrSkip(fragment, configuration(), info, () -> false, done);
+        service.startPhase2OrSkip(fragment, configuration(), info, () -> false, run, done);
         CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, () -> done.actionGet(30, TimeUnit.SECONDS));
 
         assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
         assertEquals(0, discoveries.get());
-        assertEquals(0L, info.planningBytes().get());
+        assertEquals(0L, run.held());
         assertEquals(baseline, breaker.getUsed());
     }
 
@@ -191,19 +196,20 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         Alias countAlias = alias("c", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
         FragmentExec fragment = new FragmentExec(new Aggregate(Source.EMPTY, external, List.of(), List.of(countAlias)));
         assertTrue(ComputeService.canSkipSplitDiscovery(fragment, service.formatReaderRegistry()));
+        ExternalPlanningReservation.Run run = bind(info, breaker).openRun();
         PlainActionFuture<ComputeService.CollectedSplits> done = new PlainActionFuture<>();
 
-        service.startPhase2OrSkip(fragment, configuration(), info, () -> false, done);
+        service.startPhase2OrSkip(fragment, configuration(), info, () -> false, run, done);
 
         done.actionGet(30, TimeUnit.SECONDS);
         assertEquals(0, discoveries.get());
         assertEquals(baseline, breaker.getUsed());
-        assertEquals(0L, info.planningBytes().get());
+        assertEquals(0L, run.held());
     }
 
     /**
-     * Listing and phase 2 add onto the one ledger {@code EsqlSession.execute} binds. A phase-2
-     * {@code set} instead of {@code addAndGet} would admit both charges and release only the second.
+     * Listing and phase 2 admit on the one reservation {@code EsqlSession.execute} binds. Closing the
+     * phase-2 run leaves the listing charge; a second run does not keep the first run's bytes.
      */
     public void testSeam1AndSeam2ShareLedgerAndReleaseTogether() throws Exception {
         String glob = "s3://bucket/data/*.parquet";
@@ -224,28 +230,44 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         ComputeService service = service(breaker, discoveries);
         ExternalSourceResolver resolver = listingResolver(schemas, listings, breaker);
         EsqlExecutionInfo info = executionInfo();
-        resolver.planningLedger(info);
+        ExternalPlanningReservation reservation = bind(info, breaker);
+        resolver.planning(reservation);
 
         PlainActionFuture<ExternalSourceResolution> resolved = new PlainActionFuture<>();
         resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), resolved);
         FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob).fileList();
         long seam1 = listing.planningBytes() + listing.fileCount() * 760L;
         assertThat(seam1, greaterThan(0L));
-        assertEquals(seam1, info.planningBytes().get());
+        assertEquals(seam1, reservation.queryHeld());
         assertEquals(baseline + seam1, breaker.getUsed());
 
         ExternalSourceExec exec = relation(listing, Map.of()).toPhysicalExec();
+        ExternalPlanningReservation.Run first = reservation.openRun();
         PlainActionFuture<ComputeService.CollectedSplits> phase2 = new PlainActionFuture<>();
-        service.startPhase2OrSkip(exec, configuration(), info, () -> false, phase2);
+        service.startPhase2OrSkip(exec, configuration(), info, () -> false, first, phase2);
         phase2.actionGet(30, TimeUnit.SECONDS);
 
         long seam2 = listing.fileCount() * PHASE2_BYTES_PER_FILE;
         assertEquals(1, discoveries.get());
-        assertEquals(seam1 + seam2, info.planningBytes().get());
+        assertEquals(seam2, first.held());
+        assertEquals(seam1, reservation.queryHeld());
         assertEquals(baseline + seam1 + seam2, breaker.getUsed());
 
-        TransportEsqlQueryAction.releaseExternalPlanningBytes(info, breaker);
-        assertEquals(0L, info.planningBytes().get());
+        first.close();
+        assertEquals(0L, first.held());
+        assertEquals(seam1, reservation.queryHeld());
+        assertEquals(baseline + seam1, breaker.getUsed());
+
+        ExternalPlanningReservation.Run second = reservation.openRun();
+        PlainActionFuture<ComputeService.CollectedSplits> again = new PlainActionFuture<>();
+        service.startPhase2OrSkip(exec, configuration(), info, () -> false, second, again);
+        again.actionGet(30, TimeUnit.SECONDS);
+        assertEquals(seam2, second.held());
+        assertEquals(baseline + seam1 + seam2, breaker.getUsed());
+
+        TransportEsqlQueryAction.releaseExternalPlanningBytes(info);
+        assertEquals(0L, reservation.queryHeld());
+        assertEquals(0L, second.held());
         assertEquals(baseline, breaker.getUsed());
     }
 
@@ -254,21 +276,28 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         long baseline = breaker.getUsed();
 
         EsqlExecutionInfo success = executionInfo();
-        success.planningBytes().addAndGet(400);
-        breaker.addEstimateBytesAndMaybeBreak(400, EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL);
-        TransportEsqlQueryAction.releaseExternalPlanningBytes(success, breaker);
+        ExternalPlanningReservation successReservation = bind(success, breaker);
+        successReservation.chargeQuery(400);
+        successReservation.openRun().charge(50);
+        TransportEsqlQueryAction.releaseExternalPlanningBytes(success);
         assertEquals(baseline, breaker.getUsed());
-        assertEquals(0L, success.planningBytes().get());
+        assertEquals(0L, successReservation.queryHeld());
 
         EsqlExecutionInfo failure = executionInfo();
-        failure.planningBytes().addAndGet(250);
-        breaker.addEstimateBytesAndMaybeBreak(250, EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL);
-        TransportEsqlQueryAction.releaseExternalPlanningBytes(failure, breaker);
+        ExternalPlanningReservation failureReservation = bind(failure, breaker);
+        failureReservation.chargeQuery(250);
+        TransportEsqlQueryAction.releaseExternalPlanningBytes(failure);
         assertEquals(baseline, breaker.getUsed());
-        assertEquals(0L, failure.planningBytes().get());
+        assertEquals(0L, failureReservation.queryHeld());
 
-        TransportEsqlQueryAction.releaseExternalPlanningBytes(failure, breaker);
+        TransportEsqlQueryAction.releaseExternalPlanningBytes(failure);
         assertEquals(baseline, breaker.getUsed());
+    }
+
+    private static ExternalPlanningReservation bind(EsqlExecutionInfo info, CircuitBreaker breaker) {
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        info.externalPlanning(reservation);
+        return reservation;
     }
 
     private static ComputeService service(CircuitBreaker breaker, AtomicInteger discoveries) {

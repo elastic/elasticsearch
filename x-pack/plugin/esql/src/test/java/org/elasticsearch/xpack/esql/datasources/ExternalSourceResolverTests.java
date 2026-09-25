@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -5619,7 +5620,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger metadataReads = new AtomicInteger();
         ExternalSourceResolver resolver = planningResolver(schemas, listings, wide, metadataReads);
         EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
-        resolver.planningLedger(info);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, wide);
         long baseline = wide.getUsed();
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
@@ -5630,7 +5631,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long expected = listing.planningBytes() + listing.fileCount() * 760L;
         assertThat(expected, greaterThan(0L));
         assertEquals(baseline + expected, wide.getUsed());
-        assertEquals(expected, info.planningBytes().get());
+        assertEquals(expected, reservation.queryHeld());
         assertThat(metadataReads.get(), greaterThan(0));
 
         long limit = expected - 1;
@@ -5639,13 +5640,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger trippedReads = new AtomicInteger();
         ExternalSourceResolver tripped = planningResolver(schemas, listings, narrow, trippedReads);
         EsqlExecutionInfo trippedInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
-        tripped.planningLedger(trippedInfo);
+        ExternalPlanningReservation trippedReservation = bindPlanning(tripped, trippedInfo, narrow);
         PlainActionFuture<ExternalSourceResolution> trippedFuture = new PlainActionFuture<>();
         tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), trippedFuture);
         CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
         assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
         assertEquals(0, trippedReads.get());
-        assertEquals(0L, trippedInfo.planningBytes().get());
+        assertEquals(0L, trippedReservation.queryHeld());
         assertEquals(tripBaseline, narrow.getUsed());
     }
 
@@ -5673,7 +5674,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger metadataReads = new AtomicInteger();
         ExternalSourceResolver resolver = planningResolver(schemas, listings, wide, metadataReads);
         EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
-        resolver.planningLedger(info);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, wide);
         long baseline = wide.getUsed();
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
@@ -5684,7 +5685,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long expected = listing.planningBytes() + listing.fileCount() * 760L;
         assertThat(expected, greaterThan(0L));
         assertEquals(baseline + expected, wide.getUsed());
-        assertEquals(expected, info.planningBytes().get());
+        assertEquals(expected, reservation.queryHeld());
         assertThat(metadataReads.get(), greaterThan(0));
 
         long limit = expected - 1;
@@ -5693,13 +5694,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger trippedReads = new AtomicInteger();
         ExternalSourceResolver tripped = planningResolver(schemas, listings, narrow, trippedReads);
         EsqlExecutionInfo trippedInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
-        tripped.planningLedger(trippedInfo);
+        ExternalPlanningReservation trippedReservation = bindPlanning(tripped, trippedInfo, narrow);
         PlainActionFuture<ExternalSourceResolution> trippedFuture = new PlainActionFuture<>();
         tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>()), null, Map.of(glob, strict), null, trippedFuture);
         CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
         assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
         assertEquals(0, trippedReads.get());
-        assertEquals(0L, trippedInfo.planningBytes().get());
+        assertEquals(0L, trippedReservation.queryHeld());
         assertEquals(tripBaseline, narrow.getUsed());
     }
 
@@ -5711,7 +5712,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger metadataReads = new AtomicInteger();
         ExternalSourceResolver resolver = planningResolver(schemas, Map.of(), breaker, metadataReads);
         EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
-        resolver.planningLedger(info);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, breaker);
         long baseline = breaker.getUsed();
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
@@ -5721,7 +5722,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(1, resolution.resolvedSource(file).fileList().fileCount());
         assertThat(metadataReads.get(), greaterThan(0));
         assertEquals(baseline, breaker.getUsed());
-        assertEquals(0L, info.planningBytes().get());
+        assertEquals(0L, reservation.queryHeld());
+    }
+
+    private static ExternalPlanningReservation bindPlanning(
+        ExternalSourceResolver resolver,
+        EsqlExecutionInfo info,
+        CircuitBreaker breaker
+    ) {
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        info.externalPlanning(reservation);
+        resolver.planning(reservation);
+        return reservation;
     }
 
     private ExternalSourceResolver planningResolver(

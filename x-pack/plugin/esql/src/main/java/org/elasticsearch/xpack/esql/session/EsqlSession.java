@@ -55,6 +55,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -405,8 +406,11 @@ public class EsqlSession {
         executionInfo.queryProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
+        if (blockFactory != null && blockFactory.breaker() != null) {
+            executionInfo.externalPlanning(new ExternalPlanningReservation(blockFactory.breaker()));
+        }
         if (externalSourceResolver != null) {
-            externalSourceResolver.planningLedger(executionInfo);
+            externalSourceResolver.planning(executionInfo.externalPlanning());
         }
         LOGGER.debug("ESQL query:\n{}", request.queryDescription());
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,

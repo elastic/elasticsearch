@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -19,12 +18,11 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -77,7 +75,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
@@ -178,16 +175,19 @@ public class ExternalSourceResolver {
         return result;
     }
 
-    /** Per-file schema-map reservation, paid before reconciliation, first-file-wins, or the strict schema loop. */
+    /**
+     * Per-file schema-map allowance, reserved before reconciliation, first-file-wins, or the strict schema loop.
+     * Not a measured deep size.
+     */
     private static final long SCHEMA_MAP_BYTES_PER_FILE = 760L;
 
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
     /**
-     * Query ledger for planning reservations. Set once from {@code EsqlSession.execute}. Null in tests that
-     * do not bind one; those sessions skip the charge so a real breaker cannot leak.
+     * Query reservation for listing and schema-map bytes. Set once from {@code EsqlSession.execute}.
+     * Null when the session has no request breaker; those sessions skip the charge.
      */
-    private volatile AtomicLong planningLedger;
+    private volatile ExternalPlanningReservation planningReservation;
     private final Settings settings;
     /**
      * Kept-files, brace-expansion, and LIST-walk caps. Production wires these to
@@ -329,49 +329,24 @@ public class ExternalSourceResolver {
     private final Executor metadataReadExecutor;
 
     /**
-     * Binds the coordinator ledger that records planning bytes after the request breaker admits them.
-     * One query builds one resolver, so this is set once at the start of {@code EsqlSession.execute}.
+     * Binds the reservation {@code EsqlSession.execute} created from the session block factory.
+     * Charge and release then share that breaker. Null skips the charge.
      */
-    public void planningLedger(EsqlExecutionInfo executionInfo) {
-        this.planningLedger = executionInfo.planningBytes();
+    public void planning(@Nullable ExternalPlanningReservation reservation) {
+        this.planningReservation = reservation;
     }
 
     /**
-     * Reserves listing memory plus the per-file schema map on the request breaker, before reconciliation or the
-     * strict schema loop builds that map. A trip leaves the ledger at zero: the breaker throws before the add is
-     * recorded. No ledger (tests) or no file-factory breaker skips the charge.
+     * Reserves listing memory plus the per-file schema map before reconciliation or the strict schema loop
+     * builds that map. A trip leaves the reservation unchanged: the breaker throws before the add is recorded.
      */
     private void chargeListingPlanning(FileList listing) {
-        AtomicLong ledger = planningLedger;
-        if (ledger == null) {
-            return;
-        }
-        CircuitBreaker breaker = planningBreaker();
-        if (breaker == null) {
+        ExternalPlanningReservation reservation = planningReservation;
+        if (reservation == null) {
             return;
         }
         long bytes = listing.planningBytes() + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
-        if (bytes <= 0) {
-            return;
-        }
-        breaker.addEstimateBytesAndMaybeBreak(bytes, EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL);
-        ledger.addAndGet(bytes);
-    }
-
-    /**
-     * Request breaker on the {@code "file"} source factory. Null when the module, the factory, or its block
-     * factory is absent. Does not look up any other source-factory key.
-     */
-    @Nullable
-    private CircuitBreaker planningBreaker() {
-        if (dataSourceModule == null) {
-            return null;
-        }
-        if (dataSourceModule.sourceFactories().get("file") instanceof FileSourceFactory files) {
-            BlockFactory blocks = files.blockFactory();
-            return blocks == null ? null : blocks.breaker();
-        }
-        return null;
+        reservation.chargeQuery(bytes);
     }
 
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */

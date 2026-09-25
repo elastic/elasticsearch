@@ -10,9 +10,10 @@ products:
 
 # SQL client applications [sql-client-apps]
 
-Thanks to its [JDBC](sql-jdbc.md) and [ODBC](sql-odbc.md) interfaces, a broad range of third-party applications can use {{es}}'s SQL capabilities. This section lists, in alphabetical order, a number of them and their respective configuration - the list however is by no means comprehensive (feel free to [submit a PR](https://www.elastic.co/blog/art-of-pull-request) to improve it): as long as the app can use the {{es}} SQL driver, it can use
+Thanks to its [JDBC](sql-jdbc.md), [ODBC](sql-odbc.md), and [REST](sql-rest.md) interfaces, a broad range of third-party applications can use {{es}}'s SQL capabilities. This section lists, in alphabetical order, a number of them and their respective configuration - the list however is by no means comprehensive (feel free to [submit a PR](https://www.elastic.co/blog/art-of-pull-request) to improve it): as long as the app can use the {{es}} SQL driver, it can use
 {{es}} SQL.
 
+* [Apache Superset & Preset](sql-client-apps-superset.md)
 * [DBeaver](sql-client-apps-dbeaver.md)
 * [DbVisualizer](sql-client-apps-dbvis.md)
 * [Microsoft Excel](sql-client-apps-excel.md)

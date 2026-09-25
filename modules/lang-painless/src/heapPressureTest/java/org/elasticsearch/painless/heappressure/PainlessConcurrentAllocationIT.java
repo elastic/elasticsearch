@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.painless.resourceexhaustion;
+package org.elasticsearch.painless.heappressure;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
  *       interfering with another's accounting.
  * </ul>
  */
-public class PainlessConcurrentAllocationIT extends ResourceExhaustionPainlessTestCase {
+public class PainlessConcurrentAllocationIT extends HeapPressurePainlessTestCase {
 
     private static final String INDEX = "painless-concurrent-alloc";
     // 1 MB per chunk gives fine-grained control over how close each execution gets to the limit.

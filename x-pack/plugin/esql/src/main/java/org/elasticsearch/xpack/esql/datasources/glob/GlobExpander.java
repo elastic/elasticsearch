@@ -1918,28 +1918,25 @@ public final class GlobExpander {
      * parse are replaced with their epoch-millis values and reused for every file.
      */
     private static List<PartitionFilterHint> resolveModifiedHints(List<PartitionFilterHint> hints) {
-        boolean anyModified = false;
-        for (PartitionFilterHint hint : hints) {
-            if (FileMetadataColumns.MODIFIED.equals(hint.columnName())) {
-                anyModified = true;
-                break;
-            }
-        }
-        if (anyModified == false) {
-            return hints;
-        }
-        List<PartitionFilterHint> resolved = new ArrayList<>(hints.size());
-        for (PartitionFilterHint hint : hints) {
+        List<PartitionFilterHint> resolved = null;
+        for (int i = 0; i < hints.size(); i++) {
+            PartitionFilterHint hint = hints.get(i);
             if (FileMetadataColumns.MODIFIED.equals(hint.columnName()) == false) {
-                resolved.add(hint);
+                if (resolved != null) {
+                    resolved.add(hint);
+                }
                 continue;
+            }
+            if (resolved == null) {
+                resolved = new ArrayList<>(hints.size());
+                resolved.addAll(hints.subList(0, i));
             }
             PartitionFilterHint parsed = parsedModifiedHint(hint);
             if (parsed != null) {
                 resolved.add(parsed);
             }
         }
-        return resolved;
+        return resolved == null ? hints : resolved;
     }
 
     /**

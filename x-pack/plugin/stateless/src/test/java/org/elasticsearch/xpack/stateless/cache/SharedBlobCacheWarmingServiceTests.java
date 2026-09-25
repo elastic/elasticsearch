@@ -107,6 +107,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -120,7 +121,9 @@ import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUF
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_BCC_HEADER_PREWARM;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_MERGE;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1029,8 +1032,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         // Blob names for the two files we will warm concurrently.
         final long generationA = 1L;
         final long generationB = 2L;
-        final String blobNameA = StatelessCompoundCommit.blobNameFromGeneration(generationA);
-        final String blobNameB = StatelessCompoundCommit.blobNameFromGeneration(generationB);
+        final String blobNameA = BatchedCompoundCommit.blobNameFromGeneration(generationA);
+        final String blobNameB = BatchedCompoundCommit.blobNameFromGeneration(generationB);
 
         // Track blob-store reads in arrival order (reads are serialised by the central throttle, so no lock needed,
         // but CopyOnWriteArrayList avoids any visibility concern with the assertion thread).
@@ -1226,7 +1229,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }) {
             long generation = randomLongBetween(3, 42);
             var blobFile = new BlobFile(
-                StatelessCompoundCommit.blobNameFromGeneration(generation),
+                BatchedCompoundCommit.blobNameFromGeneration(generation),
                 new PrimaryTermAndGeneration(primaryTerm, generation)
             );
             // A commit with a handful of files; no real blob data needed — tasks are intercepted before execution
@@ -1487,7 +1490,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         ) {
             final var primaryTermAndGeneration = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
             final var blobFile = new BlobFile(
-                StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
+                BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
                 primaryTermAndGeneration
             );
 
@@ -1536,7 +1539,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long offset = randomLongBetween(stepSize * (i - 1), stepSize * i - fileLength) + rangeStart;
                 final long minimizedEnd = rangeStart + stepSize * i;
                 final var blobLocation = new BlobLocation(
-                    new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
                     offset,
                     fileLength
                 );
@@ -1600,7 +1603,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final long fileLength = randomLongBetween(1, rangeSize);
             final long offset = randomLongBetween(0, rangeSize - fileLength);
             final var blobLocation = new BlobLocation(
-                new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
                 offset,
                 fileLength
             );
@@ -1662,7 +1665,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         try (var node = createFakeNodeForPreWarming(ByteSizeValue.ofMb(4), regionSize, SharedBytes.PAGE_SIZE, preWarmEnabled, ratio)) {
             final IndexShard indexShard = mockIndexShard(node);
             final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
-            final var blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen);
+            final var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen);
 
             final Map<String, BlobLocation> commitFiles = new HashMap<>();
             long currentOffset = regionSize;
@@ -2189,7 +2192,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long warmEndOffset = randomLongBetween(1, blobSize);
                 blobSpecs.add(
                     new WarmTarget(
-                        new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                        new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
                         warmEndOffset,
                         blobSize
                     )
@@ -2395,7 +2398,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long blobSize = randomLongBetween(1, 1024 * 1024);
                 final long endOffset = randomLongBetween(1, blobSize);
                 warmTargets.put(
-                    new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
                     SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(endOffset, blobSize)
                 );
             }
@@ -2836,26 +2839,35 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     public void testAbstractWarmingTaskComparison() {
-        var typesOtherThanMerge = Arrays.stream(Type.values()).collect(Collectors.toSet());
-        typesOtherThanMerge.remove(Type.INDEXING_MERGE);
+        var typesOtherThanMergeAndBCCPrewarm = Arrays.stream(Type.values()).collect(Collectors.toSet());
+        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_MERGE);
+        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_BCC_HEADER_PREWARM);
 
         var queue = new PriorityQueue<MyTask>();
 
-        var task1 = new MyTask(randomFrom(typesOtherThanMerge), 500);
+        var task1 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), 500);
         queue.add(task1);
-        var task2 = new MyTask(randomFrom(typesOtherThanMerge), randomLongBetween(0, 499));
+        var task2 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(0, 499));
         queue.add(task2);
-        var task3 = new MyTask(randomFrom(typesOtherThanMerge), randomLongBetween(501, Long.MAX_VALUE));
+        var task3 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(501, Long.MAX_VALUE));
         queue.add(task3);
         var task4 = new MyTask(Type.INDEXING_MERGE, randomLongBetween(1, Long.MAX_VALUE));
         queue.add(task4);
         var task5 = new MyTask(Type.INDEXING_MERGE, 0);
         queue.add(task5);
         // We don't explicitly handle overflow in position.
-        var task6 = new MyTask(randomFrom(typesOtherThanMerge), randomLongBetween(Long.MIN_VALUE, -1));
+        var task6 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(Long.MIN_VALUE, -1));
         queue.add(task6);
+        // BCC header prewarming sorts before everything else, even with a larger position.
+        var task7 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, randomLongBetween(1, Long.MAX_VALUE));
+        queue.add(task7);
+        var task8 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, 0);
+        queue.add(task8);
 
-        assertEquals(List.of(task6, task2, task1, task3, task5, task4), Stream.generate(queue::poll).takeWhile(Objects::nonNull).toList());
+        assertEquals(
+            List.of(task8, task7, task6, task2, task1, task3, task5, task4),
+            Stream.generate(queue::poll).takeWhile(Objects::nonNull).toList()
+        );
     }
 
     public void testPrioritizationOfWarmingTasks() throws IOException {
@@ -2872,6 +2884,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .build();
             }
         }) {
+
             var warmingService = fakeNode.warmingService;
 
             // We want to force the warming tasks that we assert on to go into the queue of the task runner.
@@ -3091,6 +3104,197 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             safeGet(mergeWarmFuture);
 
             threadPoolBlocker.countDown();
+        }
+    }
+
+    public void testMergeWarmingSchedulesOneTaskPerRegion() throws IOException {
+        var primaryTerm = 1;
+        var warmingTasks = new ArrayList<AbstractWarmingTask>();
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    warmingRatioProvider
+                ) {
+                    @Override
+                    protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                        warmingTasks.add(task);
+                        super.scheduleWarmingTask(task);
+                    }
+                };
+            }
+        }) {
+            var fileName = "_segment1.si";
+            var segmentInfo = new SegmentInfo(
+                fakeNode.indexingDirectory,
+                Version.LATEST,
+                Version.LATEST,
+                "_segment1",
+                Integer.MAX_VALUE,
+                false,
+                false,
+                null,
+                Map.of(),
+                new byte[16],
+                Map.of(),
+                null
+            );
+            segmentInfo.setFiles(List.of(fileName));
+            var segmentCommitInfo = new SegmentCommitInfo(segmentInfo, 0, 0, -1L, -1L, -1L, new byte[16]);
+
+            int regionCount = randomIntBetween(2, 5);
+            var blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
+            var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
+            var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
+            var mergeWarmFuture = new PlainActionFuture<Void>();
+            fakeNode.warmingService.warmCacheMerge(
+                "test-merge",
+                fakeNode.shardId,
+                fakeNode.indexingStore,
+                List.of(segmentCommitInfo),
+                ignored -> blobLocation,
+                () -> false,
+                mergeWarmFuture
+            );
+            assertThat(warmingTasks, hasSize(regionCount));
+            safeGet(mergeWarmFuture);
+        }
+    }
+
+    public void testMergeWarmingIsInterleavedWithRegion0Warming() throws IOException {
+        var primaryTerm = 1;
+
+        // test that interleaving between regions from merges and region-0 prewarmings can take place: to do so we store the execution order
+        // of prewarmings and assert at the end that interleaving took place
+        List<Type> warmingTaskRunnerExecutionOrder = Collections.synchronizedList(new ArrayList<>());
+
+        // warmingTaskRunner executes at most 2 tasks at a time (see nodeSettings below), so we start with 2 merge-region tasks that start
+        // and block
+        var mergeStarted = new CountDownLatch(2);
+        var mergeRelease = new Semaphore(0);
+
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                Settings settings = super.nodeSettings();
+                return Settings.builder()
+                    .put(settings)
+                    // warmingTaskRunner is set to have max running tasks of 1 + stateless_prewarm_thread_pool.max, so we set max to 1
+                    // here, so we execute at most 2 tasks at a time
+                    .put("stateless.stateless_prewarm_thread_pool.core", 1)
+                    .put("stateless.stateless_prewarm_thread_pool.max", 1)
+                    .build();
+            }
+
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    warmingRatioProvider
+                ) {
+                    @Override
+                    protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                        super.scheduleWarmingTask(new AbstractWarmingTask(task.type, task.position) {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                warmingTaskRunnerExecutionOrder.add(task.type);
+
+                                if (task.type == INDEXING_MERGE) {
+                                    mergeStarted.countDown();
+                                    safeAcquire(mergeRelease);
+                                }
+
+                                task.onResponse(releasable);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                task.onFailure(e);
+                            }
+                        });
+                    }
+                };
+            }
+        }) {
+            var fileName = "_segment1.si";
+            var segmentInfo = new SegmentInfo(
+                fakeNode.indexingDirectory,
+                Version.LATEST,
+                Version.LATEST,
+                "_segment1",
+                Integer.MAX_VALUE,
+                false,
+                false,
+                null,
+                Map.of(),
+                new byte[16],
+                Map.of(),
+                null
+            );
+            segmentInfo.setFiles(List.of(fileName));
+            var segmentCommitInfo = new SegmentCommitInfo(segmentInfo, 0, 0, -1L, -1L, -1L, new byte[16]);
+
+            // merge warming schedules one task per region, so we end up with 5 merge tasks for warming regions
+            int regionCount = 5;
+            var blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
+            var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
+            var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
+            var mergeWarmFuture = new PlainActionFuture<Void>();
+            fakeNode.warmingService.warmCacheMerge(
+                "test-merge",
+                fakeNode.shardId,
+                fakeNode.indexingStore,
+                List.of(segmentCommitInfo),
+                ignored -> blobLocation,
+                () -> false,
+                mergeWarmFuture
+            );
+
+            // wait until both the 2 merge tasks are running, while the remaining 3 are queued
+            safeAwait(mergeStarted);
+
+            // start the region-0 prewarming
+            var indexShard = mockIndexShard(fakeNode);
+            var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
+            var region0Future = new PlainActionFuture<Void>();
+            fakeNode.warmingService.warmCacheForBCCHeadersRead(indexShard, directory, Set.of(blobFile), region0Future);
+
+            // only after we've started the region-0 prewarming we allow one of the 2 previous merge running tasks to complete
+            // at this point we would have 1 merge-task ran, 1 running merge and 1 running region-0 task, and 3 queued merge tasks
+            mergeRelease.release();
+            safeGet(region0Future);
+
+            // let the remaining merge tasks to run and complete
+            mergeRelease.release(regionCount - 1);
+            safeGet(mergeWarmFuture);
+
+            // we started with prewarming 2 merge regions, then we had a region-0 prewarming that took place before the remaining queued 3
+            // merge tasks
+            assertThat(
+                warmingTaskRunnerExecutionOrder,
+                equalTo(
+                    List.of(INDEXING_MERGE, INDEXING_MERGE, INDEXING_BCC_HEADER_PREWARM, INDEXING_MERGE, INDEXING_MERGE, INDEXING_MERGE)
+                )
+            );
         }
     }
 

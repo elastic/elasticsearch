@@ -1884,6 +1884,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccWithUnpausedUpload() {
             return pendingUploadBccGenerations.values()
                 .stream()
+                // Freezing a VBCC does not consult [#maxGenerationToUpload], so while the shard is relocating this map
+                // can hold generations above the pinned bound. Whatever survives the filter is safe to hand out. If no
+                // bound is pinned yet then the one markRelocating later pins is the max pending generation at that
+                // point, which is at or above anything pending now.
                 .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)
                 .max(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
@@ -3289,6 +3293,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 final var virtualPrimaryTermAndGeneration = virtual.getPrimaryTermAndGeneration();
                 final var virtualPendingCompoundCommit = virtual.getLastPendingCompoundCommit();
                 final var virtualCompoundCommit = virtualPendingCompoundCommit.getStatelessCompoundCommit();
+
+                /// See [#getLatestVirtualBccForUnpromotableRecovery]
+                assert pauseUpload(virtualPendingCompoundCommit.getGeneration()) == false
+                    : shardId
+                        + " provided unpromotable recovery registration vbcc "
+                        + virtualPendingCompoundCommit.getGeneration()
+                        + " greater than maxGenerationToUpload="
+                        + maxGenerationToUpload.generation();
 
                 var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(virtualCompoundCommit)
                     .stream()

@@ -358,11 +358,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
     }
 
-    /**
-     * A leaf declared under a nested parent stays null under {@code unmapped_fields=load}: the wrap must dispatch neither
-     * the nested mapper's native loader (the #154011 type-skew crash) nor the {@code _source} loader (mapped nested
-     * subfields are not loaded until ES|QL supports nested fields, so real support cannot be a breaking change).
-     */
+    /** A mapped nested subfield stays null under {@code unmapped_fields=load}. */
     public void testMappedNestedSubfieldStaysNullUnderUnmappedFieldContext() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(

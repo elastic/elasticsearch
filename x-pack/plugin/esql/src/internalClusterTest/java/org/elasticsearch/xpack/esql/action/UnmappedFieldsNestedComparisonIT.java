@@ -26,18 +26,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * {@code SET unmapped_fields} for nested {@code item.extra} vs a nested parent with no declared subfields vs unsupported
- * {@code extra} ({@code ip_range}) vs the same {@code item.extra} with no mapping at all vs {@code item.extra} under a
- * {@code flattened} parent. Each parameter is one cell of the table; classified on each scenario's special index - the
- * nested / bare-nested / unsupported / never-mapped / flattened one, paired with a plain object index.
- * <p>
- * Nested subfields are hidden from field caps ({@code -nested}). A leaf <b>declared</b> under a nested parent is always
- * null: it is not loaded even in load modes, so that value does not change shape when ES|QL gains real nested support
- * (loading it as an unmapped keyword now would make that a breaking change). A leaf that is <b>not declared</b> in the
- * mapping behaves like any other unmapped field: load modes read it from {@code _source} and {@code nullify} nulls it.
- * Unsupported fields are mapped, so wherever the mapping has them they stay null. Flattened sub-keys are also invisible
- * to field caps, but they are not treated as unmapped: the {@code Verifier} rejects loading a subfield of a flattened
- * parent, and {@code nullify} nulls it.
+ * Tests the combinations of {@code SET unmapped_fields} and their results for:
+ * <ul>
+ * <li>a nested subfield</li>
+ * <li>a nested parent with no declared subfields</li>
+ * <li>an unsupported field</li>
+ * <li>a field with no mapping</li>
+ * <li>a flattened sub-key</li>
+ * </ul>
+ * Each parameter is one cell. The combinations and expected results are the table in {@link #params()}.
  */
 public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase {
 

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -169,7 +170,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -1101,7 +1101,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
-        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
+        final ShardSearchRequest suppliedShardSearchRequest = request.getShardSearchRequest();
+        final ReaderContext readerContext = findReaderContext(
+            request.contextId(),
+            request,
+            suppliedShardSearchRequest == null ? null : suppliedShardSearchRequest.shardId()
+        );
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         listener = wrapListenerForErrorHandling(
             listener,
@@ -1180,7 +1185,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener
     ) {
         final ActionListener<FetchSearchResult> releaseListener = releaseCircuitBreakerOnResponse(listener, result -> result);
-        final ReaderContext readerContext = findReaderContext(request.contextId(), request);
+        final ShardSearchRequest suppliedShardSearchRequest = request.getShardSearchRequest();
+        final ReaderContext readerContext = findReaderContext(
+            request.contextId(),
+            request,
+            suppliedShardSearchRequest == null ? null : suppliedShardSearchRequest.shardId()
+        );
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
 
@@ -1307,7 +1317,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<ScrollQuerySearchResult> listener,
         TransportVersion version
     ) {
-        final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
+        final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request, null);
         listener = wrapListenerForErrorHandling(
             listener,
             version,
@@ -1372,7 +1382,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<QuerySearchResult> listener,
         TransportVersion version
     ) {
-        final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
+        final ShardSearchRequest suppliedShardSearchRequest = request.shardSearchRequest();
+        final ReaderContext readerContext = findReaderContext(
+            request.contextId(),
+            suppliedShardSearchRequest,
+            suppliedShardSearchRequest == null ? null : suppliedShardSearchRequest.shardId()
+        );
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
         listener = wrapListenerForErrorHandling(
             listener,
@@ -1450,7 +1465,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchShardTask task,
         ActionListener<ScrollQueryFetchSearchResult> listener
     ) {
-        final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
+        final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request, null);
         final Releasable markAsUsed;
         try {
             markAsUsed = readerContext.markAsUsed(getScrollKeepAlive(request.scroll()));
@@ -1511,13 +1526,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request) throws SearchContextMissingException {
+    private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request, @Nullable ShardId expectedShard)
+        throws SearchContextMissingException {
         if (id.getSessionId().isEmpty()) {
             throw new IllegalArgumentException("Session id must be specified");
         }
         final ReaderContext reader = activeReaders.get(id);
         if (reader == null) {
             throw new SearchContextMissingException(id);
+        }
+        // The context-id must resolve to a reader for the expected shard.
+        // If these don't match it's a sign that the input (e.g. supplied PIT id) was corrupted or tampered with.
+        if (expectedShard != null && expectedShard.equals(reader.indexShard().shardId()) == false) {
+            logger.info(
+                "Rejecting point in time id because shard {} resolves to reader context {} on shard {}",
+                expectedShard,
+                id,
+                reader.indexShard().shardId()
+            );
+            throw new IllegalArgumentException("point in time id is not valid");
         }
 
         try {
@@ -1534,7 +1561,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final long keepAliveInMillis = getKeepAlive(request);
         if (contextId != null) {
             try {
-                return findReaderContext(contextId, request);
+                return findReaderContext(contextId, request, request.shardId());
             } catch (SearchContextMissingException e) {
                 logger.debug("failed to find active reader context [id: {}]", contextId);
                 if (contextId.isRetryable() == false) {
@@ -2585,7 +2612,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     static class CanMatchContext {
         private final ShardSearchRequest request;
         private final Function<Index, IndexService> indexServiceLookup;
-        private final BiFunction<ShardSearchContextId, TransportRequest, ReaderContext> findReaderContext;
+        private final TriFunction<ShardSearchContextId, TransportRequest, ShardId, ReaderContext> findReaderContext;
         private final long defaultKeepAlive;
         private final long maxKeepAlive;
 
@@ -2596,7 +2623,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CanMatchContext(
             ShardSearchRequest request,
             Function<Index, IndexService> indexServiceLookup,
-            BiFunction<ShardSearchContextId, TransportRequest, ReaderContext> findReaderContext,
+            TriFunction<ShardSearchContextId, TransportRequest, ShardId, ReaderContext> findReaderContext,
             long defaultKeepAlive,
             long maxKeepAlive
         ) {
@@ -2612,7 +2639,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         ReaderContext findReaderContext() {
-            return findReaderContext.apply(request.readerId(), request);
+            return findReaderContext.apply(request.readerId(), request, request.shardId());
         }
 
         QueryRewriteContext getQueryRewriteContext(IndexService indexService) {

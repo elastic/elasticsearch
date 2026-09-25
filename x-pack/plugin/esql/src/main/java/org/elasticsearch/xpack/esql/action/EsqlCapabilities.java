@@ -4049,6 +4049,18 @@ public class EsqlCapabilities {
         PARTITIONING_AGGREGATIONS(),
 
         /**
+         * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
+         * field-caps request, so the coordinator never plans nested subfields. Shard extraction
+         * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
+         * loading the nested mapper's native type, which used to crash
+         * {@code ValuesSourceReaderOperator.sanityCheckBlock} on cross-index type skew
+         * (e.g. nested {@code integer} vs object {@code long}).
+         * If ES|QL later supports nested fields, this capability and its tests will need updating.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/154011">#154011</a>.
+         */
+        FIX_NESTED_SUBFIELD_EXTRACTION,
+
+        /**
          * A blank cell in an external CSV/TSV datasource reads as {@code null} on every column whose type was
          * INFERRED, whatever that inferred type is — so the value no longer depends on what the rest of the column
          * happens to hold. The empty string is produced only for a {@code keyword}/{@code text} column of a

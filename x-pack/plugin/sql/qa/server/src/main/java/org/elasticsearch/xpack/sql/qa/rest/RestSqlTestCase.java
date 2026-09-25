@@ -122,6 +122,49 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
     }
 
+    /**
+     * A pattern hidden in a string literal bypasses the parser's expression-depth check. Compiling it used to overflow the
+     * stack on the coordinator and take the node down; a real node answers 400 here and is still up for the next test.
+     */
+    public void testDeeplyNestedRLikePatternIsRejected() throws IOException {
+        index("{\"test\":\"test\"}");
+        String mode = randomMode();
+        String deep = "(".repeat(5000) + "a" + ")".repeat(5000);
+        expectBadRequest(
+            () -> runSql(mode, "SELECT * FROM " + indexPattern("test") + " WHERE test RLIKE '" + deep + "'"),
+            containsString("Pattern length [10001] exceeds the allowed maximum of [1000]")
+        );
+        String deepWithinLength = "(".repeat(499) + "a" + ")".repeat(499);
+        Map<String, Object> result = runSql(
+            mode,
+            "SELECT * FROM " + indexPattern("test") + " WHERE test RLIKE '" + deepWithinLength + "'",
+            false
+        );
+        assertEquals(emptyList(), result.get("rows"));
+    }
+
+    /**
+     * Short patterns whose NFA is enormous: nested repeats of a finite atom, and repeats of something that accepts the empty
+     * string, whose concatenation is quadratic. The estimate refuses each before the node allocates any of it.
+     */
+    public void testHugeRLikePatternIsRejected() throws IOException {
+        index("{\"test\":\"test\"}");
+        String mode = randomMode();
+        for (String pattern : new String[] { "[ab]{1000}{1000}{1000}", "(.*){100}{100}", "<0-999999999>{1000}{50}" }) {
+            expectBadRequest(
+                () -> runSql(mode, "SELECT * FROM " + indexPattern("test") + " WHERE test RLIKE '" + pattern + "'"),
+                containsString("Pattern is too large to compile")
+            );
+        }
+        // the LIKE form of the same quadratic concatenation stays within the budget at the length limit
+        Map<String, Object> result = runSql(
+            mode,
+            "SELECT * FROM " + indexPattern("test") + " WHERE test LIKE '" + "%".repeat(1000) + "'",
+            false
+        );
+        assertEquals(singletonList(singletonList("test")), result.get("rows"));
+    }
+
     public void testBasicQuery() throws IOException {
         index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
 

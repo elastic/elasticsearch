@@ -110,6 +110,13 @@ public class GroupingAggregatorImplementer {
     private final boolean anyArgumentSupportsVectors;
     private final boolean processNulls;
     private final boolean supportsPartitioning;
+    /**
+     * True when partition values are {@code BytesRefSequence} and must be merged via
+     * {@code combineIntermediate} rather than {@code combine}. This applies when the state
+     * is non-primitive but the first input argument is not {@code BytesRef} — meaning
+     * {@code combine} cannot accept a serialized partition value directly.
+     */
+    private final boolean useIntermediateForPartitions;
 
     public GroupingAggregatorImplementer(
         Elements elements,
@@ -176,7 +183,10 @@ public class GroupingAggregatorImplementer {
         this.anyArgumentSupportsVectors = aggParams.stream().anyMatch(a -> a instanceof StandardArgument && a.supportsVectorReadAccess());
         this.processNulls = processNulls;
         this.supportsPartitioning = supportsPartitioning;
-        if (supportsPartitioning && combineOnState == false) {
+        this.useIntermediateForPartitions = supportsPartitioning
+            && aggState.declaredType().isPrimitive() == false
+            && (aggParams.isEmpty() || (aggParams.get(0) instanceof StandardArgument sa && sa.type().equals(BYTES_REF)) == false);
+        if (supportsPartitioning && combineOnState == false && useIntermediateForPartitions == false) {
             throw new IllegalArgumentException(
                 "["
                     + declarationType
@@ -184,13 +194,6 @@ public class GroupingAggregatorImplementer {
                     + aggState.type()
                     + ", int groupId, <value>)"
             );
-        }
-        if (supportsPartitioning && aggState.declaredType().isPrimitive() == false) {
-            if (aggParams.isEmpty() || (aggParams.get(0) instanceof StandardArgument sa && sa.type().equals(BYTES_REF)) == false) {
-                throw new IllegalArgumentException(
-                    "[" + declarationType + "] requests partitioning with a non-primitive state; only BytesRef value types are supported"
-                );
-            }
         }
 
         this.createParameters = init.getParameters()
@@ -962,7 +965,9 @@ public class GroupingAggregatorImplementer {
             builder.addStatement("state.appendPartition(values, dstIds[0], length)");
             builder.nextControlFlow("else");
             builder.beginControlFlow("for (int i = 0; i < length; i++)");
-            if (primitive) {
+            if (useIntermediateForPartitions) {
+                builder.addStatement("$T.combineIntermediate(state, dstIds[i], values.get(i, scratch))", declarationType);
+            } else if (primitive) {
                 builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
             } else {
                 builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);
@@ -974,7 +979,9 @@ public class GroupingAggregatorImplementer {
         builder.endControlFlow();
         builder.beginControlFlow("for (int i = 0; i < length; i++)");
         builder.beginControlFlow("if (seen[i])");
-        if (primitive) {
+        if (useIntermediateForPartitions) {
+            builder.addStatement("$T.combineIntermediate(state, dstIds[i], values.get(i, scratch))", declarationType);
+        } else if (primitive) {
             builder.addStatement("$T.combine(state, dstIds[i], values[i])", declarationType);
         } else {
             builder.addStatement("$T.combine(state, dstIds[i], values.get(i, scratch))", declarationType);

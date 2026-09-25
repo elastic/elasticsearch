@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -39,14 +40,17 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,18 +61,31 @@ import static org.hamcrest.Matchers.not;
 
 public class QueryDslTranslatorTests extends ESTestCase {
 
-    // These fields exist; everything else is missing and binds to NULL.
-    private static final Function<String, Expression> BINDER = name -> switch (name) {
-        case "status" -> new ReferenceAttribute(Source.EMPTY, "status", DataType.INTEGER);
-        case "tags" -> new ReferenceAttribute(Source.EMPTY, "tags", DataType.KEYWORD);
-        case "bytes" -> new ReferenceAttribute(Source.EMPTY, "bytes", DataType.LONG);
-        case "score" -> new ReferenceAttribute(Source.EMPTY, "score", DataType.DOUBLE);
-        case "@timestamp" -> new ReferenceAttribute(Source.EMPTY, "@timestamp", DataType.DATETIME);
-        case "ts_nanos" -> new ReferenceAttribute(Source.EMPTY, "ts_nanos", DataType.DATE_NANOS);
-        case "active" -> new ReferenceAttribute(Source.EMPTY, "active", DataType.BOOLEAN);
-        case "body" -> new ReferenceAttribute(Source.EMPTY, "body", DataType.TEXT);
-        case "client_ip" -> new ReferenceAttribute(Source.EMPTY, "client_ip", DataType.IP);
-        default -> Literal.NULL;
+    /**
+     * The source's schema: the fields that exist and their types, in a fixed order. The binder and the name resolver
+     * below are both derived from it, so the two can never disagree about which fields exist — a divergence production
+     * cannot have (both come from one plan node's output) and one that would hide exactly the bugs these tests hunt.
+     * {@code host.name} and {@code host.os} are the subfields of an object path no column is named after.
+     */
+    private static final Map<String, DataType> SCHEMA = new LinkedHashMap<>();
+    static {
+        SCHEMA.put("status", DataType.INTEGER);
+        SCHEMA.put("tags", DataType.KEYWORD);
+        SCHEMA.put("bytes", DataType.LONG);
+        SCHEMA.put("score", DataType.DOUBLE);
+        SCHEMA.put("@timestamp", DataType.DATETIME);
+        SCHEMA.put("ts_nanos", DataType.DATE_NANOS);
+        SCHEMA.put("active", DataType.BOOLEAN);
+        SCHEMA.put("body", DataType.TEXT);
+        SCHEMA.put("client_ip", DataType.IP);
+        SCHEMA.put("host.name", DataType.KEYWORD);
+        SCHEMA.put("host.os", DataType.KEYWORD);
+    }
+
+    // A field of the schema binds to its attribute; everything else is missing and binds to NULL.
+    private static final Function<String, Expression> BINDER = name -> {
+        DataType type = SCHEMA.get(name);
+        return type == null ? Literal.NULL : new ReferenceAttribute(Source.EMPTY, name, type);
     };
 
     // A fixed query "now" so date-math bounds ("now-1d") resolve deterministically in tests.
@@ -77,26 +94,33 @@ public class QueryDslTranslatorTests extends ESTestCase {
     // The query configuration carrying that fixed now (and the locale used to case-fold a case_insensitive term).
     private static final Configuration CONFIG = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).now(Instant.ofEpochMilli(NOW)).build();
 
-    // The schema field set (for multi_match expansion) — the names the BINDER resolves to a present attribute.
-    private static final Set<String> FIELDS = Set.of("status", "tags", "bytes", "score", "@timestamp", "ts_nanos", "active", "body");
+    // The same schema as the translator resolves name references against: matched as a pattern over those names.
+    private static final QueryDslTranslator.FieldNames FIELD_NAMES = QueryDslTranslator.over(SCHEMA.keySet());
 
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
-        return new QueryDslTranslator(BINDER, FIELDS, CONFIG, TransportVersion.current()).translate(qb).applied();
+        return new QueryDslTranslator(BINDER, FIELD_NAMES, CONFIG, TransportVersion.current()).translate(qb).applied();
     }
 
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb, Locale locale) {
-        return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build(), TransportVersion.current())
-            .translate(qb)
-            .applied();
+        return new QueryDslTranslator(
+            BINDER,
+            FIELD_NAMES,
+            new ConfigurationBuilder(CONFIG).locale(locale).build(),
+            TransportVersion.current()
+        ).translate(qb).applied();
     }
 
     private static QueryDslTranslator.TranslationResult translateResult(org.elasticsearch.index.query.QueryBuilder qb) {
-        return new QueryDslTranslator(BINDER, FIELDS, CONFIG, TransportVersion.current()).translate(qb);
+        return new QueryDslTranslator(BINDER, FIELD_NAMES, CONFIG, TransportVersion.current()).translate(qb);
     }
 
     private static QueryDslTranslator.TranslationResult translateResult(org.elasticsearch.index.query.QueryBuilder qb, Locale locale) {
-        return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build(), TransportVersion.current())
-            .translate(qb);
+        return new QueryDslTranslator(
+            BINDER,
+            FIELD_NAMES,
+            new ConfigurationBuilder(CONFIG).locale(locale).build(),
+            TransportVersion.current()
+        ).translate(qb);
     }
 
     /** An unsupported top-level construct is collected, not thrown; applied() is TRUE (no conjuncts applied). */
@@ -632,7 +656,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     private static QueryDslTranslator translatorWithStableBinding() {
         Map<String, Expression> bound = new HashMap<>();
-        return new QueryDslTranslator(name -> bound.computeIfAbsent(name, BINDER), FIELDS, CONFIG, TransportVersion.current());
+        return new QueryDslTranslator(name -> bound.computeIfAbsent(name, BINDER), FIELD_NAMES, CONFIG, TransportVersion.current());
     }
 
     // ---- version gating of the functions the translator synthesizes (elastic/elasticsearch#159672) ----
@@ -648,7 +672,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         org.elasticsearch.index.query.QueryBuilder qb,
         TransportVersion minimumVersion
     ) {
-        return new QueryDslTranslator(BINDER, FIELDS, CONFIG, minimumVersion).translate(qb);
+        return new QueryDslTranslator(BINDER, FIELD_NAMES, CONFIG, minimumVersion).translate(qb);
     }
 
     /** Below the pin a single-bound keyword range is untranslatable rather than shipping a function the node lacks. */
@@ -787,19 +811,60 @@ public class QueryDslTranslatorTests extends ESTestCase {
         }
     }
 
-    // Every field the binder knows, of every type, plus one it does not.
-    private static final List<String> ALL_BOUND_FIELDS = List.of(
-        "status",
-        "tags",
-        "bytes",
-        "score",
-        "@timestamp",
-        "ts_nanos",
-        "active",
-        "body",
-        "client_ip",
-        "nope"
-    );
+    // ---- exists resolves a name reference the way the index does ----
+
+    /**
+     * An {@code exists} naming an object path means "some subfield of it has a value": the index resolves the field as
+     * a pattern and, when that matches nothing, retries it as {@code <path>.*}, ORing {@code existsQuery} over what it
+     * finds. Binding the bare name instead folds to false and drops every row the index returns — a narrowing
+     * translation, the one direction this rewrite must never move in.
+     */
+    public void testExistsOnObjectPathExpandsToItsSubfields() {
+        Expression e = translate(QueryBuilders.existsQuery("host"));
+        assertThat(e, instanceOf(Or.class));
+        assertThat(existsFieldNames(e), containsInAnyOrder("host.name", "host.os"));
+    }
+
+    /** The same resolution covers an explicit field pattern, which {@code exists} accepts in place of a name. */
+    public void testExistsOnFieldPatternExpandsToMatchingFields() {
+        assertThat(existsFieldNames(translate(QueryBuilders.existsQuery("host.*"))), containsInAnyOrder("host.name", "host.os"));
+        assertThat(existsFieldNames(translate(QueryBuilders.existsQuery("*"))), hasSize(SCHEMA.size()));
+    }
+
+    /** An exact leaf name binds to that one field: the object-prefix retry happens only when nothing matched at all. */
+    public void testExistsOnLeafFieldBindsThatFieldAlone() {
+        Expression e = translate(QueryBuilders.existsQuery("host.name"));
+        assertThat(e, instanceOf(IsNotNull.class));
+        assertThat(existsFieldNames(e), contains("host.name"));
+    }
+
+    /** A reference covering no field of this source matches nothing — the index's unmapped-field match-no-docs. */
+    public void testExistsOnUnknownReferenceMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.existsQuery("nope")));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.existsQuery("nope.*")));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.existsQuery("host.name.keyword")));
+    }
+
+    /**
+     * Negated, the expansion is a real exclusion — {@code NOT(OR(...))} keeps only rows where every subfield is null.
+     * The bare-name binding gave {@code NOT(false)}, which excluded nothing at all.
+     */
+    public void testMustNotExistsOnObjectPathNegatesTheExpansion() {
+        Expression e = translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("host")));
+        assertThat(e, instanceOf(Not.class));
+        assertThat(((Not) e).field(), instanceOf(Or.class));
+        assertThat(existsFieldNames(e), containsInAnyOrder("host.name", "host.os"));
+    }
+
+    /** The field names an exists translation tests for presence, in encounter order. */
+    private static List<String> existsFieldNames(Expression e) {
+        List<String> names = new ArrayList<>();
+        e.forEachDown(IsNotNull.class, n -> names.add(((Attribute) n.field()).name()));
+        return names;
+    }
+
+    // Every field of the schema, of every type, plus one name it does not contain.
+    private static final List<String> ALL_BOUND_FIELDS = Stream.concat(SCHEMA.keySet().stream(), Stream.of("nope")).toList();
 
     /**
      * A range with neither bound is an exists query, not a tautology: RangeQueryBuilder.doToQuery answers it that way.
@@ -1038,8 +1103,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
     public void testLenientMultiMatchSkipsFieldsThatCannotHoldTheValue() {
         Expression e = translate(QueryBuilders.multiMatchQuery("t2", "status", "tags").lenient(true));
         assertThat(e, instanceOf(Or.class));
-        // status -> false (malformed integer), tags -> mv_contains; the OR keeps the keyword leaf. Field order is
-        // unspecified (the schema is a Set), so assert the pair of sides regardless of order.
+        // status -> false (malformed integer), tags -> mv_contains; the OR keeps the keyword leaf. Assert the pair of
+        // sides rather than their order, which is the resolved field order and not what this test is about.
         List<Expression> sides = List.of(((Or) e).left(), ((Or) e).right());
         assertTrue("the integer field is dropped to false", sides.contains(Literal.FALSE));
         assertTrue("the keyword field keeps its match", sides.stream().anyMatch(s -> s instanceof MvContains));

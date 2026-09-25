@@ -423,9 +423,9 @@ public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSou
             DataType type = types.get(name);
             return type == null ? Literal.NULL : new ReferenceAttribute(Source.EMPTY, name, type);
         };
-        return new QueryDslTranslator(binder, types.keySet(), TEST_CFG, TransportVersion.current()).translate(filter)
-            .unsupported()
-            .isEmpty();
+        return new QueryDslTranslator(binder, QueryDslTranslator.over(types.keySet()), TEST_CFG, TransportVersion.current()).translate(
+            filter
+        ).unsupported().isEmpty();
     }
 
     private List<Object> ids(String source, QueryBuilder filter) {

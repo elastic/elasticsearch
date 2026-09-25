@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -254,15 +253,7 @@ public final class ViewRequestFilterRewriter {
         Configuration configuration,
         TransportVersion minimumVersion
     ) {
-        Map<String, Attribute> byName = new HashMap<>();
-        for (Attribute a : output) {
-            byName.put(a.name(), a);
-        }
-        QueryDslTranslator translator = new QueryDslTranslator(name -> {
-            Attribute a = byName.get(name);
-            return a != null ? a : Literal.NULL;
-        }, byName.keySet(), configuration, minimumVersion);
-        return translator.translate(filter);
+        return QueryDslTranslator.forOutput(output, configuration, minimumVersion).translate(filter);
     }
 
     /** Warns, via a response header, which constructs were dropped from the filter and on which views. */

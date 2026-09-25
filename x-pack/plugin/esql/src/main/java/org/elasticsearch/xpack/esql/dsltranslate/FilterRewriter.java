@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -17,9 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -93,14 +90,7 @@ public final class FilterRewriter {
             if (target.test(node) == false) {
                 return node;
             }
-            Map<String, Attribute> byName = new HashMap<>();
-            for (Attribute a : node.output()) {
-                byName.put(a.name(), a);
-            }
-            QueryDslTranslator translator = new QueryDslTranslator(name -> {
-                Attribute a = byName.get(name);
-                return a != null ? a : Literal.NULL;
-            }, byName.keySet(), configuration, minimumVersion);
+            QueryDslTranslator translator = QueryDslTranslator.forOutput(node.output(), configuration, minimumVersion);
             QueryDslTranslator.TranslationResult result = translator.translate(filter);
             for (QueryDslTranslator.UnsupportedClause u : result.unsupported()) {
                 allFailures.add(new NodeFailure(node, u));

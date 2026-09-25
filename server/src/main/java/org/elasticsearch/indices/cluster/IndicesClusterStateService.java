@@ -848,7 +848,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
         if (shard == null) {
             assert shardRouting.initializing() : shardRouting + " should have been removed by failMissingShards";
-            createShard(shardRouting, state);
+            createShard(shardRouting, state, ActionListener.noop());
         } else {
             updateShard(shardRouting, shard, state);
         }
@@ -907,7 +907,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private void createShard(ShardRouting shardRouting, ClusterState state) {
+    private void createShard(ShardRouting shardRouting, ClusterState state, ActionListener<Void> listener) {
         assert shardRouting.initializing() : "only allow shard creation for initializing shard but was " + shardRouting;
         final var shardId = shardRouting.shardId();
         final ProjectMetadata project = state.metadata().lookupProject(shardRouting.index()).orElse(null);
@@ -915,6 +915,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final IndexMetadata indexMetadata = project.index(shardId.getIndex());
         assert indexMetadata != null : "null index metadata but non-null shard routing " + shardRouting;
         final var primaryTerm = indexMetadata.primaryTerm(shardRouting.id());
+        listener = ActionListener.assertOnce(listener);
 
         try {
             final DiscoveryNode sourceNode;
@@ -922,7 +923,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 sourceNode = findSourceNodeForPeerRecovery(state.routingTable(project.id()), state.nodes(), shardRouting);
                 if (sourceNode == null) {
                     logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
-                    retryingShards.remove(shardId);
+                    listener.onResponse(null);
                     return;
                 }
             } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
@@ -930,7 +931,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 sourceNode = findSourceNodeForReshardSplitRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
                 if (sourceNode == null) {
                     logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);
-                    retryingShards.remove(shardId);
+                    listener.onResponse(null);
                     return;
                 }
             } else {
@@ -953,39 +954,33 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING
                     )
                 ),
-                ActionListener.runBefore(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Boolean success) {
-                        if (Boolean.TRUE.equals(success)) {
-                            logger.debug("{} created shard with primary term [{}]", shardId, primaryTerm);
-                        } else {
-                            logger.debug("{} gave up while trying to create shard", shardId);
-                        }
+                ActionListener.runBefore(listener.<Boolean>safeMap(success -> {
+                    if (Boolean.TRUE.equals(success)) {
+                        logger.debug("{} created shard with primary term [{}]", shardId, primaryTerm);
+                    } else {
+                        logger.debug("{} gave up while trying to create shard", shardId);
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        failAndRemoveShard(
-                            shardRouting,
-                            primaryTerm,
-                            true,
-                            "failed to create shard",
-                            e,
-                            state,
-                            shardCloseExecutor,
-                            ActionListener.noop() // on the failure path, did not create the shard, so don't need to wait for it to close
-                        );
-                    }
-                }, () -> {
+                    return null;
+                }).delegateResponse((l, e) -> {
+                    failAndRemoveShard(
+                        shardRouting,
+                        primaryTerm,
+                        true,
+                        "failed to create shard",
+                        e,
+                        state,
+                        shardCloseExecutor,
+                        ActionListener.noop() // on the failure path, did not create the shard, so don't need to wait for it to close
+                    );
+                    l.onFailure(e);
+                }), () -> {
                     assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
                     pendingShardCreations.remove(shardId, pendingShardCreation);
-                    retryingShards.remove(shardId);
                 })
             );
         } catch (Exception e) {
             assert pendingShardCreations.get(shardId) == null
                 || pendingShardCreations.get(shardId).clusterStateUUID().equals(state.stateUUID()) == false;
-            retryingShards.remove(shardId);
             failAndRemoveShard(
                 shardRouting,
                 primaryTerm,
@@ -996,6 +991,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 shardCloseExecutor,
                 getShardsClosedListener()
             );
+            listener.onFailure(e);
         }
     }
 
@@ -1378,7 +1374,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             try {
                                 ShardRouting currentRouting = updateRetryHandoff(shardRouting, currentState);
                                 if (currentRouting != null) {
-                                    createShard(currentRouting, currentState);
+                                    createShard(
+                                        currentRouting,
+                                        currentState,
+                                        // Remove from cache once shard has been created
+                                        ActionListener.running(() -> retryingShards.remove(shardRouting.shardId()))
+                                    );
                                 }
                             } catch (Exception e) {
                                 // should not be possible

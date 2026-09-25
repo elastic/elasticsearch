@@ -56,7 +56,8 @@ public class CsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
             "/csv-*.csv-spec",
             "/datasources/external-declared-schema.csv-spec",
             "/datasources/external-fork.csv-spec",
-            "/datasources/external-heavy-aggregates.csv-spec"
+            "/datasources/external-heavy-aggregates.csv-spec",
+            "/datasources/external-metadata-collision.csv-spec"
         );
     }
 }

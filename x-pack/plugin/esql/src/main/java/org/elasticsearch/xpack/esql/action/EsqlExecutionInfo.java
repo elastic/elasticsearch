@@ -70,6 +70,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField TOOK = new ParseField("took");
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
 
+    /**
+     * Request-breaker label for coordinator memory reserved while planning an external data source.
+     * Admit and release must share it so the held-memory gauge balances.
+     */
+    public static final String EXTERNAL_PLANNING_LABEL = "esql-external-planning";
+
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
     public static final TransportVersion EXECUTION_CLUSTER_NAME_VERSION = TransportVersion.fromName("esql_cluster_name");
@@ -113,6 +119,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     // Project routing telemetry — coordinator-only, not serialized
     private transient ProjectRoutingRequestInfo projectRoutingInfo;
+    /**
+     * Request-breaker reservation for external-datasource planning. Coordinator-only, like the other transient
+     * fields on this class: {@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)} does
+     * not read it. The query listener closes it once.
+     */
+    private transient ExternalPlanningReservation externalPlanning;
     private transient boolean hasLinkedProjects;
 
     private final EsqlQueryProfile queryProfile;
@@ -220,6 +232,20 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public EsqlQueryProfile queryProfile() {
         return queryProfile;
+    }
+
+    /**
+     * Installs the query's external-planning reservation. One query, one reservation, set from
+     * {@code EsqlSession.execute} before resolution. Not serialized.
+     */
+    public void externalPlanning(ExternalPlanningReservation reservation) {
+        this.externalPlanning = reservation;
+    }
+
+    /** @return the reservation installed for this query, or {@code null} when planning has nothing to charge */
+    @Nullable
+    public ExternalPlanningReservation externalPlanning() {
+        return externalPlanning;
     }
 
     /**

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -485,6 +487,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         UnresolvedRelation other,
         @Nullable Function<String, Set<String>> aliasResolver
     ) {
+        if (metadataNames(main).equals(metadataNames(other)) == false) {
+            return null;
+        }
         for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
             for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
                 if (mainPattern.equals(otherPattern)) {
@@ -535,6 +540,14 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      */
     static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
         return mergeIfPossible(main, other, null);
+    }
+
+    private static Set<String> metadataNames(UnresolvedRelation relation) {
+        Set<String> names = new HashSet<>();
+        for (NamedExpression field : relation.metadataFields()) {
+            names.add(field instanceof UnresolvedMetadataAttributeExpression unresolved ? unresolved.pattern() : field.name());
+        }
+        return names;
     }
 
     /**

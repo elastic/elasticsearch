@@ -1038,7 +1038,10 @@ public class ExternalSourceResolver {
                 listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping, demand));
                 return;
             }
-            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable, demand);
+            DatasetDiscovery discovery = DatasetDiscovery.shared(
+                listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable, demand)
+            );
+            FileList listing = discovery.schemaListing();
             if (listing.fileCount() == 0) {
                 throw noFilesMatched(path, listing);
             }
@@ -1046,7 +1049,7 @@ public class ExternalSourceResolver {
                 FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
             }
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                resolveMultiFileWithReconciliation(listing, fileConfig, schemaResolution, cacheable, datasetFormat, listener);
+                resolveMultiFileWithReconciliation(discovery, fileConfig, schemaResolution, cacheable, datasetFormat, listener);
                 return;
             }
 
@@ -1063,11 +1066,11 @@ public class ExternalSourceResolver {
             // concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is safe
             // because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
             ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
-            final FileList finalListing = listing;
+            final DatasetDiscovery finalDiscovery = discovery;
             ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
                 anchorMetadata -> completeFirstFileWins(
                     anchorMetadata,
-                    finalListing,
+                    finalDiscovery,
                     fileConfig,
                     declaredMapping,
                     demand,
@@ -1106,7 +1109,7 @@ public class ExternalSourceResolver {
      */
     private void completeFirstFileWins(
         ExternalSourceMetadata anchorMetadata,
-        FileList listing,
+        DatasetDiscovery discovery,
         Map<String, Object> config,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
@@ -1114,6 +1117,9 @@ public class ExternalSourceResolver {
         @Nullable String datasetFormat,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
+        // Counted over the files the query reads, never over the schema's listing: a prefix's count is not a
+        // dataset's, and the aggregate below folds the files a reader will open.
+        FileList listing = discovery.scanFileSet();
         try {
             final ExternalSourceMetadata base = withSourceType(enrichWithFileCount(anchorMetadata, listing.fileCount()), datasetFormat);
             if (listing.fileCount() > 1 && demand.requiresStats()) {
@@ -1159,7 +1165,7 @@ public class ExternalSourceResolver {
                             config
                         );
                         listener.onResponse(
-                            finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective), config, ffwInferredTypes)
+                            finishFirstFileWins(discovery, applyFirstFileWinsAggregatedStats(base, effective), config, ffwInferredTypes)
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -1193,9 +1199,9 @@ public class ExternalSourceResolver {
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
                 // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
-                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), config, Map.of()));
+                listener.onResponse(finishFirstFileWins(discovery, markStatsAsPartial(base), config, Map.of()));
             } else {
-                listener.onResponse(finishFirstFileWins(listing, base, config, Map.of()));
+                listener.onResponse(finishFirstFileWins(discovery, base, config, Map.of()));
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -1281,11 +1287,16 @@ public class ExternalSourceResolver {
      * (identity or narrowing) per-file mapping. Purely CPU-bound.
      */
     private ExternalSourceResolution.ResolvedSource finishFirstFileWins(
-        FileList listing,
+        DatasetDiscovery discovery,
         ExternalSourceMetadata extMetadata,
         Map<String, Object> config,
         Map<StoragePath, Map<String, DataType>> inferredTypesByPath
     ) {
+        // The schema's listing answers what the columns are - the anchor, and the partition columns derived from
+        // the paths it saw. The scan's file set answers which files get read, and is what the per-file map below
+        // and the resolved source carry.
+        FileList schemaListing = discovery.schemaListing();
+        FileList listing = discovery.scanFileSet();
         // The anchor's pre-enrichment schema is the physical read schema every file's reader parses. Partition
         // columns are path-derived (injected by VirtualColumnIterator at read time), so they are never part of the
         // physical read schema; the data-only view below drives the mapping output width.
@@ -1316,7 +1327,7 @@ public class ExternalSourceResolver {
             ColumnMapping mapping = dataOnlySchema.size() == physicalSchema.size()
                 ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
                 : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
-            StoragePath anchorPath = listing.path(0);
+            StoragePath anchorPath = schemaListing.path(0);
             Map<String, DataType> anchorNativeTypes = attributesToTypeMap(physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
                 // The dataset-level aggregate on extMetadata is a fold and cannot be assigned to an
@@ -1980,13 +1991,16 @@ public class ExternalSourceResolver {
     }
 
     private void resolveMultiFileWithReconciliation(
-        FileList fileList,
+        DatasetDiscovery discovery,
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
         @Nullable String datasetFormat,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
+        // These modes reconcile every file by contract, so the schema's listing is the whole dataset and the scan
+        // reads the same set. One listing answers both, which is why nothing here has to choose.
+        FileList fileList = discovery.scanFileSet();
         long startNanos = System.nanoTime();
         DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
         readAllFileMetadata(fileList, config, cacheable, ActionListener.wrap(allMetadata -> {
@@ -3731,6 +3745,9 @@ public class ExternalSourceResolver {
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath, extents);
         }
+        // No file defines a declared schema, so this listing is not the schema's: it is the scan's file set, and
+        // the paths partition detection folded over.
+        DatasetDiscovery discovery = DatasetDiscovery.shared(listing);
         pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
         if (listing.fileCount() == 0) {

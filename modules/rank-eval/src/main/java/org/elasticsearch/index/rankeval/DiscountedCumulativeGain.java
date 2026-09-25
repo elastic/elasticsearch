@@ -137,7 +137,11 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
                 .map(RatedDocument::getRating)
                 .sorted(Collections.reverseOrder())
                 .collect(Collectors.toList());
-            idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
+            // The ideal ranking is the best possible top-k from the full judgment list, so it must be truncated
+            // at k (the metric's search window), not at the number of hits actually returned. Truncating at the
+            // hit count lets a request that returns fewer hits normalize against a shorter ideal ranking, which
+            // inflates its NDCG relative to requests returning more hits for the same judgments and the same k.
+            idcg = computeDCG(allRatings.subList(0, Math.min(k, allRatings.size())));
             if (idcg != 0) {
                 result = dcg / idcg;
             } else {

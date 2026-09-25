@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for the Prometheus {@code /api/v1/query} instant query endpoint.
@@ -362,7 +363,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
     private static final Instant QUERY_TIME = Instant.parse("2024-05-10T00:00:00Z");
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantRawOperandsMatchAcrossIngestionPaths() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("tx / rx", 5, 10, 3);
@@ -374,7 +374,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("tx / rx", 5, 10, 3);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantRawAndPairedOperandsMatchAcrossIngestionPaths() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
@@ -386,7 +385,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantSumOverCrossMetricPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("sum(tx / rx)", 18);
@@ -398,7 +396,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("sum(tx / rx)", 18);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantSumOverSameMetricPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("sum(tx / tx)", 3);
@@ -410,7 +407,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("sum(tx / tx)", 3);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantSumOverChainedPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
@@ -422,7 +418,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantGroupedSumOverPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
@@ -434,7 +429,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantGroupedSumOverIncreasePairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
@@ -446,7 +440,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantGroupedSumOverIratePairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
@@ -724,5 +717,32 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         String pairs = "sum by (host, cluster) (tx) / sum by (host, cluster) (rx{host!=\"c\"})";
         assertBinopInstantGroups("count by (cluster) (" + pairs + ")", "cluster", Map.of("prod", 2.0));
         assertBinopInstantValues("count(sum by (host) (tx) / sum by (host) (rx{host=~\"nope\"}))");
+    }
+
+    /**
+     * Prometheus drops {@code __name__} from the result of every function but the label functions and last_over_time,
+     * also when the name arrived as a {@code by (__name__, ..)} grouping label; the aggregate itself keeps it.
+     */
+    public void testInstantFunctionOverNamedAggregateDropsTheMetricName() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertThat(metricLabelNames("abs(sum by (__name__, host) (tx))"), equalTo(List.of("host")));
+        assertThat(metricLabelNames("sum by (__name__, host) (tx)"), equalTo(List.of("__name__", "host")));
+        assertThat(metricLabelNames("sum by (__name__, host) (tx) > 5"), equalTo(List.of("__name__", "host")));
+        assertThat(metricLabelNames("last_over_time(tx[5m])"), equalTo(List.of("__name__", "cluster", "host")));
+        assertThat(metricLabelNames("rate(tx[5m])"), equalTo(List.of("cluster", "host")));
+    }
+
+    /** The sorted label names every result series of {@code promql} carries; the series must all agree. */
+    private List<String> metricLabelNames(String promql) throws Exception {
+        List<Map<String, Object>> result = executeBinopInstantQuery(promql).evaluate("data.result");
+        assertThat(promql, result, not(empty()));
+        List<String> names = null;
+        for (Map<String, Object> series : result) {
+            @SuppressWarnings("unchecked")
+            List<String> labels = ((Map<String, Object>) series.get("metric")).keySet().stream().sorted().toList();
+            assertTrue(promql + ": label sets differ across series " + result, names == null || names.equals(labels));
+            names = labels;
+        }
+        return names;
     }
 }

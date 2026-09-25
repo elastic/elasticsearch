@@ -19,14 +19,17 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.FieldAttribute.timeSeriesField;
 
@@ -65,6 +68,63 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
         return TranslateTimeSeriesUtils.transformTimeSeriesSource(plan, relation -> addLoweredAttributes(relation, loweredAttributes));
     }
 
+    private static Set<String> excludedFieldsOf(TimeSeriesWithout fn) {
+        var excludedFields = new LinkedHashSet<String>(fn.children().size());
+        for (var field : fn.children()) {
+            if (field instanceof FieldAttribute fa) {
+                excludedFields.add(fa.fieldName().string());
+            } else if (field instanceof Attribute attr) {
+                excludedFields.add(attr.name());
+            }
+        }
+        return excludedFields;
+    }
+
+    /** The exclusion sets of the packings the source already carries, in the scope the lowering injects into. */
+    private static void collectSourcePackings(LogicalPlan plan, Set<Set<String>> packings) {
+        if (plan instanceof EsRelation relation) {
+            for (Attribute attribute : relation.output()) {
+                if (attribute instanceof TimeSeriesMetadataAttribute packing) {
+                    packings.add(packing.excludedFields());
+                }
+            }
+            return;
+        }
+        if (plan instanceof BinaryPlan binary) {
+            collectSourcePackings(binary.left(), packings);
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            collectSourcePackings(child, packings);
+        }
+    }
+
+    /**
+     * A packing the source already carries for these exclusions, if any, searched in the same scope the lowering
+     * injects into (down the left-hand side of binary plans). Sharing it keeps a second aggregate over the same
+     * source from injecting a same-named twin.
+     */
+    private static TimeSeriesMetadataAttribute findLoweredInSource(LogicalPlan plan, Set<String> excludedFields) {
+        if (plan instanceof EsRelation relation) {
+            for (Attribute attribute : relation.output()) {
+                if (attribute instanceof TimeSeriesMetadataAttribute packing && packing.excludedFields().equals(excludedFields)) {
+                    return packing;
+                }
+            }
+            return null;
+        }
+        if (plan instanceof BinaryPlan binary) {
+            return findLoweredInSource(binary.left(), excludedFields);
+        }
+        for (LogicalPlan child : plan.children()) {
+            TimeSeriesMetadataAttribute found = findLoweredInSource(child, excludedFields);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, AnalyzerContext context) {
         // Collect TimeSeriesWithout groupings and lower each into a TimeSeriesMetadataAttribute
@@ -74,19 +134,25 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
         // never substituted into the aggregates, which keep referencing the alias by its original id.
         var aliasedLowered = new ArrayList<TimeSeriesMetadataAttribute>();
         var newGroupings = new ArrayList<Expression>(aggregate.groupings().size());
+        // Every exclusion set that must coexist at the source: this aggregate's groupings plus the packings
+        // already carried below. A lone set lowers to the canonical `_timeseries` name; several need distinct
+        // derived names, or the injected attributes would collide with each other in the source output.
+        var coexisting = new LinkedHashSet<Set<String>>();
+        for (Expression grouping : aggregate.groupings()) {
+            if (Alias.unwrap(grouping) instanceof TimeSeriesWithout fn) {
+                coexisting.add(excludedFieldsOf(fn));
+            }
+        }
+        collectSourcePackings(aggregate.child(), coexisting);
+        boolean sharedSource = coexisting.size() > 1;
+        // Lowerings minted for identical exclusions within this aggregate share one attribute.
+        var loweredByExclusions = new LinkedHashMap<Set<String>, TimeSeriesMetadataAttribute>();
 
         for (Expression grouping : aggregate.groupings()) {
             if (Alias.unwrap(grouping) instanceof TimeSeriesWithout fn) {
                 // Replace the semantic WITHOUT node with the concrete _timeseries field attribute,
                 // collecting the excluded dimension names from the function's children.
-                var excludedFields = new LinkedHashSet<String>(fn.children().size());
-                for (var field : fn.children()) {
-                    if (field instanceof FieldAttribute fa) {
-                        excludedFields.add(fa.fieldName().string());
-                    } else if (field instanceof Attribute attr) {
-                        excludedFields.add(attr.name());
-                    }
-                }
+                var excludedFields = excludedFieldsOf(fn);
 
                 // The grouping is a named expression (Alias) wrapping the WITHOUT function; resolve its
                 // attribute so the lowered _timeseries attribute can preserve the original identity (name id).
@@ -100,19 +166,28 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                 TimeSeriesMetadataAttribute lowered;
                 if (groupingAttribute instanceof TimeSeriesMetadataAttribute t && excludedFields.equals(t.excludedFields())) {
                     lowered = t;
+                } else if (loweredByExclusions.get(excludedFields) instanceof TimeSeriesMetadataAttribute repeated) {
+                    lowered = repeated;
+                } else if (findLoweredInSource(aggregate.child(), excludedFields) instanceof TimeSeriesMetadataAttribute existing) {
+                    // Another aggregate over the same source already lowered these exclusions: share its attribute
+                    // instead of injecting a same-named twin into the source relation.
+                    lowered = existing;
                 } else {
                     String parentName = groupingAttribute instanceof FieldAttribute fieldAttribute ? fieldAttribute.parentName() : null;
                     lowered = new TimeSeriesMetadataAttribute(
                         groupingAttribute.source(),
                         parentName,
                         groupingAttribute.qualifier(),
-                        MetadataAttribute.TIMESERIES,
+                        // A lone packing keeps the canonical name the pipeline expects; coexisting packings take
+                        // distinct derived names (the same mapping the translation mints for them).
+                        sharedSource ? TranslationContext.mapOpen(excludedFields) : MetadataAttribute.TIMESERIES,
                         timeSeriesField(),
                         groupingAttribute.nullable(),
                         keepAlias ? new NameId() : groupingAttribute.id(),
                         groupingAttribute.synthetic(),
                         excludedFields
                     );
+                    loweredByExclusions.put(excludedFields, lowered);
                 }
 
                 if (keepAlias) {

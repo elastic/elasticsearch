@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -358,7 +359,11 @@ public record TranslationContext(
         // Mul(LastOverTime(m), 8) -> Mul(ref, 8) -- not an agg, needs Values(Mul(ref,8))
         // Guarded by groupsBySeries because without any series grouping (e.g. constants like vector(5))
         // TranslateTimeSeriesAggregate passes Literals straight to phase 1.
-        boolean wrapWithValues = (agg instanceof AggregateFunction == false) || (agg instanceof TimeSeriesAggregateFunction);
+        // Sub(Max(LastOverTime(a)), Max(LastOverTime(b))) -> Sub(Max(refA), Max(refB)) -- an expression over
+        // phase-2 aggregates already, wrapping it in Values would nest aggregates.
+        boolean hasOuterAggregate = agg.anyMatch(e -> e instanceof AggregateFunction && e instanceof TimeSeriesAggregateFunction == false);
+        boolean wrapWithValues = hasOuterAggregate == false
+            && ((agg instanceof AggregateFunction == false) || (agg instanceof TimeSeriesAggregateFunction));
         if (groupsBySeries && wrapWithValues) {
             value = value.replaceChild(new Values(agg.source(), agg));
         }
@@ -474,7 +479,15 @@ public record TranslationContext(
         for (int i = 0; i < projected.size(); i++) {
             var attr = projected.get(i);
             var lookupAttr = lookupMap.get(attr.name());
-            if (lookupAttr != null && lookupAttr.semanticEquals(attr) == false) {
+            if (lookupAttr == null) {
+                // The translated plan does not produce this declared attribute; skip it. Only label columns can be absent
+                // (e.g. `labels.__name__` after a name-dropping binary op): the translator mints the value and step columns
+                // itself, so their absence is a translator bug.
+                assert attr.id().equals(cmd.valueId()) == false && attr.id().equals(cmd.stepId()) == false
+                    : "[INVARIANT]: value and step column [" + attr.name() + "] must be produced by the translated plan";
+                continue;
+            }
+            if (lookupAttr.semanticEquals(attr) == false) {
                 var alias = new Alias(lookupAttr.source(), attr.name(), lookupAttr, attr.id());
                 evals.add(alias);
                 projected.set(i, alias.toAttribute());
@@ -747,5 +760,30 @@ public record TranslationContext(
     /** {@link #zeroCountAsNull} for every {@code count_over_time} of a per-series value. */
     public static Expression emptySampleCountAsNull(Expression value) {
         return value.transformUp(CountOverTime.class, TranslationContext::zeroCountAsNull);
+    }
+
+    /**
+     * Whether the given plan output carries a {@code __name__} label (as a dimension column, a reference, or any
+     * other spelling): only then is there a metric name to pair without and drop. Other outputs have no such label,
+     * so name-dropping is already satisfied there and must not perturb their packings.
+     */
+    public static boolean carriesMetricName(List<Attribute> output) {
+        return output.stream().anyMatch(a -> LabelMatcher.NAME.equals(PromqlLabels.labelName(a)));
+    }
+
+    /**
+     * Whether the source relation maps {@code __name__} as a dimension (the Prometheus remote-write layout, one
+     * series per metric): only then does pairing share a frame across per-metric series, so name-dropping operators
+     * must exclude the name from requirements and pair per series-minus-name. Layouts without it (one document
+     * carrying every metric) already pair within one physical series; excluding an absent label would only rename
+     * their packings.
+     */
+    public boolean sourceExposesMetricName() {
+        return cmd.child() != null
+            && cmd.child().output().stream().anyMatch(a -> a instanceof FieldAttribute f && f.isDimension() && isMetricName(f));
+    }
+
+    private static boolean isMetricName(FieldAttribute attribute) {
+        return LabelMatcher.NAME.equals(PromqlLabels.labelName(attribute));
     }
 }

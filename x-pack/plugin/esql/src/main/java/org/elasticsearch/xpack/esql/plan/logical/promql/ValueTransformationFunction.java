@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.List;
 
@@ -54,12 +55,19 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        return child().output();
+        // the labels pass through, but not a `__name__` grouping column: the function drops the metric name
+        return child().output().stream().filter(attr -> LabelMatcher.NAME.equals(PromqlLabels.labelName(attr)) == false).toList();
     }
 
     @Override
     public FunctionType functionType() {
         return FunctionType.VALUE_TRANSFORMATION;
+    }
+
+    @Override
+    public boolean dropsMetricName() {
+        // Element-wise transformations (abs, ceil, ...) drop the metric name like every other PromQL function.
+        return true;
     }
 
     @Override

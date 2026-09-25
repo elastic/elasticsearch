@@ -444,7 +444,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testVectorMatchingRequiresInstantVectors() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // Mirrors Prometheus: on/ignoring describe how two labelsets match, and a scalar operand has no labelset.
         tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }
@@ -457,21 +457,26 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     /**
+     * A raw vector next to an aggregated operand collapses first, over the same identity, so the two fuse as aggregates
+     * over one grouping: such pairings verify.
+     */
+    public void testRawNextToAggregatedOperandVerifies() {
+        String query = "PROMQL index=test step=5m ";
+        for (String allowed : List.of(
+            "sum(network.bytes_in) / network.connections",
+            "network.connections * max by (host) (network.bytes_in)",
+            "stddev(network.bytes_in) + network.connections"
+        )) {
+            assertNotNull(allowed, tsdb.query(query + allowed));
+        }
+    }
+
+    /**
      * An unmatched operator computes its two source-backed operands in one shared aggregation, so both must be aggregated alike:
      * both per series, or both one level across series. Each other pairing is rejected with a message naming its shape.
      */
     public void testUnmatchedOperandsMustAggregateAlike() {
         String query = "PROMQL index=test step=5m ";
-        for (String rejected : List.of(
-            "sum(network.bytes_in) / network.connections",
-            "network.connections * max by (host) (network.bytes_in)",
-            "stddev(network.bytes_in) + network.connections"
-        )) {
-            tsdb.error(
-                query + rejected,
-                containsString("binary operations between an aggregated and a raw vector are not supported at this time")
-            );
-        }
         for (String rejected : List.of(
             "scalar(sum(network.bytes_in)) * network.connections",
             "network.connections / scalar(network.bytes_in)",
@@ -522,7 +527,7 @@ public class PromqlVerifierTests extends ESTestCase {
 
     /** A vector-matched operator computes each operand on its own, so a reduction in one operand is accepted. */
     public void testMatchedOperandsMayUseReduction() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         assertNotNull(
             tsdb.query("PROMQL index=test step=5m sum by (host) (network.bytes_in) / on(host) topk(1, sum by (host) (network.connections))")
         );

@@ -2646,9 +2646,10 @@ public class EsqlCapabilities {
         PROMQL_BINARY_COMPARISON_V0,
 
         /**
-         * Support for PromQL group modifiers.
+         * Support for PromQL vector matching: explicit matching with on/ignoring and group modifiers, and default matching
+         * between bare selectors of different metrics (matched on the label set without `__name__`).
          */
-        PROMQL_VECTOR_MATCHING_V0,
+        PROMQL_VECTOR_MATCHING_V1,
 
         /**
          * Support for PromQL time() function.

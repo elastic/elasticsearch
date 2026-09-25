@@ -17,6 +17,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.benchmark'
 
 base {
   archivesName = 'x-pack-core'
@@ -43,6 +44,14 @@ configurations {
 }
 
 dependencies {
+  // JMH benchmark source set. jmh-core and :benchmarks:common are added by elasticsearch.benchmark;
+  // :server is compileOnly for main and does not carry over, and the benchmarks build cluster metadata.
+  benchmarkImplementation project(':server')
+  // elasticsearch.benchmark chains benchmarkTest onto benchmark and test, but neither chain carries main's
+  // output (main reaches test through the java plugin's classpath wiring, not a configuration), so the
+  // correctness tests cannot see the classes under benchmark without this.
+  benchmarkTestImplementation sourceSets.main.output
+
   api project(':libs:grok')
   api project(":libs:ssl-config")
 

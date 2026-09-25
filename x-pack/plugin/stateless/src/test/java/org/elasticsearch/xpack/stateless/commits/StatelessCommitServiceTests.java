@@ -2725,6 +2725,100 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testRelocationAbortedBeforeMarkRelocatingRestoresTheUploadBound() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            final var nodeId = stateWithSearchShards.getRoutingTable()
+                .shardRoutingTable(shardId)
+                .replicaShards()
+                .getFirst()
+                .currentNodeId();
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+            final var initialCommits = testHarness.generateIndexCommits(3);
+            for (var initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+            final var lastUploadedCommit = initialCommits.getLast();
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastUploadedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
+
+            final var handoffListener = commitService.markRelocationStarting(shardId);
+
+            // A commit lands in the window, so there is a current VBCC that is ineligible while the bound is undecided.
+            final var windowCommit = testHarness.generateIndexCommits(1, true).getFirst();
+            commitService.onCommitCreation(windowCommit);
+            assertThat(
+                "while the bound is undecided the current VBCC is not eligible",
+                registerForRecovery(commitService, shardId, nodeId, stateWithSearchShards, lastUploadedCommit).getCompoundCommit()
+                    .generation(),
+                equalTo(lastUploadedCommit.getGeneration())
+            );
+
+            // The relocation fails without markRelocating ever running.
+            handoffListener.onFailure(new RuntimeException("relocation aborted before the handoff"));
+
+            assertThat("the bound is lifted", commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
+            assertThat(
+                "the current VBCC is eligible again once the shard is no longer relocating",
+                registerForRecovery(commitService, shardId, nodeId, stateWithSearchShards, lastUploadedCommit).getCompoundCommit()
+                    .generation(),
+                equalTo(windowCommit.getGeneration())
+            );
+
+            // Starting a second relocation only succeeds from a fully restored shard. `markRelocationStarting` asserts both
+            // that the state is RUNNING and that the bound is UNBOUNDED.
+            commitService.markRelocationStarting(shardId).onFailure(new RuntimeException("aborted again"));
+            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
+        }
+    }
+
+    /// A relocation can fail before it ever reaches [StatelessCommitService#markRelocating]. The listener returned by
+    /// [StatelessCommitService#markRelocationStarting] must still unwind the shard, otherwise it stays in
+    /// `PRE_RELOCATING` and silently hands every later search shard recovery an older commit for the life of the shard.
+    private RegisterCommitResponse registerForRecovery(
+        StatelessCommitService commitService,
+        ShardId shardId,
+        String nodeId,
+        ClusterState state,
+        StatelessCommitRef knownCommit
+    ) {
+        final var future = new PlainActionFuture<RegisterCommitResponse>();
+        commitService.registerCommitForUnpromotableRecovery(
+            null,
+            new PrimaryTermAndGeneration(knownCommit.getPrimaryTerm(), knownCommit.getGeneration()),
+            shardId,
+            nodeId,
+            state,
+            future
+        );
+        return future.actionGet();
+    }
+
+    public void testRelocationAbortedOnAlreadyClosedShardUnwindsCleanly() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+
+            final var commits = testHarness.generateIndexCommits(1);
+            commitService.onCommitCreation(commits.getFirst());
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, commits.getFirst().getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, commits.getFirst().getGeneration());
+
+            commitService.closeShard(shardId);
+
+            // The relocation starts against an already closed shard and then fails.
+            final var handoffListener = commitService.markRelocationStarting(shardId);
+            handoffListener.onFailure(new RuntimeException("relocation aborted on a closed shard"));
+
+            assertTrue(commitService.isShardClosed(shardId));
+            assertThat("no bound leaked onto a closed shard", commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
+        }
+    }
+
     public void testScheduledCommitUpload() throws Exception {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override

@@ -740,6 +740,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         .map(shardRouting -> shardRouting.currentNodeId())
                         .toList()
                 );
+                // TODO: the commit should wait on the `maxGenerationToUpload` bound to close the PRE_RELOCATING race window.
                 commitAfterRelocationStarted = commitState.isRelocating()
                     && reference.getGeneration() > commitState.maxGenerationToUpload.generation();
             }

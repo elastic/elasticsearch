@@ -60,7 +60,7 @@ public class DeleteByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
     public void testDeleteByQueryFailsWhenBulkRequestSizeExceedsRequestBreakerLimit() {
         int docCount = 100;
         for (int i = 0; i < docCount; i++) {
-            prepareIndex("source").setId(Integer.toString(i)).setSource("data", "x".repeat(500)).get();
+            prepareIndex("source").setId(Integer.toString(i)).setSource("data", "x").get();
         }
         indicesAdmin().prepareRefresh("source").get();
 

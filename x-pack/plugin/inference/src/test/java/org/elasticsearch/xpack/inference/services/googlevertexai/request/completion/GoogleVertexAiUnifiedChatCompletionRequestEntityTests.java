@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentObject;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
@@ -27,6 +28,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
@@ -1474,38 +1479,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
      * The key scenario: a client that does not yet echo {@code reasoning_details} sends an assistant message with tool
      * calls but no signatures. ES should use the sentinel so Gemini 3 does not reject the request with a 400.
      */
-    public void testSerialization_FunctionCallWithoutSignature_UsesSkipValidatorSentinel() throws IOException {
-        var messages = List.of(assistantToolCall(GOOGLE_TOOL_CALL_ID), toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
-
-        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
-            {
-                "contents": [
-                    {
-                        "role": "model",
-                        "parts": [
-                            {
-                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
-                                "thoughtSignature": "skip_thought_signature_validator"
-                            }
-                        ]
-                    },
-                    {
-                        "role": "user",
-                        "parts": [
-                            {
-                                "functionResponse": {
-                                    "name": "%s",
-                                    "id": "%s",
-                                    "response": %s
-                                }
-                            }
-                        ]
-                    }
-                ]
-            }
-            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
-    }
-
     /**
      * When parallel function calls are present and no signatures are supplied, only the first call gets the sentinel.
      * Google only signs the first function call of a parallel step; subsequent calls are unsigned by design.
@@ -1531,37 +1504,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 ]
             }
             """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, SECOND_FUNCTION_NAME, SECOND_TOOL_CALL_ID));
-    }
-
-    /**
-     * When real signatures are present they always take precedence over the sentinel. Both the id-bound path
-     * (signature keyed by the tool call id) and the unbound path (a signature with no id and no text) are verified.
-     */
-    public void testSerialization_RealSignatureTakesPrecedenceOverSentinel_IdBound() throws IOException {
-        var message = new Message(
-            null,
-            ASSISTANT_ROLE,
-            null,
-            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
-            null,
-            List.of(new TextReasoningDetail(REASONING_FORMAT, GOOGLE_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE))
-        );
-
-        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
-            {
-                "contents": [
-                    {
-                        "role": "model",
-                        "parts": [
-                            {
-                                "functionCall": { "name": "%s", "args": %s, "id": "%s" },
-                                "thoughtSignature": "%s"
-                            }
-                        ]
-                    }
-                ]
-            }
-            """, FUNCTION_NAME, FUNCTION_ARGUMENTS, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
     }
 
     public void testSerialization_RealSignatureTakesPrecedenceOverSentinel_Unbound() throws IOException {
@@ -1986,6 +1928,507 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 ]
             }
             """, ASSISTANT_TEXT, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_ThoughtTextAndIdBoundSignature_EmitsThoughtThenSignedFunctionCall() throws IOException {
+        // Typical Gemini 3 multi-turn: the assistant message carries a thought summary (with text) and
+        // a tool call whose signature is id-bound. The thought part must precede the functionCall, and
+        // the real signature must be used rather than the sentinel.
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
+            null,
+            List.of(
+                new TextReasoningDetail(REASONING_FORMAT, null, 0L, "Let me check the order.", null),
+                new TextReasoningDetail(REASONING_FORMAT, GOOGLE_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE)
+            )
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "text": "Let me check the order.", "thought": true },
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "%s"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_ParallelCalls_SignatureOnFirst_SecondHasNoSentinel() throws IOException {
+        // When the first parallel call carries a real signature the sentinel is not needed; the second
+        // call has no signature and must not get the sentinel either (only the first call needs one).
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(
+                new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function"),
+                new ToolCall(SECOND_TOOL_CALL_ID, new ToolCall.FunctionField("{}", SECOND_FUNCTION_NAME), "function")
+            ),
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, GOOGLE_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "%s"
+                            },
+                            {
+                                "functionCall": { "name": "%s", "args": {}, "id": "%s" }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE, SECOND_FUNCTION_NAME, SECOND_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_ParallelCalls_SignatureOnSecond_FirstGetsSentinel() throws IOException {
+        // When only the second parallel call has a real signature, the first call — which has no real
+        // signature — must still receive the sentinel, since Gemini 3 requires the first call to be signed.
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(
+                new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function"),
+                new ToolCall(SECOND_TOOL_CALL_ID, new ToolCall.FunctionField("{}", SECOND_FUNCTION_NAME), "function")
+            ),
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, SECOND_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            },
+                            {
+                                "functionCall": { "name": "%s", "args": {}, "id": "%s" },
+                                "thoughtSignature": "%s"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, SECOND_FUNCTION_NAME, SECOND_TOOL_CALL_ID, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_TextAndToolCall_UnboundSignatureGoesToText_FunctionCallGetsSentinel() throws IOException {
+        // An unbound signature (no id, no text) is attached to the last text part. When the text part consumes the
+        // signature, the following function call has no signature and must fall back to the sentinel.
+        var message = new Message(
+            new ContentString("The answer is 42."),
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, null, 0L, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "text": "The answer is 42.", "thoughtSignature": "%s" },
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, THOUGHT_SIGNATURE, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_MultipleTextParts_UnboundSignatureOnLastOnly() throws IOException {
+        // An unbound signature (no id, no text) must attach to the last text part only, not to every part.
+        var message = new Message(
+            new ContentObjects(List.of(new ContentObjectText("First part."), new ContentObjectText("Second part."))),
+            ASSISTANT_ROLE,
+            null,
+            null,
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, null, 0L, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "text": "First part." },
+                            { "text": "Second part.", "thoughtSignature": "%s" }
+                        ]
+                    }
+                ]
+            }
+            """, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_MultipleUnboundSignatures_UsesFirst() throws IOException {
+        // When multiple unbound signatures are present only the first is used; the rest are silently ignored.
+        var otherSignature = "Cs8BAdHtim9zbXR0aW5nIGFub3RoZXIgc2lnbmF0dXJl";
+        var message = new Message(
+            new ContentString("The answer is 42."),
+            ASSISTANT_ROLE,
+            null,
+            null,
+            null,
+            List.of(
+                new TextReasoningDetail(REASONING_FORMAT, null, 0L, null, THOUGHT_SIGNATURE),
+                new TextReasoningDetail(REASONING_FORMAT, null, 1L, null, otherSignature)
+            )
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "text": "The answer is 42.", "thoughtSignature": "%s" }
+                        ]
+                    }
+                ]
+            }
+            """, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_IdBoundSignatureWithUnknownId_IsIgnored_UsesSentinel() throws IOException {
+        // A signature whose id does not match any tool call in the message is not used. The first function
+        // call still needs a signature and must fall back to the sentinel.
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, "unknown_call_id", null, null, THOUGHT_SIGNATURE))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_MixedGoogleAndForeignDetails_OnlyGoogleUsed() throws IOException {
+        // Reasoning details from other providers (e.g. Anthropic) must be silently dropped; only details
+        // carrying the Google Vertex AI format are forwarded to the request.
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            List.of(new ToolCall(GOOGLE_TOOL_CALL_ID, new ToolCall.FunctionField(FUNCTION_ARGUMENTS, FUNCTION_NAME), "function")),
+            null,
+            List.of(
+                new TextReasoningDetail("anthropic-thinking-v1", GOOGLE_TOOL_CALL_ID, null, null, "foreign_sig"),
+                new TextReasoningDetail(REASONING_FORMAT, GOOGLE_TOOL_CALL_ID, null, null, THOUGHT_SIGNATURE)
+            )
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "%s"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_ThoughtDetailWithoutSignature_HasNoThoughtSignature() throws IOException {
+        // A reasoning detail that carries thought text but no signature must emit a thought part without
+        // a thoughtSignature field.
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            null,
+            null,
+            List.of(new TextReasoningDetail(REASONING_FORMAT, null, 0L, "Thinking hard.", null))
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), """
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "text": "Thinking hard.", "thought": true }
+                        ]
+                    }
+                ]
+            }
+            """);
+    }
+
+    public void testSerialization_MultipleThoughtDetails_EmitMultipleThoughtParts() throws IOException {
+        // Multiple reasoning details each with thought text produce one thought part per detail, in order.
+        var message = new Message(
+            null,
+            ASSISTANT_ROLE,
+            null,
+            null,
+            null,
+            List.of(
+                new TextReasoningDetail(REASONING_FORMAT, null, 0L, "First thought.", THOUGHT_SIGNATURE),
+                new TextReasoningDetail(REASONING_FORMAT, null, 1L, "Second thought.", null)
+            )
+        );
+
+        assertJsonEquals(serialize(requestOf(message), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "text": "First thought.", "thought": true, "thoughtSignature": "%s" },
+                            { "text": "Second thought.", "thought": true }
+                        ]
+                    }
+                ]
+            }
+            """, THOUGHT_SIGNATURE));
+    }
+
+    public void testSerialization_ToolResultEmptyString_EmptyResponseObject() throws IOException {
+        // An empty-string tool result produces an empty response object ({}) rather than wrapping under "output".
+        var messages = List.of(
+            assistantToolCall(GOOGLE_TOOL_CALL_ID),
+            new Message(new ContentString(""), TOOL_ROLE, GOOGLE_TOOL_CALL_ID, null)
+        );
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "id": "%s",
+                                    "response": {}
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_ToolResultContentObjects_JoinedText() throws IOException {
+        // A tool result composed of multiple ContentObjectText parts is joined into one string and forwarded
+        // as the function response.
+        var result = new ContentObjects(List.of(new ContentObjectText("Hello"), new ContentObjectText(" World")));
+        var messages = List.of(assistantToolCall(GOOGLE_TOOL_CALL_ID), new Message(result, TOOL_ROLE, GOOGLE_TOOL_CALL_ID, null));
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "id": "%s",
+                                    "response": { "output": "Hello World" }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_ToolResultUnknownToolCallId_UsesIdAsNameAndOmitsId() throws IOException {
+        // When a tool message's toolCallId does not appear in any preceding assistant message, the id is used
+        // as the function name (fallback) and is omitted from the response because it equals the resolved name.
+        var messages = List.of(
+            assistantToolCall(GOOGLE_TOOL_CALL_ID),
+            new Message(new ContentString(TOOL_RESULT_JSON), TOOL_ROLE, "unknown_call_id", null)
+        );
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "unknown_call_id",
+                                    "response": { "delivery_date": "2025-03-27" }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+    }
+
+    public void testSerialization_ToolResultNonTextContentObject_Throws() throws IOException {
+        // A non-text content object in a tool result is not supported and must throw a 400.
+        var imageContent = new ContentObjects(
+            List.of(
+                new ContentObject.ContentObjectImage(
+                    new ContentObject.ContentObjectImage.ContentObjectImageUrl("http://example.com/img.png", null)
+                )
+            )
+        );
+        var messages = List.of(assistantToolCall(GOOGLE_TOOL_CALL_ID), new Message(imageContent, TOOL_ROLE, GOOGLE_TOOL_CALL_ID, null));
+        var request = requestOf(messages);
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), emptyThinkingConfig);
+        var builder = JsonXContent.contentBuilder();
+        var statusException = assertThrows(ElasticsearchStatusException.class, () -> entity.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(statusException.getMessage(), containsString("Type [image_url] not supported"));
+    }
+
+    /**
+     * Proves that an id-and-signature-only {@code reasoning_details} entry emitted by the streaming processor
+     * can be parsed back as part of the next request and then re-attached to the correct {@code functionCall} part,
+     * eliminating the need for the skip-validator sentinel.
+     */
+    public void testRoundTrip_ResponseReasoningDetailsEchoedBack_RestoresSignatureOnFunctionCall() throws IOException {
+        // Step 1: Build the JSON that a client would send after receiving a streaming response.
+        // The assistant message carries one tool call and one id-bound reasoning_detail (id + signature, no text).
+        var requestJson = Strings.format("""
+            {
+              "messages": [
+                {
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "%s",
+                      "type": "function",
+                      "function": { "name": "%s", "arguments": "{}" }
+                    }
+                  ],
+                  "reasoning_details": [
+                    {
+                      "type": "reasoning.text",
+                      "format": "%s",
+                      "id": "%s",
+                      "signature": "%s"
+                    }
+                  ]
+                }
+              ]
+            }
+            """, GOOGLE_TOOL_CALL_ID, FUNCTION_NAME, REASONING_FORMAT, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE);
+
+        // Step 2: Parse with UnifiedCompletionRequestBody.PARSER — confirms the request parser accepts
+        // an id-and-signature-only reasoning detail (no text field required).
+        var request = parseRequest(requestJson);
+        var message = request.messages().getFirst();
+        assertThat(message.toolCalls().getFirst().id(), is(GOOGLE_TOOL_CALL_ID));
+        assertThat(message.reasoningDetails().size(), is(1));
+        var detail = (TextReasoningDetail) message.reasoningDetails().getFirst();
+        assertThat(detail.id(), is(GOOGLE_TOOL_CALL_ID));
+        assertThat(detail.signature(), is(THOUGHT_SIGNATURE));
+        assertNull(detail.text());
+
+        // Step 3: Serialize with the request entity. The signature must land on the matching functionCall —
+        // no sentinel needed because a real signature was provided.
+        assertJsonEquals(serialize(request, emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": {}, "id": "%s" },
+                                "thoughtSignature": "%s"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
+    }
+
+    private static UnifiedCompletionRequestBody parseRequest(String json) throws IOException {
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
+            return UnifiedCompletionRequestBody.PARSER.parse(parser, null);
+        }
     }
 
     private static Message userMessage(String text) {

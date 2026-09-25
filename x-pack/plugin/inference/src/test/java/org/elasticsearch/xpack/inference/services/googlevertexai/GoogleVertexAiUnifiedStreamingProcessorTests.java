@@ -850,6 +850,194 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         assertThat(contentChunk.choices().getFirst().message().role(), is(ASSISTANT_ROLE));
     }
 
+    public void testParallelFunctionCalls_InOneChunk_GetSequentialIndexes() throws IOException {
+        var chunk = parse(Strings.format("""
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "functionCall": { "name": "%s", "args": {}, "id": "%s" },
+                      "thoughtSignature": "%s"
+                    },
+                    {
+                      "functionCall": { "name": "other_function", "args": {}, "id": "call_2" }
+                    }
+                  ]
+                },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "responseId"
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, THOUGHT_SIGNATURE));
+
+        var message = chunk.choices().getFirst().message();
+        assertThat(message.toolCalls().size(), is(2));
+        assertThat(message.toolCalls().get(0).index(), is(0));
+        assertThat(message.toolCalls().get(0).id(), is(GOOGLE_TOOL_CALL_ID));
+        assertThat(message.toolCalls().get(1).index(), is(1));
+        assertThat(message.toolCalls().get(1).id(), is("call_2"));
+        // Only the first function call carries a signature — one id-bound detail.
+        assertThat(message.reasoningDetails().size(), is(1));
+        var detail = asTextReasoningDetail(chunk, 0);
+        assertThat(detail.id(), is(GOOGLE_TOOL_CALL_ID));
+        assertThat(detail.signature(), is(THOUGHT_SIGNATURE));
+        assertNull(detail.text());
+        assertNull(detail.index());
+    }
+
+    public void testParallelFunctionCalls_AcrossChunks_ContinueIndex() throws IOException {
+        // The tool-call index is stream-wide state; the second chunk's call must get index 1, not 0.
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunkParser = new GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser(false);
+
+        var firstChunk = parseWith(chunkParser, parserConfig, Strings.format("""
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    { "functionCall": { "name": "%s", "args": {}, "id": "%s" } }
+                  ]
+                }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 10, "totalTokenCount": 20 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r1"
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+        var secondChunk = parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    { "functionCall": { "name": "other_function", "args": {}, "id": "call_2" } }
+                  ]
+                },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r2"
+            }
+            """);
+
+        assertThat(firstChunk.choices().getFirst().message().toolCalls().getFirst().index(), is(0));
+        assertThat(secondChunk.choices().getFirst().message().toolCalls().getFirst().index(), is(1));
+    }
+
+    public void testMultipleThoughtPartsInOneChunk_ShareIndexAndConcatenate() throws IOException {
+        // Two unsigned thought parts in one chunk belong to the same reasoning block — they share
+        // reasoning index 0 and their texts are concatenated into the `reasoning` string.
+        var chunk = parse("""
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    { "text": "First thought fragment.", "thought": true },
+                    { "text": " Second thought fragment.", "thought": true }
+                  ]
+                }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 10, "totalTokenCount": 20 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "responseId"
+            }
+            """);
+
+        var message = chunk.choices().getFirst().message();
+        assertThat(message.reasoning(), is("First thought fragment. Second thought fragment."));
+        assertThat(message.reasoningDetails().size(), is(2));
+        // Both parts are fragments of the same block and therefore share index 0.
+        assertThat(asTextReasoningDetail(chunk, 0).index(), is(0L));
+        assertThat(asTextReasoningDetail(chunk, 0).text(), is("First thought fragment."));
+        assertThat(asTextReasoningDetail(chunk, 1).index(), is(0L));
+        assertThat(asTextReasoningDetail(chunk, 1).text(), is(" Second thought fragment."));
+    }
+
+    public void testExcludeReasoning_DropsTextPartSignature() throws IOException {
+        // A thoughtSignature on a non-thought text part must be dropped when excludeReasoning=true.
+        // (Function-call signatures are always returned, but a trailing text-part signature is user-facing
+        // reasoning state and follows the exclude flag.)
+        var chunk = parse(Strings.format("""
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "", "thoughtSignature": "%s" } ] },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "responseId"
+            }
+            """, THOUGHT_SIGNATURE), true);
+
+        assertNull(chunk.choices().getFirst().message().reasoningDetails());
+    }
+
+    public void testEmptyTextWithSignature_HasNullContent() throws IOException {
+        // An empty-string text part with a thoughtSignature must produce null content
+        // (empty StringBuilder → null) and one index-bound reasoning detail with null text.
+        var chunk = parse(Strings.format("""
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "", "thoughtSignature": "%s" } ] },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "responseId"
+            }
+            """, THOUGHT_SIGNATURE));
+
+        var message = chunk.choices().getFirst().message();
+        assertNull(message.content());
+        assertThat(message.reasoningDetails().size(), is(1));
+        var detail = asTextReasoningDetail(chunk, 0);
+        assertNull(detail.text());
+        assertNull(detail.id());
+        assertThat(detail.index(), is(0L));
+        assertThat(detail.signature(), is(THOUGHT_SIGNATURE));
+    }
+
+    public void testProcessor_MultipleObjectsInOneEvent_SendsRoleOnce() throws IOException {
+        // When two JSON objects arrive in a single SSE event, the shared stateful parser must emit
+        // "assistant" only on the first choice — not again on the second.
+        var firstObject = """
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "Hello" } ] }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 5, "totalTokenCount": 15 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r1"
+            }\
+            """;
+        var secondObject = """
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": " world." } ] },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 10, "totalTokenCount": 20 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r2"
+            }\
+            """;
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var processor = new GoogleVertexAiUnifiedStreamingProcessor(RuntimeException::new);
+        var chunks = new ArrayList<ChatCompletionChunkResponse>();
+        processor.parse(parserConfig, firstObject + "\n" + secondObject).forEachRemaining(chunks::add);
+
+        assertThat(chunks.size(), is(2));
+        assertThat(chunks.get(0).choices().getFirst().message().role(), is(ASSISTANT_ROLE));
+        assertNull(chunks.get(1).choices().getFirst().message().role());
+    }
+
     private static String thoughtChunk(String thought, String signature) {
         return Strings.format("""
             {

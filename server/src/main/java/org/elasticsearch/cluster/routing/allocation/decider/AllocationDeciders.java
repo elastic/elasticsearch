@@ -18,11 +18,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -111,14 +113,95 @@ public class AllocationDeciders {
     }
 
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canRemain(shardRouting, node, allocation, (decider, decision) -> {});
+    }
+
+    /**
+     * Equivalent to {@link #canRemain(ShardRouting, RoutingNode, RoutingAllocation)} but also returns the
+     * {@link Class#getSimpleName()} of the first decider in the chain whose result matched the overall
+     * most-negative type (NO > NOT_PREFERRED)", or {@code null} when the overall decision is
+     * {@link Decision.Type#YES} or {@link Decision.Type#THROTTLE}.
+     */
+    public CanRemainWithDeciderName canRemainWithDeciderName(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        final String[] deciderNameHolder = { null };
+        final Decision.Type[] worstSeen = { Decision.Type.YES };
+        final var canRemainDecision = canRemain(shardRouting, node, allocation, (decider, decision) -> {
+            if ((decision.type() == Decision.Type.NOT_PREFERRED || decision.type() == Decision.Type.NO)
+                && worstSeen[0].compareToBetweenDecisions(decision.type()) > 0) {
+                worstSeen[0] = decision.type();
+                deciderNameHolder[0] = decider.getClass().getSimpleName();
+            }
+        });
+        final boolean relevant = canRemainDecision.type() == Decision.Type.NO || canRemainDecision.type() == Decision.Type.NOT_PREFERRED;
+        return new CanRemainWithDeciderName(canRemainDecision, relevant ? deciderNameHolder[0] : null);
+    }
+
+    /**
+     * Common canRemain logic, reused by callers that are interested in the decider name and those that are not
+     */
+    private Decision canRemain(
+        ShardRouting shardRouting,
+        RoutingNode node,
+        RoutingAllocation allocation,
+        BiConsumer<AllocationDecider, Decision> decisionConsumer
+    ) {
         final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
-        return withDecidersCheckingShardIgnoredNodes(
-            allocation,
-            shardRouting,
-            node,
-            decider -> decider.canRemain(indexMetadata, shardRouting, node, allocation),
-            (decider, decision) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, decision)
+        return withDecidersCheckingShardIgnoredNodes(allocation, shardRouting, node, decider -> {
+            Decision decision = decider.canRemain(indexMetadata, shardRouting, node, allocation);
+            decisionConsumer.accept(decider, decision);
+            return decision;
+        }, (decider, decision) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, decision));
+    }
+
+    /**
+     * Returns the {@link Class#getSimpleName()} of the first {@link AllocationDecider} that returned
+     * {@link Decision.Type#NOT_PREFERRED} for
+     * {@link AllocationDecider#canAllocate(ShardRouting, RoutingNode, RoutingAllocation)}, or {@code null} when the
+     * overall decision is not {@code NOT_PREFERRED}. Used to label metrics for forced moves where the only viable
+     * target node is not preferred.
+     */
+    public @Nullable String canAllocateNotPreferredDeciderName(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        final String[] labelHolder = { null };
+        final Decision decision = withDecidersCheckingShardIgnoredNodes(allocation, shardRouting, node, decider -> {
+            Decision d = decider.canAllocate(shardRouting, node, allocation);
+            if (d.type() == Decision.Type.NOT_PREFERRED && labelHolder[0] == null) {
+                labelHolder[0] = decider.getClass().getSimpleName();
+            }
+            return d;
+        }, (decider, dec) -> Strings.format("Can not allocate [%s] on node [%s]. [%s]: %s", shardRouting, node.node(), decider, dec));
+        return decision.type() == Decision.Type.NOT_PREFERRED ? labelHolder[0] : null;
+    }
+
+    /**
+     * Returns the {@link Class#getSimpleName()} of the first {@link AllocationDecider} that returned
+     * {@link Decision.Type#NOT_PREFERRED} for
+     * {@link AllocationDecider#canForceAllocateDuringReplace(ShardRouting, RoutingNode, RoutingAllocation)}, or {@code null}
+     * when the overall decision is not {@code NOT_PREFERRED}. Used to label metrics for vacate-path moves where the only
+     * viable target node is not preferred. Uses {@code withDeciders} (no shard-ignored check), consistent with
+     * {@link #canForceAllocateDuringReplace}.
+     */
+    public @Nullable String canForceAllocateDuringReplaceNotPreferredDeciderName(
+        ShardRouting shardRouting,
+        RoutingNode node,
+        RoutingAllocation allocation
+    ) {
+        final String[] labelHolder = { null };
+        final Decision decision = withDeciders(allocation, decider -> {
+            Decision d = decider.canForceAllocateDuringReplace(shardRouting, node, allocation);
+            if (d.type() == Decision.Type.NOT_PREFERRED && labelHolder[0] == null) {
+                labelHolder[0] = decider.getClass().getSimpleName();
+            }
+            return d;
+        },
+            (decider, dec) -> Strings.format(
+                "Can not force allocate during replace [%s] on node [%s]. [%s]: %s",
+                shardRouting,
+                node.node(),
+                decider,
+                dec
+            )
         );
+        return decision.type() == Decision.Type.NOT_PREFERRED ? labelHolder[0] : null;
     }
 
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
@@ -257,4 +340,11 @@ public class AllocationDeciders {
         }
         return result;
     }
+
+    /**
+     * Pairs a {@link Decision} with the name of the first {@link AllocationDecider} that produced the overall
+     * (most-negative) result — populated when the result is {@link Decision.Type#NO} or
+     * {@link Decision.Type#NOT_PREFERRED}, {@code null} otherwise.
+     */
+    public record CanRemainWithDeciderName(Decision decision, @Nullable String deciderName) {}
 }

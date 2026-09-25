@@ -44,6 +44,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AllocationDecidersTests extends ESAllocationTestCase {
 
@@ -251,6 +252,249 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
             deciders.getForcedInitialShardAllocationToNodes(createUnassignedShard(), createRoutingAllocation(deciders)),
             equalTo(Optional.of(Set.of("node-2")))
         );
+    }
+
+    // === canRemainWithDeciderName tests ===
+
+    public void testCanRemainWithDeciderNameYesDecision() {
+        var result = doCanRemainWithDeciderName(new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.YES))));
+        assertThat(result.decision().type(), equalTo(Decision.Type.YES));
+        assertThat(result.deciderName(), nullValue());
+    }
+
+    public void testCanRemainWithDeciderNameNotPreferredDecision() {
+        var result = doCanRemainWithDeciderName(
+            new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.YES), new FirstNotPreferredDecider()))
+        );
+        assertThat(result.decision().type(), equalTo(Decision.Type.NOT_PREFERRED));
+        assertThat(result.deciderName(), equalTo(FirstNotPreferredDecider.class.getSimpleName()));
+    }
+
+    public void testCanRemainWithDeciderNameNoDecision() {
+        var result = doCanRemainWithDeciderName(
+            new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.YES), new NoDecider()))
+        );
+        assertThat(result.decision().type(), equalTo(Decision.Type.NO));
+        assertThat(result.deciderName(), equalTo(NoDecider.class.getSimpleName()));
+    }
+
+    public void testCanRemainWithDeciderNameNoOverridesNotPreferred() {
+        // When a NOT_PREFERRED is followed by a NO, the NO decider's name is returned
+        var result = doCanRemainWithDeciderName(new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new NoDecider())));
+        assertThat(result.decision().type(), equalTo(Decision.Type.NO));
+        assertThat(result.deciderName(), equalTo(NoDecider.class.getSimpleName()));
+    }
+
+    public void testCanRemainWithDeciderNameFirstNotPreferredWins() {
+        // When multiple NOT_PREFERRED deciders, only the first one's name is returned
+        var result = doCanRemainWithDeciderName(
+            new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new SecondNotPreferredDecider()))
+        );
+        assertThat(result.decision().type(), equalTo(Decision.Type.NOT_PREFERRED));
+        assertThat(result.deciderName(), equalTo(FirstNotPreferredDecider.class.getSimpleName()));
+    }
+
+    public void testCanRemainWithDeciderNameThrottleDecision() {
+        // THROTTLE from canRemain (e.g. HasFrozenCacheAllocationDecider when cache state is still fetching)
+        // is not tracked as the responsible decider; deciderName is null even though decision is THROTTLE
+        var result = doCanRemainWithDeciderName(new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.THROTTLE))));
+        assertThat(result.decision().type(), equalTo(Decision.Type.THROTTLE));
+        assertThat(result.deciderName(), nullValue());
+    }
+
+    public void testCanRemainWithDeciderNameThrottleOverridesNotPreferred() {
+        // When NOT_PREFERRED is followed by THROTTLE, THROTTLE wins overall (it is more negative).
+        // The NOT_PREFERRED decider must not be reported as the responsible decider for the THROTTLE result.
+        var result = doCanRemainWithDeciderName(
+            new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new TestAllocationDecider(() -> Decision.THROTTLE)))
+        );
+        assertThat(result.decision().type(), equalTo(Decision.Type.THROTTLE));
+        assertThat(result.deciderName(), nullValue());
+    }
+
+    public void testCanRemainWithDeciderNameIgnoredShard() {
+        // When the shard is ignored for the node, the NO decision comes from the ignored-shard check
+        // (no individual decider callback fires), so deciderName is null even though the result is NO
+        var deciders = new AllocationDeciders(List.of(new NoDecider()));
+        IndexMetadata index = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        ShardId shardId = new ShardId(index.getIndex(), 0);
+        ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(index, false)).build())
+            .build();
+        String currentNodeId = randomIdentifier();
+        ShardRouting shard = TestShardRouting.newShardRouting(shardId, currentNodeId, true, ShardRoutingState.STARTED);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(currentNodeId, null);
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(deciders).build();
+        allocation.setDebugMode(RoutingAllocation.DebugMode.OFF);
+        allocation.addIgnoreShardForNode(shardId, currentNodeId);
+
+        var result = deciders.canRemainWithDeciderName(shard, routingNode, allocation);
+        assertThat(result.decision().type(), equalTo(Decision.Type.NO));
+        assertThat(result.deciderName(), nullValue());
+    }
+
+    private AllocationDeciders.CanRemainWithDeciderName doCanRemainWithDeciderName(AllocationDeciders deciders) {
+        IndexMetadata index = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        ShardId shardId = new ShardId(index.getIndex(), 0);
+        ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(index, false)).build())
+            .build();
+        String currentNodeId = randomIdentifier();
+        ShardRouting shard = TestShardRouting.newShardRouting(shardId, currentNodeId, true, ShardRoutingState.STARTED);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(currentNodeId, null);
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(deciders).build();
+        allocation.setDebugMode(RoutingAllocation.DebugMode.OFF);
+        return deciders.canRemainWithDeciderName(shard, routingNode, allocation);
+    }
+
+    // === canAllocateNotPreferredDeciderLabel tests ===
+
+    public void testCanAllocateNotPreferredDeciderLabelYesDecision() {
+        assertThat(
+            doCanAllocateNotPreferredDeciderLabel(new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.YES)))),
+            nullValue()
+        );
+    }
+
+    public void testCanAllocateNotPreferredDeciderLabelThrottleDecision() {
+        // THROTTLE is more negative than NOT_PREFERRED, so it wins; label is null
+        assertThat(
+            doCanAllocateNotPreferredDeciderLabel(
+                new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new TestAllocationDecider(() -> Decision.THROTTLE)))
+            ),
+            nullValue()
+        );
+    }
+
+    public void testCanAllocateNotPreferredDeciderLabelNoDecision() {
+        // NO overrides NOT_PREFERRED; label is null even though NOT_PREFERRED was seen first
+        assertThat(
+            doCanAllocateNotPreferredDeciderLabel(
+                new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new TestAllocationDecider(() -> Decision.NO)))
+            ),
+            nullValue()
+        );
+    }
+
+    public void testCanAllocateNotPreferredDeciderLabelNotPreferredDecision() {
+        assertThat(
+            doCanAllocateNotPreferredDeciderLabel(new AllocationDeciders(List.of(new FirstNotPreferredDecider()))),
+            equalTo(FirstNotPreferredDecider.class.getSimpleName())
+        );
+    }
+
+    public void testCanAllocateNotPreferredDeciderLabelFirstNotPreferredWins() {
+        // When multiple NOT_PREFERRED deciders, only the first one's name is returned
+        assertThat(
+            doCanAllocateNotPreferredDeciderLabel(
+                new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new SecondNotPreferredDecider()))
+            ),
+            equalTo(FirstNotPreferredDecider.class.getSimpleName())
+        );
+    }
+
+    private String doCanAllocateNotPreferredDeciderLabel(AllocationDeciders deciders) {
+        ShardRouting shard = createUnassignedShard();
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(randomIdentifier(), null);
+        RoutingAllocation allocation = createRoutingAllocation(deciders);
+        allocation.setDebugMode(RoutingAllocation.DebugMode.OFF);
+        return deciders.canAllocateNotPreferredDeciderName(shard, routingNode, allocation);
+    }
+
+    // === canForceAllocateDuringReplaceNotPreferredDeciderLabel tests ===
+
+    public void testCanForceAllocateDuringReplaceNotPreferredDeciderLabelYesDecision() {
+        assertThat(
+            doCanForceAllocateDuringReplaceNotPreferredDeciderLabel(
+                new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.YES)))
+            ),
+            nullValue()
+        );
+    }
+
+    public void testCanForceAllocateDuringReplaceNotPreferredDeciderLabelNotPreferredDecision() {
+        assertThat(
+            doCanForceAllocateDuringReplaceNotPreferredDeciderLabel(
+                new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.NOT_PREFERRED)))
+            ),
+            equalTo(TestAllocationDecider.class.getSimpleName())
+        );
+    }
+
+    public void testCanForceAllocateDuringReplaceNotPreferredDeciderLabelNoDecision() {
+        // NO overrides NOT_PREFERRED; label is null even though NOT_PREFERRED was seen first
+        assertThat(
+            doCanForceAllocateDuringReplaceNotPreferredDeciderLabel(
+                new AllocationDeciders(List.of(new FirstNotPreferredDecider(), new TestAllocationDecider(() -> Decision.NO)))
+            ),
+            nullValue()
+        );
+    }
+
+    public void testCanForceAllocateDuringReplaceNotPreferredDeciderLabelIgnoredShardNotBlocked() {
+        // Unlike canAllocateNotPreferredDeciderLabel, this method uses withDeciders (no shard-ignored
+        // check), so it identifies the responsible decider even when the shard is marked ignored for
+        // the target node — which is the correct behaviour for the vacate path.
+        ShardRouting shard = createUnassignedShard();
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(randomIdentifier(), null);
+        AllocationDeciders deciders = new AllocationDeciders(List.of(new TestAllocationDecider(() -> Decision.NOT_PREFERRED)));
+        RoutingAllocation allocation = createRoutingAllocation(deciders);
+        allocation.setDebugMode(RoutingAllocation.DebugMode.OFF);
+        allocation.addIgnoreShardForNode(shard.shardId(), routingNode.nodeId());
+
+        // canAllocateNotPreferredDeciderLabel returns null: shard-ignored check short-circuits to NO
+        assertThat(deciders.canAllocateNotPreferredDeciderName(shard, routingNode, allocation), nullValue());
+        // canForceAllocateDuringReplaceNotPreferredDeciderLabel skips the ignored check
+        assertThat(
+            deciders.canForceAllocateDuringReplaceNotPreferredDeciderName(shard, routingNode, allocation),
+            equalTo(TestAllocationDecider.class.getSimpleName())
+        );
+    }
+
+    private String doCanForceAllocateDuringReplaceNotPreferredDeciderLabel(AllocationDeciders deciders) {
+        ShardRouting shard = createUnassignedShard();
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(randomIdentifier(), null);
+        RoutingAllocation allocation = createRoutingAllocation(deciders);
+        allocation.setDebugMode(RoutingAllocation.DebugMode.OFF);
+        return deciders.canForceAllocateDuringReplaceNotPreferredDeciderName(shard, routingNode, allocation);
+    }
+
+    private static final class FirstNotPreferredDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NOT_PREFERRED;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NOT_PREFERRED;
+        }
+    }
+
+    private static final class SecondNotPreferredDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NOT_PREFERRED;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NOT_PREFERRED;
+        }
+    }
+
+    private static final class NoDecider extends AllocationDecider {
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
+
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return Decision.NO;
+        }
     }
 
     private static ShardRouting createUnassignedShard(Index index) {

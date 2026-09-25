@@ -1226,6 +1226,24 @@ book_no:keyword | title:text
 2130            | The J. R. R. Tolkien Audio Collection
 ;
 
+fillNullPreservesTextTypeAndFillsNullPosition
+required_capability: fillnull
+required_capability: fork_v9
+
+FROM airports
+| WHERE abbrev == "GIB"
+| FORK (KEEP abbrev, name)
+       (STATS c = COUNT(*))
+| FILLNULL "unknown" ON name
+| KEEP _fork, name
+| SORT _fork
+;
+
+_fork:keyword | name:text
+fork1         | Gibraltar
+fork2         | unknown
+;
+
 fillNullWildcardPatternTarget
 required_capability: fillnull
 

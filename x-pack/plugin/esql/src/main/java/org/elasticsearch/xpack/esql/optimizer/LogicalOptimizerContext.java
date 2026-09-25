@@ -20,13 +20,6 @@ public class LogicalOptimizerContext {
     private final TransportVersion minimumVersion;
     private final EsqlFlags flags;
 
-    /**
-     * Constructor for tests, production passes session flags via the four-argument constructor.
-     */
-    public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion) {
-        this(configuration, foldCtx, minimumVersion, EsqlFlags.DEFAULTS);
-    }
-
     public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion, EsqlFlags flags) {
         this.configuration = configuration;
         this.foldCtx = foldCtx;

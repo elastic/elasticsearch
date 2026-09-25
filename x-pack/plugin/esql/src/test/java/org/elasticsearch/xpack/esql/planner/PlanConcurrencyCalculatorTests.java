@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -28,6 +27,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -244,7 +244,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
             .buildAnalyzer();
         TransportVersion minimumVersion = analyzer.context().minimumVersion();
         LogicalPlan logicalPlan = analyzer.analyze(TEST_PARSER.parseQuery(query));
-        logicalPlan = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, FoldContext.small(), minimumVersion)).optimize(
+        logicalPlan = new LogicalPlanOptimizer(logicalOptimizerContext(configuration, FoldContext.small(), minimumVersion)).optimize(
             logicalPlan
         );
 

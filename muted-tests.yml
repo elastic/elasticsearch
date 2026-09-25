@@ -167,40 +167,30 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/159566
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedIntoStoredSourceChallengeRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/159677
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalUtilTests
   method: testRandomBounds
   issue: https://github.com/elastic/elasticsearch/issues/159682
 - class: org.elasticsearch.xpack.spatial.common.H3SphericalUtilTests
   method: testRandomBounds
   issue: https://github.com/elastic/elasticsearch/issues/159682
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlTermsAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/159745
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/159788
 - class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
   method: testSignAndVerifyDifferentPayloadFailsPKCS12orBCFKS
   issue: https://github.com/elastic/elasticsearch/issues/159806
 - class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
   method: testSignAndVerifyPKCS12orBCFKS
   issue: https://github.com/elastic/elasticsearch/issues/159807
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlTermsAggregationByMethod
-  issue: https://github.com/elastic/elasticsearch/issues/159816
 - class: org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperatorTests
   method: testMultivaluedGroupColumnProducesWarning
   issue: https://github.com/elastic/elasticsearch/issues/152928
 - class: org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperatorTests
   method: testMultivaluedGroupColumnProducesWarning
   issue: https://github.com/elastic/elasticsearch/issues/152929
-- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/160023
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testEvalWhere
   issue: https://github.com/elastic/elasticsearch/issues/160180
+- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
+  method: testAutoFollowing {clusterName=LEADER leaderNodesUpgraded=3 followerNodesUpgraded=3}
+  issue: https://github.com/elastic/elasticsearch/issues/160284
 
 # Examples:
 #

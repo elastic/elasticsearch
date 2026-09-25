@@ -34,7 +34,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
+public class TextSimilarityRankRetrieverTelemetryIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test_index";
 

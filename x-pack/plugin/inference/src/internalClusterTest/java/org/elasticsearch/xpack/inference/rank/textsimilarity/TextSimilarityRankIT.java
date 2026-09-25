@@ -15,8 +15,8 @@ import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.rank.ThrowingRankBuilderType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
-import org.elasticsearch.test.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TextSimilarityRankTests extends ESSingleNodeTestCase {
+public class TextSimilarityRankIT extends ESSingleNodeTestCase {
 
     /**
      * {@code TextSimilarityRankBuilder} that sets top_n in the inference endpoint's task settings.
@@ -183,7 +183,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                         "my query",
                         0.7f,
                         false,
-                        AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name(),
+                        ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name(),
                         null
                     )
                 )
@@ -205,7 +205,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                         "my query",
                         null,
                         true,
-                        AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name(),
+                        ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name(),
                         null
                     )
                 )

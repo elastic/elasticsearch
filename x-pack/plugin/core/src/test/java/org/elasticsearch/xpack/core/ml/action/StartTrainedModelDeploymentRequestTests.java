@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
 import java.util.List;
@@ -231,55 +232,54 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setDeploymentId("..");
 
-        ActionRequestValidationException e = request.validate();
-
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "..");
     }
 
     public void testValidate_GivenDeploymentIdContainsSlash() {
         Request request = createRandom();
         request.setDeploymentId("foo/bar");
 
-        ActionRequestValidationException e = request.validate();
-
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "foo/bar");
     }
 
     public void testValidate_GivenDeploymentIdContainsBackslash() {
-        // '\' must be rejected on every platform ES runs on, not only where it happens to be the local
-        // path separator (Windows) - this validator runs cluster-wide in Request#validate, so accept/reject
-        // cannot depend on which node handles the request. On Linux/macOS this assertion would still pass
-        // even if MlStrings#isValidPathSafeId only rejected the current platform's separator, since '\' was
-        // never the local separator there either - so this case is the one that actually pins the fix.
+        // '\' must be warned on every platform ES runs on, not only where it happens to be the local
+        // path separator (Windows) - this predicate runs cluster-wide in Request#validate, so the warning
+        // cannot depend on which node handles the request.
         Request request = createRandom();
         request.setDeploymentId("foo\\bar");
 
-        ActionRequestValidationException e = request.validate();
-
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "foo\\bar");
     }
 
     public void testValidate_GivenDeploymentIdIsEmpty() {
         Request request = createRandom();
         request.setDeploymentId("");
 
-        ActionRequestValidationException e = request.validate();
-
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "");
     }
 
     public void testValidate_GivenDeploymentIdContainsNulByte() {
         Request request = createRandom();
         request.setDeploymentId("deployment\u0000id");
 
-        ActionRequestValidationException e = request.validate();
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "deployment\u0000id");
+    }
 
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    public void testValidate_GivenModelIdUsedAsDefaultDeploymentIdIsPathUnsafeShouldWarnUsingModelIdField() {
+        Request request = new Request("valid-model", "foo\\bar");
+        request.setModelId("foo\\bar");
+        request.setDeploymentId("foo\\bar");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.MODEL_ID.getPreferredName(), "foo\\bar");
+    }
+
+    public void testValidate_GivenDistinctDeploymentIdIsPathUnsafeShouldWarnUsingDeploymentIdField() {
+        Request request = new Request("valid-model", "foo/bar");
+        request.setModelId("valid-model");
+        request.setDeploymentId("foo/bar");
+
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "foo/bar");
     }
 
     public void testValidate_GivenDeploymentIdIsMixedCaseInferenceEndpointId() {
@@ -347,20 +347,20 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = createRandom();
         request.setDeploymentId("./foo");
 
-        ActionRequestValidationException e = request.validate();
-
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), "./foo");
     }
 
     public void testValidate_GivenDeploymentIdIsLoneLeadingDot() {
         Request request = createRandom();
         request.setDeploymentId(".");
 
-        ActionRequestValidationException e = request.validate();
+        assertPathUnsafeIdDeprecationWarning(request, Request.DEPLOYMENT_ID.getPreferredName(), ".");
+    }
 
-        assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    private void assertPathUnsafeIdDeprecationWarning(Request request, String fieldName, String idValue) {
+        ActionRequestValidationException e = request.validate();
+        assertThat(e, is(nullValue()));
+        assertWarnings(Messages.getMessage(Messages.INVALID_PATH_SAFE_ID, fieldName, idValue));
     }
 
     public void testDefaults() {

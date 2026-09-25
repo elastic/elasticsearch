@@ -86,11 +86,12 @@ public final class MlStrings {
      *
      * Deliberately diverges from {@code NamedPipeHelper#validateChildId} on one point: that method rejects
      * only the current platform's separator character (correct there, since it runs node-locally at the
-     * point the filesystem path is actually built), whereas this method backs a cluster-wide request
-     * validator ({@code StartTrainedModelDeploymentAction.Request#validate}) that may execute on any node,
-     * so accept/reject cannot depend on which node's OS handles the request. This method therefore rejects
-     * both {@code /} and {@code \} unconditionally: a platform-independent superset of what any single
-     * node's separator check would reject on its own, not a mirror of it.
+     * point the filesystem path is actually built), whereas this predicate backs cluster-wide deprecation
+     * telemetry and warnings in {@code StartTrainedModelDeploymentAction.Request#validate} (and a future
+     * hard rejection) that may execute on any node, so the warning predicate cannot depend on which node's
+     * OS handles the request. This method therefore treats both {@code /} and {@code \} as unsafe
+     * unconditionally: a platform-independent superset of what any single node's separator check would
+     * reject on its own, not a mirror of it.
      *
      * @param id the id to check
      * @return {@code true} if {@code id} is non-null, non-empty, not {@code .} or {@code ..}, and contains

@@ -16,6 +16,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -152,6 +154,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private int threadsPerAllocation = DEFAULT_NUM_THREADS;
         private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
         private Priority priority = DEFAULT_PRIORITY;
+
+        private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Request.class);
 
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
@@ -319,13 +323,19 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             // "My-ELSER"). validate() runs on every client.execute call, not only REST requests, so enforcing the
             // full isValidId charset here would break starting/re-deploying existing production inference
             // endpoints. deployment_id only needs to be safe as a single filesystem path component - it shapes
-            // the isolated IPC directory path ($TMPDIR/ml-child-ipc/<deploymentId>/) - so only that narrower
-            // path-safety property is enforced here, via MlStrings#isValidPathSafeId. That method is a
-            // platform-independent superset of the node-local check applied as defense-in-depth where the path
-            // is actually constructed (NamedPipeHelper#validateChildId in the ml plugin) - see its javadoc for
-            // why the two are not byte-identical.
+            // the isolated IPC directory path ($TMPDIR/ml-child-ipc/<deploymentId>/) when sandboxing is enabled.
+            // Values that fail MlStrings#isValidPathSafeId still start today; a deprecation warning is emitted
+            // (and usage telemetry is recorded on the master) so fleet impact can be measured before a future
+            // release rejects them. That predicate is a platform-independent superset of the node-local check
+            // applied as defense-in-depth where the path is actually constructed (NamedPipeHelper#validateChildId
+            // in the ml plugin) - see its javadoc for why the two are not byte-identical.
             if (MlStrings.isValidPathSafeId(deploymentId) == false) {
-                validationException.addValidationError(Messages.getMessage(Messages.INVALID_PATH_SAFE_ID, DEPLOYMENT_ID, deploymentId));
+                String fieldName = Objects.equals(deploymentId, modelId) ? MODEL_ID.getPreferredName() : DEPLOYMENT_ID.getPreferredName();
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.API,
+                    "ml_path_unsafe_deployment_id/" + deploymentId,
+                    Messages.getMessage(Messages.INVALID_PATH_SAFE_ID, fieldName, deploymentId)
+                );
             }
             if (waitForState.isAnyOf(VALID_WAIT_STATES) == false) {
                 validationException.addValidationError(

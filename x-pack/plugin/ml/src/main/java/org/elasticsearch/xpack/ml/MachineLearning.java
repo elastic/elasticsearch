@@ -328,6 +328,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.DeploymentPathUnsafeIdTelemetry;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
@@ -1298,6 +1299,9 @@ public class MachineLearning extends Plugin
         );
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedSearchTelemetry datafeedSearchTelemetry = new DatafeedSearchTelemetry(telemetryProvider.getMeterRegistry());
+        DeploymentPathUnsafeIdTelemetry deploymentPathUnsafeIdTelemetry = new DeploymentPathUnsafeIdTelemetry(
+            telemetryProvider.getMeterRegistry()
+        );
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(
             client,
             xContentRegistry,
@@ -1594,7 +1598,8 @@ public class MachineLearning extends Plugin
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
             mlMetrics,
-            mlConfigMetrics
+            mlConfigMetrics,
+            deploymentPathUnsafeIdTelemetry
         );
     }
 

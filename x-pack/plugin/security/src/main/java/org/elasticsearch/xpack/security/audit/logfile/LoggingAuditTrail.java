@@ -1647,8 +1647,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("namespace", putUserManagedServiceAccountRequest.getNamespace())
                 .field("service", putUserManagedServiceAccountRequest.getServiceName())
                 .array("roles", putUserManagedServiceAccountRequest.getRoles().toArray(String[]::new))
-                .field("enabled", putUserManagedServiceAccountRequest.isEnabled())
-                .endObject() // user_managed_service_account
+                .field("enabled", putUserManagedServiceAccountRequest.isEnabled());
+            if (putUserManagedServiceAccountRequest.getDescription() != null) {
+                builder.field("description", putUserManagedServiceAccountRequest.getDescription());
+            }
+            builder.endObject() // user_managed_service_account
                 .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;

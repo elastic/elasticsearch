@@ -443,6 +443,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
+    uses org.elasticsearch.common.UUIDSource;
 
     provides org.elasticsearch.features.FeatureSpecification
         with

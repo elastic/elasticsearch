@@ -59,7 +59,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        return inner.metadata(new DecompressingStorageObject(object, codec, maxDecompressionRatio()));
+        return inner.metadata(new DecompressingStorageObject(object, codec, null, maxDecompressionRatio()));
     }
 
     @Override

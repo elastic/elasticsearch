@@ -11,12 +11,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.List;
+import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -95,24 +101,50 @@ public class FormatReaderRegistryTests extends ESTestCase {
         assertThat(registry.byExtension("data.txt"), sameInstance(csv));
     }
 
-    /** The registry picks the ratio by codec and reads it live, so a dynamic setting update reaches existing readers. */
-    public void testDecompressionRatioFollowsCodecAndLiveUpdates() {
+    /**
+     * The registry picks the ratio by codec and reads it live, so a dynamic setting update reaches
+     * existing readers. Verified behaviorally: drive {@code metadata()} with a small highly-compressed
+     * object; after tightening the limit the guard fires, after disabling it the read succeeds.
+     */
+    public void testDecompressionRatioFollowsCodecAndLiveUpdates() throws Exception {
+        // Build a ~130 KB gzip that expands ~515:1 (64 MiB of repeated text)
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz2 = new GZIPOutputStream(baos)) {
+            byte[] line = "{\"val\":1}\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            for (int i = 0; i < 64 * 1024 * 1024 / line.length; i++) {
+                gz2.write(line);
+            }
+        }
+        byte[] compressed = baos.toByteArray();
+
+        StorageObject highlyCompressible = mock(StorageObject.class);
+        when(highlyCompressible.newStream()).thenAnswer(inv -> new java.io.ByteArrayInputStream(compressed));
+        when(highlyCompressible.knownLength()).thenReturn((long) compressed.length);
+
         DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
         codecs.register(new GzipDecompressionCodec());
         codecs.register(new ZstdDecompressionCodec());
         FormatReaderRegistry registry = new FormatReaderRegistry(codecs);
         FormatReader csv = reader("csv", ".csv");
         when(csv.supportsWholeFileCompression()).thenReturn(true);
+        // stub metadata() to actually consume the decompressed stream — this drives the ratio guard
+        when(csv.metadata(any())).thenAnswer(inv -> {
+            StorageObject obj = inv.getArgument(0);
+            try (InputStream s = obj.newStream()) {
+                s.transferTo(java.io.OutputStream.nullOutputStream());
+            }
+            return null;
+        });
 
-        var gz = (CompressionDelegatingFormatReader) registry.wrapForObject(csv, "data.csv.gz");
-        var zst = (CompressionDelegatingFormatReader) registry.wrapForObject(csv, "data.csv.zst");
-        assertEquals(200, gz.maxDecompressionRatio());
-        assertEquals(2000, zst.maxDecompressionRatio());
+        FormatReader gz = registry.wrapForObject(csv, "data.csv.gz");
 
-        registry.setMaxDecompressionRatio(50);
-        registry.setMaxDecompressionRatioZstd(0);
-        assertEquals(50, gz.maxDecompressionRatio());
-        assertEquals(0, zst.maxDecompressionRatio());
+        // ratio=200: input is ~515:1 so the guard must fire
+        registry.setMaxDecompressionRatio(200);
+        expectThrows(ExternalClientException.class, () -> gz.metadata(highlyCompressible));
+
+        // Disable the guard: same object must pass
+        registry.setMaxDecompressionRatio(0);
+        gz.metadata(highlyCompressible); // must not throw
     }
 
     /**

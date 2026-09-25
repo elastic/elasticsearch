@@ -151,7 +151,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
     // --- Decompression ratio guard ---
 
-    public void testDecompressionBombRefused() throws IOException {
+    public void testHighRatioRefused() throws IOException {
         // 64 MiB of a ten-byte NDJSON line, gzipped: compresses to ~130 KB, expands ~515:1
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
@@ -162,10 +162,10 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         }
         byte[] compressed = baos.toByteArray();
 
-        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///bomb.ndjson.gz"));
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///repetitive.ndjson.gz"));
         DecompressionCodec codec = new GzipDecompressionCodec();
-        // ratio=200 means limit = ~130 KB × 200 = ~26 MB; the 64 MiB bomb exceeds it
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec, 200);
+        // ratio=200 means limit = ~130 KB × 200 = ~26 MB; the 64 MiB output exceeds it
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec, null, 200);
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (InputStream stream = decompressing.newStream()) {
@@ -178,7 +178,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         );
     }
 
-    public void testDecompressionBombRefusedWhenSizeUnknown() throws IOException {
+    public void testHighRatioRefusedWhenSizeUnknown() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
             byte[] line = "{\"val\":1}\n".getBytes(StandardCharsets.UTF_8);
@@ -189,13 +189,13 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         byte[] compressed = baos.toByteArray();
 
         // no known length: the guard must fall back to the compressed bytes consumed so far
-        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///bomb.ndjson.gz")) {
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///repetitive.ndjson.gz")) {
             @Override
             public long knownLength() {
                 return READ_TO_END;
             }
         };
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, new GzipDecompressionCodec(), 200);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, new GzipDecompressionCodec(), null, 200);
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (InputStream stream = decompressing.newStream()) {
@@ -206,10 +206,34 @@ public class DecompressingStorageObjectTests extends ESTestCase {
             "error message must name the setting, got: " + e.getMessage(),
             e.getMessage().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey())
         );
+        assertTrue("error message must describe the ratio, got: " + e.getMessage(), e.getMessage().contains("compressed bytes"));
     }
 
-    public void testDecompressionBombPassesWithRatioZero() throws IOException {
-        // same bomb as above, but ratio=0 disables the check
+    public void testSkippedBytesCountTowardLimitOnNextRead() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
+            byte[] line = "{\"val\":1}\n".getBytes(StandardCharsets.UTF_8);
+            for (int i = 0; i < 64 * 1024 * 1024 / line.length; i++) {
+                gz.write(line);
+            }
+        }
+        StorageObject rawObject = new BytesStorageObject(baos.toByteArray(), StoragePath.of("file:///repetitive.ndjson.gz"));
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, new GzipDecompressionCodec(), null, 200);
+
+        try (InputStream stream = decompressing.newStream()) {
+            // skip past the ~26 MB limit; skip itself does not check
+            long toSkip = 40L * 1024 * 1024;
+            while (toSkip > 0) {
+                long skipped = stream.skip(toSkip);
+                assertThat(skipped, Matchers.greaterThan(0L));
+                toSkip -= skipped;
+            }
+            expectThrows(ExternalClientException.class, stream::read);
+        }
+    }
+
+    public void testHighRatioPassesWithRatioZero() throws IOException {
+        // same input as above, but ratio=0 disables the check
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (GZIPOutputStream gz = new GZIPOutputStream(baos)) {
             byte[] line = "{\"val\":1}\n".getBytes(StandardCharsets.UTF_8);
@@ -219,15 +243,17 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         }
         byte[] compressed = baos.toByteArray();
 
-        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///bomb.ndjson.gz"));
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///repetitive.ndjson.gz"));
         DecompressionCodec codec = new GzipDecompressionCodec();
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec, 0);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec, null, 0);
 
+        byte[] line = "{\"val\":1}\n".getBytes(StandardCharsets.UTF_8);
+        long expectedBytes = (long) (64 * 1024 * 1024 / line.length) * line.length;
         long totalBytes;
         try (InputStream stream = decompressing.newStream()) {
             totalBytes = stream.transferTo(OutputStream.nullOutputStream());
         }
-        assertThat("ratio=0 must read all decompressed bytes", totalBytes, Matchers.greaterThan(0L));
+        assertEquals("ratio=0 must transfer all decompressed bytes", expectedBytes, totalBytes);
     }
 
     public void testOrdinaryInputPassesAtDefaultRatio() throws IOException {
@@ -240,6 +266,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         DecompressingStorageObject decompressing = new DecompressingStorageObject(
             rawObject,
             codec,
+            null,
             ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getDefault(Settings.EMPTY)
         );
 

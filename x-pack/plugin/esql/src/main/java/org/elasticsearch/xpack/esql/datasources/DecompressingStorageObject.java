@@ -52,10 +52,6 @@ final class DecompressingStorageObject implements StorageObject {
         this(delegate, codec, breaker, 0);
     }
 
-    DecompressingStorageObject(StorageObject delegate, DecompressionCodec codec, int maxDecompressionRatio) {
-        this(delegate, codec, null, maxDecompressionRatio);
-    }
-
     DecompressingStorageObject(
         StorageObject delegate,
         DecompressionCodec codec,
@@ -269,6 +265,7 @@ final class DecompressingStorageObject implements StorageObject {
 
         LimitGuardInputStream(InputStream decompressed, long compressedSize, UncloseableInputStream raw, int maxRatio, String codecName) {
             super(decompressed);
+            Check.isTrue(maxRatio > 0, "LimitGuardInputStream requires a positive ratio; use the plain stream for unlimited decompression");
             this.compressedSize = compressedSize;
             this.raw = raw;
             this.maxRatio = maxRatio;
@@ -297,14 +294,28 @@ final class DecompressingStorageObject implements StorageObject {
             return n;
         }
 
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = super.skip(n);
+            if (skipped > 0) {
+                decompressedRead += skipped;
+            }
+            return skipped;
+        }
+
         private void checkLimit() {
             if (decompressedRead > limit) {
                 long effective = compressedSize > 0 ? compressedSize : raw.bytesRead();
-                limit = effective > 0 ? effective * maxRatio : Long.MAX_VALUE;
+                if (effective <= 0) {
+                    // Unreachable: a codec cannot produce output without first consuming compressed
+                    // input through UncloseableInputStream, so raw.bytesRead() is always > 0 here.
+                    throw new IllegalStateException("codec produced output before reading any compressed input");
+                }
+                limit = effective * maxRatio;
                 if (decompressedRead > limit) {
                     throw new ExternalClientException(
                         "decompression limit exceeded: decompressed {} bytes, limit is {} bytes "
-                            + "(ratio limit {}:1 × compressed object size); reduce the object's compression ratio "
+                            + "(ratio limit {}:1 × compressed bytes); reduce the object's compression ratio "
                             + "or set [{}] to a higher value or 0 to disable",
                         decompressedRead,
                         limit,

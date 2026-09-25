@@ -346,8 +346,8 @@ public final class ExternalSourceSettings {
      * object's compressed size (checked from 1 MiB on). {@code 0} disables the check. The actual limit is the
      * per-codec setting ({@link #MAX_DECOMPRESSION_RATIO_ZSTD} for zstd), falling back to this value.
      * <p>
-     * Default 200 sits above the 65:1 that DuckDB's 3 GB genome CSV reaches with gzip, while a typical
-     * gzip bomb reaches 515:1 or more.
+     * Default 200 sits above the 65:1 that DuckDB's 3 GB genome CSV reaches with gzip, while typical
+     * highly compressible repeated input reaches 515:1 or more.
      * [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting).
      */
     public static final Setting<Integer> MAX_DECOMPRESSION_RATIO = Setting.intSetting(
@@ -361,7 +361,7 @@ public final class ExternalSourceSettings {
     /**
      * Maximum decompression ratio for zstd-compressed objects; overrides {@link #MAX_DECOMPRESSION_RATIO}
      * for zstd. Default 2000: zstd can legitimately reach 583:1 on the DuckDB genome CSV at ultra compression,
-     * while a zstd bomb reaches 11,915:1 or more. {@code 0} disables the check for zstd only.
+     * while highly compressible repeated input reaches 11,915:1 or more. {@code 0} disables the check for zstd only.
      * [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting).
      */
     public static final Setting<Integer> MAX_DECOMPRESSION_RATIO_ZSTD = Setting.intSetting(

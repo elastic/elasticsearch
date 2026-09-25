@@ -130,6 +130,7 @@ public class PrometheusSetOperatorRestIT extends AbstractPrometheusRestIT {
         assertThat(metricNames("tx{host!=\"c\"} or rx"), equalTo(List.of("rx", "tx", "tx")));
         // a name-dropping left side still shadows the right side: the signature never had the name
         assertThat(txRxInstant("abs(tx) or rx"), containsInAnyOrder(txRx("a", "prod", 10), txRx("b", "prod", 30), txRx("c", "qa", 12)));
+        assertThat(metricNames("abs(tx) or rx"), equalTo(List.of()));
         assertThat(txRxInstant("tx * 2 or tx"), containsInAnyOrder(txRx("a", "prod", 20), txRx("b", "prod", 60), txRx("c", "qa", 24)));
     }
 

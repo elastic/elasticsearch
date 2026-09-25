@@ -530,7 +530,11 @@ public final class TranslationContext {
         // Mul(LastOverTime(m), 8) -> Mul(ref, 8) -- not an agg, needs Values(Mul(ref,8))
         // Guarded by groupsBySeries because without any series grouping (e.g. constants like vector(5))
         // TranslateTimeSeriesAggregate passes Literals straight to phase 1.
-        boolean wrapWithValues = (agg instanceof AggregateFunction == false) || (agg instanceof TimeSeriesAggregateFunction);
+        // Sub(Max(LastOverTime(a)), Max(LastOverTime(b))) -> Sub(Max(refA), Max(refB)) -- an expression over
+        // phase-2 aggregates already, wrapping it in Values would nest aggregates.
+        boolean hasOuterAggregate = agg.anyMatch(e -> e instanceof AggregateFunction && e instanceof TimeSeriesAggregateFunction == false);
+        boolean wrapWithValues = hasOuterAggregate == false
+            && ((agg instanceof AggregateFunction == false) || (agg instanceof TimeSeriesAggregateFunction));
         if (groupsBySeries && wrapWithValues) {
             value = value.replaceChild(new Values(agg.source(), agg));
         }
@@ -627,7 +631,11 @@ public final class TranslationContext {
 
     // ---------- the command coda ----------
 
-    /** Projects the plan to the command's declared output, re-aliasing columns that match by name but not by id. */
+    /**
+     * Projects the plan to the command's declared output, re-aliasing columns that match by name but not by id. Declared
+     * label columns the translated plan does not carry (e.g. {@code labels.__name__} after a name-dropping binary op) are
+     * omitted; only label columns may be absent - the value and step attributes are guaranteed by translation invariants.
+     */
     private LogicalPlan emitFinalProjection(LogicalPlan plan, Expression identity) {
         var lookupMap = new HashMap<String, Attribute>();
         for (var attr : plan.output()) {
@@ -656,7 +664,15 @@ public final class TranslationContext {
         }
         for (var attr : cmd.output()) {
             var lookupAttr = lookupMap.get(attr.name());
-            if (lookupAttr != null && lookupAttr.semanticEquals(attr) == false) {
+            if (lookupAttr == null) {
+                // The translated plan does not produce this declared attribute; skip it. Only label columns can be absent
+                // (e.g. `labels.__name__` after a name-dropping binary op): the translator mints the value and step columns
+                // itself, so their absence is a translator bug.
+                assert attr.id().equals(cmd.valueId()) == false && attr.id().equals(cmd.stepId()) == false
+                    : "[INVARIANT]: value and step column [" + attr.name() + "] must be produced by the translated plan";
+                continue;
+            }
+            if (lookupAttr.semanticEquals(attr) == false) {
                 var alias = new Alias(lookupAttr.source(), attr.name(), lookupAttr, attr.id());
                 evals.add(alias);
                 projected.add(alias.toAttribute());

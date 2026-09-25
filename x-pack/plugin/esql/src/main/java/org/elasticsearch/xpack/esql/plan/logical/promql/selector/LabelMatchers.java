@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
@@ -96,6 +97,13 @@ public class LabelMatchers implements NodeStringRenderable {
                 continue;
             }
             Expression field = fields.get(hasNameMatcher ? i - 1 : i); // adjust index if name matcher was seen
+            if (field instanceof UnresolvedAttribute) {
+                // A label no index maps is absent on every series, and an absent label matches as the empty string
+                // (`{missing=""}`, `{missing=~".*"}` select everything; `{missing="x"}` nothing). Folding it here keeps
+                // the translated expressions resolved: an unresolved reference would only resolve by name later.
+                conditions.add(Literal.fromBoolean(source, matcher.matchesEmpty()));
+                continue;
+            }
             if (field.resolved() && DataType.isString(field.dataType()) == false) {
                 field = new ToString(field.source(), field, configuration);
             }

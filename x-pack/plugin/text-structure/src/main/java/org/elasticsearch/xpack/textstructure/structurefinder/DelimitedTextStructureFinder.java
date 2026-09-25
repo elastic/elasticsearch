@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -36,7 +37,6 @@ import static org.elasticsearch.core.Strings.format;
 public class DelimitedTextStructureFinder implements TextStructureFinder {
 
     static final int MAX_EXCLUDE_LINES_PATTERN_LENGTH = 1000;
-    static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
     private static final int LONG_FIELD_THRESHOLD = 100;
     private static final int LOW_CARDINALITY_MAX_SIZE = 5;
@@ -142,9 +142,9 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
             .setColumnNames(columnNamesList);
 
         String quote = String.valueOf(quoteChar);
-        String quotePattern = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+        String quotePattern = Pattern.quote(quote);
         String optQuotePattern = quotePattern + "?";
-        String delimiterPattern = (delimiter == '\t') ? "\\t" : String.valueOf(delimiter).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+        String delimiterPattern = (delimiter == '\t') ? "\\t" : Pattern.quote(String.valueOf(delimiter));
         if (isHeaderInText) {
             structureBuilder.setExcludeLinesPattern(makeExcludeLinesPattern(header, quote, optQuotePattern, delimiterPattern));
         }
@@ -916,10 +916,7 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
             }
         }
 
-        return values.stream()
-            .map(value -> value.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1"))
-            .sorted()
-            .collect(Collectors.joining("|", "(?:", ")"));
+        return values.stream().map(Pattern::quote).sorted().collect(Collectors.joining("|", "(?:", ")"));
     }
 
     /**
@@ -954,10 +951,9 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         String twoQuotes = quote + quote;
         StringBuilder excludeLinesPattern = new StringBuilder("^");
         boolean isFirst = true;
-        int maxLengthOfFields = MAX_EXCLUDE_LINES_PATTERN_LENGTH - delimiterPattern.length() - 2; // 2 is length of ".*"
+        int maxLengthOfFields = MAX_EXCLUDE_LINES_PATTERN_LENGTH - delimiterPattern.length() - ".*".length();
         for (String column : header) {
-            String columnPattern = optQuotePattern + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1")
-                + optQuotePattern;
+            String columnPattern = optQuotePattern + Pattern.quote(column.replace(quote, twoQuotes)) + optQuotePattern;
             if (isFirst) {
                 // Always append the pattern for the first column, even if it exceeds the limit
                 excludeLinesPattern.append(columnPattern);

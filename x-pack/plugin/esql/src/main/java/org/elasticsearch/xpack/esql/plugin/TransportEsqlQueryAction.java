@@ -161,7 +161,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             client,
             requestExecutor,
             crossProjectModeDecider,
-            Federation.isAvailable(clusterService.getSettings())
+            Federation.isAvailable(clusterService.getSettings()),
+            XPackPlugin.getSharedLicenseState()
         );
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;

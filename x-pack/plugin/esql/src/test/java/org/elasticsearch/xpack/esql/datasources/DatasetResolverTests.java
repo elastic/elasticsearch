@@ -20,6 +20,9 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -168,7 +171,17 @@ public class DatasetResolverTests extends ESTestCase {
     }
 
     private DatasetResolver resolver(CrossProjectModeDecider decider, AtomicInteger localCalls, boolean federationAvailable) {
-        return new DatasetResolver(localActionClient(localCalls), EsExecutors.DIRECT_EXECUTOR_SERVICE, decider, federationAvailable);
+        return new DatasetResolver(
+            localActionClient(localCalls),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            decider,
+            federationAvailable,
+            enterpriseLicenseState()
+        );
+    }
+
+    private static XPackLicenseState enterpriseLicenseState() {
+        return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
     }
 
     private static CrossProjectModeDecider crossProjectEnabled(boolean enabled) {

@@ -19,8 +19,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.util.List;
 
@@ -28,6 +30,7 @@ import java.util.List;
 public class TransportGetDatasetAction extends TransportLocalProjectMetadataAction<GetDatasetAction.Request, GetDatasetAction.Response> {
 
     private final DatasetResolutionService datasetResolutionService;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportGetDatasetAction(
@@ -35,7 +38,8 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        XPackLicenseState licenseState
     ) {
         super(
             GetDatasetAction.NAME,
@@ -46,6 +50,7 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
             projectResolver
         );
         this.datasetResolutionService = new DatasetResolutionService(indexNameExpressionResolver);
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -55,6 +60,7 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
         ProjectState project,
         ActionListener<GetDatasetAction.Response> listener
     ) {
+        EsqlLicenseChecker.checkFederation(licenseState);
         // An explicit name that doesn't exist, isn't visible, or exists only as a co-resident foreign resource
         // (e.g. a data stream) throws IndexNotFoundException. Translate it to a dataset-shaped not-found instead
         // of leaking a raw index_not_found_exception, mirroring TransportDeleteDatasetAction.

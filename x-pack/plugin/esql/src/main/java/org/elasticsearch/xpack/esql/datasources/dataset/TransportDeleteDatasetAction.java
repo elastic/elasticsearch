@@ -22,9 +22,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +35,7 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
     private final DatasetService datasetService;
     private final DatasetResolutionService datasetResolutionService;
     private final DestructiveOperations destructiveOperations;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportDeleteDatasetAction(
@@ -43,7 +46,8 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
         DatasetService datasetService,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DestructiveOperations destructiveOperations
+        DestructiveOperations destructiveOperations,
+        XPackLicenseState licenseState
     ) {
         super(
             DeleteDatasetAction.NAME,
@@ -58,6 +62,7 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
         this.datasetService = datasetService;
         this.datasetResolutionService = new DatasetResolutionService(indexNameExpressionResolver);
         this.destructiveOperations = destructiveOperations;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -73,6 +78,7 @@ public class TransportDeleteDatasetAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        EsqlLicenseChecker.checkFederation(licenseState);
         // Resolve to datasets only: `resolveDatasets` is additive, so a wildcard expands across the whole
         // namespace — without this filter index names reach the registry. Explicit names must still resolve to
         // datasets; missing, hidden, or co-resident foreign resources are reported as not-found.

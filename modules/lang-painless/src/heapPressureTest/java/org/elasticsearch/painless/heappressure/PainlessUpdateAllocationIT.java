@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.painless.resourceexhaustion;
+package org.elasticsearch.painless.heappressure;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -20,19 +20,20 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Stress-tests the Painless allocation limit in the {@code score} context against a
+ * Stress-tests the Painless allocation limit in the {@code update} context against a
  * heap-constrained node. The cluster runs with a 512 MB heap and a 200 MB per-execution
- * allocation limit. Scripts loop-allocate 2 MB chunks: 50 iterations (100 MB) succeed;
- * 150 iterations throw a {@code PainlessError} when the running total crosses 200 MB,
- * before the excess heap is ever touched.
+ * allocation limit. Scripts loop-allocate 2 MB chunks: 50 iterations (100 MB) succeed
+ * and write the total to the document; 150 iterations throw a {@code PainlessError} when
+ * the running total crosses 200 MB, before the excess heap is ever touched.
  *
  * <p>The allocation check fires before each {@code new} instruction, so the failure path
  * never exceeds the limit in actual heap usage — it stops at the chunk that would push
  * the running total over the threshold.
  */
-public class PainlessScoreAllocationIT extends ResourceExhaustionPainlessTestCase {
+public class PainlessUpdateAllocationIT extends HeapPressurePainlessTestCase {
 
-    private static final String INDEX = "painless-score-alloc";
+    private static final String INDEX = "painless-update-alloc";
+    private static final String DOC_ID = "1";
     // Each iteration allocates a 2 MB byte array.
     private static final int CHUNK_BYTES = 2 * 1024 * 1024;
     // 50 × 2 MB = 100 MB — safely under the 200 MB limit.
@@ -45,7 +46,7 @@ public class PainlessScoreAllocationIT extends ResourceExhaustionPainlessTestCas
         .nodes(1)
         .module("lang-painless")
         .setting("xpack.security.enabled", "false")
-        .setting("script.painless.max_allocation_bytes.context.score.limit", "200mb")
+        .setting("script.painless.max_allocation_bytes.context.update.limit", "200mb")
         .build();
 
     @Override
@@ -59,37 +60,28 @@ public class PainlessScoreAllocationIT extends ResourceExhaustionPainlessTestCas
         create.setJsonEntity("{\"settings\": {\"number_of_replicas\": 0}}");
         client().performRequest(create);
 
-        Request doc = new Request("POST", "/" + INDEX + "/_doc");
-        doc.setJsonEntity("{\"value\": 1}");
+        Request doc = new Request("PUT", "/" + INDEX + "/_doc/" + DOC_ID);
+        doc.setJsonEntity("{\"value\": 0}");
         client().performRequest(doc);
-
-        client().performRequest(new Request("POST", "/" + INDEX + "/_refresh"));
     }
 
-    public void testScoreScriptUnderLimitSucceeds() throws IOException {
-        assertThat(client().performRequest(scoreSearch(SUCCESS_ITERS)).getStatusLine().getStatusCode(), equalTo(200));
+    public void testUpdateScriptUnderLimitSucceeds() throws IOException {
+        assertThat(client().performRequest(updateScript(SUCCESS_ITERS)).getStatusLine().getStatusCode(), equalTo(200));
     }
 
-    public void testScoreScriptOverLimitFails() throws IOException {
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(scoreSearch(FAILURE_ITERS)));
+    public void testUpdateScriptOverLimitFails() throws IOException {
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(updateScript(FAILURE_ITERS)));
         assertAllocationLimitExceeded(e);
     }
 
-    private Request scoreSearch(int iters) {
-        // Build the script source via concatenation so integer literals are always ASCII,
-        // regardless of the randomized test locale.
+    private Request updateScript(int iters) {
         String script = "long total = 0; for (int i = 0; i < "
             + iters
             + "; i++) { byte[] chunk = new byte["
             + CHUNK_BYTES
-            + "]; total += chunk.length; } return (double) total;";
-        Request search = new Request("POST", "/" + INDEX + "/_search");
-        search.setJsonEntity(
-            "{\"query\":{\"function_score\":{\"query\":{\"match_all\":{}},"
-                + "\"script_score\":{\"script\":{\"source\":\""
-                + script
-                + "\"}}}}}"
-        );
-        return search;
+            + "]; total += chunk.length; } ctx._source.value = total;";
+        Request update = new Request("POST", "/" + INDEX + "/_update/" + DOC_ID);
+        update.setJsonEntity("{\"script\":{\"source\":\"" + script + "\"}}");
+        return update;
     }
 }

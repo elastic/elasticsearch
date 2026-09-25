@@ -5624,7 +5624,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // Force commit internal-files replicated content so BCC blobs are uploaded to the object store.
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .build();
-        // uses default SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING, not the one from nodeSettings().
         Settings searchNodeSettings = Settings.builder()
             .put(indexNodeSettings)
             // Force search internal-files replicated content so warmingInputs (endTargetsToWarm) is non-null during recovery,
@@ -5638,6 +5637,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // Foreground prefetch of the post-reshard BCC (written by delete-unowned's force-flush) so its blob ranges
             // are in cache before any search thread reads them, even if the BCC has not yet been uploaded to the object store.
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), true)
+            // nodeSettings() zeroes this out to keep other tests fast; re-enable it so the warming wait path is exercised.
+            .put(
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getKey(),
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getDefault(Settings.EMPTY)
+            )
             .build();
         startMasterAndIndexNode(indexNodeSettings);
         String searchNode = startSearchNode(searchNodeSettings);

@@ -51,9 +51,9 @@ import static org.hamcrest.Matchers.not;
  * <p>
  * Known limits, deliberate. The census reads the CONSTRUCTION SITES out of the source rather than the translator's
  * output: a test over the output only covers the shapes someone wrote a case for, and the emit site nobody thought
- * of is exactly the one that ships unpinned. It counts classes, not sites, so adding a second unpinned emit site for
- * an already-declared gated class passes here — {@code QueryDslTranslatorTests} covers both paths per function for
- * that. It sees only {@code new X(}, and the shapes it cannot see — a static factory, an {@code X::new} reference —
+ * of is exactly the one that ships unpinned — measured, an ungated type-specific branch passes every behavioural test
+ * in this package. Declaration is checked per class; containment in a {@code gated(...)} call is checked per site.
+ * It sees only {@code new X(}, and the shapes it cannot see — a static factory, an {@code X::new} reference —
  * are held shut by {@code testNoExpressionIsBuiltInAShapeTheCensusCannotSee}, and a fully-qualified construction is
  * matched on its package path rather than through the imports.
  * It reads every main source in this package, so an emit moved into a helper here stays visible.
@@ -206,12 +206,45 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         );
     }
 
-    /** The text of every {@code gated(...)} call in the source, each from the name to its matching close paren. */
-    private static List<String> gatedCalls(String source) {
-        List<String> calls = new ArrayList<>();
-        // "return gated(" matches the call sites and never the declaration, whatever gated()'s return type is
-        // written as. A lookbehind on the return type broke the moment it was annotated or made generic.
-        Matcher m = Pattern.compile("\\breturn\\s+gated\\s*\\(").matcher(source);
+    /**
+     * Every construction of a gated function must sit inside a {@code gated(...)} call. Per SITE, not per class: a
+     * second emit site added beside a correct one is the case that ships, and a class-level check cannot see it.
+     * Measured — an ungated type-specific branch added to {@code range} passes every other test in this suite.
+     */
+    public void testEveryGatedConstructionSitsInsideAGatedCall() throws IOException {
+        String source = packageSource();
+        List<int[]> spans = gatedCallSpans(source);
+
+        Matcher m = CONSTRUCTION.matcher(source);
+        while (m.find()) {
+            if (GATED.containsKey(m.group(1)) == false) {
+                continue;
+            }
+            int at = m.start();
+            boolean inside = spans.stream().anyMatch(span -> at > span[0] && at < span[1]);
+            assertTrue(
+                "a "
+                    + m.group(1)
+                    + " is built outside gated(), so nothing checks its pin. Route every emit site through gated() "
+                    + "with that class's own constant.",
+                inside
+            );
+        }
+    }
+
+    /**
+     * Whether a {@code gated(...)} match is the method's own declaration. A parameter list names types; a call site
+     * passes values. Keying on that survives a change to the return type or an added annotation, which a lookbehind
+     * on {@code Expression } did not — and matching only {@code return gated(} missed an assigned call.
+     */
+    private static boolean isDeclaration(String insideParens) {
+        return insideParens.contains("TransportVersion ") || insideParens.contains("Supplier<");
+    }
+
+    /** The {@code [start, end)} offsets of every {@code gated(...)} call, so a construction can be located inside one. */
+    private static List<int[]> gatedCallSpans(String source) {
+        List<int[]> spans = new ArrayList<>();
+        Matcher m = Pattern.compile("\\bgated\\s*\\(").matcher(source);
         while (m.find()) {
             int depth = 1;
             int i = m.end();
@@ -223,7 +256,32 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
                     depth--;
                 }
             }
-            calls.add(source.substring(m.end(), i));
+            if (isDeclaration(source.substring(m.end(), i)) == false) {
+                spans.add(new int[] { m.end(), i });
+            }
+        }
+        return spans;
+    }
+
+    /** The text of every {@code gated(...)} call in the source, each from the name to its matching close paren. */
+    private static List<String> gatedCalls(String source) {
+        List<String> calls = new ArrayList<>();
+        Matcher m = Pattern.compile("\\bgated\\s*\\(").matcher(source);
+        while (m.find()) {
+            int depth = 1;
+            int i = m.end();
+            while (depth > 0 && i < source.length()) {
+                char c = source.charAt(i++);
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth--;
+                }
+            }
+            String body = source.substring(m.end(), i);
+            if (isDeclaration(body) == false) {
+                calls.add(body);
+            }
         }
         return calls;
     }
@@ -364,8 +422,17 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             } else if (c == '"' && source.startsWith("\"\"\"", i)) {
                 // A text block first: pairing its delimiters as ordinary quotes desynchronises everything after it,
                 // and the census then silently misses real constructions rather than merely counting a fake one.
-                int close = source.indexOf("\"\"\"", i + 3);
-                i = close < 0 ? source.length() : close + 3;
+                int close = i + 3;
+                while (close < source.length()) {
+                    if (source.charAt(close) == '\\') {
+                        close += 2;
+                    } else if (source.startsWith("\"\"\"", close)) {
+                        break;
+                    } else {
+                        close++;
+                    }
+                }
+                i = close >= source.length() ? source.length() : close + 3;
                 out.append("\"\"");
             } else if (c == '\'') {
                 // A char literal can hold a double quote. Left to the string branch, that one quote opens a run that

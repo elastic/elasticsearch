@@ -707,9 +707,10 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * No gated function may reach the output below its pin, for any filter shape over any field type. A correctly
-     * gated translator cannot produce one there, so this catches an emit site that skipped {@code gated()} without the
-     * translator carrying any bookkeeping for the test's benefit.
+     * No gated function reaches the output below its pin, for the shapes below. Behavioural cover over the four emit
+     * sites that exist; it is NOT the guard against a new one — its bound values never reach the ip, version or
+     * unsigned_long branches, and an ungated type-specific branch passes it.
+     * {@code TranslatorEmittedFunctionPinsTests.testEveryGatedConstructionSitsInsideAGatedCall} is that guard.
      */
     public void testNoGatedFunctionSurvivesBelowThePin() {
         for (String field : ALL_BOUND_FIELDS) {

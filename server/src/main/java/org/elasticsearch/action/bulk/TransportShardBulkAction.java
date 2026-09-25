@@ -734,21 +734,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // The realized action is an IndexRequest for a normal update or upsert, or a DocValuesUpdateRequest for an in-place
                 // doc-values update.
                 final IndexResponse indexResponse = operationResponse.getResponse();
-                // For an in-place doc-values update the document keeps its seq_no and primary term: the operation gets a fresh seq_no for
-                // replication (which the IndexResponse carries), but the document is unchanged. Report the document's values to the user so
-                // a follow-up if_seq_no matches, mirroring the version, which is likewise unchanged.
-                long seqNo = indexResponse.getSeqNo();
-                long primaryTerm = indexResponse.getPrimaryTerm();
-                if (translate.action() instanceof DocValuesUpdateRequest docValuesUpdate) {
-                    seqNo = docValuesUpdate.ifSeqNo();
-                    primaryTerm = docValuesUpdate.ifPrimaryTerm();
-                }
+                // For an in-place doc-values update the IndexResponse already carries the operation's seq_no, primary term and bumped
+                // version, which are the document's new identity after the update on a sequence-number-aware index (on a
+                // sequence-number-disabled index the update is last-writer-wins and these stay unassigned/unchanged). Report them
+                // directly so a follow-up if_seq_no matches the current document.
                 updateResponse = new UpdateResponse(
                     indexResponse.getShardInfo(),
                     indexResponse.getShardId(),
                     indexResponse.getId(),
-                    seqNo,
-                    primaryTerm,
+                    indexResponse.getSeqNo(),
+                    indexResponse.getPrimaryTerm(),
                     indexResponse.getVersion(),
                     indexResponse.getResult()
                 );
@@ -780,8 +775,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             updateRequest,
                             concreteIndex,
                             mappingLookup,
-                            seqNo,
-                            primaryTerm,
+                            indexResponse.getSeqNo(),
+                            indexResponse.getPrimaryTerm(),
                             indexResponse.getVersion(),
                             sourceAsMap,
                             sourceContentType,

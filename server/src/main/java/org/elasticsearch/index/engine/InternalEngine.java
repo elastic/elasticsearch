@@ -2372,6 +2372,11 @@ public class InternalEngine extends Engine {
         // safely from here on, exactly as for deletes and regular updates.
         versionMap.enforceSafeAccess();
         assert assertIncomingSequenceNumber(docValuesUpdate.origin(), docValuesUpdate.seqNo());
+        // On a sequence-number-aware index an in-place update advances the document's sequence number and primary term so optimistic
+        // concurrency and realtime get stay correct; on a sequence-number-disabled index it stays last-writer-wins and leaves the
+        // identity untouched (see IndexShard#applyDocValuesUpdateOnPrimary). The version is left unchanged in both cases: it is the
+        // observable signal that a change took the in-place path rather than a reindex.
+        final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
         DocValuesUpdate op = docValuesUpdate;
         DocValuesUpdateResult result;
         try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(op.uid())) {
@@ -2400,6 +2405,12 @@ public class InternalEngine extends Engine {
                 );
                 result.setTranslogLocation(location);
             }
+            if (seqNoAware && result.getResultType() == Result.Type.SUCCESS) {
+                // Publish the document's new identity to the version map so optimistic-concurrency reads and realtime get see the update
+                // before the next refresh. A null operation location routes realtime get through a refresh and the searcher (the new value
+                // lives in doc-values columns, applied via updateDocValues, not in a translog index operation to replay).
+                versionMap.maybePutIndexUnderLock(op.uid(), new IndexVersionValue(null, op.version(), op.seqNo(), op.primaryTerm()));
+            }
             localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
             if (result.getTranslogLocation() == null) {
                 assert op.origin().isFromTranslog() || result.getSeqNo() == UNASSIGNED_SEQ_NO;
@@ -2424,13 +2435,22 @@ public class InternalEngine extends Engine {
             final Term uidTerm = new Term(IdFieldMapper.NAME, op.uid());
             // 1. apply the in-place update to the live document's doc-values columns. Applied before the history document is added so
             // that it only touches the pre-existing document, not the (identically identified) history document.
-            final Field[] fields = new Field[op.updates().size()];
+            final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
+            // On a sequence-number-aware index also advance the document's identity in place: _seq_no cannot be rewritten (it is a point
+            // or doc-values-skipper field), so record this update's sequence number and primary term in the plain-numeric companion
+            // columns. Readers combine these with _seq_no as the effective identity for optimistic concurrency.
+            final int identityFields = seqNoAware ? 2 : 0;
+            final Field[] fields = new Field[op.updates().size() + identityFields];
             int i = 0;
             for (Translog.DocValuesUpdate.FieldUpdate update : op.updates()) {
                 fields[i++] = switch (update) {
                     case Translog.DocValuesUpdate.NumericFieldUpdate n -> new NumericDocValuesField(n.field(), n.value());
                     case Translog.DocValuesUpdate.BinaryFieldUpdate b -> new BinaryDocValuesField(b.field(), b.value());
                 };
+            }
+            if (seqNoAware) {
+                fields[i++] = new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_SEQ_NO_NAME, op.seqNo());
+                fields[i++] = new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_PRIMARY_TERM_NAME, op.primaryTerm());
             }
             indexWriter.updateDocValues(uidTerm, fields);
 

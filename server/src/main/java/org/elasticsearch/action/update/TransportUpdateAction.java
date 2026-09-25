@@ -21,7 +21,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.bulk.DocValuesUpdateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -335,15 +334,12 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                         client.bulk(
                             toSingleItemBulkRequest(updatedRequest),
                             unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
-                                // An in-place doc-values update leaves the document's seq_no and primary term unchanged; the response
-                                // carries the operation's seq_no (used for replication), so report the document's values from the realized
-                                // request instead, mirroring the version, which is likewise unchanged.
+                                // For an in-place doc-values update the response already carries the operation's seq_no, primary term and
+                                // bumped version, which are the document's new identity after the update on a sequence-number-aware index
+                                // (last-writer-wins, unassigned/unchanged, otherwise). Report them directly so a follow-up if_seq_no
+                                // matches.
                                 long seqNo = response.getSeqNo();
                                 long primaryTerm = response.getPrimaryTerm();
-                                if (updatedRequest instanceof DocValuesUpdateRequest docValuesUpdate) {
-                                    seqNo = docValuesUpdate.ifSeqNo();
-                                    primaryTerm = docValuesUpdate.ifPrimaryTerm();
-                                }
                                 UpdateResponse update = new UpdateResponse(
                                     response.getShardInfo(),
                                     response.getShardId(),

@@ -40,6 +40,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DocValuesUpdateIT extends ESIntegTestCase {
@@ -96,8 +97,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         BulkResponse bulkResponse = client().bulk(bulk).actionGet();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
         assertThat(bulkResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
-        // The response reports the document's unchanged seq_no, not the update operation's internal one.
-        assertThat(bulkResponse.getItems()[0].getResponse().getSeqNo(), equalTo(indexResponse.getSeqNo()));
+        // The response reports the update's advanced seq_no (the document's new identity), not the original.
+        assertThat(bulkResponse.getItems()[0].getResponse().getSeqNo(), greaterThan(indexResponse.getSeqNo()));
 
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
         assertTrue(get.isExists());
@@ -248,11 +249,10 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
     }
 
     /**
-     * An in-place doc-values update is not visible to a realtime get until a refresh — it becomes visible at the same time as it does to
-     * search, because the update leaves the document's translog index operation (which realtime get reads) untouched. This test pins that
-     * behaviour so a change to it is deliberate.
+     * A realtime get reflects an in-place doc-values update even before a refresh (read-your-writes). Publishing the update to the version
+     * map makes the realtime get refresh and read the updated doc-values columns, rather than returning the stale pre-update document.
      */
-    public void testRealtimeGetIsStaleUntilRefresh() throws Exception {
+    public void testRealtimeGetReflectsInPlaceUpdate() throws Exception {
         createColumnarIndex(0);
         prepareIndex("idx").setId("1").setSource("status", "new", "count", 1, "name", "widget").get();
         refresh("idx");
@@ -261,12 +261,12 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         bulk.add(new UpdateRequest("idx", "1").doc(Map.of("status", "active", "count", 42)));
         assertFalse(client().bulk(bulk).actionGet().hasFailures());
 
-        // Before a refresh the realtime get still returns the pre-update value.
+        // The realtime get reflects the in-place update before any refresh.
         GetResponse realtime = client().prepareGet("idx", "1").setRealtime(true).get();
-        assertThat(realtime.getSourceAsMap().get("status"), equalTo("new"));
-        assertThat(((Number) realtime.getSourceAsMap().get("count")).longValue(), equalTo(1L));
+        assertThat(realtime.getSourceAsMap().get("status"), equalTo("active"));
+        assertThat(((Number) realtime.getSourceAsMap().get("count")).longValue(), equalTo(42L));
 
-        // After a refresh the update is visible.
+        // And it stays visible after a refresh.
         refresh("idx");
         GetResponse afterRefresh = client().prepareGet("idx", "1").setRealtime(false).get();
         assertThat(afterRefresh.getSourceAsMap().get("status"), equalTo("active"));
@@ -290,9 +290,10 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(update.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
-        // Still an in-place update: the document version does not change, a reindex would have bumped it to 2.
+        // Still an in-place update: the document version does not change, a reindex would have bumped it to 2. The seq_no does advance,
+        // recorded in the companion columns.
         assertThat(update.getVersion(), equalTo(1L));
-        assertThat(update.getSeqNo(), equalTo(indexed.getSeqNo()));
+        assertThat(update.getSeqNo(), greaterThan(indexed.getSeqNo()));
 
         // The response echoes the merged source, rebuilt from the update map.
         assertThat(update.getGetResult(), notNullValue());
@@ -468,24 +469,36 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         assertThat("a conditional update falls back to reindex, bumping the version", get.getVersion(), equalTo(2L));
     }
 
-    public void testInPlaceUpdateReturnsDocumentSeqNo() throws Exception {
+    public void testInPlaceUpdateAdvancesSeqNo() throws Exception {
         createColumnarIndex(0);
         DocWriteResponse indexed = prepareIndex("idx").setId("1")
             .setSource("status", "new", "count", 1, "name", "widget")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        // An in-place doc-values update does not change the document's seq_no, primary term or version. The response reports the
-        // document's values (not the update operation's own seq_no, which is internal to replication), so a follow-up if_seq_no matches.
+        // An in-place doc-values update advances the document's seq_no and primary term (recorded in the companion columns, since _seq_no
+        // itself cannot be rewritten in place), so the response reports the update's identity rather than the document's previous seq_no.
+        // The version is left unchanged: it is the signal that the change took the in-place path rather than a reindex.
         UpdateResponse updated = client().update(
             new UpdateRequest("idx", "1").doc(Map.of("status", "active")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
         assertThat(updated.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
-        assertThat("in-place update reports the document's unchanged seq_no", updated.getSeqNo(), equalTo(indexed.getSeqNo()));
+        assertThat("in-place update advances the reported seq_no", updated.getSeqNo(), greaterThan(indexed.getSeqNo()));
         assertThat(updated.getPrimaryTerm(), equalTo(indexed.getPrimaryTerm()));
-        assertThat(updated.getVersion(), equalTo(1L));
+        assertThat("in-place update leaves the version unchanged", updated.getVersion(), equalTo(1L));
 
-        // The reported seq_no actually addresses the document: a CAS on it is accepted rather than conflicting.
+        // The reported seq_no is the document's current identity: a CAS on the now-stale original seq_no conflicts.
+        Exception stale = expectThrows(
+            Exception.class,
+            () -> client().update(
+                new UpdateRequest("idx", "1").doc(Map.of("count", 5))
+                    .setIfSeqNo(indexed.getSeqNo())
+                    .setIfPrimaryTerm(indexed.getPrimaryTerm())
+            ).actionGet()
+        );
+        assertThat(stale.getMessage(), containsString("version conflict"));
+
+        // ... while a CAS on the reported seq_no is accepted.
         client().update(
             new UpdateRequest("idx", "1").doc(Map.of("count", 7))
                 .setIfSeqNo(updated.getSeqNo())
@@ -494,6 +507,67 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         ).actionGet();
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
         assertThat(((Number) get.getSourceAsMap().get("count")).longValue(), equalTo(7L));
+    }
+
+    /**
+     * A regular update that read the document before an in-place update must not silently overwrite it. The in-place update advances the
+     * document's effective seq_no (published to the version map before any refresh), so a reindex carrying the pre-update seq_no conflicts
+     * rather than clobbering the in-place change. Exercises the pre-refresh optimistic-concurrency path: there is no refresh between the
+     * two updates.
+     */
+    public void testInPlaceUpdateMakesStaleReindexConflictBeforeRefresh() throws Exception {
+        createColumnarIndex(0);
+        DocWriteResponse indexed = prepareIndex("idx").setId("1")
+            .setSource("status", "new", "count", 1, "name", "widget")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // In-place update, deliberately without a refresh.
+        UpdateResponse inPlace = client().update(new UpdateRequest("idx", "1").doc(Map.of("status", "active"))).actionGet();
+        assertThat(inPlace.getSeqNo(), greaterThan(indexed.getSeqNo()));
+
+        // A reindex (if_seq_no forces the read-modify-reindex path, here also touching the non-updatable field) carrying the pre-update
+        // seq_no must conflict even though no refresh has happened.
+        Exception conflict = expectThrows(
+            Exception.class,
+            () -> client().update(
+                new UpdateRequest("idx", "1").doc(Map.of("name", "gadget"))
+                    .setIfSeqNo(indexed.getSeqNo())
+                    .setIfPrimaryTerm(indexed.getPrimaryTerm())
+            ).actionGet()
+        );
+        assertThat(conflict.getMessage(), containsString("version conflict"));
+
+        // The in-place value survived.
+        refresh("idx");
+        GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
+        assertThat(get.getSourceAsMap().get("status"), equalTo("active"));
+        assertThat(get.getSourceAsMap().get("name"), equalTo("widget"));
+    }
+
+    /**
+     * In-place updates to different fields of the same document all apply, and the document's reported seq_no advances monotonically to the
+     * most recent update. A get returns the merged values and that current seq_no.
+     */
+    public void testInPlaceUpdatesToDifferentFieldsAllApply() throws Exception {
+        createColumnarIndex(0);
+        prepareIndex("idx").setId("1")
+            .setSource("status", "new", "count", 1, "name", "widget")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        UpdateResponse first = client().update(
+            new UpdateRequest("idx", "1").doc(Map.of("status", "active")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        UpdateResponse second = client().update(
+            new UpdateRequest("idx", "1").doc(Map.of("count", 99)).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertThat("each in-place update advances the seq_no", second.getSeqNo(), greaterThan(first.getSeqNo()));
+
+        GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
+        assertThat(get.getSourceAsMap().get("status"), equalTo("active"));
+        assertThat(((Number) get.getSourceAsMap().get("count")).longValue(), equalTo(99L));
+        assertThat("get reports the latest in-place update's seq_no", get.getSeqNo(), equalTo(second.getSeqNo()));
     }
 
     public void testUpdateFieldAbsentInSomeDocuments() throws Exception {

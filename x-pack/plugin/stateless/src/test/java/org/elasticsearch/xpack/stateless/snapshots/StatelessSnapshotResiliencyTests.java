@@ -411,6 +411,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING);
+            res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING);
@@ -810,7 +811,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         public Collection<?> createComponents(PluginServices services) {
             this.projectResolver = services.projectResolver();
             this.threadPool = services.threadPool();
-            this.bccHeaderReadExecutor = new BCCHeaderReadExecutor(threadPool);
+            this.bccHeaderReadExecutor = new BCCHeaderReadExecutor(settings, threadPool, MeterRegistry.NOOP);
             this.client = services.client();
             this.clusterService = services.clusterService();
 
@@ -825,7 +826,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 services.nodeEnvironment(),
                 settings,
                 threadPool,
-                new BlobCacheMetrics(MeterRegistry.NOOP),
+                BlobCacheMetrics.NOOP,
                 clusterService,
                 services.indicesService(),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

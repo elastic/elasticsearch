@@ -35,6 +35,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
@@ -53,8 +56,10 @@ import java.util.function.LongFunction;
  *       hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
  * The identity-keyed caches (schema, dataset-aggregate) are bounded by weight + LRU, never by a clock — a
- * timer would only discard still-valid, expensively harvested entries. The discovery caches (file-metadata,
- * listing) keep a short TTL because they hold current-mtime freshness with no identity key to key on.
+ * timer would only discard still-valid, expensively harvested entries. Both also refuse a single entry
+ * heavier than a quarter of that cache's own budget so one oversized harvest cannot flush the working set.
+ * The discovery caches (file-metadata, listing) keep a short TTL because they hold current-mtime freshness
+ * with no identity key to key on.
  */
 public class ExternalSourceCacheService implements Closeable {
 
@@ -71,6 +76,15 @@ public class ExternalSourceCacheService implements Closeable {
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
     private final long maxTotalBytes;
+    /** Byte budget for {@link #schemaCache} (one fifth of {@link #maxTotalBytes}). */
+    private final long schemaBudget;
+    /**
+     * Per-entry admission ceiling for {@link #schemaCache}: {@link #perEntryCeiling(long)} of
+     * {@link #schemaBudget}. Entries heavier than this are returned to callers but not retained.
+     */
+    private final long schemaMaxEntryBytes;
+    /** Per-entry admission ceiling for {@link #datasetAggregateCache}: {@link #perEntryCeiling(long)}. */
+    private final long datasetAggregateMaxEntryBytes;
     private volatile boolean enabled;
 
     /**
@@ -81,6 +95,12 @@ public class ExternalSourceCacheService implements Closeable {
      * it once no thread holds it.
      */
     private final KeyedLock<String> stripeCommitLocks = new KeyedLock<>();
+
+    /**
+     * In-flight schema loads keyed like {@link #schemaCache}, so concurrent misses for the same identity
+     * coalesce into one loader call (ParsedFooterCache pattern) while still weighing before admission.
+     */
+    private final ConcurrentHashMap<SchemaCacheKey, CompletableFuture<SchemaCacheEntry>> schemaInFlightLoads = new ConcurrentHashMap<>();
 
     /**
      * A resolve-registered promise that a dataset-level aggregate should be materialized once the
@@ -142,6 +162,29 @@ public class ExternalSourceCacheService implements Closeable {
     private final LongAdder datasetAggregateMisses = new LongAdder();
     private final LongAdder statsAggregateIncomplete = new LongAdder();
 
+    /**
+     * Soft floor for {@link #perEntryCeiling(long)}: when a cache slice is deliberately tiny (warm-fold
+     * regression suites use {@code esql.external.cache.size: 48kb}), a raw quarter of that slice is smaller
+     * than an ordinary schema or dataset-aggregate entry once payloads are weighed, so refuse-before-put
+     * would reject every warm-path write and break {@code COUNT(*)} short-circuit. Cap the floor at the
+     * slice itself; production budgets keep the quarter unchanged.
+     */
+    static final long PER_ENTRY_CEILING_FLOOR_BYTES = 16L * 1024;
+
+    /**
+     * Per-entry admission ceiling for a weight-bounded identity cache: prefer a quarter of {@code sliceBudget}
+     * so several entries share the working set, but never refuse ordinary metadata rows under a tiny slice
+     * (see {@link #PER_ENTRY_CEILING_FLOOR_BYTES}). Never exceeds the slice.
+     */
+    static long perEntryCeiling(long sliceBudget) {
+        if (sliceBudget <= 0L) {
+            return 1L;
+        }
+        long quarter = Math.max(1L, sliceBudget / 4);
+        long floored = Math.max(quarter, Math.min(PER_ENTRY_CEILING_FLOOR_BYTES, sliceBudget));
+        return Math.min(sliceBudget, floored);
+    }
+
     public ExternalSourceCacheService(Settings settings) {
         ByteSizeValue totalBudget = ExternalSourceCacheSettings.CACHE_SIZE.get(settings);
         this.maxTotalBytes = totalBudget.getBytes();
@@ -152,9 +195,13 @@ public class ExternalSourceCacheService implements Closeable {
         // Per-file schema stays at its established 20%; the dataset-aggregate cache gets a small dedicated
         // slice carved from listing (each dataset entry is a single row count — kilobytes suffice — so its
         // exact size barely matters; what matters is that it is ITS OWN slice, immune to per-file churn).
-        long schemaBudget = maxTotalBytes / 5;               // 20%
+        this.schemaBudget = maxTotalBytes / 5;               // 20%
         long datasetAggregateBudget = maxTotalBytes / 50;    // 2%
         long listingBudget = maxTotalBytes - schemaBudget - datasetAggregateBudget; // ~78%
+        // Refuse a single entry heavier than the per-entry ceiling so one oversized harvest cannot
+        // admit-then-flush the working set (FooterByteCache fraction, floored for tiny budgets).
+        this.schemaMaxEntryBytes = perEntryCeiling(schemaBudget);
+        this.datasetAggregateMaxEntryBytes = perEntryCeiling(datasetAggregateBudget);
 
         // No setExpireAfterWrite on schemaCache or datasetAggregateCache: both are identity-keyed (per-file by
         // mtime, dataset by file-set fingerprint), so a changed input already misses. A timer would only
@@ -187,11 +234,13 @@ public class ExternalSourceCacheService implements Closeable {
             .build();
 
         logger.info(
-            "External source cache initialized: total=[{}], schema=[{}], datasetAggregate=[{}], listing=[{}], "
-                + "fileMetadataMaxEntries=[{}], listingTTL=[{}]",
+            "External source cache initialized: total=[{}], schema=[{}], schemaMaxEntry=[{}], datasetAggregate=[{}], "
+                + "datasetAggregateMaxEntry=[{}], listing=[{}], fileMetadataMaxEntries=[{}], listingTTL=[{}]",
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),
+            ByteSizeValue.ofBytes(schemaMaxEntryBytes),
             ByteSizeValue.ofBytes(datasetAggregateBudget),
+            ByteSizeValue.ofBytes(datasetAggregateMaxEntryBytes),
             ByteSizeValue.ofBytes(listingBudget),
             FILE_METADATA_CACHE_MAX_ENTRIES,
             listingTtl
@@ -201,12 +250,69 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * Returns a cached schema entry or computes it via the loader. The loader is only invoked
      * on a cache miss. When the cache is disabled, the loader is called directly (bypassing the cache).
+     * <p>
+     * Loads are weighed before admission: an entry heavier than {@link #schemaMaxEntryBytes} is returned
+     * to the caller (and any concurrent waiters) but not inserted, so it cannot flush the schema working
+     * set. Concurrent misses for the same key coalesce into a single loader call via
+     * {@link #schemaInFlightLoads} — the same shape as {@link ParsedFooterCache#getOrLoad}.
      */
     public SchemaCacheEntry getOrComputeSchema(SchemaCacheKey key, CacheLoader<SchemaCacheKey, SchemaCacheEntry> loader) throws Exception {
         if (enabled == false) {
             return loader.load(key);
         }
-        return schemaCache.computeIfAbsent(key, loader);
+        SchemaCacheEntry cached = schemaCache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+
+        CompletableFuture<SchemaCacheEntry> newLoad = new CompletableFuture<>();
+        CompletableFuture<SchemaCacheEntry> inFlight = schemaInFlightLoads.putIfAbsent(key, newLoad);
+        if (inFlight != null) {
+            return awaitSchemaLoad(inFlight);
+        }
+        try {
+            // Do not call schemaCache.get again here: a second miss would inflate
+            // schema_cache.misses (Cache#get counts every absent lookup). A putSchema race in this
+            // window is rare and at worst duplicates a load; putSchemaIfWithinCeiling still admits
+            // or refuses the value we produce.
+            SchemaCacheEntry loaded = loader.load(key);
+            if (loaded == null) {
+                throw new NullPointerException("schema loader returned null");
+            }
+            putSchemaIfWithinCeiling(key, loaded);
+            newLoad.complete(loaded);
+            return loaded;
+        } catch (Exception e) {
+            newLoad.completeExceptionally(e);
+            throw e;
+        } catch (Error e) {
+            newLoad.completeExceptionally(e);
+            throw e;
+        } finally {
+            schemaInFlightLoads.remove(key, newLoad);
+        }
+    }
+
+    private static SchemaCacheEntry awaitSchemaLoad(CompletableFuture<SchemaCacheEntry> inFlight) throws Exception {
+        try {
+            return inFlight.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw ie;
+            }
+            if (cause instanceof Exception ex) {
+                throw ex;
+            }
+            if (cause instanceof Error err) {
+                throw err;
+            }
+            throw e;
+        }
     }
 
     /**
@@ -228,8 +334,8 @@ public class ExternalSourceCacheService implements Closeable {
      * Returns a cached schema entry, or {@code null} on a miss (or when the cache is disabled).
      * Unlike {@link #getOrComputeSchema}, this never invokes a loader — it is the peek half of the
      * async resolve path, which fetches on a miss without holding an executor thread and then stores
-     * the result via {@link #putSchema}. This trades strict thundering-herd coalescing (two
-     * concurrent misses for the same key may both fetch) for the ability to resolve asynchronously.
+     * the result via {@link #putSchema}. That peek/put path does not coalesce: two concurrent misses for
+     * the same key may both fetch. Prefer {@link #getOrComputeSchema} when coalescing matters.
      */
     public SchemaCacheEntry getSchemaIfPresent(SchemaCacheKey key) {
         if (enabled == false) {
@@ -238,9 +344,30 @@ public class ExternalSourceCacheService implements Closeable {
         return schemaCache.get(key);
     }
 
-    /** Stores a schema entry. No-op when the cache is disabled. Pairs with {@link #getSchemaIfPresent}. */
+    /**
+     * Stores a schema entry. No-op when the cache is disabled. Pairs with {@link #getSchemaIfPresent}.
+     * Entries heavier than {@link #schemaMaxEntryBytes} are not retained; any existing mapping for
+     * {@code key} is invalidated so warm stats cannot go stale after an oversized enrichment.
+     */
     public void putSchema(SchemaCacheKey key, SchemaCacheEntry entry) {
         if (enabled == false) {
+            return;
+        }
+        putSchemaIfWithinCeiling(key, entry);
+    }
+
+    /**
+     * Inserts into {@link #schemaCache} only when {@code entry} fits under {@link #schemaMaxEntryBytes}.
+     * Every schema write site must go through this (or an equivalent check) — admit-then-invalidate would
+     * briefly charge the full weight and flush the LRU tail before discarding the oversized entry.
+     * <p>
+     * When the new entry is over the ceiling, any existing mapping for {@code key} is invalidated. Leaving
+     * the previous smaller entry would serve stale warm MIN/MAX after an enrichment that grew past the
+     * ceiling; correct-or-miss (re-scan) is required instead.
+     */
+    private void putSchemaIfWithinCeiling(SchemaCacheKey key, SchemaCacheEntry entry) {
+        if (entry.estimatedBytes() > schemaMaxEntryBytes) {
+            schemaCache.invalidate(key);
             return;
         }
         schemaCache.put(key, entry);
@@ -291,6 +418,10 @@ public class ExternalSourceCacheService implements Closeable {
             System.currentTimeMillis(),
             List.of()
         );
+        if (entry.estimatedBytes() > datasetAggregateMaxEntryBytes) {
+            datasetAggregateCache.invalidate(key);
+            return;
+        }
         datasetAggregateCache.put(key, entry);
     }
 
@@ -690,7 +821,8 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * Snapshots, per contribution path, every schema-cache entry whose canonical path matches — taken
      * BEFORE a reconcile's first commit write. Under weight pressure (a many-file glob whose entries do not
-     * all fit the schema budget), the first {@code schemaCache.put()} prunes the LRU tail, so file #1's
+     * all fit the schema budget), the first admitted {@code putSchemaIfWithinCeiling} prunes the LRU tail,
+     * so file #1's
      * commit can evict files #2..N's entries before their deltas apply — the deltas then match nothing, the
      * all-or-nothing multi-file fold goes incomplete, and the warm aggregate re-scans the whole source.
      * <p>
@@ -1154,7 +1286,7 @@ public class ExternalSourceCacheService implements Closeable {
                     completedFold = wholeFile;
                 }
             }
-            schemaCache.put(key, existing.withSafeMetadata(enriched));
+            putSchemaIfWithinCeiling(key, existing.withSafeMetadata(enriched));
         }
         return completedFold;
     }
@@ -1499,7 +1631,7 @@ public class ExternalSourceCacheService implements Closeable {
                     // Long.MAX for a LONG-resolved column) is DROPPED rather than stored — otherwise the
                     // serve would coerce it to the resolved type and produce a wrong value.
                     enriched.putAll(coerceColumnStatsToResolvedTypes(applicable, existing.columnNames(), existing.columnTypes(), true));
-                    schemaCache.put(key, existing.withSafeMetadata(enriched));
+                    putSchemaIfWithinCeiling(key, existing.withSafeMetadata(enriched));
                 }
             }
         }
@@ -1534,6 +1666,9 @@ public class ExternalSourceCacheService implements Closeable {
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("enabled", enabled);
         stats.put("max_total_bytes", maxTotalBytes);
+        stats.put("schema_budget_bytes", schemaBudget);
+        stats.put("schema_max_entry_bytes", schemaMaxEntryBytes);
+        stats.put("dataset_aggregate_max_entry_bytes", datasetAggregateMaxEntryBytes);
 
         stats.put("schema_cache.count", schemaCache.count());
         stats.put("schema_cache.hits", schemaCache.stats().getHits());

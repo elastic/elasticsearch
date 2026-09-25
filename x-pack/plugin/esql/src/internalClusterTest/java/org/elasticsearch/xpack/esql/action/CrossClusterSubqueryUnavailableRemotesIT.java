@@ -210,7 +210,6 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
      * the (current) whole-query <no-fields> behavior when the branch references only the unavailable remote.
      */
     public void testNestedSubqueryWithDisconnectedRemoteClusterWithSkipUnavailableTrue() throws IOException {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         setSkipUnavailable(REMOTE_CLUSTER_2, true);
         try {
@@ -268,7 +267,6 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
      * exactly as it does when referenced from a top-level subquery: the extra union level must not swallow the error.
      */
     public void testNestedSubqueryWithDisconnectedRemoteClusterWithSkipUnavailableFalse() throws IOException {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {

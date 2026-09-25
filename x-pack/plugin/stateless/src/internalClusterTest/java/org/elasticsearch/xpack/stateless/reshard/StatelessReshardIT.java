@@ -5246,7 +5246,9 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
-            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5));
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5))
+            // Disable reshard-target warming wait by default; testReshardTargetSearchShardTriggersWarming starts its own nodes.
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getKey(), TimeValue.ZERO);
     }
 
     @Override
@@ -5622,6 +5624,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // Force commit internal-files replicated content so BCC blobs are uploaded to the object store.
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .build();
+        // uses default SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING, not the one from nodeSettings().
         Settings searchNodeSettings = Settings.builder()
             .put(indexNodeSettings)
             // Force search internal-files replicated content so warmingInputs (endTargetsToWarm) is non-null during recovery,

@@ -345,7 +345,7 @@ public final class DeclaredTypeCoercions {
                     try {
                         coerced = coercer.apply(read.apply(first));
                     } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
-                        onCoercionFailure(columnName, from, to, e, warnings, skipRow);
+                        onCoercionFailure(columnName, from, to, e, warnings);
                         if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                         continue;
@@ -363,7 +363,7 @@ public final class DeclaredTypeCoercions {
                         try {
                             scratch[v] = coercer.apply(read.apply(first + v));
                         } catch (IllegalArgumentException | DateTimeException | InvalidArgumentException e) {
-                            onCoercionFailure(columnName, from, to, e, warnings, skipRow);
+                            onCoercionFailure(columnName, from, to, e, warnings);
                             failed = true;
                         }
                     }
@@ -389,9 +389,8 @@ public final class DeclaredTypeCoercions {
      * {@code null} {@code warnings} sink (strict, {@code error_mode: fail_fast}) the failure
      * propagates and the read fails; with a live sink the caller nulls the cell/position and one
      * capped response {@code Warning} header records the reason. Callers append the null
-     * themselves — this method only decides throw-vs-warn. The {@code skipRow} flag controls the
-     * warning suffix: {@code false} (null_field) appends {@code "; returning null"};
-     * {@code true} (skip_row) appends {@code "; row will be dropped"}.
+     * themselves — this method only decides throw-vs-warn. The detail carries no outcome: every
+     * caller's collector summary already says whether the value is returned as null or its row skipped.
      * <p>
      * As the single decision point it also normalizes the strict failure. The coercers throw heterogeneous
      * low-level exceptions ({@code NumberFormatException} from {@code Double.parseDouble}, a
@@ -402,9 +401,9 @@ public final class DeclaredTypeCoercions {
      * {@code DateTimeException} is not an {@link IllegalArgumentException} and would surface as a 500 rather
      * than the numeric paths' 400. The strict branch instead re-raises one {@link InvalidArgumentException}
      * (a client 400 that survives the data-node hop) naming the column, the declared type and the offending
-     * value, with the original chained as the cause and an {@code error_mode=null_field} pointer; readers that
-     * wrap a read failure in their own exception (the Parquet iterator) carry the enriched message in the
-     * cause. {@code columnName} is thus load-bearing in strict mode too (a {@code null} name degrades to
+     * value, with the original chained as the cause and an {@code [error_mode]} pointer; readers that wrap a
+     * read failure in their own exception (the Parquet iterator) carry the enriched message in the cause.
+     * {@code columnName} is thus load-bearing in strict mode too (a {@code null} name degrades to
      * {@code <unknown>}), and strict and lenient share one detail string so they cannot drift.
      */
     public static void onCoercionFailure(
@@ -414,34 +413,18 @@ public final class DeclaredTypeCoercions {
         RuntimeException e,
         @Nullable SkipWarnings warnings
     ) {
-        onCoercionFailure(columnName, from, to, e, warnings, false);
-    }
-
-    /**
-     * Overload of {@link #onCoercionFailure} that accepts a {@code skipRow} flag controlling the
-     * warning suffix: {@code false} appends {@code "; returning null"} (for {@code null_field});
-     * {@code true} appends {@code "; row will be dropped"} (for {@code skip_row}).
-     */
-    public static void onCoercionFailure(
-        @Nullable String columnName,
-        DataType from,
-        DataType to,
-        RuntimeException e,
-        @Nullable SkipWarnings warnings,
-        boolean skipRow
-    ) {
-        String detail = "Column ["
+        String detail = "column ["
             + (columnName == null ? "<unknown>" : columnName)
-            + "]: cannot coerce value from ["
+            + "]: cannot read ["
             + from.typeName()
-            + "] to declared type ["
+            + "] as ["
             + to.typeName()
             + "]: "
             + e.getMessage();
         if (warnings == null) {
-            throw new InvalidArgumentException(e, detail + "; set error_mode=null_field to read failing values as null instead of failing");
+            throw new InvalidArgumentException(e, detail + "; set [error_mode] to [null_field] to return null instead");
         }
-        warnings.add(detail + (skipRow ? "; row will be dropped" : "; returning null"));
+        warnings.add(detail);
     }
 
     /**
@@ -511,7 +494,7 @@ public final class DeclaredTypeCoercions {
                         : v -> DataTypeConverter.safeDoubleToLong((Double) v);
                 }
                 if (declaredFormat != null) {
-                    // Whole-number source WITH a declared format: the format is the parse dialect / epoch unit,
+                    // Whole-number source with a declared format: the format is the parse dialect / epoch unit,
                     // exactly as the text readers already treat it (NdJsonPageDecoder.decodeDatetimeValue,
                     // CsvFormatReader.tryParseDatetime): epoch_second reads seconds, yyyyMMdd reads 20260101.
                     yield v -> parseDatetimeMillis(String.valueOf(v), declaredFormat);

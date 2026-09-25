@@ -149,8 +149,8 @@ public class FileListCompactorTests extends ESTestCase {
         assertRoundTrip(base, listOf(warnings::add, base + "**/*.parquet", base + "_index=foo/f.parquet"));
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
@@ -367,12 +367,10 @@ public class FileListCompactorTests extends ESTestCase {
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
     }
 
-    /** Compaction must copy {@code file_exclusions} warnings onto the compact encoding. */
-    public void testCompactPreservesExclusionWarnings() {
+    /** Compaction must copy listing notices onto the compact encoding. */
+    public void testCompactPreservesListingWarnings() {
         String base = "s3://b/data/";
-        String warning = "1 of 3 objects matching the resource under ["
-            + base
-            + "] was excluded by the [file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+        String warning = "partition key [_index] is named [_partition._index]";
         GenericFileList raw = new GenericFileList(
             List.of(
                 new StorageEntry(StoragePath.of(base + "a.parquet"), 100L, Instant.EPOCH),

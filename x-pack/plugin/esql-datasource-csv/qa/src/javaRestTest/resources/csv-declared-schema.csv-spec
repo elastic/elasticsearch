@@ -135,19 +135,20 @@ count:long | gender:keyword
 ;
 
 // A double physical column declared integer must not round a non-whole value into the column. height holds
-// values such as 2.03; under error_mode=null_field the cell nulls and warns, naming INTEGER — never returns 2.
+// values such as 2.03; under error_mode=null_field the cell nulls and warns as integer — never returns 2.
 // Warnings name the physical path (height), not the declared alias (h). Nearly every row fails, so the
 // SkipWarnings overflow marker is allowed too.
 strictDeclaredIntegerRefusesNonWholeDecimal
 required_capability: dataset_in_from_command
 required_capability: external_dataset_whole_number_read_is_exact
+required_capability: external_dataset_messages
 dataset: employees_declared_height_int: "{{employees_no_mv}}" WITH {"error_mode": "null_field", "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "h": {"type": "integer", "path": "height"}}}}
 
 FROM employees_declared_height_int
 | SORT id
 | LIMIT 3;
-warningRegex:CSV read from \[.+\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] field \[height\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
+warningRegex:Some values in \[.+\] cannot be read; returning null, and skipping rows that cannot be parsed
+warningRegex:row \[\d+\], column \[height\]: cannot read \[.*\] as \[integer\]
 warningRegex:\.\.\. further warnings suppressed \(more than \d+ recorded\)
 
 id:long | h:integer

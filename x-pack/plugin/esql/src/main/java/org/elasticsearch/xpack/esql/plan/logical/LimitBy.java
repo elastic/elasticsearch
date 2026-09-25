@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.Aggregate.checkUnsupport
  * Retains at most N rows per group defined by one or more grouping key expressions.
  * This is the {@code LIMIT N BY expr1, expr2, ...} command.
  */
-public class LimitBy extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, PipelineBreaker {
+public class LimitBy extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, PipelineBreaker, DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "LimitBy", LimitBy::new);
 
     private final Expression limitPerGroup;

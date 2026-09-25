@@ -30,7 +30,7 @@ import java.util.List;
  * The node itself does not need to escape the coordinator, so it is not registered
  * with the {@code NamedWriteableRegistry}.
  */
-public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware {
+public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware, DocPreserving {
 
     public Dedup(Source source, LogicalPlan child) {
         super(source, child);

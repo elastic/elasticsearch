@@ -320,7 +320,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // trustworthy once ResolveRefs has resolved the child (e.g. expanded wildcard projections such as KEEP *),
                 // and it must strip the wrapper before the union-type rules below inspect the UnionAll's parent.
                 new InjectOuterMetadataForSubqueries(),
-                // Must be after ResolveRefs: derivation reads the resolved child output to expand ON * and query-named fields.
+                // Must be after ResolveRefs: derivation reads the resolved child output and the resolved upstream WHERE predicates.
                 new ResolveHighlight(),
                 new ImplicitCasting(),
                 new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found

@@ -119,6 +119,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
+import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_BCC_HEADER_PREWARM;
@@ -3295,6 +3296,88 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     List.of(INDEXING_MERGE, INDEXING_MERGE, INDEXING_BCC_HEADER_PREWARM, INDEXING_MERGE, INDEXING_MERGE, INDEXING_MERGE)
                 )
             );
+        }
+    }
+
+    public void testWarmingTaskRunnerRecordsMetrics() throws IOException {
+        final var recordingMeterRegistry = new RecordingMeterRegistry();
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), 1) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    // runner limit is 1 + prewarm max threads, so with max=1 we can have 2 tasks running and the third task must queue
+                    .put("stateless.stateless_prewarm_thread_pool.core", 1)
+                    .put("stateless.stateless_prewarm_thread_pool.max", 1)
+                    .build();
+            }
+
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider(recordingMeterRegistry),
+                    clusterSettings,
+                    warmingRatioProvider
+                );
+            }
+        }) {
+            final var recorder = recordingMeterRegistry.getRecorder();
+            final var prefix = "es.throttled_task_runner.prewarming_cache.tasks.";
+
+            final var taskCanFinish = new CountDownLatch(1);
+            final var allTasksDone = new CountDownLatch(3);
+            try {
+                for (int i = 0; i < 2; i++) {
+                    fakeNode.warmingService.scheduleWarmingTask(new AbstractWarmingTask(INDEXING, 1) {
+                        @Override
+                        public void onResponse(Releasable releasable) {
+                            try (releasable) {
+                                safeAwait(taskCanFinish);
+                            }
+                            allTasksDone.countDown();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+                }
+
+                fakeNode.warmingService.scheduleWarmingTask(new AbstractWarmingTask(INDEXING, 1) {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        releasable.close();
+                        allTasksDone.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError(e);
+                    }
+                });
+
+                recorder.collect();
+
+                // 2 tasks already went through and are running waiting in `taskCanFinish`, while one task is queued up because the queue
+                // has only 2 slots available
+                assertThat(recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"), measures(2L));
+                assertThat(recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "queue.size"), measures(1L));
+            } finally {
+                taskCanFinish.countDown();
+            }
+
+            safeAwait(allTasksDone);
+            // had 3 enqueued tasks and hence 3 polled tasks and hence queue latency was measured thrice
+            assertThat(recorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, prefix + "queue.latency.histogram"), hasSize(3));
         }
     }
 

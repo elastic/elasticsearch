@@ -154,6 +154,15 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
         );
     }
 
+    public void testStringToStringChargesNothing() {
+        // A String's toString and String.valueOf return the String itself, typed or through def.
+        assertEquals(0L, AllocationEstimators.toStringBytes((Object) "abc"));
+        assertEquals(0L, AllocationEstimators.stringValueOfBytes("abc"));
+        assertEquals(0L, allocatedBytes("String s = \"abc\"; s.toString(); return \"x\";"));
+        assertEquals(0L, allocatedBytes("def s = \"abc\"; s.toString(); return \"x\";"));
+        assertEquals(0L, allocatedBytes("String.valueOf(\"abc\"); return \"x\";"));
+    }
+
     public void testObjectToStringChargedAnAllowance() {
         // A map's toString gets the concat allowance plus the String object.
         long map = AllocationEstimators.toStringBytes((Object) java.util.Map.of());

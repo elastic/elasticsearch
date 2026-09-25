@@ -57,6 +57,12 @@ public final class AllocationEstimators {
     /** One {@code LinkedHashMap.Entry}: a {@code HashMap.Node} plus the before and after references. */
     private static final long LINKED_HASH_MAP_ENTRY_BYTES = 56;
 
+    /** An {@code ArrayList} without its backing array. Matches the charge on {@code new ArrayList()}, which makes none. */
+    static final long ARRAY_LIST_SHELL_BYTES = 40;
+
+    /** Default {@code ArrayList} capacity. A list built by {@code add} never holds less. */
+    private static final long ARRAY_LIST_DEFAULT_CAPACITY = 10;
+
     /**
      * Heap cost of a freshly allocated {@link String} holding {@code chars} UTF-16 characters: the {@code String} object plus
      * its backing array, {@link AllocSizes#STRING_CONCAT_RESULT_OVERHEAD} for the fixed part plus 2 bytes per char. A negative
@@ -119,8 +125,11 @@ public final class AllocationEstimators {
     /** A {@code Character.getName} result, under 90 chars. */
     private static final long CHARACTER_NAME_BYTES = 256;
 
-    /** One {@code groupBy} element at worst starts a group: a linked entry, a 40-byte list, and its first ten slots. */
-    private static final long GROUP_BY_ELEMENT_BYTES = 56 + 40 + AllocSizes.arrayBytes(10, AllocSizes.REFERENCE_SIZE);
+    /** One {@code groupBy} element at worst starts a group: a linked entry, a list, and the list's first array. */
+    private static final long GROUP_BY_ELEMENT_BYTES = LINKED_HASH_MAP_ENTRY_BYTES + ARRAY_LIST_SHELL_BYTES + AllocSizes.arrayBytes(
+        ARRAY_LIST_DEFAULT_CAPACITY,
+        AllocSizes.REFERENCE_SIZE
+    );
 
     /** The array {@code Character.UnicodeScript.values()} clones on every call. */
     private static final long UNICODE_SCRIPT_VALUES_BYTES = AllocSizes.arrayBytes(
@@ -128,12 +137,12 @@ public final class AllocationEstimators {
         AllocSizes.REFERENCE_SIZE
     );
 
-    /** The String made of {@code value}, counted without rendering it. */
+    /** The String made of {@code value}, counted without rendering it. A String is returned as is, so it costs nothing. */
     private static long renderedStringBytes(Object value) {
-        return newStringBytes(AllocSizes.renderedChars(value));
+        return value instanceof String ? 0 : newStringBytes(AllocSizes.renderedChars(value));
     }
 
-    /** {@code Object.toString()}. A String returns itself and is over-charged. */
+    /** {@code Object.toString()}. A String returns itself and costs nothing. */
     public static long toStringBytes(Object receiver) {
         return renderedStringBytes(receiver);
     }
@@ -143,7 +152,7 @@ public final class AllocationEstimators {
         return renderedStringBytes(receiver);
     }
 
-    /** {@code String.valueOf(value)}. */
+    /** {@code String.valueOf(value)}. A String is returned as is. */
     public static long stringValueOfBytes(Object value) {
         return renderedStringBytes(value);
     }
@@ -334,8 +343,6 @@ public final class AllocationEstimators {
     private static final long IDENTITY_HASH_MAP_MAX_CAPACITY_FACTOR = 3;
     /** A {@code List.subList} view: two list references plus offset, size and modCount. */
     private static final long SUB_LIST_VIEW_BYTES = 40;
-    /** Default {@code ArrayList} capacity. A list built by repeated {@code add} never holds less than this. */
-    private static final long ARRAY_LIST_DEFAULT_CAPACITY = 10;
 
     /**
      * {@code new BitSet(nbits)}: the object plus a {@code long[]} big enough for {@code nbits} bits. A negative count is
@@ -956,10 +963,4 @@ public final class AllocationEstimators {
     public static long collectionsWrapSortedSetBytes(SortedSet<?> set) {
         return 24;
     }
-
-    /**
-     * Heap cost of an {@code ArrayList} instance excluding its backing array; matches the {@code @allocates} value on
-     * the no-arg {@code new ArrayList()}, whose backing array is lazily created.
-     */
-    static final long ARRAY_LIST_SHELL_BYTES = 40;
 }

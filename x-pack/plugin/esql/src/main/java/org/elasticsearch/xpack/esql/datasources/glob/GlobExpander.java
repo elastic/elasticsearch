@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -73,7 +74,8 @@ public final class GlobExpander {
     /**
      * Expands a glob/comma pattern and compresses the result into a compact representation
      * (DictionaryFileList or DirectoryGroupedFileList). This is the primary entry point for the resolver.
-     * Notices raised while listing ride on the returned {@link FileList#listingWarnings()}; nothing is emitted here.
+     * Notices raised while listing ride on the returned {@link FileList#listingWarnings()}; nothing is emitted here
+     * except the file-exclusion line, which is logged and rides the listing only from a segment that listed nothing.
      */
     public static FileList expandAndCompact(
         String path,
@@ -588,15 +590,17 @@ public final class GlobExpander {
                         if (walkTypesConsistent(walk, walkedMetadata)) {
                             // Counted pre-_file.*-filter, as the flat path counts.
                             if (walk.excludedCount() > 0) {
-                                walkNotices.add(
-                                    exclusionWarning(
-                                        walk.excludedCount(),
-                                        walk.matched().size(),
-                                        prefix.toString(),
-                                        walk.excludedExample(),
-                                        walk.excludedExampleEntry()
-                                    )
+                                String exclusionNotice = exclusionNotice(
+                                    walk.excludedCount(),
+                                    walk.matched().size(),
+                                    prefix.toString(),
+                                    walk.excludedExample(),
+                                    walk.excludedExampleEntry()
                                 );
+                                logger.debug("{}", exclusionNotice);
+                                if (walked.isEmpty()) {
+                                    walkNotices.add(exclusionNotice);
+                                }
                             }
                             return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
                         }
@@ -625,11 +629,11 @@ public final class GlobExpander {
         List<StorageEntry> matched = new ArrayList<>();
         StorageEntry fileHintAnchor = null;
         String prefixStr = prefix.toString();
-        // One warning per listing, however many objects it drops. The counts are the useful part: how many of the
-        // objects the resource selected were then dropped tells the user whether they are missing a stray marker or
-        // most of their data. Enumerating them would emit a header per partition on a prefix with a marker in each.
+        // One log line per listing, however many objects it drops. The counts are the useful part: how many of the
+        // objects the resource selected were then dropped tells whether a stray marker or most of the data is
+        // missing. Enumerating them would log a line per partition on a prefix with a marker in each.
         int excludedCount = 0;
-        // Exclusion warning totals are glob matches before _file.* prune, same as the pre-filter count.
+        // Exclusion totals are glob matches before _file.* prune, same as the pre-filter count.
         int globKeptCount = 0;
         String excludedExample = null;
         String excludedExampleEntry = null;
@@ -692,9 +696,9 @@ public final class GlobExpander {
                             }
                             fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
                         } else {
-                            // Matched what the user asked for and was dropped anyway. Keep the first one so the warning
+                            // Matched what the user asked for and was dropped anyway. Keep the first one so the notice
                             // can name a concrete file and the entry responsible; "some files were excluded" on its own
-                            // leaves the user with nothing to act on.
+                            // leaves nothing to act on.
                             excludedCount++;
                             if (excludedExample == null) {
                                 excludedExample = relativePath;
@@ -714,9 +718,13 @@ public final class GlobExpander {
                 && valueFilter != PartitionValueFilter.NONE;
         } while (relistUnfiltered);
 
+        // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
+        // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
         List<String> listingWarnings = new ArrayList<>();
+        String exclusionNotice = null;
         if (excludedCount > 0) {
-            listingWarnings.add(exclusionWarning(excludedCount, globKeptCount, prefixStr, excludedExample, excludedExampleEntry));
+            exclusionNotice = exclusionNotice(excludedCount, globKeptCount, prefixStr, excludedExample, excludedExampleEntry);
+            logger.debug("{}", exclusionNotice);
         }
 
         if (matched.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
@@ -728,18 +736,14 @@ public final class GlobExpander {
             // prefixes still need the exclusion text on a cacheable empty listing.
             // Carries `truncated` even when nothing matched: the shared EMPTY sentinel cannot hold it, so a
             // bounded empty listing takes the GenericFileList branch whether or not there are warnings.
-            return listingWarnings.isEmpty() && truncated == false
-                ? FileList.EMPTY
-                : new GenericFileList(List.of(), pattern, null, listingWarnings, truncated);
+            return emptyListing(pattern, exclusionNotice, truncated);
         }
 
         matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
         if (matched.isEmpty()) {
             // A bound that then filters to nothing is still truncated. EMPTY cannot carry the flag, and caching
             // it as a complete empty listing would hide files past the bound that fall inside the range.
-            return listingWarnings.isEmpty() && truncated == false
-                ? FileList.EMPTY
-                : new GenericFileList(List.of(), pattern, null, listingWarnings, truncated);
+            return emptyListing(pattern, exclusionNotice, truncated);
         }
 
         fileOrder.apply(matched);
@@ -749,30 +753,37 @@ public final class GlobExpander {
         return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated);
     }
 
+    private static FileList emptyListing(String pattern, @Nullable String exclusionNotice, boolean truncated) {
+        if (exclusionNotice == null && truncated == false) {
+            return FileList.EMPTY;
+        }
+        return new GenericFileList(List.of(), pattern, null, exclusionNotice == null ? List.of() : List.of(exclusionNotice), truncated);
+    }
+
+    private static final String EXCLUSION_NOTICE = "[{}] of [{}] files under [{}] skipped by [{}], e.g. [{}] (matched [{}])";
+
     /**
-     * One warning per listing, however many objects it drops. Counted against everything the resource
-     * pattern selected (kept plus dropped). Fires for the default exclusion list too: a user who never
-     * configured exclusion cannot guess why a visible object is missing from results.
+     * The one line a listing reports for everything {@code file_exclusions} dropped from it, however many objects that
+     * is, counted against everything the resource pattern selected (kept plus dropped). Callers log it at DEBUG, since
+     * the default exclusion list makes it fire on every folder a Spark or Hadoop job wrote, and attach it to an empty
+     * listing, where it is the reason the resolver's "matched no files" error gives.
      */
-    private static String exclusionWarning(
+    private static String exclusionNotice(
         int excludedCount,
         int matchedCount,
         String prefix,
         String excludedExample,
         String excludedExampleEntry
     ) {
-        return excludedCount
-            + " of "
-            + (matchedCount + excludedCount)
-            + " objects matching the resource under ["
-            + prefix
-            + (excludedCount == 1 ? "] was excluded by the [" : "] were excluded by the [")
-            + ExclusionConfig.CONFIG_FILE_EXCLUSIONS
-            + "] dataset setting, for example ["
-            + excludedExample
-            + "] which matched entry ["
-            + excludedExampleEntry
-            + "]";
+        return LoggerMessageFormat.format(
+            EXCLUSION_NOTICE,
+            excludedCount,
+            matchedCount + excludedCount,
+            prefix,
+            ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
+            excludedExample,
+            excludedExampleEntry
+        );
     }
 
     /**

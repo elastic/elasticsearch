@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXContent;
@@ -87,6 +88,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     /** The region fixture's three single-row files, each id fixed to its folder so the expected row is unambiguous. */
     private static final String[] REGIONS = { "US", "EU", "AP" };
     private static final long US_ID = 0L;
+
+    private static final int SIGNED_ZERO_FILES = 3;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -671,6 +674,119 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
                 equalTo(4)
             );
         }
+    }
+
+    // -- Signed zero: the engine compares doubles with ==, under which -0.0 and 0.0 are equal --
+    // A pruner that orders -0.0 before 0.0 drops a zero folder that the filter matches, and nothing downstream can bring
+    // the file back. The fixture is registerSignedZeroTree: d=-0e0 holds id 0, d=0e0 holds id 1, d=1e5 holds id 2.
+
+    public void testCsvNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
+        assertSignedZeroEquality(registerSignedZeroTree("csv_signed_zero", "csv", false));
+    }
+
+    public void testParquetNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
+        assertSignedZeroEquality(registerSignedZeroTree("pq_signed_zero", "parquet", false));
+    }
+
+    /**
+     * Every comparison operator against both zero literals. The {@code **} glob leads the listing walk, so both pruning
+     * layers decide here. {@code IN} has its own test, {@link #testCsvSignedZeroInAnswersAsAnUnprunableQueryDoes}.
+     */
+    public void testCsvSignedZeroPartitionAcrossComparisonOperators() throws Exception {
+        String dataset = registerSignedZeroTree("csv_signed_zero_ops", "csv", false);
+        for (String zero : List.of("0.0", "-0.0")) {
+            assertPrune(dataset, "WHERE d == " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE d >= " + zero, SIGNED_ZERO_FILES, 3, List.of(0L, 1L, 2L));
+            assertPrune(dataset, "WHERE d <= " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE d != " + zero, SIGNED_ZERO_FILES, 1, List.of(2L));
+            assertPrune(dataset, "WHERE d > " + zero, SIGNED_ZERO_FILES, 1, List.of(2L));
+            assertPrune(dataset, "WHERE d < " + zero, SIGNED_ZERO_FILES, 0, List.of());
+            assertPrune(dataset, "WHERE NOT d != " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE NOT d > " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE NOT d < " + zero, SIGNED_ZERO_FILES, 3, List.of(0L, 1L, 2L));
+        }
+    }
+
+    /**
+     * A glob naming {@code d=*} takes the textual rewrite instead of the walk. The rewrite spells {@code d == 0.0} as
+     * {@code d=0.0}, which matches no folder here, so it must fall back to the full listing rather than an empty one.
+     */
+    public void testCsvKeyedGlobKeepsTheNegativeZeroFolder() throws Exception {
+        String dataset = registerSignedZeroTree("csv_signed_zero_keyed", "csv", true);
+        for (String zero : List.of("0.0", "-0.0")) {
+            assertPrune(dataset, "WHERE d == " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPrune(dataset, "WHERE d >= " + zero, SIGNED_ZERO_FILES, 3, List.of(0L, 1L, 2L));
+            assertPrune(dataset, "WHERE d <= " + zero, SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+        }
+    }
+
+    /** A request filter on {@code d} arrives as the multivalue comparison functions, which share the comparator. */
+    public void testCsvRequestFilterKeepsBothZeroFolders() throws Exception {
+        String dataset = registerSignedZeroTree("csv_signed_zero_rf", "csv", false);
+        for (double zero : new double[] { 0.0, -0.0 }) {
+            assertPruneFilter(dataset, QueryBuilders.termQuery("d", zero), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPruneFilter(dataset, QueryBuilders.termsQuery("d", new double[] { zero, 7.0 }), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+            assertPruneFilter(dataset, QueryBuilders.rangeQuery("d").gte(zero).lte(zero), SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+        }
+    }
+
+    /**
+     * The engine's {@code IN} orders doubles with {@code Double.compare}, so unlike {@code ==} it tells the zeros apart.
+     * Pruning must not change its answer either way: each query must return what the same predicate over
+     * {@code d * 1.0} returns, which no layer can prune. {@code NOT IN} is the case that lost the {@code d=-0e0} row.
+     */
+    public void testCsvSignedZeroInAnswersAsAnUnprunableQueryDoes() throws Exception {
+        assertSignedZeroInMatchesUnprunable(registerSignedZeroTree("csv_signed_zero_in", "csv", false));
+    }
+
+    public void testParquetSignedZeroInAnswersAsAnUnprunableQueryDoes() throws Exception {
+        assertSignedZeroInMatchesUnprunable(registerSignedZeroTree("pq_signed_zero_in", "parquet", false));
+    }
+
+    private void assertSignedZeroInMatchesUnprunable(String dataset) {
+        for (String zero : List.of("0.0", "-0.0")) {
+            for (String predicate : List.of(
+                "%s IN (" + zero + ", 7.0)",
+                "NOT %s IN (" + zero + ", 7.0)",
+                "%s NOT IN (" + zero + ", 7.0)"
+            )) {
+                String unprunable = "WHERE " + String.format(Locale.ROOT, predicate, "(d * 1.0)");
+                List<List<Object>> rows = runPruned(dataset, unprunable + " | KEEP id | SORT id ASC", SIGNED_ZERO_FILES, SIGNED_ZERO_FILES);
+                List<Long> expected = rows.stream().map(row -> ((Number) row.get(0)).longValue()).toList();
+                assertThat("[" + unprunable + "] the oracle must select something", expected, not(empty()));
+                // The opposite-sign zero folder is unknown and kept, the equal one is decided, d=1e5 is decided.
+                assertPrune(dataset, "WHERE " + String.format(Locale.ROOT, predicate, "d"), SIGNED_ZERO_FILES, 2, expected);
+            }
+        }
+    }
+
+    /**
+     * The zero folders are readable and the non-zero folder answers its own equality, so an empty answer to
+     * {@code d == 0.0} can only come from pruning.
+     */
+    private void assertSignedZeroEquality(String dataset) {
+        assertPrune(dataset, "WHERE id == 0", SIGNED_ZERO_FILES, SIGNED_ZERO_FILES, List.of(0L));
+        assertPrune(dataset, "WHERE d == 100000.0", SIGNED_ZERO_FILES, 1, List.of(2L));
+        assertPrune(dataset, "WHERE d == 0.0", SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
+    }
+
+    /**
+     * Registers {@code d=-0e0}, {@code d=0e0} and {@code d=1e5}, one single-row file each, with ids 0, 1 and 2. The
+     * zeros are spelled in exponent form because a Hive segment containing a dot is not a partition; that spelling is
+     * also what types {@code d} as {@code DOUBLE}. {@code keyedGlob} names {@code d=*} in the glob, which takes the textual
+     * rewrite instead of the listing walk; the default {@code **} glob is the one the walk narrows.
+     */
+    private String registerSignedZeroTree(String name, String format, boolean keyedGlob) throws IOException {
+        Path root = createTempDir().resolve(name);
+        String[] folders = { "-0e0", "0e0", "1e5" };
+        for (int i = 0; i < folders.length; i++) {
+            Path dir = root.resolve("d=" + folders[i]);
+            Files.createDirectories(dir);
+            writeRow(dir, i, format);
+        }
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + (keyedGlob ? "/d=*/**/*." : "/**/*.") + format;
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
     }
 
     /** Registers the 8-file {@code year/month/day} fixture and asserts the filter's pruning + rows. */

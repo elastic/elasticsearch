@@ -1689,16 +1689,13 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
         CountingStorageObject obj = new CountingStorageObject(parquetData, true);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        ParquetReaderCounters counters = (ParquetReaderCounters) reader.newReadCounters();
 
-        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
+        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).readCounters(counters).build())) {
             while (it.hasNext()) {
                 it.next().releaseBlocks();
             }
-            assertThat(
-                "rows emitted must be > 0 as drainEmptyTwoPhaseBatches() performs real decode work",
-                reader.statusSnapshot().rowsEmitted(),
-                greaterThan(0L)
-            );
+            assertThat("filter id < 10 out of 5000 rows must emit some matching rows", counters.snapshot().rowsEmitted(), greaterThan(0L));
         }
     }
 

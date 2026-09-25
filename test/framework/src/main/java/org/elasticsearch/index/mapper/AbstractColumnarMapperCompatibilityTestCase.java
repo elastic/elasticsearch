@@ -29,11 +29,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -86,6 +89,22 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     protected final void assertColumnarMatchesXContent(XContentBuilder mapping, Settings indexSettings, Batch... scenarios)
         throws IOException {
         final MapperService mapperService = createMapperService(indexSettings, mapping);
+        for (Batch scenario : scenarios) {
+            assertScenario(mapperService, scenario);
+        }
+    }
+
+    /**
+     * Like {@link #assertColumnarMatchesXContent(XContentBuilder, Settings, Batch...)} but with an explicit index version,
+     * for testing pre-gate BWC behaviour.
+     */
+    protected final void assertColumnarMatchesXContent(
+        IndexVersion indexVersion,
+        XContentBuilder mapping,
+        Settings indexSettings,
+        Batch... scenarios
+    ) throws IOException {
+        final MapperService mapperService = createMapperService(indexVersion, indexSettings, mapping);
         for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario);
         }
@@ -251,7 +270,15 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     // SourceToParse so the row-path DocumentParser reads the same tsid bytes via
                     // SourceToParse#tsid() rather than re-building it from source dimensions.
                     final SourceToParse sourceToParse = doc.tsid() != null
-                        ? new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing(), Map.of(), doc.tsid())
+                        ? new SourceToParse(
+                            doc.id(),
+                            new BytesSource(sourceBytesArray[i], XContentType.JSON, true),
+                            doc.routing(),
+                            Map.of(),
+                            Map.of(),
+                            XContentMeteringParserDecorator.NOOP,
+                            doc.tsid()
+                        )
                         : new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
                     final ParsedDocument pd = mapperService.documentMapper().parse(sourceToParse);
                     // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
@@ -316,6 +343,18 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
+    /**
+     * The type {@code column} gives {@code doc}. A doc-values payload carrying a document that indexed nothing reports the field's
+     * index options itself, so the type is not the column's for every document it covers.
+     */
+    private static FieldType typeFor(Column column, int doc) {
+        final FieldType type = new FieldType(
+            column instanceof ColumnarPayloadColumn payload ? payload.fieldTypeFor(doc) : column.fieldType()
+        );
+        type.freeze();
+        return type;
+    }
+
     private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {
         final ColumnBatch batch = mc.toColumnBatch();
         for (Column column : batch.columns()) {
@@ -352,12 +391,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 if (isSparse || randomBoolean()) {
                     final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
                     for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.value())));
+                        perDoc.get(doc).add(new FieldDescriptor(name, typeFor(column, doc), null, BytesRef.deepCopyOf(cursor.value())));
                     }
                 } else {
                     final BytesRefValuesCursor cursor = binaryColumn.values();
                     for (int doc = 0; doc < cursor.size(); doc++) {
-                        perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.nextValue())));
+                        perDoc.get(doc).add(new FieldDescriptor(name, typeFor(column, doc), null, BytesRef.deepCopyOf(cursor.nextValue())));
                     }
                 }
             } else if (column instanceof TokenStreamColumn) {

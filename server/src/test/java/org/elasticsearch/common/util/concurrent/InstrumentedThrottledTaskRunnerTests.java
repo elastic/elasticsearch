@@ -58,6 +58,7 @@ public class InstrumentedThrottledTaskRunnerTests extends ESTestCase {
 
         final var taskRunning = new CountDownLatch(1);
         final var taskCanFinish = new CountDownLatch(1);
+        final var secondTaskRunning = new CountDownLatch(1);
 
         final var registry = new RecordingMeterRegistry();
         final var taskRunner = new InstrumentedThrottledTaskRunner<ActionListener<Releasable>>(runnerName, 1, executor, registry, () -> 0L);
@@ -88,6 +89,7 @@ public class InstrumentedThrottledTaskRunnerTests extends ESTestCase {
 
             @Override
             public void onResponse(Releasable releasable) {
+                secondTaskRunning.countDown();
                 releasable.close();
             }
         });
@@ -103,8 +105,10 @@ public class InstrumentedThrottledTaskRunnerTests extends ESTestCase {
             RecordingMeterRegistry.measures(1L)
         );
 
-        // let the first task finish and hence the queued one will also get a slot and finish
+        // let the first task finish and hence the queued one will also get a slot and finish. Wait for the second task to have started
+        // before draining the executor, otherwise its runnable may still be sitting in the executor queue behind the barrier tasks.
         taskCanFinish.countDown();
+        safeAwait(secondTaskRunning);
         assertNoRunningTasks(taskRunner);
 
         // reset and re-collect metrics and both queue- and running-size should be 0 now since we had no queued or running tasks right

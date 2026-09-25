@@ -566,9 +566,7 @@ public class EsqlSession {
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
-                    // against each source's schema. Index leaves keep their existing filter path. Version-gated,
-                    // but the pin covers mv_in_range only: it predates mv_greater and mv_less, which the translator
-                    // also emits (elastic/elasticsearch#159672).
+                    // against each source's schema. Index leaves keep their existing filter path.
                     // Applies the translatable subset and drops the rest with a warning naming each clause.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
                     // would not be routed to the listener — catch it and fail the query explicitly.
@@ -603,7 +601,7 @@ public class EsqlSession {
                         new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
                     );
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
-                        new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
+                        new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion, flags)
                     );
                     var physicalPlanOptimizer = new PhysicalPlanOptimizer(
                         new PhysicalOptimizerContext(configuration, minimumVersion, flags)

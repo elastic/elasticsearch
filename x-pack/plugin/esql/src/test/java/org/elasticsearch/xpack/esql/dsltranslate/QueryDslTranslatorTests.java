@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -45,7 +47,9 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -77,19 +81,22 @@ public class QueryDslTranslatorTests extends ESTestCase {
     private static final Set<String> FIELDS = Set.of("status", "tags", "bytes", "score", "@timestamp", "ts_nanos", "active", "body");
 
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
-        return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb).applied();
+        return new QueryDslTranslator(BINDER, FIELDS, CONFIG, TransportVersion.current()).translate(qb).applied();
     }
 
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb, Locale locale) {
-        return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build()).translate(qb).applied();
+        return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build(), TransportVersion.current())
+            .translate(qb)
+            .applied();
     }
 
     private static QueryDslTranslator.TranslationResult translateResult(org.elasticsearch.index.query.QueryBuilder qb) {
-        return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb);
+        return new QueryDslTranslator(BINDER, FIELDS, CONFIG, TransportVersion.current()).translate(qb);
     }
 
     private static QueryDslTranslator.TranslationResult translateResult(org.elasticsearch.index.query.QueryBuilder qb, Locale locale) {
-        return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build()).translate(qb);
+        return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build(), TransportVersion.current())
+            .translate(qb);
     }
 
     /** An unsupported top-level construct is collected, not thrown; applied() is TRUE (no conjuncts applied). */
@@ -625,7 +632,159 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     private static QueryDslTranslator translatorWithStableBinding() {
         Map<String, Expression> bound = new HashMap<>();
-        return new QueryDslTranslator(name -> bound.computeIfAbsent(name, BINDER), FIELDS, CONFIG);
+        return new QueryDslTranslator(name -> bound.computeIfAbsent(name, BINDER), FIELDS, CONFIG, TransportVersion.current());
+    }
+
+    // ---- version gating of the functions the translator synthesizes (elastic/elasticsearch#159672) ----
+
+    /**
+     * A cluster that clears the rewrite's own gate but predates {@code mv_greater}/{@code mv_less}. The rewrite runs
+     * at this version, so everything below is reachable in production: it is the window the single feature-level pin
+     * promised to cover and did not.
+     */
+    private static final TransportVersion BELOW_MV_COMPARE = TransportVersion.fromName("esql_request_filter_on_dataset");
+
+    private static QueryDslTranslator.TranslationResult translateResult(
+        org.elasticsearch.index.query.QueryBuilder qb,
+        TransportVersion minimumVersion
+    ) {
+        return new QueryDslTranslator(BINDER, FIELDS, CONFIG, minimumVersion).translate(qb);
+    }
+
+    /** Below the pin a single-bound keyword range is untranslatable rather than shipping a function the node lacks. */
+    public void testSingleBoundKeywordRangeGatedBelowPin() {
+        for (var q : List.of(QueryBuilders.rangeQuery("tags").gt("a"), QueryBuilders.rangeQuery("tags").lt("z"))) {
+            QueryDslTranslator.TranslationResult below = translateResult(q, BELOW_MV_COMPARE);
+            assertFalse(q + " is not translatable below the pin", below.isComplete());
+            assertThat(below.unsupported(), hasSize(1));
+            assertThat(below.unsupported().get(0).construct(), containsString("on keyword"));
+            assertThat(below.unsupported().get(0).reason(), equalTo(QueryDslTranslator.VERSION_REASON));
+            assertThat("no gated function is built below the pin", below.applied().anyMatch(MvCompare.class::isInstance), equalTo(false));
+
+            assertThat("at or above the pin it still translates", translateResult(q).unsupported(), empty());
+        }
+    }
+
+    /**
+     * The same, on the date path. {@code range} hands a present date field to {@code dateRange}, which has its own
+     * two emit sites — a fix that gated {@code range} alone would leave these shipping the unreadable function.
+     */
+    public void testSingleBoundDateRangeGatedBelowPin() {
+        for (String field : List.of("@timestamp", "ts_nanos")) {
+            for (var q : List.of(
+                QueryBuilders.rangeQuery(field).gt("2020-01-01T00:00:00Z"),
+                QueryBuilders.rangeQuery(field).lt("2020-01-01T00:00:00Z")
+            )) {
+                QueryDslTranslator.TranslationResult below = translateResult(q, BELOW_MV_COMPARE);
+                assertFalse(field + " single-bound range is not translatable below the pin", below.isComplete());
+                assertThat(below.unsupported(), hasSize(1));
+                assertThat(
+                    below.unsupported().get(0).construct(),
+                    containsString("on " + (field.equals("ts_nanos") ? "date_nanos" : "date"))
+                );
+                assertThat(below.unsupported().get(0).reason(), equalTo(QueryDslTranslator.VERSION_REASON));
+                assertThat(below.applied().anyMatch(MvCompare.class::isInstance), equalTo(false));
+
+                assertThat("at or above the pin it still translates", translateResult(q).unsupported(), empty());
+            }
+        }
+    }
+
+    /**
+     * A double lands on the gated path. Only INTEGER and LONG divert to {@code integralRange} and only dates to
+     * {@code dateRange}, so a double single-bound range emits {@code mv_greater} like any other type. Pinned
+     * explicitly because nothing else in this suite states it, and because the difference between that function and
+     * an {@code mv_max} comparison is observable exactly here: {@code Math.max} propagates NaN, the function's
+     * any-value scan does not.
+     */
+    public void testSingleBoundDoubleRangeIsGatedToo() {
+        var q = QueryBuilders.rangeQuery("score").gt(0.5);
+        assertThat(translateResult(q).applied(), instanceOf(MvGreater.class));
+
+        QueryDslTranslator.TranslationResult below = translateResult(q, BELOW_MV_COMPARE);
+        assertFalse("a double single-bound range is gated like every other type", below.isComplete());
+        assertThat(below.unsupported().get(0).construct(), containsString("on double"));
+    }
+
+    /**
+     * No gated function reaches the output below its pin, for the shapes below. Behavioural cover over the four emit
+     * sites that exist; it is NOT the guard against a new one — its bound values never reach the ip, version or
+     * unsigned_long branches, and an ungated type-specific branch passes it.
+     * {@code TranslatorEmittedFunctionPinsTests.testEveryGatedConstructionSitsInsideAGatedCall} is that guard.
+     */
+    public void testNoGatedFunctionSurvivesBelowThePin() {
+        for (String field : ALL_BOUND_FIELDS) {
+            for (var q : List.of(
+                QueryBuilders.rangeQuery(field).gt("m"),
+                QueryBuilders.rangeQuery(field).lt("m"),
+                QueryBuilders.rangeQuery(field).gte(1),
+                QueryBuilders.rangeQuery(field).lte(1),
+                QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery(field).gt("m")),
+                QueryBuilders.boolQuery().should(QueryBuilders.rangeQuery(field).lt(1)).minimumShouldMatch(1)
+            )) {
+                assertThat(
+                    "below the pin, [" + field + "] must not carry a gated function: " + q,
+                    translateResult(q, BELOW_MV_COMPARE).applied().anyMatch(MvCompare.class::isInstance),
+                    equalTo(false)
+                );
+            }
+        }
+    }
+
+    /** A missing field needs no function: below the pin it still translates, to the false the leaf would fold to. */
+    public void testMissingFieldNeedsNoGatedFunction() {
+        QueryDslTranslator.TranslationResult below = translateResult(QueryBuilders.rangeQuery("absent").gt("m"), BELOW_MV_COMPARE);
+        assertThat("nothing is degraded for a field the source does not have", below.unsupported(), empty());
+        assertThat(below.applied().anyMatch(MvCompare.class::isInstance), equalTo(false));
+        // The VALUE matters, not just the absence of a function: FALSE is what the leaf folds to above the pin, and
+        // TRUE here would be the silent loosening this short circuit exists to avoid.
+        assertEquals(Literal.FALSE, below.applied());
+    }
+
+    /**
+     * Only a version gate carries a reason. A degradation with a permanent or input-driven cause must not claim one, or
+     * the operator is sent looking for a capability the cluster already has.
+     */
+    public void testOnlyVersionGatesCarryAReason() {
+        for (var q : List.of(
+            QueryBuilders.rangeQuery("status").gte("not-a-number").lte(10),
+            QueryBuilders.rangeQuery("score").gt(1.5).lt(9.5),
+            QueryBuilders.rangeQuery("tags").gt("a").lt("z"),
+            QueryBuilders.termQuery("body", "anything"),
+            QueryBuilders.termsQuery("status", List.of("abc"))
+        )) {
+            for (QueryDslTranslator.UnsupportedClause clause : translateResult(q).unsupported()) {
+                assertNull(q + " degrades for its own reason, which is not a version one", clause.reason());
+            }
+        }
+    }
+
+    /**
+     * The same, BELOW the pin, where it is easy to get wrong: the gate runs on the path a malformed bound also takes,
+     * so an unparseable date must still be reported as an unparseable date. Reporting it as a version failure sends
+     * the operator to upgrade a cluster where the clause would drop just the same afterwards.
+     */
+    /**
+     * Below the pin, a leaf untranslatable for its own reason keeps that reason. {@code gated} builds and discards the
+     * leaf so this holds; without that step an order comparison on an analyzed {@code text} field reports a node being
+     * too old instead.
+     */
+    public void testBelowThePinAConstructKeepsItsOwnReason() {
+        QueryDslTranslator.TranslationResult below = translateResult(QueryBuilders.rangeQuery("body").gt("m"), BELOW_MV_COMPARE);
+        assertThat(below.unsupported(), hasSize(1));
+        assertNull("an order comparison on analyzed text is not a version problem", below.unsupported().get(0).reason());
+    }
+
+    public void testAMalformedBoundBelowThePinIsNotAVersionFailure() {
+        for (String field : List.of("@timestamp", "ts_nanos")) {
+            QueryDslTranslator.TranslationResult below = translateResult(
+                QueryBuilders.rangeQuery(field).gt("not-a-date"),
+                BELOW_MV_COMPARE
+            );
+            assertThat(below.unsupported(), hasSize(1));
+            assertThat(below.unsupported().get(0).construct(), containsString("date bound on"));
+            assertNull("a bound that cannot be parsed is not a version problem", below.unsupported().get(0).reason());
+        }
     }
 
     // Every field the binder knows, of every type, plus one it does not.

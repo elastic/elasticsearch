@@ -24,7 +24,7 @@ import java.util.List;
 public class NdJsonSchemaInferrerTests extends ESTestCase {
 
     private Attribute field(String name, DataType type, boolean nullable) {
-        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.UNKNOWN, null, false);
+        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.FALSE, null, false);
     }
 
     private Attribute field(String name, DataType type) {

@@ -36,7 +36,7 @@ FROM mv_sample_none
 | SORT id
 ;
 warningRegex:Some rows in \[.+\] cannot be read; skipping them
-warningRegex:row \[\d+\]: \[5\] columns, the schema has \[3\]
+warningRegex:row \[\d+\]: \[5\] columns, the (schema|header) has \[3\]
 
 id:integer | tags:keyword
 2          | solo

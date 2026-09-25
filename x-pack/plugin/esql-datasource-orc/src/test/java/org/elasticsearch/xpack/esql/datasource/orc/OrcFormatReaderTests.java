@@ -464,7 +464,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 assertEquals(3, page.getBlockCount());
                 assertTrue("absent column must be a null block", page.getBlock(2).isNull(0));
                 assertEquals(1, warnings.size());
-                assertEquals(SkipWarnings.absentDeclaredColumnMessage("department"), warnings.get(0));
+                assertEquals(SkipWarnings.absentColumnMessage("department"), warnings.get(0));
             } finally {
                 page.releaseBlocks();
             }

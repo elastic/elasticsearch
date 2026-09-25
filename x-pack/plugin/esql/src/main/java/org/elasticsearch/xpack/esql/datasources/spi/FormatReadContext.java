@@ -90,12 +90,10 @@ import java.util.function.Consumer;
  *                         Driver-associated production reads must provide an explicit structured or buffered
  *                         sink; merely running on the driver thread is insufficient because ES|QL transports
  *                         compute warnings through {@code DriverCompletionInfo.warnings}.
- * @param fileHeaderColumns the file's own column names, in file order, read from its leading bytes.
- *                         {@code null} for every read that owns the file's start, and for formats that do
- *                         not name their columns in a header. Set only for a read that cannot see the
- *                         header but still has to know what the columns are called — a chunk after the
- *                         first of a header-bearing file whose declared schema binds by name. Binding such
- *                         a chunk by position instead would shift every column silently.
+ * @param fileHeaderColumns the file's own column names, in file order ({@link FormatReader#fileHeaderColumns}).
+ *                         Set only for a read of a text file that does not own its first line, bound against a
+ *                         pinned schema: it names the columns and bounds how wide a row may be. Binding a headered
+ *                         read by position instead would shift every column silently.
  * @param sharedErrorBudget per-read error budget shared between the columnar reader and
  *                         {@code SchemaAdaptingIterator}. When non-{@code null}, both the reader and the
  *                         adapter reference the same instance so that a single {@code max_errors} /
@@ -357,9 +355,8 @@ public record FormatReadContext(
          * The file's own column names, in file order, read from its leading bytes.
          * <p>
          * Only set for a read that does NOT own the file's start but still needs to know what its columns
-         * are called — a chunk after the first of a header-bearing file whose declared schema binds by name.
-         * Such a chunk cannot see the header itself, and binding by position instead would silently shift
-         * every column. The component that cut the file into chunks reads the header once and states it here.
+         * are called — any read of a header-bearing file that does not own its first line. The component that
+         * cut the file up reads the header ({@link FormatReader#fileHeaderColumns}) and states it here.
          */
         public Builder fileHeaderColumns(@Nullable List<String> fileHeaderColumns) {
             this.fileHeaderColumns = fileHeaderColumns;

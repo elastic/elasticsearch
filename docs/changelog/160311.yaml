@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 0
+summary: Bind CSV and TSV columns by each file's own header, and fail on a later file with duplicate header names
+type: bug

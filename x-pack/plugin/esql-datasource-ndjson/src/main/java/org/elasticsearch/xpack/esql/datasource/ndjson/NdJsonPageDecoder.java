@@ -1445,13 +1445,13 @@ public class NdJsonPageDecoder implements Closeable {
         // do not warn). Only fires when at least one record was committed — guards against false positives
         // when all records were dropped by skip_row (totalRowCount > 0 but nothing committed). A column
         // absent from every committed record is effectively absent from the file, so we use
-        // absentDeclaredColumnMessage to deduplicate cleanly with Parquet/SAI warnings via InformationalWarningBudget.
+        // absentColumnMessage to deduplicate cleanly with Parquet/SAI warnings via InformationalWarningBudget.
         if (absentColumnWarningSink != null && committedRowCount > 0) {
             for (int i = 0; i < projectedAttributes.size(); i++) {
                 if (columnEverPresent.get(i) == false) {
                     Attribute attr = projectedAttributes.get(i);
                     if (attr.dataType() != DataType.NULL && attr.dataType() != DataType.UNSUPPORTED) {
-                        absentColumnWarningSink.accept(SkipWarnings.absentDeclaredColumnMessage(attr.name()));
+                        absentColumnWarningSink.accept(SkipWarnings.absentColumnMessage(attr.name()));
                     }
                 }
             }

@@ -211,6 +211,58 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         );
     }
 
+    /**
+     * A later split of a compressed headered file gets its header columns from the decompressed bytes: the wrapper
+     * hands the inner reader the file decompressed from its first byte, whether the codec streams or splits.
+     */
+    public void testFileHeaderColumnsAreReadThroughTheCodec() throws IOException {
+        byte[] csv = "id,city,name\n3,tokyo,bob\n".getBytes(StandardCharsets.UTF_8);
+        FormatReader gz = new CompressionDelegatingFormatReader(new CsvFormatReader(blockFactory), new GzipDecompressionCodec());
+        assertEquals(
+            List.of("id", "city", "name"),
+            gz.fileHeaderColumns(new BytesStorageObject(gzip(csv), StoragePath.of("file:///a.csv.gz")))
+        );
+        FormatReader bz2 = new CompressionDelegatingFormatReader(
+            new CsvFormatReader(blockFactory),
+            new Bzip2DecompressionCodec(EsExecutors.DIRECT_EXECUTOR_SERVICE)
+        );
+        assertEquals(
+            List.of("id", "city", "name"),
+            bz2.fileHeaderColumns(new BytesStorageObject(bzip2(csv), StoragePath.of("file:///a.csv.bz2")))
+        );
+        assertTrue("the header setting is forwarded", gz.readsHeaderLine());
+        FormatReader headerless = new CompressionDelegatingFormatReader(
+            new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false)),
+            new GzipDecompressionCodec()
+        );
+        assertFalse(headerless.readsHeaderLine());
+        assertEquals(
+            "a headerless file names as many columns as its first record has fields",
+            List.of("col0", "col1", "col2"),
+            headerless.fileHeaderColumns(new BytesStorageObject(gzip(csv), StoragePath.of("file:///a.csv.gz")))
+        );
+    }
+
+    /** Reading the header of a large compressed file aborts the raw GET instead of draining it. */
+    public void testFileHeaderColumnsDoesNotDrainACompressedFile() throws IOException {
+        StringBuilder csv = new StringBuilder("id,name\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",n_").append(i).append('\n');
+        }
+        byte[] compressed = gzip(csv.toString().getBytes(StandardCharsets.UTF_8));
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(compressed, tracking, StoragePath.of("s3://bucket/data.csv.gz"));
+        FormatReader reader = new CompressionDelegatingFormatReader(new CsvFormatReader(blockFactory), new GzipDecompressionCodec());
+
+        assertEquals(List.of("id", "name"), reader.fileHeaderColumns(object));
+        assertTrue("reading the header must abort the raw GET", tracking.aborted.get());
+        assertThat(
+            "reading the header must not drain the GET; consumed " + tracking.bytesConsumed.get() + " of " + compressed.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) compressed.length / 2)
+        );
+    }
+
     private void assertDelegatesMetadataAndRead(byte[] compressed, String path, DecompressionCodec codec) throws IOException {
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of(path));
 

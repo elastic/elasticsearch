@@ -1125,10 +1125,11 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     public void testSkipRowsNonFirstSplitDoesNotSkipAgain() throws IOException {
         String csv = "CA,10.0.0.1,Mozilla\nNY,10.0.0.2,Safari\n";
+        // A headerless file's fields are named col<N> by position, which is what a pinned schema binds against.
         List<Attribute> schema = List.of(
-            new ReferenceAttribute(Source.EMPTY, null, "state", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, null, "ip", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, null, "user_agent", DataType.KEYWORD)
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.KEYWORD)
         );
         CsvFormatReader configured = (CsvFormatReader) baseReader(false).withConfig(Map.of("skip_rows", 2, "header_row", false));
         StorageObject object = new InMemoryStorageObject(csv.getBytes(StandardCharsets.UTF_8));
@@ -1137,6 +1138,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             .firstSplit(false)
             .recordAligned(true)
             .readSchema(schema)
+            .fileHeaderColumns(List.of("col0", "col1", "col2"))
             .build();
         List<List<Object>> direct = collect(configured.withDirectBlockEnabled(true).withSchema(schema), object, ctx);
         List<List<Object>> jackson = collect(configured.withDirectBlockEnabled(false).withSchema(schema), object, ctx);
@@ -1803,7 +1805,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             .recordAligned(true)
             .readSchema(reader.metadata(object).schema())
             .build();
-        return collect(reader.withDeclaredProvenanceBinding(true), object, ctx);
+        return collect(reader, object, ctx);
     }
 
     private List<List<Object>> drain(CsvFormatReader reader, List<String> projection, int batchSize, ErrorPolicy policy, String content)

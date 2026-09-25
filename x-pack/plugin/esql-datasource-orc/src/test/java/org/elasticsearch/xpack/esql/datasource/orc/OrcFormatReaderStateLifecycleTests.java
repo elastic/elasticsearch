@@ -76,7 +76,6 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withConfig", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
@@ -211,7 +210,6 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("x") };
             case "withConfigTrackingConsumedKeys", "withConfig" -> new Object[] { Map.of() };
             case "withSchema" -> new Object[] { List.of() };
-            case "withDeclaredProvenanceBinding" -> new Object[] { false };
             case "withReadConfig" -> new Object[] { "" };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };

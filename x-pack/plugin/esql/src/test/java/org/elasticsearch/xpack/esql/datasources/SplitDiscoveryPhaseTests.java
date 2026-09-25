@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
@@ -428,7 +429,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             factories,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            List.of(seed)
+            List.of(seed),
+            TransportVersion.current()
         );
 
         assertEquals(
@@ -460,7 +462,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             factories,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            List.of(shadowing)
+            List.of(shadowing),
+            TransportVersion.current()
         );
 
         assertTrue(
@@ -618,6 +621,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
             List.of(),
+            TransportVersion.current(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -748,6 +752,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 () -> false,
                 List.of(),
+                TransportVersion.current(),
                 executor,
                 future
             );
@@ -779,6 +784,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
             List.of(),
+            TransportVersion.current(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -829,6 +835,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 () -> false,
                 List.of(),
+                TransportVersion.current(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 future
             );
@@ -865,6 +872,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
             List.of(),
+            TransportVersion.current(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );
@@ -915,6 +923,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
             List.of(),
+            TransportVersion.current(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future
         );

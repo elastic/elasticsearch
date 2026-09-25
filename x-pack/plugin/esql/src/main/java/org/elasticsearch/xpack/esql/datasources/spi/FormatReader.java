@@ -320,30 +320,6 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Whether the pinned schema this reader was handed is a DECLARED claim (bind its columns to the file BY NAME) as
-     * opposed to an INFERRED description (bind by position). Keyed on the schema's provenance, not on whether any
-     * column declared a {@code path}: a declaration whose order merely differs from the file, with no {@code path} at
-     * all, must still bind by name.
-     * <p>
-     * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. Under
-     * {@code dynamic:true} the schema is inferred from the file, so its positions already are the file's — bind by
-     * position. Under {@code dynamic:false} the declaration itself is pinned as the schema; a reader that consumed it
-     * positionally would never look at the physical names it was handed, so the same mapping could read a different
-     * column. This bit makes such a reader bind by name, so the two modes agree (esql-planning#1307).
-     * <p>
-     * Only the text readers need it: they alone bind a pinned schema positionally. Parquet/ORC bind by footer name and
-     * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
-     * A declared name the file does not supply reads null (CSV/TSV emit a warning; NDJSON and columnar formats read
-     * null silently), never a silent positional fallback.
-     *
-     * @param declaredProvenanceBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
-     * @return a new reader honoring the binding mode, or {@code this} when it does not apply
-     */
-    default FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
-        return this;
-    }
-
-    /**
      * Returns a reader that stamps {@code readConfig} onto the statistics it harvests — the caller-computed identity of
      * how THIS file is being read (see {@code ReadConfigFingerprint}). Opaque to the reader, exactly like the canonical
      * config string it sits beside: the reader carries it through onto its contributions and never interprets it.
@@ -360,16 +336,27 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
-     * unsplittable: every split past the first would have no way to resolve the binding.
-     *
-     * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
-     * file's header line, and only the first split carries it. A headerless file's physical names encode their own
-     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the file shape the
-     * throughput-sensitive reads actually use.
+     * Whether every file this reader reads begins with a header line naming its columns (CSV/TSV with
+     * {@code header_row}). Split planning keeps such files whole while a node that cannot receive
+     * {@link #fileHeaderColumns} may read one of their splits.
      */
-    default boolean declaredNameBindingNeedsFileStart() {
+    default boolean readsHeaderLine() {
         return false;
+    }
+
+    /**
+     * The names this file gives its columns, in file order, read from its leading bytes: a header line's names, or for
+     * headerless text {@code col0..col{w-1}}, where {@code w} is its first record's width. {@code null} for a format
+     * that does not name its columns up front (NDJSON, columnar formats) or an empty file. Passed to a split past the
+     * file's first byte through {@link FormatReadContext#fileHeaderColumns}.
+     * <p>
+     * Must abort its stream ({@link StorageObject#abortStream}) rather than close it: a provider that drains the
+     * remaining bytes on close would transfer the whole object.
+     *
+     * @param file the whole file, positioned at its first byte (not a range of it)
+     */
+    default List<String> fileHeaderColumns(StorageObject file) throws IOException {
+        return null;
     }
 
     /**

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -284,7 +285,9 @@ public class ComputeService {
                 plan,
                 operatorFactoryRegistry.sourceFactories(),
                 maxRecordBytes(configuration),
-                isCancelled
+                isCancelled,
+                List.of(),
+                minTransportVersion()
             );
             recordExternalScanStats(execInfo, result);
             return coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration));
@@ -319,6 +322,7 @@ public class ComputeService {
                 maxRecordBytes(configuration),
                 isCancelled,
                 List.of(),
+                minTransportVersion(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -754,7 +758,20 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled
     ) {
-        return discoverSplitsFromFragments(plan, splits, maxRecordBytes, execInfo, isCancelled, operatorFactoryRegistry);
+        return discoverSplitsFromFragments(
+            plan,
+            splits,
+            maxRecordBytes,
+            execInfo,
+            isCancelled,
+            operatorFactoryRegistry,
+            minTransportVersion()
+        );
+    }
+
+    /** The minimum transport version of the nodes that may read the splits planned here. */
+    private TransportVersion minTransportVersion() {
+        return clusterService.state().getMinTransportVersion();
     }
 
     /**
@@ -766,7 +783,8 @@ public class ComputeService {
         int maxRecordBytes,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
-        OperatorFactoryRegistry operatorFactoryRegistry
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        TransportVersion minTransportVersion
     ) {
         if (operatorFactoryRegistry == null) {
             return plan;
@@ -786,7 +804,8 @@ public class ComputeService {
                     operatorFactoryRegistry.sourceFactories(),
                     maxRecordBytes,
                     isCancelled,
-                    guarded.filters()
+                    guarded.filters(),
+                    minTransportVersion
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
@@ -871,6 +890,7 @@ public class ComputeService {
             maxRecordBytes,
             isCancelled,
             work.guarded().filters(),
+            minTransportVersion(),
             ioExecutor,
             ActionListener.wrap(result -> {
                 try {

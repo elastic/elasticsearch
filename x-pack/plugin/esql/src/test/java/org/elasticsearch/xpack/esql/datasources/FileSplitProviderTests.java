@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -29,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -1400,6 +1402,28 @@ public class FileSplitProviderTests extends ESTestCase {
         String lineContent,
         long targetStrideBytes
     ) {
+        return discoverRealDelimitedSplits(
+            config,
+            fileName,
+            extension,
+            baselineOptions,
+            lineContent,
+            targetStrideBytes,
+            TransportVersion.current(),
+            DeclaredReadSpec.NONE
+        );
+    }
+
+    private List<ExternalSplit> discoverRealDelimitedSplits(
+        Map<String, Object> config,
+        String fileName,
+        String extension,
+        CsvFormatOptions baselineOptions,
+        String lineContent,
+        long targetStrideBytes,
+        TransportVersion minTransportVersion,
+        DeclaredReadSpec declaredReadSpec
+    ) {
         StringBuilder sb = new StringBuilder();
         // ~3.5 MiB: above 2 x CSV_MIN_SEGMENT_BYTES so plain data yields several macro-splits.
         while (sb.length() < 3 * CSV_MIN_SEGMENT_BYTES + CSV_MIN_SEGMENT_BYTES / 2) {
@@ -1440,9 +1464,95 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE
+            declaredReadSpec,
+            Set.of(),
+            null,
+            minTransportVersion
         );
         return splitter.discoverSplits(ctx).splits();
+    }
+
+    /**
+     * While some node predates {@link FileSplitProvider#ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT}, a headered CSV stays
+     * one whole-file split; once every node supports it, the same file splits like any other.
+     */
+    public void testHeaderedCsvStaysWholeFileBelowTheHeaderEverySplitVersion() {
+        TransportVersion before = TransportVersionUtils.randomVersionNotSupporting(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT);
+        List<ExternalSplit> below = discoverRealDelimitedSplits(
+            Map.of("mode", "plain"),
+            "plain.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            before,
+            DeclaredReadSpec.NONE
+        );
+        assertEquals("a headered CSV is read whole below the version, got " + below, 1, below.size());
+        FileSplit whole = (FileSplit) below.get(0);
+        assertEquals(0L, whole.offset());
+        assertNull("a whole-file split is not a macro-split", whole.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+
+        TransportVersion atOrAbove = randomBoolean() ? FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT : TransportVersion.current();
+        List<ExternalSplit> at = discoverRealDelimitedSplits(
+            Map.of("mode", "plain"),
+            "plain.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            atOrAbove,
+            DeclaredReadSpec.NONE
+        );
+        assertTrue("a headered CSV splits at the version, got " + at.size(), at.size() > 1);
+    }
+
+    /**
+     * A headered CSV whose schema was declared splits exactly as an inferred one does.
+     */
+    public void testDeclaredHeaderedCsvMacroSplitsLikeAnInferredOne() {
+        DeclaredReadSpec declared = DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED);
+        List<ExternalSplit> declaredSplits = discoverRealDelimitedSplits(
+            Map.of("mode", "plain"),
+            "plain.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            TransportVersion.current(),
+            declared
+        );
+        List<ExternalSplit> inferredSplits = discoverRealDelimitedSplits(
+            Map.of("mode", "plain"),
+            "plain.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            TransportVersion.current(),
+            DeclaredReadSpec.NONE
+        );
+        assertTrue("a declared headered CSV macro-splits, got " + declaredSplits.size(), declaredSplits.size() > 1);
+        assertEquals(
+            inferredSplits.stream().map(s -> ((FileSplit) s).offset()).toList(),
+            declaredSplits.stream().map(s -> ((FileSplit) s).offset()).toList()
+        );
+    }
+
+    /** A headerless CSV has no header to deliver, so it splits whatever the cluster's version. */
+    public void testHeaderlessCsvSplitsBelowTheHeaderEverySplitVersion() {
+        TransportVersion before = TransportVersionUtils.randomVersionNotSupporting(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT);
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(
+            Map.of("mode", "plain", "header_row", false),
+            "headerless.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n",
+            CSV_MIN_SEGMENT_BYTES,
+            before,
+            DeclaredReadSpec.NONE
+        );
+        assertTrue("a headerless CSV splits below the version, got " + splits.size(), splits.size() > 1);
     }
 
     /**

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
@@ -40,8 +41,11 @@ import java.util.function.BooleanSupplier;
  * @param retainedPartitionKeys keys to keep on each survivor's partition map after filter
  *        evaluation. {@code null} means the projection is unknown, so the full Hive and
  *        {@code _file.*} map is kept. A non-null set, including empty, is authoritative.
- *        {@link org.elasticsearch.xpack.esql.datasources.ExternalSchema#EMPTY} does not imply an
+ *        {@link ExternalSchema#EMPTY} does not imply an
  *        empty set: an empty schema means "do not narrow the file read", not "keep nothing".
+ * @param minTransportVersion the minimum transport version of the nodes that will read the splits, so a split provider
+ *        never emits a split shape an older node cannot read. The convenience constructors default it to
+ *        {@link TransportVersion#current()}.
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
@@ -59,8 +63,45 @@ public record SplitDiscoveryContext(
     // dataset carries no declared mapping (every current SplitProvider but FileSplitProvider ignores it).
     DeclaredReadSpec declaredReadSpec,
     Set<String> metadataColumnNames,
-    @Nullable Set<String> retainedPartitionKeys
+    @Nullable Set<String> retainedPartitionKeys,
+    TransportVersion minTransportVersion
 ) {
+    /**
+     * As the canonical constructor, for a cluster where every node runs this build.
+     */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable ExternalSchema unifiedSchema,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        DeclaredReadSpec declaredReadSpec,
+        Set<String> metadataColumnNames,
+        @Nullable Set<String> retainedPartitionKeys
+    ) {
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            metadataColumnNames,
+            retainedPartitionKeys,
+            TransportVersion.current()
+        );
+    }
+
     public SplitDiscoveryContext(
         SourceMetadata metadata,
         FileList fileList,
@@ -197,5 +238,8 @@ public record SplitDiscoveryContext(
         metadataColumnNames = Set.copyOf(metadataColumnNames);
         // null stays null: unknown projection keeps today's full map. A provided set is authoritative.
         retainedPartitionKeys = retainedPartitionKeys == null ? null : Set.copyOf(retainedPartitionKeys);
+        if (minTransportVersion == null) {
+            throw new IllegalArgumentException("minTransportVersion cannot be null");
+        }
     }
 }

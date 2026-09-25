@@ -710,6 +710,8 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .firstSplit(firstSplit)
             .lastSplit(true)
             .readSchema(readSchema)
+            // A later split binds by the header columns handed to it; here the pinned schema is the header.
+            .fileHeaderColumns(headerRow && readSchema != null ? readSchema.stream().map(Attribute::name).toList() : null)
             .splitStartByte(baseOffset)
             .stats(baseOffset, stripeSize, fileFinal)
             .build();
@@ -809,7 +811,8 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     public void testFusedBracketPathWithRowDropStaysStripeAligned() throws Exception {
         int total = 30;
         int badRow = total / 2;
-        StringBuilder sb = new StringBuilder();
+        // Headered, because the pinned schema names its columns id and tags: a headerless file binds only col<N> names.
+        StringBuilder sb = new StringBuilder("id,tags\n");
         for (int i = 0; i < total; i++) {
             // brackets column `tags`; the mid-file row carries an extra column -> wrong-width structural drop
             // under skip_row. Structural rather than a coercion failure on purpose: a coercion drop is
@@ -824,7 +827,18 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         );
         ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false);
 
-        List<Map<String, Object>> frags = captureFusedBracket(data, 0, true, true, 3, stripe, schema, skipRow);
+        List<Map<String, Object>> frags = captureFusedBracket(
+            data,
+            0,
+            true,
+            true,
+            3,
+            stripe,
+            schema,
+            skipRow,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            true
+        );
         assertFalse("fused bracket + _rowPosition stripe capture must emit fragments (not disable on a row drop)", frags.isEmpty());
 
         Map<String, Object> meta = reconcileToMetadata(frags, schema);
@@ -1151,6 +1165,32 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         ErrorPolicy policy,
         int maxRecordBytes
     ) throws Exception {
+        return captureFusedBracket(
+            bytes,
+            baseOffset,
+            firstSplit,
+            fileFinal,
+            batchSize,
+            stripeSize,
+            readSchema,
+            policy,
+            maxRecordBytes,
+            false
+        );
+    }
+
+    private List<Map<String, Object>> captureFusedBracket(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        List<Attribute> readSchema,
+        ErrorPolicy policy,
+        int maxRecordBytes,
+        boolean headerRow
+    ) throws Exception {
         StorageObject o = memoryObject(bytes);
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(List.of(ColumnExtractor.ROW_POSITION_COLUMN, "id"))
@@ -1169,7 +1209,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         try (
             var handle = ExternalStatsCapture.bind(sink);
             CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
-                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false, CsvFormatReader.CONFIG_MULTI_VALUE_SYNTAX, "brackets")
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow, CsvFormatReader.CONFIG_MULTI_VALUE_SYNTAX, "brackets")
             ).read(o, ctx)
         ) {
             while (it.hasNext()) {

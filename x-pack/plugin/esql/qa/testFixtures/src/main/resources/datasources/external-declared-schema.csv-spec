@@ -141,7 +141,7 @@ dataset: shared_declared_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynam
 FROM shared_declared_absent
 | SORT id
 | LIMIT 3;
-warningRegex:declared column \[department\] is not present in some source files and reads null there
+warningRegex:column \[department\] is not present in some source files and reads null there
 
 id:long | dept:keyword
 10001   | null

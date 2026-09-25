@@ -1,5 +1,1 @@
-dependencies {
-  javaRestTestImplementation project(path: xpackModule('ql:test-fixtures'))
-}
-
-tasks.named("check").configure {dependsOn("javaRestTest") } // run these tests as part of the "check" task
+description = 'Run a subset of SQL tests against a cluster configured for cross-cluster search with security'

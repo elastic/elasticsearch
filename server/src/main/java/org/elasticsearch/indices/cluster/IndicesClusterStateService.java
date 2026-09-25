@@ -1335,10 +1335,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         Exception failure
     ) {
-        // If local recovery retry is not enabled we notify master instead.
-        FailureStrategy finalStrategy = failureStrategy.equals(FailureStrategy.RETRY) && localRecoveryRetryEnabled == false
-            ? FailureStrategy.FAIL_SEND
-            : failureStrategy;
+        // If local recovery retry is not enabled or recovery source is RESHARD_SPLIT
+        // we notify master instead.
+        FailureStrategy finalStrategy = failureStrategy.equals(FailureStrategy.RETRY)
+            && (localRecoveryRetryEnabled == false || shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT))
+                ? FailureStrategy.FAIL_SEND
+                : failureStrategy;
         try {
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(

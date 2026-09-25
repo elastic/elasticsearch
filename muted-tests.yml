@@ -689,3 +689,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/159773
+- class: org.elasticsearch.xpack.esql.datasource.s3.EsqlContainerCredentialsProviderTests
+  method: testAMissingTokenFileNamesTheFileToCreate
+  issue: https://github.com/elastic/elasticsearch/issues/160275

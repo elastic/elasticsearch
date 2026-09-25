@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -153,6 +155,39 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         assertThat(compactedFork.anyMatch(p -> p instanceof Fork), equalTo(true));
     }
 
+    /** A FORK view read beside another source cannot run nested, so compaction lifts its branches as it did before. */
+    public void testCompactionLiftsForkBesideOtherSource() {
+        Fork fork = new Fork(Source.EMPTY, List.of(index("a"), index("b")), List.of());
+        LogicalPlan compacted = ViewCompaction.postIndexResolution(viewOf(fork, index("other")), false);
+        assertThat(compacted.anyMatch(p -> p instanceof Fork), equalTo(false));
+        assertThat(compacted.children(), hasSize(3));
+    }
+
+    /** A view union that is not promoted must not keep a fan-in nested under it; each producer becomes its own branch. */
+    public void testPromoteLiftsFanInBesideNonPromotableBranch() {
+        Filter filteredIndex = new Filter(Source.EMPTY, index("idx"), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
+        LogicalPlan promoted = PromoteSourceFanIn.promote(viewOf(fanIn(external("a"), external("b")), filteredIndex));
+
+        assertThat(promoted, instanceOf(ViewUnionAll.class));
+        ViewUnionAll view = (ViewUnionAll) promoted;
+        assertThat(view.anyMatch(p -> p instanceof SourceFanInUnionAll), equalTo(false));
+        assertThat(view.namedSubqueries().keySet().stream().toList(), equalTo(List.of("b0#1", "b0#2", "b1")));
+        assertThat(view.viewBranchKeys(), equalTo(Set.of("b1")));
+    }
+
+    /**
+     * With a request filter, a view branch that computes over its sources keeps its view boundary so the filter still
+     * lands on the view output. A branch that is only sources under {@code WHERE} is still promoted.
+     */
+    public void testPreserveViewBoundariesPromotesOnlySourceOnlyViewBranches() {
+        Limit limited = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 1, DataType.INTEGER), fanIn(external("a"), external("b")));
+        assertThat(PromoteSourceFanIn.promote(viewOf(limited, index("namesake")), true), instanceOf(ViewUnionAll.class));
+        assertThat(PromoteSourceFanIn.promote(viewOf(limited, index("namesake")), false), instanceOf(SourceFanInUnionAll.class));
+
+        Filter filtered = new Filter(Source.EMPTY, fanIn(external("a"), external("b")), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
+        assertThat(PromoteSourceFanIn.promote(viewOf(filtered, index("namesake")), true), instanceOf(SourceFanInUnionAll.class));
+    }
+
     public void testNamedSubqueryRewriteLeavesSourceFanIn() {
         NamedSubquery named = new NamedSubquery(Source.EMPTY, external("a"), "v");
         SourceFanInUnionAll fanIn = fanIn(named, external("b"));
@@ -252,6 +287,25 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         EsRelation keyword = index("a", field("emp_no", DataType.KEYWORD));
         EsRelation integer = index("b", field("emp_no", DataType.INTEGER));
         SourceFanInUnionAll fanIn = fanIn(external("ds"), keyword, integer);
+        assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
+    }
+
+    /** Two reads of the same concrete index are two copies of its rows under UNION ALL, so they must not merge. */
+    public void testIndexReadsOverSameConcreteIndexStaySeparate() {
+        EsRelation first = indexOver("v_idx", "idx");
+        EsRelation second = indexOver("idx", "idx");
+        SourceFanInUnionAll overlapping = fanIn(external("ds"), first, second);
+        assertThat(overlapping.withIndexReadsCollapsed(), equalTo(overlapping));
+
+        SourceFanInUnionAll disjoint = fanIn(external("ds"), indexOver("a", "a"), indexOver("b", "b")).withIndexReadsCollapsed();
+        assertThat(disjoint.children(), hasSize(2));
+    }
+
+    public void testIndexReadsWithDifferentMetadataStaySeparate() {
+        FieldAttribute empNo = field("emp_no");
+        MetadataAttribute id = new MetadataAttribute(Source.EMPTY, "_id", DataType.KEYWORD, false);
+        EsRelation withId = new EsRelation(Source.EMPTY, "a", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(empNo, id));
+        SourceFanInUnionAll fanIn = fanIn(external("ds"), withId, index("b", empNo));
         assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
     }
 
@@ -374,6 +428,18 @@ public class SourceFanInUnionAllTests extends ESTestCase {
 
     private static EsRelation index(String name, Attribute attribute) {
         return new EsRelation(Source.EMPTY, name, IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(attribute));
+    }
+
+    private static EsRelation indexOver(String pattern, String concreteIndex) {
+        return new EsRelation(
+            Source.EMPTY,
+            pattern,
+            IndexMode.STANDARD,
+            Map.of("", List.of(pattern)),
+            Map.of("", List.of(concreteIndex)),
+            Map.of(),
+            List.of(field("emp_no"))
+        );
     }
 
     private static FieldAttribute field(String name) {

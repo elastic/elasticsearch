@@ -13,16 +13,20 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -209,7 +213,8 @@ public final class SourceFanInUnionAll extends UnionAll {
      * joins local index names into one relation; a matched namesake is the same kind of read and joins that
      * relation instead of running as its own branch. Datasets stay separate. Differing index modes stay
      * separate, because one scan cannot mix them. Scans that map a field to different types also stay
-     * separate, so the union-type rules can still reconcile them per branch.
+     * separate, so the union-type rules can still reconcile them per branch. Scans that share a concrete index
+     * or request different metadata fields stay separate, so each keeps its own copy of the rows.
      * <p>
      * Must run after index resolution and before branch alignment wraps each child in a projection. It is an
      * explicit step rather than part of the constructor, because a node must keep the children it is built with.
@@ -224,7 +229,7 @@ public final class SourceFanInUnionAll extends UnionAll {
         }
         Map<IndexMode, EsRelation> merged = new LinkedHashMap<>();
         for (var entry : byMode.entrySet()) {
-            if (entry.getValue().size() >= 2) {
+            if (entry.getValue().size() >= 2 && canMergeReads(entry.getValue())) {
                 List<Attribute> attributes = mergeAttributes(entry.getValue());
                 if (attributes != null) {
                     merged.put(entry.getKey(), mergeEsRelations(entry.getValue(), attributes));
@@ -246,6 +251,40 @@ public final class SourceFanInUnionAll extends UnionAll {
             }
         }
         return new SourceFanInUnionAll(source(), out, output());
+    }
+
+    /**
+     * True when the scans read disjoint concrete indices and request the same metadata fields. Two scans of the
+     * same index are two copies of its rows under {@code UNION ALL}, and one merged scan would return them once.
+     * Mirrors the guards in {@code ViewCompaction.mergeIfPossible}.
+     */
+    private static boolean canMergeReads(List<EsRelation> relations) {
+        Set<String> metadata = metadataNames(relations.getFirst());
+        Map<String, Set<String>> seen = new HashMap<>();
+        for (EsRelation es : relations) {
+            if (metadataNames(es).equals(metadata) == false) {
+                return false;
+            }
+            for (var entry : es.concreteIndices().entrySet()) {
+                Set<String> indices = seen.computeIfAbsent(entry.getKey(), key -> new HashSet<>());
+                for (String index : entry.getValue()) {
+                    if (indices.add(index) == false) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    private static Set<String> metadataNames(EsRelation relation) {
+        Set<String> names = new HashSet<>();
+        for (Attribute attr : relation.output()) {
+            if (attr instanceof MetadataAttribute) {
+                names.add(attr.name());
+            }
+        }
+        return names;
     }
 
     private static EsRelation mergeEsRelations(List<EsRelation> relations, List<Attribute> attributes) {

@@ -147,7 +147,7 @@ The following search functions are available for datasets:
 
 `FORK` can branch a query whose `FROM` reads datasets, a mix of indices and datasets, or a view whose body is that same source list. Each branch runs against every resolved producer, and the coordinator merges the branch results.
 
-One `FROM` still resolves at most 8 producers. That cap is separate from `FORK`'s own limit of 8 branches. The `max_branch_count` query pragma (default 20) bounds the producers under the `FORK`, so branches times sources can be rejected before either per-command cap is reached. Eight `FORK` branches over a `FROM` that resolves to 8 producers is 64 producers, which exceeds the default.
+One `FROM` still resolves at most 8 producers. That cap is separate from `FORK`'s own limit of 8 branches. A `FORK` over such a `FROM` also allows at most 20 producers in total, counted as branches times sources, so a query can be rejected before either per-command cap is reached. Eight `FORK` branches over a `FROM` that resolves to 8 producers is 64 producers, which exceeds that limit.
 
 ## Limitations
 

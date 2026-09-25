@@ -311,8 +311,11 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
             // A source fan-in is one FROM: lifting it would split its producers into separate view
-            // branches. A FORK is a command: lifting it would drop the command and keep only its branches.
-            if (inner instanceof MergePlan && inner instanceof SourceFanInUnionAll == false && inner instanceof Fork == false) {
+            // branches. PromoteSourceFanIn lifts it later if this union is not promoted into a fan-in.
+            // A FORK read on its own stays a command, so a FORK after it is still reported as a second
+            // FORK. Beside other sources a nested FORK cannot run, so its branches are lifted.
+            boolean keepNested = inner instanceof SourceFanInUnionAll || (inner instanceof Fork && vua.namedSubqueries().size() == 1);
+            if (inner instanceof MergePlan && keepNested == false) {
                 mergeEntries.add(entry);
             } else if (value instanceof UnresolvedRelation) {
                 String assignedKey = makeUniqueKey(flat, key);

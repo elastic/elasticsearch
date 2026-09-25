@@ -96,7 +96,7 @@ public class SearchContextStats implements SearchStats {
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            if (context.isMappedField(field)) {
+            if (isExtractableMappedField(context, field)) {
                 var type = context.getFieldType(field);
                 exists |= true;
                 indexed &= type.isIndexed();
@@ -121,11 +121,25 @@ public class SearchContextStats implements SearchStats {
 
     private boolean fastNoCacheFieldExists(String field) {
         for (SearchExecutionContext context : contexts) {
-            if (context.isMappedField(field)) {
+            if (isExtractableMappedField(context, field)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * A field ES|QL can extract from this shard: present in the mapping and not under a nested
+     * parent. {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested}
+     * on the field-caps request, so treating nested subfields as present here would make
+     * {@code exists}/{@code count} disagree with extraction.
+     */
+    private static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
+        return context.isMappedField(field) && isNestedSubfield(context, field) == false;
+    }
+
+    private static boolean isNestedSubfield(SearchExecutionContext context, String field) {
+        return context.nestedLookup().hasNestedParent(field);
     }
 
     @Override
@@ -167,11 +181,11 @@ public class SearchContextStats implements SearchStats {
         }
         long count = 0;
         for (SearchExecutionContext context : contexts) {
-            // Skip shards where this field is a dynamic sub-key of a flattened field rather
-            // than an explicitly mapped field; those shards store the field's terms in Lucene
-            // even though it is absent from the mapping, so counting without this guard
-            // inflates the result.
-            if (context.isMappedField(field.string()) == false) {
+            // Skip shards where this field is a dynamic flattened sub-key (terms exist in Lucene
+            // but field caps does not report it) or a nested subfield (IndexResolver applies
+            // -nested on the field-caps request; counting nested Lucene docs would disagree
+            // with extraction — #154011).
+            if (isExtractableMappedField(context, field.string()) == false) {
                 continue;
             }
             IndexReader reader = context.searcher().getIndexReader();

@@ -30,7 +30,6 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BinaryDvConfirmedQueryTests extends ESTestCase {
 
@@ -52,8 +51,8 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
         }
     }
 
-    // Subsequence pattern creates ~256 DFA states, triggering the CB at state 64.
-    private static final String COMPLEX_WILDCARD = "*a*b*c*d*e*f*g*h*";
+    // '*' + 65 'a's: subset construction creates 66 DFA states, CB fires at state 64.
+    private static final String COMPLEX_WILDCARD = "*" + "a".repeat(65);
 
     public void testCircuitBreakerConsultedForWildcardDuringCreateWeight() throws IOException {
         try (Directory dir = newDirectory()) {
@@ -62,13 +61,7 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                 doc.add(new BinaryDocValuesField("field", new BytesRef("hello")));
                 writer.addDocument(doc);
                 try (IndexReader reader = writer.getReader()) {
-                    AtomicBoolean breakerCalled = new AtomicBoolean();
-                    NoopCircuitBreaker trackingBreaker = new NoopCircuitBreaker("test") {
-                        @Override
-                        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                            breakerCalled.set(true);
-                        }
-                    };
+                    TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
                     ContextIndexSearcher searcher = new ContextIndexSearcher(
                         reader,
                         IndexSearcher.getDefaultSimilarity(),
@@ -76,7 +69,7 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                         IndexSearcher.getDefaultQueryCachingPolicy(),
                         true
                     );
-                    searcher.setCircuitBreaker(trackingBreaker);
+                    searcher.setCircuitBreaker(breaker);
                     Query query = BinaryDvConfirmedQuery.fromWildcardQuery(
                         Queries.ALL_DOCS_INSTANCE,
                         "field",
@@ -87,7 +80,7 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                     query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
                     assertTrue(
                         "circuit breaker should be consulted during wildcard automaton construction in createWeight",
-                        breakerCalled.get()
+                        breaker.wasCalled()
                     );
                 }
             }
@@ -101,13 +94,7 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                 doc.add(new BinaryDocValuesField("field", new BytesRef("hello")));
                 writer.addDocument(doc);
                 try (IndexReader reader = writer.getReader()) {
-                    AtomicBoolean breakerCalled = new AtomicBoolean();
-                    NoopCircuitBreaker trackingBreaker = new NoopCircuitBreaker("test") {
-                        @Override
-                        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                            breakerCalled.set(true);
-                        }
-                    };
+                    TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
                     ContextIndexSearcher searcher = new ContextIndexSearcher(
                         reader,
                         IndexSearcher.getDefaultSimilarity(),
@@ -115,7 +102,7 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                         IndexSearcher.getDefaultQueryCachingPolicy(),
                         true
                     );
-                    searcher.setCircuitBreaker(trackingBreaker);
+                    searcher.setCircuitBreaker(breaker);
                     // a{70} creates 71 DFA states, triggering the CB at state 64.
                     Query query = BinaryDvConfirmedQuery.fromRegexpQuery(
                         Queries.ALL_DOCS_INSTANCE,
@@ -129,7 +116,7 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                     query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
                     assertTrue(
                         "circuit breaker should be consulted during regexp automaton construction in createWeight",
-                        breakerCalled.get()
+                        breaker.wasCalled()
                     );
                 }
             }

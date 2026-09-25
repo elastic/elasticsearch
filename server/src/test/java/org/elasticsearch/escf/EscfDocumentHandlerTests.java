@@ -343,4 +343,59 @@ public class EscfDocumentHandlerTests extends ESTestCase {
         encodeItemsArrayViaSimdWalk("""
             {"items":[{"criteria":[{"conditions":[{"values":["x"],"k":1}],"m":2}],"n":3}]}""", inner);
     }
+
+    /**
+     * Property-based round-trip: generates random JSON objects with arbitrary nesting — including
+     * sibling array fields, multiple-element arrays, and deep nesting chains — and verifies that
+     * the handler event-dispatch path produces KV bytes that match the reference serializer.
+     * When simdjson is available the simdjson path is exercised as well, so all three agree.
+     *
+     * <p>This covers structural state bugs (stale stack depth, bleed between sibling arrays after a
+     * pop, etc.) that fixed-shape hand-crafted tests cannot exhaust.
+     */
+    public void testRandomObjectInArrayRoundTrips() throws IOException {
+        int iters = randomIntBetween(20, 60);
+        for (int i = 0; i < iters; i++) {
+            String inner = randomJsonObject(0);
+            assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
+            encodeItemsArrayViaSimdWalk("{\"items\":[" + inner + "]}", inner);
+        }
+    }
+
+    private String randomJsonObject(int depth) {
+        int fieldCount = randomIntBetween(1, 4);
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < fieldCount; i++) {
+            if (i > 0) sb.append(',');
+            // Field names are positional ("f0", "f1", ...) to guarantee uniqueness within this object.
+            sb.append("\"f").append(i).append("\":").append(randomJsonValue(depth));
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private String randomJsonValue(int depth) {
+        // Bound recursion: only emit primitives beyond depth 4.
+        int choice = depth >= 4 ? randomIntBetween(0, 3) : randomIntBetween(0, 5);
+        return switch (choice) {
+            case 0 -> "\"" + randomAlphaOfLength(randomIntBetween(1, 6)) + "\"";
+            case 1 -> String.valueOf(randomIntBetween(-1000, 1000));
+            case 2 -> Boolean.toString(randomBoolean());
+            case 3 -> "null";
+            case 4 -> randomJsonArray(depth + 1);
+            case 5 -> randomJsonObject(depth + 1);
+            default -> throw new AssertionError("unreachable");
+        };
+    }
+
+    private String randomJsonArray(int depth) {
+        int len = randomIntBetween(0, 3);
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < len; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(randomJsonValue(depth));
+        }
+        sb.append(']');
+        return sb.toString();
+    }
 }

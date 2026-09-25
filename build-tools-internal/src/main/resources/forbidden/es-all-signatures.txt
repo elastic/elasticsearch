@@ -82,6 +82,11 @@ org.apache.lucene.util.CollectionUtil#newHashSet(int)
 org.apache.lucene.util.automaton.Operations#concatenate(org.apache.lucene.util.automaton.Automaton, org.apache.lucene.util.automaton.Automaton)
 org.apache.lucene.util.automaton.Operations#union(org.apache.lucene.util.automaton.Automaton, org.apache.lucene.util.automaton.Automaton)
 
+@defaultMessage Use the SortField constructor that takes a missing value instead of setMissingValue()
+org.apache.lucene.search.SortField#setMissingValue(java.lang.Object)
+org.apache.lucene.search.SortedSetSortField#setMissingValue(java.lang.Object)
+org.apache.lucene.search.SortedNumericSortField#setMissingValue(java.lang.Object)
+
 @defaultMessage Do not use java.util.logging.Logger, use ES Logger instead
 java.util.logging.Logger#getLogger(java.lang.String)
 java.util.logging.Logger#getLogger(java.lang.String, java.lang.String)

@@ -65,6 +65,7 @@ import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -183,6 +184,15 @@ public class ComputeService {
     static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
+    /**
+     * Fixed per-file allowance for phase 2: 1000 for the frozen survivor map and 160 for one split shell.
+     * Not a measured deep size. Counted per file, not per split — a text or compressed file can become many
+     * splits, and that count is only known after the discovery this reservation precedes, so those files are
+     * under-charged. 560 on {@link org.elasticsearch.xpack.esql.datasources.spi.FileList#planningBytes()} is the
+     * per-file partition-map allowance {@code estimatedBytes()} leaves out, and 760 is the per-file schema-map
+     * allowance charged with the listing.
+     */
+    private static final long PHASE2_BYTES_PER_FILE = 1160L;
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
@@ -275,6 +285,37 @@ public class ComputeService {
         return formatReaderRegistry;
     }
 
+    /**
+     * Reserves survivor-map and split-shell memory for every resolved {@link ExternalSourceExec} before local
+     * split discovery. Unresolved lists are omitted. A breaker trip is not recorded on the run.
+     */
+    private void chargeResolvedExternalSources(PhysicalPlan plan, ExternalPlanningReservation.Run run) {
+        long[] files = { 0L };
+        plan.forEachDown(ExternalSourceExec.class, exec -> {
+            FileList list = exec.fileList();
+            if (list != null && list.isResolved()) {
+                files[0] += list.fileCount();
+            }
+        });
+        chargePhase2(files[0], run);
+    }
+
+    /** Reserves phase-2 memory from the fragment relation's file count, before that relation is lowered. */
+    private static void chargeRelationFileCount(ExternalRelation relation, ExternalPlanningReservation.Run run) {
+        FileList list = relation.fileList();
+        if (list == null || list.isResolved() == false) {
+            return;
+        }
+        chargePhase2(list.fileCount(), run);
+    }
+
+    private static void chargePhase2(long fileCount, ExternalPlanningReservation.Run run) {
+        if (fileCount <= 0 || run == null) {
+            return;
+        }
+        run.charge(fileCount * PHASE2_BYTES_PER_FILE);
+    }
+
     PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {
         if (operatorFactoryRegistry == null) {
             return plan;
@@ -305,6 +346,7 @@ public class ComputeService {
         Configuration configuration,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
+        ExternalPlanningReservation.Run run,
         ActionListener<PhysicalPlan> listener
     ) {
         ActionListener.run(listener, l -> {
@@ -312,6 +354,7 @@ public class ComputeService {
                 l.onResponse(plan);
                 return;
             }
+            chargeResolvedExternalSources(plan, run);
             Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
             SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
                 plan,
@@ -542,7 +585,7 @@ public class ComputeService {
     }
 
     /** Bundles the (possibly rewritten) plan produced by split discovery with the splits collected from it. */
-    private record CollectedSplits(PhysicalPlan plan, List<ExternalSplit> splits) {}
+    record CollectedSplits(PhysicalPlan plan, List<ExternalSplit> splits) {}
 
     record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan, List<ExternalSplit> coordinatorSplits) {
         boolean isDistributed() {
@@ -599,6 +642,7 @@ public class ComputeService {
         Configuration configuration,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
+        ExternalPlanningReservation.Run run,
         ActionListener<CollectedSplits> listener
     ) {
         List<ExternalSplit> splits = new ArrayList<>();
@@ -618,6 +662,7 @@ public class ComputeService {
             maxRecordBytes(configuration),
             execInfo,
             isCancelled,
+            run,
             ActionListener.wrap(rewritten -> {
                 if (SplitCoalescer.shouldCoalesce(splits.size())) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
@@ -818,6 +863,7 @@ public class ComputeService {
         int maxRecordBytes,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
+        ExternalPlanningReservation.Run run,
         ActionListener<PhysicalPlan> listener
     ) {
         if (operatorFactoryRegistry == null) {
@@ -844,6 +890,7 @@ public class ComputeService {
             maxRecordBytes,
             execInfo,
             isCancelled,
+            run,
             ioExecutor,
             ActionListener.wrap(ignored -> listener.onResponse(rewritePrunedFragments(plan, dropListing)), listener::onFailure)
         );
@@ -857,6 +904,7 @@ public class ComputeService {
         int maxRecordBytes,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
+        ExternalPlanningReservation.Run run,
         Executor ioExecutor,
         ActionListener<Void> listener
     ) {
@@ -865,6 +913,12 @@ public class ComputeService {
             return;
         }
         FragmentWork work = workItems.get(index);
+        try {
+            chargeRelationFileCount(work.guarded().relation(), run);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
             work.guarded().relation().toPhysicalExec(),
             operatorFactoryRegistry.sourceFactories(),
@@ -893,6 +947,7 @@ public class ComputeService {
                     maxRecordBytes,
                     execInfo,
                     isCancelled,
+                    run,
                     ioExecutor,
                     listener
                 );
@@ -1128,6 +1183,15 @@ public class ComputeService {
         SiblingPlacement placement
     ) {
         final long splitDiscoveryStart = System.nanoTime();
+        ExternalPlanningReservation reservation = execInfo == null ? null : execInfo.externalPlanning();
+        ExternalPlanningReservation.Run run = reservation == null ? null : reservation.openRun();
+        ActionListener<Result> releasing = ActionListener.wrap(result -> {
+            Releasables.close(run);
+            listener.onResponse(result);
+        }, e -> {
+            Releasables.close(run);
+            listener.onFailure(e);
+        });
         // Capture the inbound ThreadContext before Phase-2 hops to esql_external_io / SDK
         // threads. Those completions have no security user; SEARCH's executor would then
         // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
@@ -1143,7 +1207,7 @@ public class ComputeService {
                         foldContext,
                         execInfo,
                         profileQualifier,
-                        listener,
+                        releasing,
                         exchangeSinkSupplier,
                         initialClusterStatuses,
                         planTimeProfile,
@@ -1151,9 +1215,9 @@ public class ComputeService {
                         splitDiscoveryStart,
                         placement
                     ),
-                    listener
+                    releasing
                 ),
-                listener::onFailure
+                releasing::onFailure
             ),
             threadPool.getThreadContext()
         );
@@ -1162,6 +1226,22 @@ public class ComputeService {
             afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
             return;
         }
+        startPhase2OrSkip(physicalPlan, configuration, execInfo, rootTask::isCancelled, run, afterDiscovery);
+    }
+
+    /**
+     * Runs phase-2 discovery, or returns the plan unchanged when {@link #canSkipSplitDiscovery} is true.
+     * The skip path never charges survivor or split memory. {@code run} is closed by the compute execution
+     * that opened it, not here.
+     */
+    void startPhase2OrSkip(
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled,
+        ExternalPlanningReservation.Run run,
+        ActionListener<CollectedSplits> afterDiscovery
+    ) {
         if (canSkipSplitDiscovery(physicalPlan, formatReaderRegistry)) {
             recordExternalWarmAggregates(execInfo, physicalPlan);
             afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
@@ -1171,9 +1251,10 @@ public class ComputeService {
             physicalPlan,
             configuration,
             execInfo,
-            rootTask::isCancelled,
+            isCancelled,
+            run,
             afterDiscovery.delegateFailureAndWrap(
-                (l, splitPlan) -> collectExternalSplitsAsync(splitPlan, configuration, execInfo, rootTask::isCancelled, l)
+                (l, splitPlan) -> collectExternalSplitsAsync(splitPlan, configuration, execInfo, isCancelled, run, l)
             )
         );
     }

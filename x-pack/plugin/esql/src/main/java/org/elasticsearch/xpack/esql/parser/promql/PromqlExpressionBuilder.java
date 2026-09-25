@@ -183,7 +183,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         }
         OffsetContext offsetContext = ctx.offset();
         if (offsetContext != null) {
-            offset = visitDuration(offsetContext.duration());
+            // an offset may be zero or negative (`offset (5s - 8)`); a range may not
+            offset = duration(offsetContext.duration(), false);
             // PromQL durations are unsigned magnitudes; the optional leading `-` (look ahead) is a separate token.
             // Fold the sign into a single signed duration literal, mirroring how the `@` modifier is handled above.
             if (offsetContext.MINUS() != null && offset.value() instanceof Duration d) {
@@ -193,8 +194,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         return new Evaluation(offset, at);
     }
 
+    /** A range or resolution: a duration greater than zero. */
     @Override
     public Literal visitDuration(DurationContext ctx) {
+        return duration(ctx, true);
+    }
+
+    private Literal duration(DurationContext ctx, boolean positive) {
         if (ctx == null) {
             return Literal.NULL;
         }
@@ -223,13 +229,18 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
         Duration d = switch (o) {
             case Duration duration -> duration;
-            // Handle numeric scalars interpreted as seconds
+            // A number is a duration in seconds - a float literal, or a duration literal spelled with units, which the
+            // expression grammar already reads as its number of seconds; millisecond precision, like Prometheus.
             case Number num -> {
-                long seconds = num.longValue();
-                if (seconds <= 0) {
-                    throw new ParsingException(source(ctx), "Duration must be positive, got [{}]s", seconds);
+                double seconds = num.doubleValue();
+                if (Double.isFinite(seconds) == false || (positive && seconds <= 0)) {
+                    throw new ParsingException(source(ctx), "Duration must be positive, got [{}]s", num);
                 }
-                Duration duration = Duration.ofSeconds(seconds);
+                double millis = seconds * 1000.0;
+                if (millis >= Long.MAX_VALUE) {
+                    throw new ParsingException(source(ctx), "Duration out of range");
+                }
+                Duration duration = Duration.ofMillis(Math.round(millis));
                 // Validate the resulting duration is within acceptable range
                 validateDurationRange(source(ctx), duration);
                 yield duration;

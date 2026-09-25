@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -36,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -308,6 +312,9 @@ public final class GraphExpandDriver {
         sortHopRows(rows);
         applyHubDegree(rows);
         applyCaps(rows);
+        // IP stop-set members and the admitted node have to be the same bytes.
+        // An ip field can come back IPv4 or IPv4-mapped; both encode to one form.
+        canonicalizeUntilIps(rows);
         if (until != null && rows.isEmpty() == false) {
             pendingUntilRows = rows;
             awaitingUntilFilter = true;
@@ -352,6 +359,9 @@ public final class GraphExpandDriver {
             for (int i = 0; i < page.getPositionCount(); i++) {
                 Object v = BlockUtils.toJavaObject(block, i);
                 if (v != null) {
+                    if (valueType == DataType.IP) {
+                        v = canonicalIp(v);
+                    }
                     literals.add(new Literal(graphExpand.source(), v, valueType));
                 }
             }
@@ -427,25 +437,45 @@ public final class GraphExpandDriver {
         }
         // out: frontier matches ON (stored source). in: frontier matches TO (stored target).
         Attribute frontierField = leg == Leg.OUT ? matchField : targetField;
-        In inPredicate = new In(source, frontierField, literals);
-        // Null pointer values emit no row (TO IS NOT NULL on the scanned documents).
-        Expression notNullPointer = new IsNotNull(source, targetField);
-        Expression edgePredicate = Predicates.combineAnd(
-            graphExpand.documentFilter() != null
-                ? List.of(inPredicate, notNullPointer, graphExpand.documentFilter())
-                : List.of(inPredicate, notNullPointer)
+        // Explode the matched field before the IN. A compute-layer IN on a
+        // multi-valued keyword misses the document (the value is inside the
+        // array). After MV_EXPAND the value is one keyword and the IN matches,
+        // which is what an inbound pointer walk needs. A single-valued field
+        // expands to itself. The IN references the expanded attribute, so the
+        // optimizer leaves it above the expand; other predicates can still
+        // push to the index.
+        Attribute expandedFrontier = new ReferenceAttribute(
+            frontierField.source(),
+            frontierField.qualifier(),
+            frontierField.name(),
+            frontierField.dataType(),
+            frontierField.nullable(),
+            null,
+            false
         );
-        LogicalPlan hopChild = new Filter(source, graphExpand.edgeRelation(), edgePredicate);
+        LogicalPlan scanned = new MvExpand(source, graphExpand.edgeRelation(), frontierField, expandedFrontier);
+        In inPredicate = new In(source, expandedFrontier, literals);
+        // Null pointer values emit no row (TO IS NOT NULL on the scanned documents).
+        Expression notNullPointer = new IsNotNull(source, retarget(targetField, frontierField, expandedFrontier));
+        Expression documentFilter = graphExpand.documentFilter() == null
+            ? null
+            : retarget(graphExpand.documentFilter(), frontierField, expandedFrontier);
+        Expression edgePredicate = Predicates.combineAnd(
+            documentFilter != null ? List.of(inPredicate, notNullPointer, documentFilter) : List.of(inPredicate, notNullPointer)
+        );
+        LogicalPlan hopChild = new Filter(source, scanned, edgePredicate);
 
         Attribute nodeFrom = resultAttributes.get(0);
         Attribute nodeTo = resultAttributes.get(1);
         Attribute nodeReached = resultAttributes.get(2);
         Attribute hopAttr = resultAttributes.get(3);
 
-        Attribute evalFrom = matchField;
-        Attribute evalTo = targetField;
+        Attribute seenMatch = retarget(matchField, frontierField, expandedFrontier);
+        Attribute seenTarget = retarget(targetField, frontierField, expandedFrontier);
+        Attribute evalFrom = seenMatch;
+        Attribute evalTo = seenTarget;
         if (graphExpand.aggregates() != null) {
-            Aggregate aggregate = buildHopAggregate(source, hopChild, targetField);
+            Aggregate aggregate = buildHopAggregate(source, hopChild, seenMatch, seenTarget, frontierField, expandedFrontier);
             hopChild = aggregate;
             // Aggregate WHERE filters collapsed edges after STATS, before admission.
             if (graphExpand.aggregateFilter() != null) {
@@ -495,19 +525,37 @@ public final class GraphExpandDriver {
      * endpoint pair ({@code match}, {@code TO}); a user {@code BY} refines that
      * pair. Aggregate expressions are those already resolved on {@link GraphExpand}.
      */
-    private Aggregate buildHopAggregate(Source source, LogicalPlan filteredEdges, Attribute targetField) {
+    private Aggregate buildHopAggregate(
+        Source source,
+        LogicalPlan filteredEdges,
+        Attribute seenMatch,
+        Attribute seenTarget,
+        Attribute frontierField,
+        Attribute expandedFrontier
+    ) {
         List<? extends NamedExpression> userAggregates = graphExpand.aggregates();
         List<Expression> userGroupings = graphExpand.groupings() != null ? graphExpand.groupings() : List.of();
 
         List<Expression> groupings = new ArrayList<>(2 + userGroupings.size());
-        groupings.add(matchField);
-        groupings.add(targetField);
-        groupings.addAll(userGroupings);
+        groupings.add(seenMatch);
+        groupings.add(seenTarget);
+        for (Expression grouping : userGroupings) {
+            groupings.add(retarget(grouping, frontierField, expandedFrontier));
+        }
 
         // Same shape as ParserUtils.buildStats: user aggs first, then grouping keys
         // so Aggregate.output() carries the pair (for Eval) and any user BY columns.
         List<NamedExpression> aggregates = new ArrayList<>(userAggregates.size() + groupings.size());
-        aggregates.addAll(userAggregates);
+        for (NamedExpression aggregate : userAggregates) {
+            Expression rewritten = retarget(aggregate, frontierField, expandedFrontier);
+            if (rewritten instanceof NamedExpression named) {
+                aggregates.add(named);
+            } else {
+                throw new IllegalStateException(
+                    "GRAPH EXPAND could not retarget aggregate [" + aggregate.sourceText() + "] onto the expanded frontier field"
+                );
+            }
+        }
         for (Expression grouping : groupings) {
             Attribute attr = Expressions.attribute(grouping);
             if (attr == null) {
@@ -518,6 +566,63 @@ public final class GraphExpandDriver {
             aggregates.add(attr);
         }
         return new Aggregate(source, filteredEdges, groupings, aggregates);
+    }
+
+    /** Replace references to the pre-expand field with the attribute MV_EXPAND emits. */
+    private static Expression retarget(Expression expression, Attribute from, Attribute to) {
+        return expression.transformUp(Attribute.class, attribute -> attribute.semanticEquals(from) ? to : attribute);
+    }
+
+    private static Attribute retarget(Attribute attribute, Attribute from, Attribute to) {
+        return attribute.semanticEquals(from) ? to : attribute;
+    }
+
+    /**
+     * Rewrite an ip column in the hop rows to the Lucene 16-byte form, so an
+     * {@code UNTIL} literal built from a watchlist compares equal to the node
+     * the walk admitted. IPv4 and IPv4-mapped IPv6 are one address.
+     */
+    private void canonicalizeUntilIps(List<List<Object>> rows) {
+        if (until instanceof In inExpr && inExpr.value() instanceof Attribute lhs && lhs.dataType() == DataType.IP) {
+            int idx = -1;
+            for (int i = 0; i < resultAttributes.size(); i++) {
+                if (resultAttributes.get(i).name().equals(lhs.name())) {
+                    idx = i;
+                    break;
+                }
+            }
+            if (idx < 0) {
+                return;
+            }
+            for (List<Object> row : rows) {
+                if (idx < row.size()) {
+                    row.set(idx, canonicalIp(row.get(idx)));
+                }
+            }
+        }
+    }
+
+    /**
+     * One comparable form for an ip value. A 16-byte Lucene encoding is
+     * decoded and re-encoded, which folds IPv4-mapped IPv6 back to IPv4.
+     * A string is parsed the same way and returned as that encoding too,
+     * because {@link Literal} of type {@code ip} stores the encoded bytes.
+     */
+    private static Object canonicalIp(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            if (value instanceof BytesRef bytes && bytes.length == 16) {
+                byte[] raw = new byte[16];
+                System.arraycopy(bytes.bytes, bytes.offset, raw, 0, 16);
+                return new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(raw)));
+            }
+            String text = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(text)));
+        } catch (IllegalArgumentException e) {
+            return value;
+        }
     }
 
     // --- combine / sort / admission ----------------------------------------------

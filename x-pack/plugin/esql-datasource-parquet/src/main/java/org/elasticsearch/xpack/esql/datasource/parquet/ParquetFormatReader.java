@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -2363,7 +2364,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 blockFactory,
                 rowLimit,
                 createdBy,
-                object.path().toString(),
+                // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+                ExternalFailures.redactHttpUrl(object.path().toString()),
                 hasRecordFilter,
                 rangeBlockGlobalOffsets,
                 counters,
@@ -2407,7 +2409,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         String[] absentColumnWarnings = buildAbsentColumnWarnings(projectedAttributes, columnInfos);
         validatePlannerTypesAgainstFile(
             logger,
-            storageObject.path().toString(),
+            ExternalFailures.redactHttpUrl(storageObject.path().toString()),
             reader,
             projectedAttributes,
             columnInfos,
@@ -2555,7 +2557,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 blockFactory,
                 rowLimit,
                 createdBy,
-                storageObject.path().toString(),
+                // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+                ExternalFailures.redactHttpUrl(storageObject.path().toString()),
                 columnInfos,
                 preloadedMetadata,
                 storageObject,
@@ -3452,31 +3455,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false && declaredCoercible == false) {
                 if (skipWarnings == null) {
                     skipWarnings = new SkipWarnings(
-                        "Parquet file ["
-                            + fileLocation
-                            + "] has columns whose on-disk type is incompatible with planner type; "
-                            + "they are returned as null",
+                        "Some columns in [" + fileLocation + "] have a type the query cannot read; returning null",
                         warningSink
                     );
                 }
                 skipWarnings.add(
-                    "Column ["
+                    "column ["
                         + attr.name()
-                        + "] in file ["
-                        + fileLocation
-                        + "] has type ["
-                        + actualInFile
-                        + "] incompatible with planner type ["
-                        + attr.dataType()
-                        + "]; returning nulls for this column"
+                        + "]: ["
+                        + actualInFile.typeName()
+                        + "] in the file, ["
+                        + attr.dataType().typeName()
+                        + "] in the query"
                 );
                 logger.warn(
-                    "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}] after widening; "
-                        + "returning nulls for this column",
+                    "Column [{}] in [{}] is [{}] in the file, [{}] in the query; returning null",
                     attr.name(),
                     fileLocation,
-                    actualInFile,
-                    attr.dataType()
+                    actualInFile.typeName(),
+                    attr.dataType().typeName()
                 );
                 columnInfos[i] = null;
             }
@@ -3583,11 +3580,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 return null;
             }
             if (coercionWarnings == null) {
-                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                    ? "their entire row is dropped"
-                    : "they are returned as null";
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
                 coercionWarnings = new SkipWarnings(
-                    "Parquet file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                    "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
                     warningSink
                 );
             }
@@ -3947,7 +3942,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // drops share this one counter for the iterator.
             int droppedRows = rowDropHelper != null ? rowDropHelper.failedCount() : 0;
             try {
-                listCorruptionHandler.completeBatch(rowsToRead, droppedRows, droppedRows > 0 ? coercionWarnings() : null);
+                listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
             } catch (RuntimeException e) {
                 ParquetReadFailures.closePreservingCause(e, blocks);
                 throw e;
@@ -4274,14 +4269,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     try {
                         values[i] = DeclaredTypeCoercions.parseDatetimeMillis(cr.getBinary().toStringUsingUTF8(), info.dateFormatter());
                     } catch (IllegalArgumentException | DateTimeException e) {
-                        DeclaredTypeCoercions.onCoercionFailure(
-                            columnName,
-                            DataType.KEYWORD,
-                            DataType.DATETIME,
-                            e,
-                            coercionWarnings(),
-                            skipRow
-                        );
+                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, coercionWarnings());
                         if (skipRow) failedPositionSink.accept(i);
                         isNull.set(i);
                         noNulls = false;

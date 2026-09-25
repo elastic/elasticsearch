@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -871,6 +874,42 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f1")));
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f2")));
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
+    }
+
+    public void testParseIndicesPrivilegesWarnsOnLegacyExceptFieldsThatAreNotSubsetOfGrantedFields() {
+        resetFieldPermssionsCache();
+
+        final String json = """
+            {
+              "indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "p1", "p2" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2" ],
+                    "except": [ "_f3" ]
+                  }
+                }
+              ]
+            }""";
+        MockLog.assertThatLogger(() -> {
+            final RoleDescriptor rd;
+            try {
+                rd = RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            assertArrayEquals(new String[] { "f1", "f2" }, rd.getIndicesPrivileges()[0].getGrantedFields());
+            assertArrayEquals(new String[] { "_f3" }, rd.getIndicesPrivileges()[0].getDeniedFields());
+        },
+            FieldPermissionsCache.class,
+            new MockLog.SeenEventExpectation(
+                "legacy except fields warning",
+                FieldPermissionsCache.class.getName(),
+                Level.WARN,
+                "Role [test] has exceptions for field permissions*minimally required metadata fields*"
+            )
+        );
     }
 
     public void testParseRemoteIndicesPrivilegesFailsWhenClustersFieldMissing() {

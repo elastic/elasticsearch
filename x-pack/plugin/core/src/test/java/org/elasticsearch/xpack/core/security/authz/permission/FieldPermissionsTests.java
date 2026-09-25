@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.hamcrest.core.IsSame;
@@ -19,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -67,7 +70,7 @@ public class FieldPermissionsTests extends ESTestCase {
             assertThat(result, is(notNullValue()));
             assertThat(result, not(same(fieldPermissions)));
             assertThat(result, not(same(fieldPermissions1)));
-            CharacterRunAutomaton automaton = new CharacterRunAutomaton(result.getIncludeAutomaton());
+            CharacterRunAutomaton automaton = result.getPermittedFieldsAutomaton();
             assertThat(automaton.run("f1"), is(true));
             assertThat(automaton.run("f2"), is(true));
             assertThat(automaton.run("f3"), is(false));
@@ -80,7 +83,7 @@ public class FieldPermissionsTests extends ESTestCase {
             assertThat(result, is(notNullValue()));
             assertThat(result, not(same(fieldPermissions1)));
             assertThat(result, not(same(fieldPermissions2)));
-            CharacterRunAutomaton automaton = new CharacterRunAutomaton(result.getIncludeAutomaton());
+            CharacterRunAutomaton automaton = result.getPermittedFieldsAutomaton();
             assertThat(automaton.run("f1"), is(true));
             assertThat(automaton.run("f2"), is(false));
             assertThat(automaton.run("f3"), is(false));
@@ -93,7 +96,7 @@ public class FieldPermissionsTests extends ESTestCase {
             assertThat(result, is(notNullValue()));
             assertThat(result, not(same(fieldPermissions1)));
             assertThat(result, not(same(fieldPermissions2)));
-            CharacterRunAutomaton automaton = new CharacterRunAutomaton(result.getIncludeAutomaton());
+            CharacterRunAutomaton automaton = result.getPermittedFieldsAutomaton();
             assertThat(automaton.run("f1"), is(true));
             assertThat(automaton.run("f2"), is(false));
             assertThat(automaton.run("f3"), is(false));
@@ -145,7 +148,10 @@ public class FieldPermissionsTests extends ESTestCase {
         final FieldPermissions fieldPermissions0 = FieldPermissions.DEFAULT;
         assertNonNullFieldPermissionDefinitions(fieldPermissions0.getFieldPermissionsDefinitions());
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null));
-        expectThrows(NullPointerException.class, () -> new FieldPermissions(null, Automatons.MATCH_ALL));
+        expectThrows(
+            NullPointerException.class,
+            () -> new FieldPermissions(null, new FieldPermissions.AutomatonWithLegacyExceptFieldsFlag(Automatons.MATCH_ALL, false))
+        );
 
         final FieldPermissions fieldPermissions03 = randomFrom(
             FieldPermissions.DEFAULT,
@@ -160,6 +166,23 @@ public class FieldPermissionsTests extends ESTestCase {
                 new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" }))
             ).getFieldPermissionsDefinitions(),
             fieldPermissions03.hasFieldLevelSecurity() ? 2 : 1
+        );
+    }
+
+    public void testAllBuiltinMetadataFieldsEitherAllowlistedOrExcluded() {
+        // add new fields that shouldn't be exposed under FLS by default here
+        final Set<String> excludedFields = Set.of();
+        final Set<String> categorizedFields = Sets.union(excludedFields, FieldPermissions.METADATA_FIELDS_ALLOWLIST);
+
+        final Set<String> builtinMetadataFields = IndicesModule.getBuiltInMetadataFields();
+        final Set<String> uncategorizedFields = Sets.difference(builtinMetadataFields, categorizedFields);
+        assertThat(
+            "Several metadata fields are neither allowlisted nor explicitly excluded from allowlist "
+                + uncategorizedFields
+                + ". Add them to the allowlist [FieldPermissions.METADATA_FIELDS_ALLOWLIST] "
+                + "if the field should be exposed under FLS by default. Add it to [excludedFields] otherwise.",
+            uncategorizedFields,
+            is(empty())
         );
     }
 
@@ -235,6 +258,115 @@ public class FieldPermissionsTests extends ESTestCase {
         // Just limited by is the same as definition because limitFieldPermissions uses limited-by definition if the original
         // permission is match all
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out3.bytes())), is(true));
+    }
+
+    public void testLegacyExcludeForUnderscoredFields() {
+        FieldPermissions fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "xyz" }, new String[] {}));
+        assertThat(fieldPermissions.grantsAccessTo("_xyz"), is(false));
+        assertThat(fieldPermissions.hasLegacyExceptFields(), is(false));
+
+        fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "xyz" }, new String[] { "_xyz" }));
+        assertThat(fieldPermissions.grantsAccessTo("_xyz"), is(false));
+        assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));
+
+        fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "xyz" }, new String[] { "_*yz" }));
+        assertThat(fieldPermissions.grantsAccessTo("_xyz"), is(false));
+        assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));
+
+        fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] {}, new String[] { "_*yz" }));
+        assertThat(fieldPermissions.grantsAccessTo("_xyz"), is(false));
+        assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));
+
+        for (var allowlistedMetadataField : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
+            fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] {}, new String[] { "_*yz" }));
+            assertThat(fieldPermissions.grantsAccessTo(allowlistedMetadataField), is(true));
+            assertThat(fieldPermissions.hasLegacyExceptFields(), is(true));
+
+            fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { "*" }));
+            assertThat(fieldPermissions.grantsAccessTo(allowlistedMetadataField), is(true));
+            assertThat(fieldPermissions.hasLegacyExceptFields(), is(false));
+
+            fieldPermissions = new FieldPermissions(fieldPermissionDef(new String[] { "*" }, new String[] { allowlistedMetadataField }));
+            assertThat(fieldPermissions.grantsAccessTo(allowlistedMetadataField), is(true));
+            assertThat(fieldPermissions.hasLegacyExceptFields(), is(false));
+        }
+    }
+
+    public void testMetadataFieldsAllowlistPredicate() {
+        for (var field : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
+            assertThat(field, FieldPermissions.PREDICATE.test(field), is(true));
+            assertThat(field, FieldPermissions.PREDICATE.test(field + ".sub"), is(true));
+            assertThat(field, FieldPermissions.PREDICATE.test(field + ".sub.deeper"), is(true));
+            assertThat(field, FieldPermissions.PREDICATE.test(field + "x"), is(false));
+            assertThat(field, FieldPermissions.PREDICATE.test(field + "x.sub"), is(false));
+            assertThat(field, FieldPermissions.PREDICATE.test("prefix." + field), is(false));
+        }
+
+        for (var notAllowed : List.of(
+            "_uid",
+            "_timestamp",
+            "_ttl",
+            "_parent",
+            "_all",
+            "_",
+            "_idx",
+            "_seq_nox",
+            "_some_plugin_meta_field",
+            "id",
+            "source",
+            "regular_field",
+            ""
+        )) {
+            assertThat(notAllowed, FieldPermissions.PREDICATE.test(notAllowed), is(false));
+        }
+    }
+
+    public void testMetadataFieldsGrantedForAnyFlsDefinition() {
+        FieldPermissions fieldPermissions = new FieldPermissions(
+            fieldPermissionDef(
+                randomFrom(new String[] {}, new String[] { "field1" }, new String[] { "field*" }),
+                randomBoolean() ? null : new String[] {}
+            )
+        );
+        assertThat(fieldPermissions.hasFieldLevelSecurity(), is(true));
+        for (var field : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
+            assertThat(fieldPermissions.grantsAccessTo(field), is(true));
+            assertThat(fieldPermissions.grantsAccessTo(field + ".sub"), is(true));
+            assertThat(fieldPermissions.fieldPredicate().test(field), is(true));
+        }
+        assertThat(fieldPermissions.grantsAccessTo("_some_plugin_meta_field"), is(false));
+        assertThat(fieldPermissions.fieldPredicate().test("_some_plugin_meta_field"), is(false));
+    }
+
+    public void testLimitFieldPermissionsPreservesMetadataFieldAccess() {
+        FieldPermissions base = new FieldPermissions(fieldPermissionDef(new String[] { "foo" }, null));
+        FieldPermissions limitedBy = new FieldPermissions(fieldPermissionDef(new String[] { "bar" }, null));
+
+        FieldPermissions limited = base.limitFieldPermissions(limitedBy);
+        assertThat(limited.grantsAccessTo("foo"), is(false));
+        assertThat(limited.grantsAccessTo("bar"), is(false));
+        for (var field : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
+            assertThat(limited.grantsAccessTo(field), is(true));
+            assertThat(limited.fieldPredicate().test(field + ".sub"), is(true));
+        }
+        assertThat(limited.grantsAccessTo("_some_plugin_meta_field"), is(false));
+    }
+
+    public void testLimitFieldPermissionsPropagatesLegacyExceptFieldsFlag() {
+        FieldPermissions legacy = new FieldPermissions(fieldPermissionDef(new String[] { "xyz" }, new String[] { "_xyz" }));
+        assertThat(legacy.hasLegacyExceptFields(), is(true));
+        FieldPermissions nonLegacy = new FieldPermissions(fieldPermissionDef(new String[] { "abc" }, null));
+        assertThat(nonLegacy.hasLegacyExceptFields(), is(false));
+
+        assertThat(legacy.limitFieldPermissions(nonLegacy).hasLegacyExceptFields(), is(true));
+        assertThat(nonLegacy.limitFieldPermissions(legacy).hasLegacyExceptFields(), is(true));
+        assertThat(legacy.limitFieldPermissions(legacy).hasLegacyExceptFields(), is(true));
+        assertThat(nonLegacy.limitFieldPermissions(nonLegacy).hasLegacyExceptFields(), is(false));
+
+        assertThat(FieldPermissions.DEFAULT.limitFieldPermissions(legacy).hasLegacyExceptFields(), is(true));
+        assertThat(legacy.limitFieldPermissions(FieldPermissions.DEFAULT).hasLegacyExceptFields(), is(true));
+        assertThat(FieldPermissions.DEFAULT.limitFieldPermissions(nonLegacy).hasLegacyExceptFields(), is(false));
+        assertThat(FieldPermissions.DEFAULT.limitFieldPermissions(FieldPermissions.DEFAULT), IsSame.sameInstance(FieldPermissions.DEFAULT));
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

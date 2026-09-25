@@ -1,0 +1,5 @@
+pr: 158416
+summary: Avoid device reads for AsyncDirectIOIndexInput slices that are never read
+area: Vector Search
+type: enhancement
+issues: []

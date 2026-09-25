@@ -215,3 +215,22 @@ Security::
 {esql}::
 
 * Some valid queries using an `ENRICH` command can fail when a match field is used that is absent from some indices or shards, either with a 500 status code due to `NullPointerException` or `ClassCastException` or with a 400 status code and `IllegalArgumentException`. This is fixed in {es-pull}126187[#126187].
+
+Vector Search::
+* Vector search performance can degrade on Linux systems running kernel 6.1 or later when Multi-Gen LRU (MGLRU) is enabled.
++
+Affected Elasticsearch versions can experience significant vector search slowdowns and delayed Lucene index merges. MGLRU was introduced in Linux kernel 6.1 and is enabled by default in some Linux distributions, including Ubuntu 24.04. An interaction between MGLRU and Lucene's read advice behavior can result in excessive major page faults and I/O activity during vector operations.
++
+--
+To determine whether MGLRU is enabled, run:
+
+[source,bash]
+----
+cat /sys/kernel/mm/lru_gen/enabled
+----
+
+A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled.
+This issue is fixed in Elasticsearch 8.17.5 and later, 8.18.1 and later, and 9.0.2 and later.
+It does not affect Elasticsearch 8.19.
+For more information, refer to {es-issue}124499[#124499].
+--

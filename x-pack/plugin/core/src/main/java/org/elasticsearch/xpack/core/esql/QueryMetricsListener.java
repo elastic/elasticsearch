@@ -42,6 +42,10 @@ public interface QueryMetricsListener {
      */
     String SPLIT_DISCOVERY_NANOS = "split_discovery_nanos";
     /**
+     * CPU time spent discovering splits (no IO wait), from queryProfile.splitDiscoveryCpuNanos()
+     */
+    String SPLIT_DISCOVERY_CPU_NANOS = "split_discovery_cpu_nanos";
+    /**
      * Bytes read by the query, both from external sources and Lucene.
      */
     String BYTES_READ = "bytes_read";

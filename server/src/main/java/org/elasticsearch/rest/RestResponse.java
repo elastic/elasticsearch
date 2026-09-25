@@ -46,7 +46,26 @@ public final class RestResponse implements Releasable {
 
     static final String STATUS = "status";
 
+    /// ## OBSOLETE NAME WARNING
+    ///
+    /// This logger was originally called `rest.suppressed` when it was introduced in 87e17a8fe858 (v2.0.0) because with this change
+    /// Elasticsearch would by default suppress the stack trace (NB not the exception, just the stack trace) in the REST response, instead
+    /// recording the suppressed stack trace with this logger. This suppression was optional: users could get the whole stack trace with the
+    /// `?error_trace` query parameter. If the user turned off suppression for a request then we wouldn't log the exception here, since we
+    /// weren't suppressing anything in that case.
+    ///
+    /// Over the years we discovered that really we want to record all 5xx errors in the logs, even if the user had requested
+    /// `?error_trace`, so as of #101066 (v8.12.0) we changed things to always log errors returned in REST responses using this logger
+    /// regardless of whether the stack trace is included or suppressed in the REST response or not.
+    ///
+    /// But now we rely on this logger all over the place, so changing its name would be too painful.
+    ///
+    /// TLDR this logger today has nothing to do with suppressing anything, but we don't want to rename it. Its output is colloquially known
+    /// as "REST suppressed errors" even we don't suppress any errors (just their stack traces) and we log all errors regardless of whether
+    /// their stack traces were suppressed or not. We should probably just call them "REST errors".
+    ///
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AbstractRestChannel.class);
 
     private final RestStatus status;

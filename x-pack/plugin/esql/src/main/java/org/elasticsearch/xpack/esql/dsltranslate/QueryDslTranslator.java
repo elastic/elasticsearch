@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
@@ -82,7 +83,7 @@ public final class QueryDslTranslator {
      * name. Reported at leaf granularity: if {@code C OR D} fails because {@code D} is a wildcard, the clause is
      * {@code D}, not {@code C OR D}.
      */
-    public record UnsupportedClause(org.elasticsearch.index.query.QueryBuilder clause, String construct) {}
+    public record UnsupportedClause(QueryBuilder clause, String construct, String reason) {}
 
     /**
      * The result of a full translation. {@link #applied()} is the translatable subset of the filter — equal to or
@@ -100,6 +101,7 @@ public final class QueryDslTranslator {
     private final Set<String> fieldNames;
     private final Configuration configuration;
     private final long nowInMillis;
+    private final TransportVersion minimumVersion;
 
     /**
      * @param fieldBinder   resolves a DSL field name to the ES|QL expression standing for it on this source — the
@@ -109,12 +111,20 @@ public final class QueryDslTranslator {
      * @param configuration the query configuration — the source of {@code now} for date math (so {@code "now-15m"}
      *                      resolves to the same instant the index path would use for this request) and of the locale
      *                      used to case-fold a {@code case_insensitive} term.
+     * @param minimumVersion the minimum transport version across the nodes this plan targets, consulted per emitted
+     *                      function — see {@link #gated}.
      */
-    public QueryDslTranslator(Function<String, Expression> fieldBinder, Set<String> fieldNames, Configuration configuration) {
+    public QueryDslTranslator(
+        Function<String, Expression> fieldBinder,
+        Set<String> fieldNames,
+        Configuration configuration,
+        TransportVersion minimumVersion
+    ) {
         this.fieldBinder = fieldBinder;
         this.fieldNames = fieldNames;
         this.configuration = configuration;
         this.nowInMillis = configuration.absoluteStartedTimeInMillis();
+        this.minimumVersion = minimumVersion;
     }
 
     /**
@@ -139,7 +149,7 @@ public final class QueryDslTranslator {
         try {
             return dispatch(query);
         } catch (TranslationUnsupportedException e) {
-            unsupported.add(new UnsupportedClause(query, e.construct()));
+            unsupported.add(new UnsupportedClause(query, e.construct(), e.reason()));
             return null;
         }
     }
@@ -178,7 +188,7 @@ public final class QueryDslTranslator {
         try {
             requiredShould = parseBoolOptions(bool);
         } catch (TranslationUnsupportedException e) {
-            unsupported.add(new UnsupportedClause(bool, e.construct()));
+            unsupported.add(new UnsupportedClause(bool, e.construct(), e.reason()));
             boolOptionsOk = false;
         }
         List<Expression> conjuncts = new ArrayList<>();
@@ -591,6 +601,13 @@ public final class QueryDslTranslator {
     }
 
     private Expression range(RangeQueryBuilder range) {
+        // Neither bound: RangeQueryBuilder.doToQuery answers this as an exists query before it reads the time zone, the
+        // format or the field's type, so it means "has a value", not "matches everything". Checked first so none of those
+        // options can make it untranslatable. TRUE disagrees wherever the field is missing: it returns those rows too,
+        // and under must_not it returns none of the rows the index returns.
+        if (range.from() == null && range.to() == null) {
+            return new IsNotNull(Source.EMPTY, fieldBinder.apply(range.fieldName()));
+        }
         // A time zone shifts what the bounds mean; we parse them zone-naively, so honoring it is not something we can
         // fake. Reject rather than answer a differently-scoped question.
         if (range.timeZone() != null) {
@@ -602,9 +619,6 @@ public final class QueryDslTranslator {
 
         boolean hasLower = range.from() != null;
         boolean hasUpper = range.to() != null;
-        if (hasLower == false && hasUpper == false) {
-            return Literal.TRUE;
-        }
 
         // A date range carries its own rules the generic numeric path cannot fake: date math ("now-15m"), and a coarse
         // bound rounding to the edge of its unit ("2020-01" as an upper bound means the last millis of that month). The
@@ -658,14 +672,22 @@ public final class QueryDslTranslator {
 
         // One bound → mv_greater / mv_less (any-value, two-valued).
         if (hasLower) {
-            return checkedLeaf(
+            // Bind the literal before the gate: a bound that cannot be coerced is not a version failure.
+            Literal lower = literalFor(field, range.from());
+            return gated(
                 field,
-                new MvGreater(Source.EMPTY, field, literalFor(field, range.from()), includeBoundOptions(range.includeLower()))
+                MvGreater.MV_COMPARE_TRANSPORT_VERSION,
+                "range[single lower bound on " + type.typeName() + "]",
+                () -> checkedLeaf(field, new MvGreater(Source.EMPTY, field, lower, includeBoundOptions(range.includeLower())))
             );
         }
-        return checkedLeaf(
+        // Bind the literal before the gate, for the same reason.
+        Literal upper = literalFor(field, range.to());
+        return gated(
             field,
-            new MvLess(Source.EMPTY, field, literalFor(field, range.to()), includeBoundOptions(range.includeUpper()))
+            MvLess.MV_COMPARE_TRANSPORT_VERSION,
+            "range[single upper bound on " + type.typeName() + "]",
+            () -> checkedLeaf(field, new MvLess(Source.EMPTY, field, upper, includeBoundOptions(range.includeUpper())))
         );
     }
 
@@ -741,11 +763,22 @@ public final class QueryDslTranslator {
             return checkedLeaf(field, new MvInRange(Source.EMPTY, field, longLit(lo, type), longLit(hi, type)));
         }
         if (hasLower) {
+            // Resolve the bound before the gate: an unparseable bound is not a version failure.
             long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
-            return checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)));
+            return gated(
+                field,
+                MvGreater.MV_COMPARE_TRANSPORT_VERSION,
+                "range[single lower bound on " + type.typeName() + "]",
+                () -> checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)))
+            );
         }
         long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
-        return checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)));
+        return gated(
+            field,
+            MvLess.MV_COMPARE_TRANSPORT_VERSION,
+            "range[single upper bound on " + type.typeName() + "]",
+            () -> checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)))
+        );
     }
 
     /**
@@ -817,7 +850,31 @@ public final class QueryDslTranslator {
         return new Literal(Source.EMPTY, value, type);
     }
 
+    /** Why a version-gated construct was skipped, kept out of the construct name. */
+    static final String VERSION_REASON = "the cluster contains a node too old to evaluate it";
+
     /**
+     * Builds {@code leaf} only if every targeted node can deserialize the function it synthesizes. The rewrite's own
+     * gate is one constant while this translator's output set grows, so each function postdating that gate is checked
+     * against its own pin here; below it the clause is untranslatable and drops like any other. {@code mv_in_range},
+     * {@code mv_contains} and {@code mv_intersects} need no check — all three predate the rewrite's gate.
+     */
+    private Expression gated(Expression field, TransportVersion required, String construct, Supplier<Expression> leaf) {
+        if (minimumVersion.supports(required) == false) {
+            // A missing field is null-bound and every leaf folds it to false, so no function is needed. Answer
+            // exactly rather than dropping, which would loosen the filter and blame a version for a missing column.
+            if (isPresent(field) == false) {
+                return Literal.FALSE;
+            }
+            // Build it first and throw it away. If the leaf is untranslatable for its own reason — an order
+            // comparison on analyzed text, a type the function cannot resolve — that reason is the honest one, and
+            // reporting a version instead would send the operator to upgrade a cluster where it drops regardless.
+            leaf.get();
+            throw new TranslationUnsupportedException(construct, VERSION_REASON);
+        }
+        return leaf.get();
+    }
+
     /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */
     private static Expression includeBoundOptions(boolean includeBound) {
         if (includeBound == false) {

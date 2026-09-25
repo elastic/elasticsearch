@@ -60,7 +60,7 @@ public class OrcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        return Map.of("orc", (s, blockFactory) -> new OrcFormatReader(blockFactory));
+        return Map.of("orc", (s, blockFactory) -> new OrcFormatReader(s, blockFactory));
     }
 
     @Override

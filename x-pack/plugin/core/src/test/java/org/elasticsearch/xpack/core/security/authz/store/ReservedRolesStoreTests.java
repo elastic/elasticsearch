@@ -1280,8 +1280,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Context Engine's SML storage: a regular (non-system) index that Kibana
         // creates and manages itself, including its alias.
-        Arrays.asList("ai-index-idx-sml-data", "ai-index-idx-sml-data-" + randomAlphaOfLength(randomIntBetween(0, 13)))
+        Arrays.asList(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-" + randomAlphaOfLength(randomIntBetween(0, 13)))
             .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
+
+        // Context Engine AI index views: Kibana system user creates and deletes them
+        {
+            final IndexAbstraction view = mockIndexAbstraction("v-ai-index-" + randomAlphaOfLength(randomIntBetween(1, 13)));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(view), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME).test(view), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(view), is(false));
+        }
 
         // Context Engine feedback-loop signals: per-space, regular (non-system)
         // user indices that Kibana creates and manages via the storage adapter.
@@ -2142,7 +2150,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera,
-        // IRONSCALES, Axonius, JupiterOne and PingDirectory) that
+        // IRONSCALES, Axonius, JupiterOne, PingDirectory and XM Cyber) that
         // `kibana_system` has full management access to
         // This includes read, write, create, delete, and all ILM-related management actions.
         Arrays.asList(
@@ -2170,7 +2178,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-axonius.ticket-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-jupiter_one.risks_and_alerts-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-ping_directory.user-" + randomAlphaOfLength(randomIntBetween(1, 10))
+            "logs-ping_directory.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-xm_cyber.device-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-xm_cyber.product-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-xm_cyber.vulnerability_instance-" + randomAlphaOfLength(randomIntBetween(1, 10))
         ).forEach((index_qualys_extra_hop) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 
@@ -4024,6 +4035,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".lists-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".items-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".threat-intel-indicators-" + randomAlphaOfLengthBetween(1, 8));
+        // The bare index carries every space at every confidence level. Only the filtered
+        // per-space aliases are granted, so the trailing hyphen in the pattern is load-bearing.
+        assertNoAccessAllowed(role, ".threat-intel-indicators");
         assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5) + "-transaction-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "auditbeat-" + randomIntBetween(0, 5));
@@ -4150,6 +4165,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".lists-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".items-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".threat-intel-indicators-" + randomAlphaOfLengthBetween(1, 8));
+        assertNoAccessAllowed(role, ".threat-intel-indicators");
         assertReadWriteDocsButNotDeleteIndexAllowed(role, "observability-annotations");
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".alerts-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".internal.alerts-" + randomIntBetween(0, 5));

@@ -9,11 +9,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SourceLoaderTests extends MapperServiceTestCase {
     public void testNonSynthetic() throws IOException {
@@ -116,5 +120,30 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), equalTo("[copy_to] may not be used to copy from a multi-field: [foo.hidden]"));
+    }
+
+    public void testLargeDocumentIsRenderedWithoutCopy() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(
+            mapping(b -> b.startObject("kwd").field("type", "keyword").endObject())
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+        int valueLength = 512;
+        // Enough values to render past one page, and distinct because synthetic source reads
+        // keywords from doc values and so dedupes them.
+        String[] values = new String[2 * PageCacheRecycler.PAGE_SIZE_IN_BYTES / valueLength];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i + "-" + "v".repeat(valueLength);
+        }
+        withLuceneIndex(mapperService, iw -> {
+            ParsedDocument doc = mapper.parse(source(b -> b.array("kwd", values)));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+        }, reader -> {
+            SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), null, SourceFieldMetrics.NOOP, null);
+            BytesReference source = provider.getSource(getOnlyLeafReader(reader).getContext(), 0).internalSourceRef();
+            assertThat(source.length(), greaterThan(PageCacheRecycler.PAGE_SIZE_IN_BYTES));
+            assertFalse(source.hasArray());
+        });
     }
 }

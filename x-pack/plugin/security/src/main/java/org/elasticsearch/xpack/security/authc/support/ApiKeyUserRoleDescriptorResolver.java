@@ -36,6 +36,17 @@ public class ApiKeyUserRoleDescriptorResolver {
             return;
         }
 
+        // Capped cloud subjects produce two role references. CompositeRolesStore#getRoleDescriptors only
+        // snapshots the first (assigned) set, which would drop the cap on a derived Elasticsearch API key.
+        if (effectiveSubject.hasCloudLimitedByRoles()) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "creating or updating elasticsearch api keys using a cloud subject with limited-by roles is not supported"
+                )
+            );
+            return;
+        }
+
         rolesStore.getRoleDescriptors(effectiveSubject, listener.delegateFailureAndWrap(this::handleRoleDescriptors));
     }
 

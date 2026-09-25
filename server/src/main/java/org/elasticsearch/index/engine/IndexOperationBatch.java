@@ -12,7 +12,6 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,8 +20,8 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.BytesSource;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -341,10 +340,19 @@ public final class IndexOperationBatch {
     /**
      * Returns a view of {@code [from, to)} sharing all backing arrays with the parent. Only the
      * {@link SourceBatch} is re-sliced; seqNo/primaryTerm/version arrays remain full-batch-sized.
+     * Preserves the parent's {@link #startTime()}.
      *
      * @throws IndexOutOfBoundsException if the range is invalid
      */
     public IndexOperationBatch slice(int from, int to) {
+        return slice(from, to, startTime);
+    }
+
+    /**
+     * Like {@link #slice(int, int)} but stamps the sub-batch with {@code startTime} instead of
+     * inheriting the parent's.
+     */
+    public IndexOperationBatch slice(int from, int to, long startTime) {
         Objects.checkFromToIndex(from, to, docCount);
         if (from == to) {
             throw new IllegalArgumentException("empty slice [" + from + ", " + to + "); a batch must contain at least one document");
@@ -500,6 +508,22 @@ public final class IndexOperationBatch {
     }
 
     /**
+     * Estimates the bytes this batch contributes to the Lucene indexing buffer. Includes per-doc
+     * id overhead and delegates to {@link SourceBatch#estimatedBytes()} for the column values
+     */
+    public int estimatedBytes() {
+        int estimate = 0;
+        for (int i = 0; i < docCount; i++) {
+            final BytesRef uid = uids[offset + i];
+            estimate += uid != null ? uid.length : 0;
+        }
+        if (sourceBatch != null) {
+            estimate += sourceBatch.estimatedBytes();
+        }
+        return estimate;
+    }
+
+    /**
      * Mutable {@code _seq_no} buffer (little-endian longs, full-batch-sized). Pre-filled with
      * {@link SequenceNumbers#UNASSIGNED_SEQ_NO} on PRIMARY; the engine stamps real values after
      * planning. Aliased into {@link MappedColumns} by reference — engine writes are visible to
@@ -539,18 +563,9 @@ public final class IndexOperationBatch {
     public Engine.Index toIndexOp(int i) {
         final int absIdx = abs(i);
         final String routing = routings != null && routings[absIdx] != null ? routings[absIdx].utf8ToString() : null;
-        // TODO: The SourceToParse using a size of 0 makes estimated sizes off in index listeners.
+        // TODO: BytesSource.EMPTY reports a size of 0, which makes estimated sizes off in index listeners.
         // We will eventually replace those listeners with batch calls.
-        final ParsedDocument doc = new ParsedDocument(
-            null,
-            null,
-            ids[absIdx],
-            routing,
-            List.of(),
-            SourceToParse.Source.fromBytes(BytesArray.EMPTY, XContentType.JSON),
-            null,
-            0
-        );
+        final ParsedDocument doc = new ParsedDocument(null, null, ids[absIdx], routing, List.of(), BytesSource.EMPTY, null, 0);
         return new Engine.Index(
             uids[absIdx],
             doc,

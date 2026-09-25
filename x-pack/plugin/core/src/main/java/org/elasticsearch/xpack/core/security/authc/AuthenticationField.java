@@ -16,6 +16,15 @@ public final class AuthenticationField {
     public static final String CLOUD_API_KEY_REALM_NAME = "_cloud_api_key";
     public static final String CLOUD_API_KEY_REALM_TYPE = "_cloud_api_key";
 
+    public static final String CLOUD_SERVICE_ACCOUNT_REALM_NAME = "_cloud_service_account";
+    public static final String CLOUD_SERVICE_ACCOUNT_REALM_TYPE = "_cloud_service_account";
+
+    /**
+     * Names of the roles that cap the effective privileges of a cloud-managed subject, as reported by the cloud
+     * identity provider. Applies to any cloud subject type, not just cloud service accounts.
+     */
+    public static final String CLOUD_LIMITED_BY_ROLES_KEY = "_security_cloud_limited_by_roles";
+
     public static final String API_KEY_REALM_NAME = "_es_api_key";
     public static final String API_KEY_REALM_TYPE = "_es_api_key";
 

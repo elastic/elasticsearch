@@ -28,22 +28,25 @@ import org.junit.rules.TestRule;
 
 import java.util.function.Supplier;
 
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
+
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3StsCredentialsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "sts_credentials_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
+
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
 
     private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(
         true,
         null,
-        BUCKET,
-        BASE_PATH,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         dynamicCredentials::isAuthorized
     );
@@ -90,12 +93,12 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
     protected String getBasePath() {
-        return BASE_PATH;
+        return basePathSupplier.get();
     }
 
     @Override

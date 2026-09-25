@@ -579,6 +579,9 @@ $$$dense-vector-index-options$$$
 `ef_construction`
 :   (Optional, integer) The number of candidates to track while assembling the list of nearest neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
 
+`flat_index_threshold` {applies_to}`stack: ga 9.4`
+:   (Optional, integer) The segment document count threshold below which graph or IVF construction is skipped in favor of brute-force flat search. `-1` (default) defers to format-specific defaults. `0` always builds the graph or IVF structure. A positive value overrides the format default. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`, and `bbq_disk` index types.
+
 `default_visit_percentage` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `default_visit_percentage` tends to improve the accuracy of the final results. Defaults to ~1% per shard for every 1 million vectors.
 
@@ -587,6 +590,9 @@ $$$dense-vector-index-options$$$
 
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.
+
+`bits` {applies_to}`stack: ga 9.4`
+:   (Optional, integer) Only applicable to `bbq_disk`. The number of bits per dimension for quantization encoding. Valid values are `1` (default), `2`, `4`, or `7`. Higher values increase fidelity at the cost of slightly more disk space and slower queries. When no `rescore_vector` is specified, `bits` automatically adjusts the default oversampling: `1` uses 3.0x, `2` uses 1.5x, `4` and `7` disable oversampling. This setting can be changed without reindexing. Refer to [Quantize bits](/reference/elasticsearch/mapping-reference/bbq.md#bbq-bits) for details.
 
 `rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
@@ -602,7 +608,10 @@ $$$dense-vector-index-options$$$
 ::::
 
 `on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`
-:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`.
+:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`. Merges have their own option, `on_disk_merge`, below.
+
+`on_disk_merge` {applies_to}`stack: preview 9.6` {applies_to}`serverless: unavailable`
+:   (Optional, boolean) When `true`, direct I/O is used where possible while merging the field's vector data, so that a merge does not displace what searches keep in memory. Can be changed with a mapping update, which applies to later merges; a merge reads each source segment with the setting that segment was written with, so segments written before the change keep the old behavior until they are merged away. Defaults to `false`.
 
 `auto_calibrate` {applies_to}`stack: ga 9.5`
 :   (Optional, boolean) Only applicable to `bbq_disk`. When `true`, {{es}} automatically selects the optimal quantization encoding, oversampling factor, and preconditioning for each merged segment based on the actual recall characteristics of the merged corpus. Segments containing fewer than 10,000 vectors after merging are not calibrated and, when not otherwise specified in the mappings, use the default oversampling factor of 3.0x. Defaults to `false`. Cannot be changed after the field is created. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for details.
@@ -747,6 +756,12 @@ PUT my-vector-index
   }
 }
 ```
+
+:::{tip}
+:applies_to: {"vectordb": "ga"}
+On [Elasticsearch Vector Database](docs-content://solutions/vector-database.md) projects, new indices use `vectordb_document` automatically. It is the only supported index mode. For details, refer to [when to use this project type](docs-content://solutions/vector-database.md#when-to-use-this-project-type).
+:::
+
 
 When `vectordb_document` mode is active, the following settings are applied automatically unless you explicitly configure them:
 

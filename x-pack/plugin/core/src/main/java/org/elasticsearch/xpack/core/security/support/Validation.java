@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.core.security.support;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -284,6 +286,8 @@ public final class Validation {
     public static final class UserManagedServiceAccounts {
 
         public static final int MAX_COMPONENT_LENGTH = 128;
+        public static final int MAX_ROLES = 1000;
+        public static final int MAX_DESCRIPTION_LENGTH = 1000;
 
         private static final Pattern VALID_COMPONENT = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9_-]*$");
 
@@ -300,6 +304,34 @@ public final class Validation {
 
         public static Error validateServiceName(String serviceName) {
             return validateComponent(serviceName, "service name");
+        }
+
+        /**
+         * Caps how many role names one request may list. Length is counted, not distinct names, so a
+         * repeated role still costs a slot.
+         */
+        public static Error validateRoles(Collection<String> roles) {
+            if (roles.size() > MAX_ROLES) {
+                return new Error("a service account may not have more than " + MAX_ROLES + " roles, but [" + roles.size() + "] were given");
+            }
+            return null;
+        }
+
+        /**
+         * Caps the length of the free-text description. The description carries no meaning to Elasticsearch, so this
+         * is the only rule: it exists to bound the size of the stored document, not to shape the text.
+         */
+        public static Error validateDescription(@Nullable String description) {
+            if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+                return new Error(
+                    "a service account description may not be more than "
+                        + MAX_DESCRIPTION_LENGTH
+                        + " characters long, but ["
+                        + description.length()
+                        + "] were given"
+                );
+            }
+            return null;
         }
 
         public static Error validatePrincipal(String principal) {

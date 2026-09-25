@@ -1,0 +1,5 @@
+FROM employees
+| STATS cnt = COUNT(*) WHERE (emp_no, gender) IN (TS k8s
+                                                  | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                                                  | EVAL m_int = TO_INTEGER(m)
+                                                  | KEEP m_int, cluster)

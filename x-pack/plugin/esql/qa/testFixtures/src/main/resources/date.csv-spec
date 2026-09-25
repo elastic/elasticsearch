@@ -410,6 +410,7 @@ diff:integer
 ;
 
 dateDiffUnitFromField
+required_capability: casting_operator_for_date
 FROM date_extract_fields
 | EVAL diff = DATE_DIFF(inner_val, "2022-01-01T00:00:00.000Z"::date, "2023-01-01T00:00:00.000Z"::date)
 | KEEP inner_val, diff
@@ -1143,6 +1144,7 @@ year              | 2022-05-06T14:30:00.000Z | 2022
 
 dateExtractFieldDatePart
 required_capability: fn_date_extract
+required_capability: casting_operator_for_date
 
 FROM date_extract_fields
 | EVAL result = DATE_EXTRACT(date_part, "2022-05-06T14:30:00.000Z"::date)
@@ -2128,4 +2130,25 @@ ROW d = ["2024-03-01T00:00:00.000Z", "2024-09-01T00:00:00.000Z"]::datetime
 
 d:datetime | in_range:boolean
 [2024-03-01T00:00:00.000Z, 2024-09-01T00:00:00.000Z] | true
+;
+
+dateExtractYearEquals1986
+FROM employees
+| WHERE DATE_EXTRACT("year", hire_date) == 1986
+| KEEP emp_no, hire_date
+| SORT emp_no
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+10003          | 1986-08-28T00:00:00.000Z
+10004          | 1986-12-01T00:00:00.000Z
+10053          | 1986-02-04T00:00:00.000Z
+10066          | 1986-02-26T00:00:00.000Z
+10079          | 1986-03-27T00:00:00.000Z
+10081          | 1986-10-30T00:00:00.000Z
+10087          | 1986-09-08T00:00:00.000Z
+10089          | 1986-08-12T00:00:00.000Z
+10090          | 1986-03-14T00:00:00.000Z
+10095          | 1986-07-15T00:00:00.000Z
 ;

@@ -52,7 +52,7 @@ public class AggregatorProcessor implements Processor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.RELEASE_21;
+        return SourceVersion.latestSupported();
     }
 
     @Override
@@ -105,13 +105,15 @@ public class AggregatorProcessor implements Processor {
                     intermediateState = aggClass.getAnnotation(Aggregator.class).value();
                 }
                 boolean processNulls = aggClass.getAnnotation(GroupingAggregator.class).processNulls();
+                boolean supportsPartitioning = aggClass.getAnnotation(GroupingAggregator.class).supportsPartitioning();
                 groupingAggregatorImplementer = new GroupingAggregatorImplementer(
                     env.getElementUtils(),
                     env.getTypeUtils(),
                     aggClass,
                     intermediateState,
                     warnExceptionsTypes,
-                    processNulls
+                    processNulls,
+                    supportsPartitioning
                 );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }

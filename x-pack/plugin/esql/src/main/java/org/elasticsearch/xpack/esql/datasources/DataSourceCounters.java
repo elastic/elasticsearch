@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 
 import java.util.List;
@@ -17,7 +18,7 @@ import java.util.List;
  * {@link Counters} keys under the {@code datasources.} subtree of the ES|QL XPack usage payload.
  * <p>
  * Key naming follows the instrument names in {@code ExternalSourceMetrics}, with attribute values
- * (scheme, outcome) flattened into the key path. The resulting nested map (via
+ * (type, outcome, format) flattened into the key path. The resulting nested map (via
  * {@link Counters#toNestedMap()}) becomes the {@code esql.datasources} section of
  * {@code GET /_xpack/usage}.
  */
@@ -31,13 +32,13 @@ public final class DataSourceCounters {
      * {@code TransportEsqlStatsAction.nodeOperation}.
      */
     public static void populate(DataSourceUsageAccumulator acc, Counters counters) {
-        // ---- per-scheme counters ----
-        for (int i = 0; i < DataSourceUsageAccumulator.SCHEME_COUNT; i++) {
-            String s = DataSourceUsageAccumulator.SCHEME_NAMES.get(i);
-            counters.inc("datasources.storage.requests.total." + s, acc.storageRequests(i));
-            counters.inc("datasources.storage.bytes_read.total." + s, acc.storageBytesRead(i));
-            counters.inc("datasources.storage.errors.total." + s, acc.storageErrors(i));
-            counters.inc("datasources.storage.throttled.total." + s, acc.storageThrottled(i));
+        // ---- per-type counters ----
+        for (Type type : Type.values()) {
+            String s = type.key();
+            counters.inc("datasources.storage.requests.total." + s, acc.storageRequests(type));
+            counters.inc("datasources.storage.bytes_read.total." + s, acc.storageBytesRead(type));
+            counters.inc("datasources.storage.errors.total." + s, acc.storageErrors(type));
+            counters.inc("datasources.storage.throttled.total." + s, acc.storageThrottled(type));
         }
 
         // ---- unattributed counters ----
@@ -49,15 +50,29 @@ public final class DataSourceCounters {
         counters.inc("datasources.queries.partial.total", acc.queriesPartial());
         counters.inc("datasources.discovery.failures.total", acc.discoveryFailures());
         counters.inc("datasources.parse.rows.total", acc.parseRows());
+        for (int i = 0; i < DataSourceUsageAccumulator.FORMAT_COUNT; i++) {
+            counters.inc("datasources.parse.rows.by_format." + DataSourceUsageAccumulator.FORMAT_NAMES.get(i), acc.parseRowsByFormat(i));
+        }
         counters.inc("datasources.reader.pool.rejected.total", acc.readerPoolRejected());
         counters.inc("datasources.breaker.tripped.total", acc.breakerTripped());
+
+        // ---- config-change counters (kind × op) ----
+        for (int k = 0; k < DataSourceUsageAccumulator.KIND_COUNT; k++) {
+            String kind = DataSourceUsageAccumulator.KIND_NAMES.get(k);
+            for (int o = 0; o < DataSourceUsageAccumulator.OP_COUNT; o++) {
+                counters.inc(
+                    "datasources.config." + kind + ".changes.by_op." + DataSourceUsageAccumulator.OP_NAMES.get(o),
+                    acc.configChanges(k, o)
+                );
+            }
+        }
 
         // ---- per-outcome query counters ----
         for (int i = 0; i < DataSourceUsageAccumulator.OUTCOME_COUNT; i++) {
             counters.inc("datasources.queries.by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(i), acc.queries(i));
         }
 
-        // ---- time histograms (no scheme attribute) ----
+        // ---- time histograms (no type/format attribute) ----
         List<String> ts = DataSourceUsageAccumulator.TIME_SUFFIXES;
         for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
             counters.inc("datasources.storage.requests.duration." + ts.get(b), acc.storageRequestDuration(b));

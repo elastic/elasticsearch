@@ -7,8 +7,17 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+
+import java.io.IOException;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCase<GetServiceAccountRequest> {
 
@@ -19,24 +28,77 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected GetServiceAccountRequest createTestInstance() {
-        return new GetServiceAccountRequest(
-            randomFrom(randomAlphaOfLengthBetween(3, 8), null),
-            randomFrom(randomAlphaOfLengthBetween(3, 8), null)
-        );
+        return new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull(), randomType());
     }
 
     @Override
     protected GetServiceAccountRequest mutateInstance(GetServiceAccountRequest instance) {
-        if (randomBoolean()) {
-            return new GetServiceAccountRequest(
-                randomValueOtherThan(instance.getNamespace(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)),
-                instance.getServiceName()
+        return switch (between(0, 2)) {
+            case 0 -> new GetServiceAccountRequest(
+                randomValueOtherThan(instance.getNamespace(), GetServiceAccountRequestTests::randomNameOrNull),
+                instance.getServiceName(),
+                instance.getType()
             );
-        } else {
-            return new GetServiceAccountRequest(
+            case 1 -> new GetServiceAccountRequest(
                 instance.getNamespace(),
-                randomValueOtherThan(instance.getServiceName(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null))
+                randomValueOtherThan(instance.getServiceName(), GetServiceAccountRequestTests::randomNameOrNull),
+                instance.getType()
+            );
+            case 2 -> new GetServiceAccountRequest(
+                instance.getNamespace(),
+                instance.getServiceName(),
+                randomValueOtherThan(instance.getType(), GetServiceAccountRequestTests::randomType)
+            );
+            default -> throw new AssertionError("between(0, 2) returned something outside its own bounds");
+        };
+    }
+
+    public void testDefaultsToBuiltInAccountsOnly() {
+        assertThat(
+            new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull()).getType(),
+            equalTo(EnumSet.of(ServiceAccountType.BUILT_IN))
+        );
+    }
+
+    public void testRequestForBuiltInAccountsStillSerializesToNodesWithoutUserManagedAccounts() throws IOException {
+        final GetServiceAccountRequest request = new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull());
+        assertThat(copyInstance(request, beforeUserManagedAccountInfo()), equalTo(request));
+    }
+
+    public void testRequestForUserManagedAccountsRefusesToSerializeToNodesWithoutThem() {
+        for (EnumSet<ServiceAccountType> type : List.of(
+            EnumSet.of(ServiceAccountType.USER_MANAGED),
+            EnumSet.allOf(ServiceAccountType.class)
+        )) {
+            final GetServiceAccountRequest request = new GetServiceAccountRequest(null, null, type);
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> copyInstance(request, beforeUserManagedAccountInfo())
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "cannot ask a node that does not support user-managed service accounts for accounts of type ["
+                        + type.stream().map(ServiceAccountType::value).collect(Collectors.joining(", "))
+                        + "]"
+                )
             );
         }
+    }
+
+    private static TransportVersion beforeUserManagedAccountInfo() {
+        return TransportVersionUtils.getPreviousVersion(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO);
+    }
+
+    private static String randomNameOrNull() {
+        return randomFrom(randomAlphaOfLengthBetween(3, 8), null);
+    }
+
+    private static EnumSet<ServiceAccountType> randomType() {
+        return randomFrom(
+            EnumSet.of(ServiceAccountType.BUILT_IN),
+            EnumSet.of(ServiceAccountType.USER_MANAGED),
+            EnumSet.allOf(ServiceAccountType.class)
+        );
     }
 }

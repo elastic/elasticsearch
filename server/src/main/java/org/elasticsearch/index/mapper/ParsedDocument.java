@@ -41,7 +41,7 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private final SourceToParse.Source source;
+    private final DocumentSource source;
     private CompressedXContent dynamicMappingsUpdate;
 
     /**
@@ -191,7 +191,7 @@ public class ParsedDocument {
         String id,
         String routing,
         List<LuceneDocument> documents,
-        SourceToParse.Source source,
+        DocumentSource source,
         CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
@@ -216,16 +216,7 @@ public class ParsedDocument {
         CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
-        this(
-            version,
-            seqID,
-            id,
-            routing,
-            documents,
-            SourceToParse.Source.fromBytes(source, xContentType),
-            dynamicMappingsUpdate,
-            normalizedSize
-        );
+        this(version, seqID, id, routing, documents, new BytesSource(source, xContentType, false), dynamicMappingsUpdate, normalizedSize);
     }
 
     public String id() {
@@ -256,7 +247,7 @@ public class ParsedDocument {
         return this.documents;
     }
 
-    public SourceToParse.Source source() {
+    public DocumentSource source() {
         return this.source;
     }
 

@@ -321,7 +321,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             .filter(RoundTo.class::isInstance)
             .map(RoundTo.class::cast)
             .toList();
-        // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
+        // It is not clear how to push down multiple RoundTos.
         if (roundTos.size() != 1) {
             return null;
         }

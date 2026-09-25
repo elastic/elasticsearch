@@ -64,6 +64,8 @@ public final class SearchCapabilities {
     /** Treat unresolvable bucket_sort paths as missing values controlled by gap_policy instead of NPE'ing. */
     private static final String BUCKET_SORT_NULL_HANDLES_MISSING_BUCKET = "bucket_sort_null_handles_missing_bucket";
     private static final String EXCLUDE_SOURCE_VECTORS_SETTING = "exclude_source_vectors_setting";
+    /** Vectors are excluded from {@code _source} whichever layout holds them, and whether it is stored or columnar_stored. */
+    private static final String EXCLUDE_SOURCE_VECTORS_ALL_LAYOUTS = "exclude_source_vectors_all_layouts";
     private static final String CLUSTER_STATS_EXTENDED_USAGE = "extended-search-usage-stats";
     private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT = "dense_vector_docvalue_fields_format";
@@ -103,6 +105,7 @@ public final class SearchCapabilities {
         capabilities.add(PIPELINE_AGGS_PARENT_MULTI_BUCKET_ERROR);
         capabilities.add(BUCKET_SORT_NULL_HANDLES_MISSING_BUCKET);
         capabilities.add(EXCLUDE_SOURCE_VECTORS_SETTING);
+        capabilities.add(EXCLUDE_SOURCE_VECTORS_ALL_LAYOUTS);
         capabilities.add(CLUSTER_STATS_EXTENDED_USAGE);
         capabilities.add(REJECT_INVALID_REVERSE_NESTING);
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT);

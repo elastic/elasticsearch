@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.anthropic.response;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
@@ -44,13 +44,13 @@ public class AnthropicChatCompletionResponseEntityTests extends ESTestCase {
             }
             """;
 
-        ChatCompletionResults chatCompletionResults = AnthropicChatCompletionResponseEntity.fromResponse(
+        CompletionResults completionResults = AnthropicChatCompletionResponseEntity.fromResponse(
             mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(chatCompletionResults.getResults().size(), is(1));
-        assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
+        assertThat(completionResults.getResults().size(), is(1));
+        assertThat(completionResults.getResults().get(0).content(), is("result"));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -79,14 +79,14 @@ public class AnthropicChatCompletionResponseEntityTests extends ESTestCase {
             }
             """;
 
-        ChatCompletionResults chatCompletionResults = AnthropicChatCompletionResponseEntity.fromResponse(
+        CompletionResults completionResults = AnthropicChatCompletionResponseEntity.fromResponse(
             mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(chatCompletionResults.getResults().size(), is(2));
-        assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
-        assertThat(chatCompletionResults.getResults().get(1).content(), is("result2"));
+        assertThat(completionResults.getResults().size(), is(2));
+        assertThat(completionResults.getResults().get(0).content(), is("result"));
+        assertThat(completionResults.getResults().get(1).content(), is("result2"));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems_IgnoresTools() throws IOException {
@@ -123,14 +123,14 @@ public class AnthropicChatCompletionResponseEntityTests extends ESTestCase {
             }
             """;
 
-        ChatCompletionResults chatCompletionResults = AnthropicChatCompletionResponseEntity.fromResponse(
+        CompletionResults completionResults = AnthropicChatCompletionResponseEntity.fromResponse(
             mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(chatCompletionResults.getResults().size(), is(2));
-        assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
-        assertThat(chatCompletionResults.getResults().get(1).content(), is("result2"));
+        assertThat(completionResults.getResults().size(), is(2));
+        assertThat(completionResults.getResults().get(0).content(), is("result"));
+        assertThat(completionResults.getResults().get(1).content(), is("result2"));
     }
 
     public void testFromResponse_FailsWhenContentIsNotPresent() {

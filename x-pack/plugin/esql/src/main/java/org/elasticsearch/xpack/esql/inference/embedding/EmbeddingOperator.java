@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
@@ -32,22 +33,36 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
  */
 public class EmbeddingOperator extends InferenceOperator {
 
+    private final int batchSize;
+
     EmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
         ExpressionEvaluator inputEvaluator,
         DataType dataType,
-        TimeValue timeout
+        int batchSize,
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
     ) {
         super(
             driverContext,
             inferenceService,
-            new EmbeddingRequestIterator.Factory(inferenceId, TaskType.EMBEDDING, inputEvaluator, dataType, timeout),
-            new EmbeddingOutputBuilder(driverContext.blockFactory(), false),
-            Source.EMPTY,
-            false
+            new EmbeddingRequestIterator.Factory(
+                inferenceId,
+                TaskType.EMBEDDING,
+                inputEvaluator,
+                dataType,
+                batchSize,
+                timeout,
+                Warnings.createOnlyWarnings(driverContext, source)
+            ),
+            new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
+            source,
+            tolerateFailures
         );
+        this.batchSize = batchSize;
     }
 
     @Override
@@ -61,23 +76,31 @@ public class EmbeddingOperator extends InferenceOperator {
 
     @Override
     public String toString() {
-        return "EmbeddingOperator[inference_id=[" + inferenceId() + "]]";
+        return "EmbeddingOperator[inference_id=[" + inferenceId() + "], batch_size=[" + batchSize + "]]";
     }
 
     /**
      * Factory for creating {@link EmbeddingOperator} instances.
+     *
+     * @param batchSize The maximum number of input texts coalesced into a single embedding inference request.
+     * @param source The source location used for per-row failure warnings (only relevant when {@code tolerateFailures} is true).
+     * @param tolerateFailures When true, a failed inference request warns, nulls that row and continues, instead of failing the query.
+     *                         Set by the DENSE_VECTOR command; the fold-based EMBEDDING function leaves it false (fail-fast).
      */
     public record Factory(
         InferenceService inferenceService,
         String inferenceId,
         ExpressionEvaluator.Factory textEvaluatorFactory,
         DataType dataType,
-        TimeValue timeout
+        int batchSize,
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
     ) implements OperatorFactory {
 
         @Override
         public String describe() {
-            return "EmbeddingOperator[inference_id=[" + inferenceId + "]]";
+            return "EmbeddingOperator[inference_id=[" + inferenceId + "], batch_size=[" + batchSize + "]]";
         }
 
         @Override
@@ -88,7 +111,10 @@ public class EmbeddingOperator extends InferenceOperator {
                 inferenceId,
                 textEvaluatorFactory.get(driverContext),
                 dataType,
-                timeout
+                batchSize,
+                timeout,
+                source,
+                tolerateFailures
             );
         }
     }

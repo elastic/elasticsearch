@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene.query;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -35,7 +36,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             8000,
             222,
             4096,
-            Map.of("b:0", LuceneSliceQueue.PartitioningStrategy.SHARD, "a:1", LuceneSliceQueue.PartitioningStrategy.DOC)
+            Map.of("b:0", LuceneSliceQueue.PartitioningStrategy.SHARD, "a:1", LuceneSliceQueue.PartitioningStrategy.DOC),
+            null
         );
     }
 
@@ -71,6 +73,59 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
         assertThat(Strings.toString(simple(), true, true), equalTo(simpleToJson()));
     }
 
+    public void testToXContentWithMinCompetitive() {
+        LuceneSourceOperator.Status status = new LuceneSourceOperator.Status(
+            2,
+            Set.of("*:*"),
+            new TreeSet<>(List.of("a:0", "a:1")),
+            1002,
+            0,
+            1,
+            5,
+            123,
+            99990,
+            8000,
+            222,
+            4096,
+            Map.of("b:0", LuceneSliceQueue.PartitioningStrategy.SHARD, "a:1", LuceneSliceQueue.PartitioningStrategy.DOC),
+            MinCompetitiveQueryStatusTests.simple()
+        );
+        assertThat(Strings.toString(status, true, true), equalTo("""
+            {
+              "processed_slices" : 2,
+              "processed_queries" : [
+                "*:*"
+              ],
+              "processed_shards" : [
+                "a:0",
+                "a:1"
+              ],
+              "process_nanos" : 1002,
+              "process_time" : "1micros",
+              "slice_index" : 0,
+              "total_slices" : 1,
+              "pages_emitted" : 5,
+              "slice_min" : 123,
+              "slice_max" : 99990,
+              "current" : 8000,
+              "rows_emitted" : 222,
+              "bytes_read" : 4096,
+              "partitioning_strategies" : {
+                "a:1" : "DOC",
+                "b:0" : "SHARD"
+              },
+              "min_competitive" : {
+                "changed_value" : 2,
+                "match_all" : 0,
+                "match_none" : 1,
+                "greater_than_min_competitive" : 3,
+                "update_invocations" : 5,
+                "update_nanos" : 450000,
+                "update_time" : "450micros"
+              }
+            }"""));
+    }
+
     @Override
     protected Writeable.Reader<LuceneSourceOperator.Status> instanceReader() {
         return LuceneSourceOperator.Status::new;
@@ -91,8 +146,23 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomPartitioningStrategies()
+            randomPartitioningStrategies(),
+            randomMinCompetitiveStatus()
         );
+    }
+
+    @Nullable
+    private static MinCompetitiveQuery.Status randomMinCompetitiveStatus() {
+        return randomBoolean()
+            ? null
+            : new MinCompetitiveQuery.Status(
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeLong()
+            );
     }
 
     private static Set<String> randomProcessedQueries() {
@@ -140,7 +210,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
         long rowsEmitted = instance.rowsEmitted();
         long bytesRead = instance.bytesRead();
         Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies = instance.partitioningStrategies();
-        switch (between(0, 12)) {
+        MinCompetitiveQuery.Status minCompetitive = instance.minCompetitive();
+        switch (between(0, 13)) {
             case 0 -> processedSlices = randomValueOtherThan(processedSlices, ESTestCase::randomNonNegativeInt);
             case 1 -> processedQueries = randomValueOtherThan(processedQueries, LuceneSourceOperatorStatusTests::randomProcessedQueries);
             case 2 -> processedShards = randomValueOtherThan(processedShards, LuceneSourceOperatorStatusTests::randomProcessedShards);
@@ -157,6 +228,9 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
                 LuceneSourceOperatorStatusTests::randomPartitioningStrategies
             );
             case 12 -> bytesRead = randomValueOtherThan(bytesRead, ESTestCase::randomNonNegativeLong);
+            case 13 -> minCompetitive = minCompetitive == null
+                ? MinCompetitiveQueryStatusTests.simple()
+                : (randomBoolean() ? null : MinCompetitiveQueryStatusTests.simple());
             default -> throw new UnsupportedOperationException();
         }
         return new LuceneSourceOperator.Status(
@@ -172,7 +246,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             current,
             rowsEmitted,
             bytesRead,
-            partitioningStrategies
+            partitioningStrategies,
+            minCompetitive
         );
     }
 }

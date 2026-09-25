@@ -56,6 +56,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_RESPONSE_TIMEZONE_FORMAT = TransportVersion.fromName("esql_response_timezone_format");
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
+    private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -81,6 +82,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     private final ZoneId zoneId;
 
+    /**
+     * Tri-state: null when query approximation was not requested (field omitted from the response),
+     * otherwise whether approximation was actually applied for the query.
+     */
+    private final Boolean approximationApplied;
+
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -99,12 +106,14 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         ZoneId zoneId,
         long startTimeMillis,
         long expirationTimeMillis,
-        EsqlExecutionInfo executionInfo
+        EsqlExecutionInfo executionInfo,
+        @Nullable Boolean approximationApplied
     ) {
         this.columns = columns;
         this.pages = pages;
         this.valuesLoaded = valuesLoaded;
         this.documentsFound = documentsFound;
+        this.approximationApplied = approximationApplied;
         this.rowsEmitted = rowsEmitted;
         this.bytesRead = bytesRead;
         this.readNanos = readNanos;
@@ -154,7 +163,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             zoneId,
             startTimeMillis,
             expirationTimeMillis,
-            executionInfo
+            executionInfo,
+            null
         );
     }
 
@@ -239,6 +249,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }
 
             EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
+            Boolean approximationApplied = in.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED) ? in.readOptionalBoolean() : null;
             EsqlQueryResponse response = new EsqlQueryResponse(
                 columns,
                 pages,
@@ -257,7 +268,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 zoneId,
                 startTimeMillis,
                 expirationTimeMillis,
-                executionInfo
+                executionInfo,
+                approximationApplied
             );
             success = true;
             return response;
@@ -301,6 +313,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
 
         out.writeOptionalWriteable(executionInfo);
+        if (out.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED)) {
+            out.writeOptionalBoolean(approximationApplied);
+        }
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {
@@ -360,6 +375,15 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public long valuesLoaded() {
         return valuesLoaded;
+    }
+
+    /**
+     * Whether query approximation was actually applied, or {@code null} when approximation was not requested (in which
+     * case the {@code approximation_applied} response field is omitted).
+     */
+    @Nullable
+    public Boolean approximationApplied() {
+        return approximationApplied;
     }
 
     public Profile profile() {
@@ -429,6 +453,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }));
         }
         content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+            if (approximationApplied != null) {
+                builder.field("approximation_applied", approximationApplied);
+            }
             builder //
                 .field("documents_found", documentsFound)
                 .field("values_loaded", valuesLoaded)
@@ -513,6 +540,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
             && documentsFound == that.documentsFound
             && valuesLoaded == that.valuesLoaded
+            && Objects.equals(approximationApplied, that.approximationApplied)
             && rowsEmitted == that.rowsEmitted
             && bytesRead == that.bytesRead
             && readNanos == that.readNanos
@@ -532,6 +560,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
             documentsFound,
             valuesLoaded,
+            approximationApplied,
             rowsEmitted,
             bytesRead,
             readNanos,

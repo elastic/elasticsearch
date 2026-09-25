@@ -127,6 +127,17 @@ public class DLMFrozenTransitionPlugin extends Plugin {
         cleanupService.init();
         components.add(cleanupService);
         managedServices.add(cleanupService);
+
+        var healthInfoPublisher = new DLMFrozenTransitionHealthInfoPublisher(
+            services.clusterService(),
+            originClient,
+            transitionService,
+            dlmFrozenTransitionExecutor,
+            transitionSettings
+        );
+        healthInfoPublisher.init();
+        components.add(healthInfoPublisher);
+        managedServices.add(healthInfoPublisher);
         return components;
     }
 
@@ -139,10 +150,10 @@ public class DLMFrozenTransitionPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(
-            DLMFrozenTransitionService.POLL_INTERVAL_SETTING,
-            DLMFrozenCleanupService.POLL_INTERVAL_SETTING,
-            DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING
-        );
+        var settings = new ArrayList<Setting<?>>(DLMFrozenTransitionSettings.ALL_SETTINGS);
+        settings.add(DLMFrozenTransitionService.POLL_INTERVAL_SETTING);
+        settings.add(DLMFrozenCleanupService.POLL_INTERVAL_SETTING);
+        settings.add(DLMFrozenTransitionHealthInfoPublisher.PUBLISH_INTERVAL_SETTING);
+        return settings;
     }
 }

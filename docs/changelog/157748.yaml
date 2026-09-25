@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 156292
+pr: 157748
+summary: Add "approximation_applied" to response
+type: feature

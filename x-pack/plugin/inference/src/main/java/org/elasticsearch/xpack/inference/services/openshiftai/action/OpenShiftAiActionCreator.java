@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIResponseHandler;
 import org.elasticsearch.xpack.inference.services.jinaai.response.JinaAIRerankResponseEntity;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiCompletionResponseHandler;
@@ -55,7 +55,7 @@ public class OpenShiftAiActionCreator implements OpenShiftAiActionVisitor {
     );
     private static final ResponseHandler COMPLETION_HANDLER = new OpenShiftAiCompletionResponseHandler(
         "OpenShift AI completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
     // OpenShift AI Rerank task uses the same response format as JinaAI, therefore we can reuse the JinaAIResponseHandler
     private static final ResponseHandler RERANK_HANDLER = new JinaAIResponseHandler(
@@ -102,7 +102,7 @@ public class OpenShiftAiActionCreator implements OpenShiftAiActionVisitor {
             model,
             COMPLETION_HANDLER,
             inputs -> new OpenShiftAiChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var errorMessage = buildErrorMessage(TaskType.COMPLETION, model.getInferenceEntityId());

@@ -14,16 +14,23 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverSleeps;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests that the backwards-compatibility branch in {@link BatchExchangeStatusResponse}
@@ -81,6 +88,71 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
 
         assertThat(deserialized.warnings(), empty());
         assertThat(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()), empty());
+    }
+
+    public void testProfileRoundTrip() throws IOException {
+        BatchExchangeStatusResponse.Profile profile = new BatchExchangeStatusResponse.Profile(101L, 102L, 103L, 104L, 105L, 106L, 107L);
+        BatchExchangeStatusResponse original = new BatchExchangeStatusResponse(108L, List.of("warning"), profile);
+
+        BytesReference bytes = serialize(original, TransportVersion.current());
+        BatchExchangeStatusResponse deserialized = deserialize(bytes, TransportVersion.current(), new ThreadContext(Settings.EMPTY));
+
+        assertThat(deserialized.bytesRead(), equalTo(108L));
+        assertThat(deserialized.warnings(), contains("warning"));
+        assertThat(deserialized.profile(), equalTo(profile));
+    }
+
+    public void testProfileIsOmittedForOldVersions() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE);
+        BatchExchangeStatusResponse original = new BatchExchangeStatusResponse(
+            108L,
+            List.of(),
+            new BatchExchangeStatusResponse.Profile(101L, 102L, 103L, 104L, 105L, 106L, 107L)
+        );
+
+        BytesReference bytes = serialize(original, oldVersion);
+        BatchExchangeStatusResponse deserialized = deserialize(bytes, oldVersion, new ThreadContext(Settings.EMPTY));
+
+        assertThat(deserialized.profile(), nullValue());
+    }
+
+    public void testProfileSummarizesDriverAndFieldLoading() {
+        ValuesSourceReaderOperatorStatus readerStatus = new ValuesSourceReaderOperatorStatus(
+            Map.of("DocValuesReader", 1),
+            Map.of(),
+            104L,
+            1,
+            1,
+            5L,
+            5L,
+            103L,
+            0L,
+            105L,
+            106L,
+            107L
+        );
+        DriverProfile driverProfile = new DriverProfile(
+            "remote fetch",
+            "cluster",
+            "node",
+            1L,
+            2L,
+            999L,
+            102L,
+            1L,
+            List.of(new OperatorStatus("values reader", readerStatus)),
+            new DriverSleeps(Map.of(), List.of(), List.of())
+        );
+
+        BatchExchangeStatusResponse.Profile profile = BatchExchangeStatusResponse.Profile.from(driverProfile, 101L);
+
+        assertThat(profile.driverTookNanos(), equalTo(101L));
+        assertThat(profile.driverCpuNanos(), equalTo(102L));
+        assertThat(profile.valuesLoaded(), equalTo(103L));
+        assertThat(profile.fieldLoadNanos(), equalTo(104L));
+        assertThat(profile.sourceDocsLoaded(), equalTo(105L));
+        assertThat(profile.sourceFieldReads(), equalTo(106L));
+        assertThat(profile.sourceBytesLoaded(), equalTo(107L));
     }
 
     private static BytesReference serialize(BatchExchangeStatusResponse response, TransportVersion version) throws IOException {

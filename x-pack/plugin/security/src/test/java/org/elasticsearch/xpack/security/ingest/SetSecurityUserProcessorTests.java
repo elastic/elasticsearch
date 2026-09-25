@@ -120,7 +120,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(result.get("authentication_type"), equalTo("REALM"));
     }
 
-    public void testNoCurrentUser() throws Exception {
+    public void testNoCurrentUser() {
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
@@ -137,7 +137,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         );
     }
 
-    public void testSecurityDisabled() throws Exception {
+    public void testSecurityDisabled() {
         Settings securityDisabledSettings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(

@@ -92,7 +92,7 @@ public abstract class AbstractHivePartitionParityIT extends AbstractExternalData
         }
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*." + extension();
-        return registerDataset("parity_part_" + extension(), glob, Map.of("hive_partitioning", true));
+        return registerDataset("parity_part_" + extension(), glob, Map.of("partition_detection", "hive"));
     }
 
     public void testParitySweep() throws Exception {

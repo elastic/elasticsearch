@@ -18,7 +18,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -66,7 +66,7 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
             IndexFieldData<?> indexFieldData = mapperService.fieldType("field")
                 .fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
-            SortedBinaryDocValues docValues = indexFieldData.load(leaf).getBytesValues();
+            SortableBinaryDocValues docValues = indexFieldData.load(leaf).getBytesValues();
             if (docValues.advanceExact(0)) {
                 hasValues[0] = true;
                 int count = docValues.docValueCount();

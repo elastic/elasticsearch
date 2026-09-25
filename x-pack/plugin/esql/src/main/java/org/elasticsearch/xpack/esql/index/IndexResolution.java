@@ -79,6 +79,18 @@ public final class IndexResolution {
     }
 
     /**
+     * Whether this resolution matched at least one concrete index. A lenient ({@code allowEmpty})
+     * lookup that matches nothing returns {@link #empty(String)}, which {@link #isValid()} accepts
+     * but which carries no resolved indices; callers deciding "did the lookup find anything?" must
+     * use this instead of {@link #isValid()}. "Matched" means field-caps reported at least one
+     * concrete index after applying index filters and options: an index that exists but was pruned
+     * by an index filter does not count, while a matched index whose mapping is empty does.
+     */
+    public boolean matchedAnyIndex() {
+        return isValid() && resolvedIndices.isEmpty() == false;
+    }
+
+    /**
      * Get the {@linkplain EsIndex}
      * @throws MappingException if the index is invalid for use with ql
      */
@@ -90,8 +102,9 @@ public final class IndexResolution {
     }
 
     /**
-     * Is the index valid for use with ql?
-     * @return {@code false} if the index wasn't found.
+     * Whether this resolution is valid for use with QL. A valid resolution can represent a lenient lookup that matched no indices,
+     * as returned by {@link #empty(String)}; use {@link #matchedAnyIndex()} to distinguish that case.
+     * @return {@code false} if the resolution is invalid
      */
     public boolean isValid() {
         return invalid == null;

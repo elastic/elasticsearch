@@ -1,0 +1,189 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2 ]
+      reason: >
+        Whether a mapped type takes part in LOAD_ALL is decided by the FAMILY type field_caps reports, not by
+        the mapper's own type name. wildcard and constant_keyword override familyTypeName() to keyword and
+        match_only_text overrides it to text, so ES|QL resolves all three to ordinary supported columns. The types
+        with no family alias - binary, the integer/long/ip/float range family (only date_range and double_range are in
+        DataType.ES_TO_TYPE), join, sparse_vector, rank_feature(s), percolator, token_count - resolve to
+        UNSUPPORTED instead. nested is a third, different case: IndexResolver sends request.filters("-nested")
+        unconditionally, so a nested field and its leaves never reach field_caps at all - they are absent
+        rather than unsupported.
+
+  # One index mapping each name; the family-aliased types and the unsupported ones side by side.
+  - do:
+      indices.create:
+        index: la_family_mapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              wc:
+                type: wildcard
+              ck:
+                type: constant_keyword
+                value: "fixed"
+              mot:
+                type: match_only_text
+              bin:
+                type: binary
+                doc_values: true
+              rng:
+                type: integer_range
+              nst:
+                type: nested
+                properties:
+                  leaf:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_family_mapped", "_id": "1" } }
+          - {
+              "id": "mapped",
+              "wc": "wild-value",
+              "ck": "fixed",
+              "mot": "some words",
+              "bin": "U29tZSBiaW5hcnk=",
+              "rng": { "gte": 1, "lt": 9 },
+              "nst": [ { "leaf": "n1" } ]
+            }
+
+  # The same field names and the same _source, none of it mapped.
+  - do:
+      indices.create:
+        index: la_family_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_family_unmapped", "_id": "1" } }
+          - {
+              "id": "unmapped",
+              "wc": "wild-value",
+              "ck": "fixed",
+              "mot": "some words",
+              "bin": "U29tZSBiaW5hcnk=",
+              "rng": { "gte": 1, "lt": 9 },
+              "nst": [ { "leaf": "n1" } ]
+            }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_family_mapped,la_family_unmapped
+        ignore_unavailable: true
+
+---
+'control: with nothing mapped, every one of these names is discovered from _source as keyword':
+  # Establishes that the values are all present and discoverable, so the suppression the later tests show is
+  # a property of the mapping and not of the data. The object-shaped ones flatten as in 302.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_unmapped | LIMIT 5'
+  - length: { columns: 8 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: bin }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: ck }
+  - match: { columns.3.name: mot }
+  - match: { columns.4.name: nst.leaf }
+  - match: { columns.5.name: rng.gte }
+  - match: { columns.6.name: rng.lt }
+  - match: { columns.7.name: wc }
+  - match: { values.0: [ "unmapped", "U29tZSBiaW5hcnk=", "fixed", "some words", "n1", "1", "9", "wild-value" ] }
+
+---
+'family-aliased types resolve to their family, not to unsupported':
+  # wildcard and constant_keyword report keyword to field_caps and match_only_text reports text, so all three
+  # are ordinary columns with their values. bin and rng have no family alias
+  # and are unsupported, so they read null even though _source holds both.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_family_mapped | KEEP id, wc, ck, mot, bin, rng | LIMIT 5'
+  - length: { columns: 6 }
+  - match: { columns.1.name: wc }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: ck }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: mot }
+  - match: { columns.3.type: text }
+  - match: { columns.4.name: bin }
+  - match: { columns.4.type: unsupported }
+  - match: { columns.5.name: rng }
+  - match: { columns.5.type: unsupported }
+  - match: { values.0: [ "mapped", "wild-value", "fixed", "some words", null, null ] }
+
+---
+'the keyword family survives partial mapping but the text family does not':
+  - do:
+      allowed_warnings:
+        - "Field [mot] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_family_mapped, la_family_unmapped | KEEP id, wc, ck, mot | SORT id | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { columns.1.name: wc }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: ck }
+  - match: { columns.2.type: keyword }
+  - match: { columns.3.name: mot }
+  - match: { columns.3.type: text }
+  - match: { values.0: [ "mapped", "wild-value", "fixed", "some words" ] }
+  - match: { values.1: [ "unmapped", "wild-value", "fixed", null ] }
+
+---
+'one index mapping a name as an unsupported type silences it for the whole pattern':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_family_mapped, la_family_unmapped | KEEP id, bin | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.1.name: bin }
+  - match: { columns.1.type: unsupported }
+  - match: { values.0: [ "mapped", null ] }
+  - match: { values.1: [ "unmapped", null ] }
+
+---
+'the leaves under an unsupported object-shaped type are still discovered, in both legs':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_mapped, la_family_unmapped | KEEP id, rng.* | SORT id | LIMIT 5'
+  - length: { columns: 3 }
+  - match: { columns.1.name: rng.gte }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: rng.lt }
+  - match: { values.0: [ "mapped", "1", "9" ] }
+  - match: { values.1: [ "unmapped", "1", "9" ] }
+
+---
+'declaring a field nested does not hide it from LOAD_ALL':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_family_mapped, la_family_unmapped | KEEP id, nst.* | SORT id | LIMIT 5'
+  - length: { columns: 2 }
+  - match: { columns.1.name: nst.leaf }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "mapped", "n1" ] }
+  - match: { values.1: [ "unmapped", "n1" ] }

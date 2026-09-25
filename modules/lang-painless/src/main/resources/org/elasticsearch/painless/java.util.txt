@@ -31,13 +31,13 @@ class java.util.Collection {
   def[] toArray(def[]) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="toArrayBytes"]
 
   # some adaptations of groovy methods
-  List org.elasticsearch.painless.api.Augmentation collect(Function) @script_aware
+  List org.elasticsearch.painless.api.Augmentation collect(Function) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="collectBytes"]
   def org.elasticsearch.painless.api.Augmentation collect(Collection,Function) @script_aware
   def org.elasticsearch.painless.api.Augmentation find(Predicate) @script_aware
   List org.elasticsearch.painless.api.Augmentation findAll(Predicate) @script_aware
   def org.elasticsearch.painless.api.Augmentation findResult(Function) @script_aware
   def org.elasticsearch.painless.api.Augmentation findResult(def,Function) @script_aware
-  List org.elasticsearch.painless.api.Augmentation split(Predicate) @script_aware
+  List org.elasticsearch.painless.api.Augmentation split(Predicate) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="splitBytes"]
 }
 
 class java.util.Comparator {
@@ -115,7 +115,7 @@ class java.util.List {
   def set(int,def)
   int org.elasticsearch.painless.api.Augmentation getLength()
   void sort(Comparator)
-  List subList(int,int)
+  List subList(int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subListBytes"]
   Object org.elasticsearch.painless.api.Augmentation getByPath(String)
   Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 }
@@ -157,7 +157,7 @@ class java.util.Map {
   Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 
   # some adaptations of groovy methods
-  List org.elasticsearch.painless.api.Augmentation collect(BiFunction) @script_aware
+  List org.elasticsearch.painless.api.Augmentation collect(BiFunction) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="collectBytes"]
   def org.elasticsearch.painless.api.Augmentation collect(Collection,BiFunction) @script_aware
   int org.elasticsearch.painless.api.Augmentation count(BiPredicate) @script_aware
   def org.elasticsearch.painless.api.Augmentation each(BiConsumer) @script_aware
@@ -349,7 +349,7 @@ class java.util.AbstractSet {
 
 class java.util.ArrayDeque {
   () @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="arrayDequeShellBytes"]
-  (Collection)
+  (Collection) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="arrayDequeCollectionBytes"]
   ArrayDeque clone()
 }
 
@@ -390,7 +390,7 @@ class java.util.Base64$Encoder {
 
 class java.util.BitSet {
   () @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="bitSetShellBytes"]
-  (int)
+  (int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="bitSetBytes"]
   void and(BitSet)
   void andNot(BitSet)
   int cardinality()
@@ -687,7 +687,7 @@ class java.util.HashSet {
 
 class java.util.Hashtable {
   () @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="hashtableShellBytes"]
-  (Map)
+  (Map) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="hashtableCopyBytes"]
   def clone()
 }
 
@@ -711,7 +711,7 @@ class java.util.HexFormat {
 
 class java.util.IdentityHashMap {
   () @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="identityHashMapShellBytes"]
-  (Map)
+  (Map) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="identityHashMapCopyBytes"]
   def clone()
 }
 

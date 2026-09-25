@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 158061
+summary: Enable Jackson's COMBINE_UNICODE_SURROGATES_IN_UTF8
+type: upgrade

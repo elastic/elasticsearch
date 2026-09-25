@@ -754,9 +754,10 @@ required_capability: warn_null_misuse
 request_stored: skip
 
 SET approximation=true\;
-FROM many_numbers | STATS sum = sum(sv) | EVAL sum = sum + null
+FROM many_numbers
+| STATS sum = sum(sv) | EVAL sum = sum + null
 ;
-warning:Line 2:54: Expression [sum + null] always evaluates to NULL.
+warning:Line 3:36: Expression [sum + null] always evaluates to NULL.
 
 documents_found: 0
 approximation_applied: false
@@ -772,9 +773,10 @@ required_capability: warn_null_misuse
 request_stored: skip
 
 SET approximation={"rows":10000}\;
-FROM many_numbers | STATS sum = sum(sv) | EVAL sum_null = sum + null
+FROM many_numbers
+| STATS sum = sum(sv) | EVAL sum_null = sum + null
 ;
-warning:Line 2:59: Expression [sum + null] always evaluates to NULL.
+warning:Line 3:41: Expression [sum + null] always evaluates to NULL.
 
 documents_found: 8000..12000
 approximation_applied: true

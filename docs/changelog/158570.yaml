@@ -1,5 +1,5 @@
-area: Aggregations
+area: Search
 issues: []
 pr: 158570
-summary: Bound include/exclude regex in terms aggregations
+summary: Charge regex automaton builds to the circuit breaker
 type: bug

@@ -34,7 +34,7 @@ public class ElasticsearchStatusException extends ElasticsearchException {
      * Build the exception without a cause.
      */
     public ElasticsearchStatusException(String msg, RestStatus status, Object... args) {
-        this(msg, status, null, args);
+        this("Status: {}. " + msg, status, null, status, args);
     }
 
     /**

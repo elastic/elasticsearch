@@ -58,6 +58,7 @@ import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -5606,39 +5607,35 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
      * Verifies that the search shard for a reshard split target has cache warming triggered during recovery. Before the
      * {@link SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING} feature, the new shard had no prior
      * active copy, so {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} returned skip() (fire-and-forget). Now it blocks until
-     * warming completes. This test asserts that warming bytes are recorded on the search node after the reshard, confirming the
-     * warming path was taken.
+     * warming completes. This test asserts WARMING_COMPLETE is recorded, and that post-reshard searches trigger no blob-store reads due
+     * to cache misses on the SEARCH executor.
+     * <p>
+     * After SPLIT, {@code delete-unowned} on the split target creates new {@code .liv} (live-docs) segment files. Those are fetched from
+     * the indexing node ({@link CachePopulationSource#Peer}), not from the object store, so they are excluded from the assertion by
+     * filtering on {@link CachePopulationSource#BlobStore}. Reads from offline warming and commit prefetch are excluded by filtering on
+     * {@link BlobCacheMetrics.CachePopulationReason#CacheMiss}. Only blob-store reads triggered by actual search-path cache misses remain,
+     * and those should be zero because warming ratio 1.0 covered the full commit before the shard went GREEN.
      */
     public void testReshardTargetSearchShardTriggersWarming() {
-        // After the reshard completes, delete-unowned (RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD = 0 from nodeSettings) runs
-        // immediately, creating a new BCC commit on shard 1 that the recovery warming did not cover. Two equivalent strategies
-        // prevent that from causing a spurious cache miss in the zero-miss assertion below.
-        final boolean delayDeletions = randomBoolean();
-        Settings.Builder indexSettingsBuilder = Settings.builder()
+        Settings indexNodeSettings = Settings.builder()
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             // Force commit internal-files replicated content so BCC blobs are uploaded to the object store.
-            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true);
-        if (delayDeletions) {
-            // Keep delete-unowned from running during the search phase by extending the grace period well beyond the test window.
-            indexSettingsBuilder.put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), "1h");
-        }
-        Settings indexNodeSettings = indexSettingsBuilder.build();
-        Settings.Builder searchSettingsBuilder = Settings.builder()
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .build();
+        Settings searchNodeSettings = Settings.builder()
             .put(indexNodeSettings)
             // Force search internal-files replicated content so warmingInputs (endTargetsToWarm) is non-null during recovery,
             // which is required for searchRecoveryTimeout to be consulted (and therefore for our reshard-target branch to apply).
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             // Warm the full commit so searches after recovery can be served from cache.
             .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
-            // Ensure the blob cache can actually hold data so warming bytes are non-zero.
+            // Ensure the blob cache can actually hold data.
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(32).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4).getStringRep());
-        if (delayDeletions == false) {
-            // Foreground prefetch of non-uploaded commits: blocks the shard reopen until the delete-unowned BCC commit
-            // has been fetched from the index node, so no search thread reads an unwarmed blob.
-            searchSettingsBuilder.put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), true);
-        }
-        Settings searchNodeSettings = searchSettingsBuilder.build();
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4).getStringRep())
+            // Foreground prefetch of the post-reshard BCC (written by delete-unowned's force-flush) so its blob ranges
+            // are in cache before any search thread reads them, even if the BCC has not yet been uploaded to the object store.
+            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), true)
+            .build();
         startMasterAndIndexNode(indexNodeSettings);
         String searchNode = startSearchNode(searchNodeSettings);
         ensureStableCluster(2);
@@ -5648,6 +5645,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
         int numDocs = randomIntBetween(10, 50);
         indexDocs(indexName, numDocs);
+        // Flush so the index node uploads the BCC to the object store, giving the search shard content to warm during recovery.
         flush(indexName);
 
         TestTelemetryPlugin telemetry = getTelemetryPlugin(searchNode);
@@ -5672,8 +5670,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             );
         assertThat("reshard target search shard recovery should have blocked until warming completed", hasWarmingComplete, is(true));
 
-        // A search on the new shard (shard 1) should be served entirely from cache: warming ratio 1.0 covered the full commit before the
-        // shard went GREEN, so no cache miss should trigger an object-store read on the search thread pool.
+        // Searches should be served from cache without triggering object-store reads due to cache misses.
+        // Warming ratio 1.0 covered the commit before the shard went GREEN; reads from offline warming and commit
+        // prefetch are excluded by the CacheMiss reason filter. Peer reads (delete-unowned .liv files from the
+        // indexing node) are excluded by the BlobStore source filter. Only true object-store miss reads remain.
         telemetry.resetMeter();
         assertHitCount(
             client(searchNode).prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setSize(between(0, 10)),
@@ -5681,14 +5681,22 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         );
         assertHitCount(client(searchNode).prepareSearch(indexName).setQuery(matchQuery("_id", randomAlphaOfLength(4))).setSize(0), 0);
         telemetry.collect();
-        long searchExecutorMisses = telemetry.getLongCounterMeasurement("es.blob_cache.miss_that_triggered_read.total")
+        long searchExecutorBlobStoreMissBytes = telemetry.getLongCounterMeasurement("es.blob_cache.population.bytes.total")
             .stream()
             .filter(m -> ThreadPool.Names.SEARCH.equals(m.attributes().get(BlobCacheMetrics.ES_EXECUTOR_ATTRIBUTE_KEY)))
+            .filter(
+                m -> CachePopulationSource.BlobStore.name()
+                    .equals(m.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY))
+            )
+            .filter(
+                m -> BlobCacheMetrics.CachePopulationReason.CacheMiss.name()
+                    .equals(m.attributes().get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY))
+            )
             .mapToLong(Measurement::getLong)
             .sum();
         assertThat(
-            "no blob-cache read misses on the search executor after reshard target warming completed",
-            searchExecutorMisses,
+            "no blob-store reads triggered by search-executor cache misses after reshard target warming",
+            searchExecutorBlobStoreMissBytes,
             equalTo(0L)
         );
     }

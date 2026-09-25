@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -491,7 +490,13 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
          * @param exception The exception that occurred.
          */
         public void onException(Exception exception) {
-            if (this.exception.trySet(exception)) {
+            // Under the checkpoint lock so hasFailure() cannot change between completeIfFinished()'s success
+            // decision and the clearBuffers() that follows it.
+            boolean isFirstFailure;
+            synchronized (checkpoint) {
+                isFirstFailure = this.exception.trySet(exception);
+            }
+            if (isFirstFailure) {
                 completeIfFinished();
             }
         }
@@ -514,7 +519,10 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 }
 
                 if (allRequestsSent() && allRequestsProcessed() && completed.compareAndSet(false, true)) {
-                    completionListener.onResponse(Collections.unmodifiableList(responses));
+                    // A copy: getOutput() reads this list on a later turn of the driver, and clearBuffers() empties
+                    // `responses` on failure. A view would carry that clear through to the output builder, which would
+                    // then append no positions and fail the page's position-count invariant.
+                    completionListener.onResponse(List.copyOf(responses));
                     clearBuffers();
                 }
             }

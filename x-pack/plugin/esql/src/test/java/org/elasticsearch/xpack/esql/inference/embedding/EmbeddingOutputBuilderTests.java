@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRes
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -258,6 +259,35 @@ public class EmbeddingOutputBuilderTests extends ComputeTestCase {
                 assertFalse(Float.isInfinite(value));
             }
         }
+    }
+
+    /**
+     * Responses covering fewer rows than the page holds are refused here, naming both counts, rather than reaching
+     * {@link Page#appendBlock} and surfacing as a position-count mismatch between two blocks. An emptied response list is
+     * the extreme of that case: no response covers anything, so nothing is appended at all.
+     */
+    public void testResponsesThatDoNotCoverThePageAreRefusedWithBothCounts() throws Exception {
+        final int size = 4;
+        final Page inputPage = randomInputPage(size, 1);
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory(), randomBoolean());
+
+        try {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> outputBuilder.buildOutputPage(inputPage, List.of()));
+            assertThat(e.getMessage(), containsString("cover 0 of the 4 rows"));
+            assertThat(e.getMessage(), containsString("0 response(s) received"));
+
+            // One response short of the page: the same guard, reached the ordinary way.
+            List<BulkInferenceResponseItem> partial = List.of(new BulkInferenceResponseItem(null, new int[size - 1], 0));
+            IllegalStateException partialFailure = expectThrows(
+                IllegalStateException.class,
+                () -> outputBuilder.buildOutputPage(inputPage, partial)
+            );
+            assertThat(partialFailure.getMessage(), containsString("cover 3 of the 4 rows"));
+        } finally {
+            inputPage.releaseBlocks();
+        }
+
+        allBreakersEmpty();
     }
 
     private DenseEmbeddingFloatResults createFloatEmbedding(int count) {

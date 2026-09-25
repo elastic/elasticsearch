@@ -168,8 +168,7 @@ public class ShardWarmVolumes implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.nodesChanged() == false
-            && event.changedCustomClusterMetadataSet().contains(NodesShutdownMetadata.TYPE) == false) {
+        if (event.nodesChanged() == false && event.changedCustomClusterMetadataSet().contains(NodesShutdownMetadata.TYPE) == false) {
             return;
         }
         if (event.nodesChanged()) {

@@ -1,0 +1,6 @@
+area: Bridge
+issues: []
+pr: 149758
+summary: "Introduce size limit for the Logstash pipeline creation API, description\
+  \ field"
+type: enhancement

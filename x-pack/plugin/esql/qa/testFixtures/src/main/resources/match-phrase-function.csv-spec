@@ -855,6 +855,7 @@ book_no:keyword | max_year:integer
 matchPhraseOnToTextOverIndexedKeywordField
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_to_text_on_indexed_field_fix
+required_capability: fn_match_phrase_runtime_filter
 
 // https://github.com/elastic/elasticsearch/issues/159265: TO_TEXT written inline over a normal mapped keyword field
 // must still be matched with analyzed (case-insensitive) phrase semantics, not pushed down as an exact, case-sensitive
@@ -878,6 +879,7 @@ book_no:keyword | author:text
 matchPhraseOnToTextOverIndexedKeywordFieldViaEvalAlias
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_to_text_on_indexed_field_fix
+required_capability: fn_match_phrase_runtime_filter
 
 // The EVAL-alias form of matchPhraseOnToTextOverIndexedKeywordField must agree with the inline form (above).
 FROM books
@@ -899,6 +901,7 @@ book_no:keyword | author:text
 matchPhraseOnToStringOverIndexedTextFieldIsExact
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_to_string_on_indexed_field_fix
+required_capability: fn_match_phrase_runtime_filter
 
 // Mirror-image bug of matchPhraseOnToTextOverIndexedKeywordField: TO_STRING over a normal
 // mapped text field (author) must be matched as exact, unanalyzed keyword text. "Holly Byers" is a
@@ -915,6 +918,7 @@ book_no:keyword | author:text
 matchPhraseOnToStringOverIndexedTextFieldViaEvalAlias
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_to_string_on_indexed_field_fix
+required_capability: fn_match_phrase_runtime_filter
 
 // The EVAL-alias form of matchPhraseOnToStringOverIndexedTextFieldIsExact must agree with the inline form.
 FROM books

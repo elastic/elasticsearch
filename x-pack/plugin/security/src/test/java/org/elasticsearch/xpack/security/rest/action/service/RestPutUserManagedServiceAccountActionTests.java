@@ -28,6 +28,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class RestPutUserManagedServiceAccountActionTests extends RestActionTestCase {
@@ -56,16 +57,18 @@ public class RestPutUserManagedServiceAccountActionTests extends RestActionTestC
         assertThat(putRequest.getServiceName(), equalTo("svc"));
         assertThat(putRequest.getRoles(), contains("role1", "role2"));
         assertThat(putRequest.isEnabled(), equalTo(true));
+        assertThat(putRequest.getDescription(), nullValue());
         assertThat(putRequest.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.WAIT_UNTIL));
     }
 
-    public void testEnabledAndRefreshAreReadWhenGiven() {
+    public void testEnabledDescriptionAndRefreshAreReadWhenGiven() {
         dispatchRequest(request("""
-            {"roles":[],"enabled":false}""", Map.of("refresh", "true")));
+            {"roles":[],"enabled":false,"description":"Deploys my-app"}""", Map.of("refresh", "true")));
 
         final PutUserManagedServiceAccountRequest putRequest = requestHolder.get();
         assertThat(putRequest.getRoles(), empty());
         assertThat(putRequest.isEnabled(), equalTo(false));
+        assertThat(putRequest.getDescription(), equalTo("Deploys my-app"));
         assertThat(putRequest.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
     }
 

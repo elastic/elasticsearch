@@ -58,9 +58,17 @@ public interface FormatReader extends Closeable {
         UNION_BY_NAME;
 
         /**
+         * Stored / query {@code schema_resolution} token for this strategy
+         * ({@code first_file_wins}, {@code union_by_name}, {@code strict}).
+         */
+        public String configName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        /**
          * Case-insensitive parse of a {@code schema_resolution} option value. This is the single
          * definition of valid strategy names, shared by the query path
-         * ({@code ExternalSourceResolver.parseSchemaResolution}) and the dataset CRUD validator so
+         * ({@code ExternalSourceResolver.effectiveSchemaResolution}) and the dataset CRUD validator so
          * the two cannot diverge.
          *
          * @throws IllegalArgumentException if {@code value} is not a recognised strategy
@@ -78,28 +86,21 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Cluster-wide default schema resolution strategy when a query does not specify one.
+     * Cluster-wide default schema resolution when a query or new dataset PUT omits the key.
      * <p>
-     * This is the single source of truth: it is consulted both by this SPI's
-     * {@link #defaultSchemaResolution()} and by {@code ExternalSourceResolver.parseSchemaResolution}
-     * when no {@code schema_resolution} key is present in the per-query config. The format
-     * detected at glob-expansion time is not yet known when the resolver decides whether to
-     * take the read-all-and-reconcile path versus the FFW fast path, so there is no format
-     * dispatch here today; if per-format defaults become desirable in the future the resolver
-     * will need to peek at the first listed file's format first, and this constant becomes the
-     * fallback only.
+     * This is the single source of truth for <em>omitted</em> config: {@code ExternalSourceResolver}
+     * {@code effectiveSchemaResolution}, listing order, and a new PUT that materializes the stored
+     * key all consult it. {@code first_file_wins} is the default so homogeneous Parquet lakes take
+     * the O(1) footer path without a setting. A cluster-state document that predates this default
+     * still hydrates as {@link SchemaResolution#UNION_BY_NAME} at query time
+     * ({@code ExternalSourceResolver.effectivePersistedSchemaResolution}); that fallback is not this
+     * constant.
+     * <p>
+     * The format detected at glob-expansion time is not yet known when the resolver decides whether
+     * to take the read-all-and-reconcile path versus the FFW fast path, so there is no per-format
+     * dispatch here.
      */
-    SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.UNION_BY_NAME;
-
-    /**
-     * Returns the cluster-wide default schema resolution for this reader. Format implementations
-     * may override this to advertise a different preferred default, but the resolver does not
-     * consult it today (see {@link #DEFAULT_SCHEMA_RESOLUTION} for the rationale). Override is
-     * effectively informational until that wiring exists.
-     */
-    default SchemaResolution defaultSchemaResolution() {
-        return DEFAULT_SCHEMA_RESOLUTION;
-    }
+    SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.FIRST_FILE_WINS;
 
     /**
      * Returns the default error policy for this format. The base default is {@link ErrorPolicy#STRICT}
@@ -416,6 +417,20 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns a fresh, zeroed counter struct for one operator driver, or {@code null} when this
+     * reader tracks no format-specific counters. Called once per {@code get(DriverContext)} by
+     * {@code AsyncExternalSourceOperatorFactory}; the returned struct is passed to every
+     * {@link #read} / {@link RangeAwareFormatReader#readRange} call via
+     * {@link FormatReadContext#readCounters()} / {@link RangeReadContext#readCounters()}.
+     * <p>
+     * The default returns {@code null}. Readers that track format-specific counters override this
+     * and return an instance of their format-specific {@link FormatReadCounters} implementation.
+     */
+    default FormatReadCounters newReadCounters() {
+        return null;
+    }
+
+    /**
      * Whether this format supports being wrapped in a whole-file, stream-only decompressor
      * (e.g. {@code .parquet.zst} or {@code .orc.gz}). Sequential formats (CSV, NDJSON) return
      * the default {@code true}. Tail/footer-based formats (Parquet, ORC) must override to
@@ -424,15 +439,6 @@ public interface FormatReader extends Closeable {
      */
     default boolean supportsWholeFileCompression() {
         return true;
-    }
-
-    /**
-     * Returns a typed snapshot of format-reader I/O counters, or {@code null} when the reader
-     * tracks none. The snapshot is folded into the {@code format_reader} field of the
-     * external-source operator status.
-     */
-    default FormatReaderStatus statusSnapshot() {
-        return null;
     }
 
     /**

@@ -93,9 +93,7 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
 
     /** The index sort every sliced index must use: slice field first, STRING, ascending, missing values last. */
     protected static Sort sliceIndexSort() {
-        SortField sliceSort = new SortField(SLICE_FIELD, SortField.Type.STRING);
-        sliceSort.setMissingValue(SortField.STRING_LAST);
-        return new Sort(sliceSort);
+        return new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING, false, SortField.STRING_LAST));
     }
 
     /** Creates a vector field with a random vector of the given dimensions. */

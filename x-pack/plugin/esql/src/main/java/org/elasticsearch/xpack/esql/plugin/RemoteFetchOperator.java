@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +22,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.exchange.BatchExchangeStatusResponse;
+import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -30,11 +34,13 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -166,6 +172,8 @@ public final class RemoteFetchOperator implements Operator {
     private final int maxOutstandingRequests;
     private final RemoteFetchService.Client client;
     private final AtomicLong batchIds = new AtomicLong();
+    // Driver-thread only. Driver.status() snapshots operators on that thread after addInput()
+    // returns; _tasks reads the cached snapshot and does not call status() live.
     private final Map<TargetSession, RemoteFetchService.TargetExchange> exchanges = new HashMap<>();
     private final Map<Long, PendingGroup> pendingByBatch = new HashMap<>();
     private final Deque<PendingInput> pendingInputs = new ArrayDeque<>();
@@ -177,6 +185,15 @@ public final class RemoteFetchOperator implements Operator {
     private long rowsEmitted;
     private long batchesSent;
     private int exchangesOpened;
+    private final boolean profile;
+    private long firstInputNanos;
+    private long firstResultNanos;
+    private long lastResultNanos;
+    private long processEndNanos;
+    private long mergeNanos;
+    private final AtomicLong exchangeWaitNanos = new AtomicLong();
+    // Completion can run on the listener's thread, not the driver thread.
+    private final Map<SubscribableListener<Void>, Long> pendingExchangeWaits = new ConcurrentHashMap<>();
 
     // Note: no ThreadContext parameter on purpose. This operator only interacts with its exchanges synchronously
     // on the driver thread; response-header propagation for the async transport work is owned by
@@ -211,6 +228,7 @@ public final class RemoteFetchOperator implements Operator {
         this.configuration = configuration;
         this.maxOutstandingRequests = maxOutstandingRequests;
         this.client = client;
+        this.profile = configuration.profile();
     }
 
     @Override
@@ -220,6 +238,9 @@ public final class RemoteFetchOperator implements Operator {
 
     @Override
     public void addInput(Page inputPage) {
+        if (profile && firstInputNanos == 0L) {
+            firstInputNanos = System.nanoTime();
+        }
         pagesReceived++;
         rowsReceived += inputPage.getPositionCount();
         if (inputPage.getPositionCount() == 0) {
@@ -294,6 +315,9 @@ public final class RemoteFetchOperator implements Operator {
                 return false;
             }
         }
+        if (profile && processEndNanos == 0L) {
+            processEndNanos = System.nanoTime();
+        }
         return true;
     }
 
@@ -320,14 +344,21 @@ public final class RemoteFetchOperator implements Operator {
          * coordinator emits only when every group for the input page is complete. A future evolution can relax this
          * to prefix output once the position-mapping column and last-page markers prove which rows survived.
          */
-        return emit(
-            mergeFetchedPage(
-                pendingInput.inputPage,
-                pendingInput.groupByPosition,
-                pendingInput.offsetByPosition,
-                pendingInput.pagesByGroup()
-            )
-        );
+        long mergeStartNanos = profile ? System.nanoTime() : 0L;
+        try {
+            return emit(
+                mergeFetchedPage(
+                    pendingInput.inputPage,
+                    pendingInput.groupByPosition,
+                    pendingInput.offsetByPosition,
+                    pendingInput.pagesByGroup()
+                )
+            );
+        } finally {
+            if (profile) {
+                mergeNanos += System.nanoTime() - mergeStartNanos;
+            }
+        }
     }
 
     private Page emit(Page page) {
@@ -353,7 +384,7 @@ public final class RemoteFetchOperator implements Operator {
             }
             for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
                 if (exchange.isFinished() == false) {
-                    return exchange.waitForCompletion();
+                    return trackWait(exchange.waitForCompletion());
                 }
             }
             return NOT_BLOCKED;
@@ -363,7 +394,7 @@ public final class RemoteFetchOperator implements Operator {
         }
         for (PendingGroup group : pendingInput.groups) {
             if (group.isComplete() == false) {
-                return group.exchange.isBlocked();
+                return trackWait(group.exchange.isBlocked());
             }
         }
         return NOT_BLOCKED;
@@ -371,6 +402,9 @@ public final class RemoteFetchOperator implements Operator {
 
     @Override
     public void close() {
+        if (profile && firstInputNanos != 0L && processEndNanos == 0L) {
+            processEndNanos = System.nanoTime();
+        }
         for (PendingInput pendingInput : pendingInputs) {
             releasePendingInput(pendingInput);
         }
@@ -417,6 +451,13 @@ public final class RemoteFetchOperator implements Operator {
     }
 
     private void receiveFetchedPage(Page page) {
+        if (profile) {
+            long now = System.nanoTime();
+            if (firstResultNanos == 0L) {
+                firstResultNanos = now;
+            }
+            lastResultNanos = now;
+        }
         boolean keepPage = false;
         try {
             BatchMetadata metadata = page.batchMetadata();
@@ -453,6 +494,24 @@ public final class RemoteFetchOperator implements Operator {
     private void setFailure(Exception e) {
         if (failure == null) {
             failure = e;
+        }
+    }
+
+    private IsBlockedResult trackWait(IsBlockedResult blocked) {
+        if (profile == false || blocked.listener().isDone()) {
+            return blocked;
+        }
+        SubscribableListener<Void> listener = blocked.listener();
+        if (pendingExchangeWaits.putIfAbsent(listener, System.nanoTime()) == null) {
+            listener.addListener(ActionListener.wrap(ignored -> completeExchangeWait(listener), e -> completeExchangeWait(listener)));
+        }
+        return blocked;
+    }
+
+    private void completeExchangeWait(SubscribableListener<Void> listener) {
+        Long waitStartNanos = pendingExchangeWaits.remove(listener);
+        if (waitStartNanos != null) {
+            exchangeWaitNanos.addAndGet(System.nanoTime() - waitStartNanos);
         }
     }
 
@@ -501,7 +560,84 @@ public final class RemoteFetchOperator implements Operator {
 
     @Override
     public Operator.Status status() {
-        return new Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, batchesSent, exchangesOpened);
+        return new Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, batchesSent, exchangesOpened, buildProfile());
+    }
+
+    private Profile buildProfile() {
+        if (profile == false) {
+            return Profile.EMPTY;
+        }
+        long processNanos = firstInputNanos == 0L ? 0L : (processEndNanos == 0L ? System.nanoTime() : processEndNanos) - firstInputNanos;
+        long timeToFirstResultNanos = firstResultNanos == 0L ? 0L : firstResultNanos - firstInputNanos;
+        long responseNanos = lastResultNanos == 0L ? 0L : lastResultNanos - firstResultNanos;
+        long totalSetupNanos = 0L;
+        long maxSetupNanos = 0L;
+        long bytesRead = 0L;
+        long fetchNanos = 0L;
+        long maxFetchNanos = 0L;
+        long fetchCpuNanos = 0L;
+        long valuesLoaded = 0L;
+        long fieldLoadNanos = 0L;
+        long sourceDocsLoaded = 0L;
+        long sourceFieldReads = 0L;
+        long sourceBytesLoaded = 0L;
+        long requestPages = 0L;
+        long requestRows = 0L;
+        long responsePages = 0L;
+        long responseRows = 0L;
+        List<BidirectionalBatchExchangeClient.WorkerProfile> workers = new ArrayList<>();
+        for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
+            BidirectionalBatchExchangeClient.Profile exchangeProfile = exchange.profile();
+            totalSetupNanos += exchangeProfile.totalSetupNanos();
+            maxSetupNanos = Math.max(maxSetupNanos, exchangeProfile.maxSetupNanos());
+            bytesRead += exchangeProfile.bytesRead();
+            workers.addAll(exchangeProfile.workers());
+            for (BidirectionalBatchExchangeClient.WorkerProfile worker : exchangeProfile.workers()) {
+                BatchExchangeStatusResponse.Profile fetchProfile = worker.server();
+                if (fetchProfile == null) {
+                    continue;
+                }
+                requestPages += fetchProfile.requestPages();
+                requestRows += fetchProfile.requestRows();
+                fetchNanos += fetchProfile.driverTookNanos();
+                maxFetchNanos = Math.max(maxFetchNanos, fetchProfile.driverTookNanos());
+                fetchCpuNanos += fetchProfile.driverCpuNanos();
+                valuesLoaded += fetchProfile.valuesLoaded();
+                fieldLoadNanos += fetchProfile.fieldLoadNanos();
+                sourceDocsLoaded += fetchProfile.sourceDocsLoaded();
+                sourceFieldReads += fetchProfile.sourceFieldReads();
+                sourceBytesLoaded += fetchProfile.sourceBytesLoaded();
+                responsePages += fetchProfile.responsePages();
+                responseRows += fetchProfile.responseRows();
+            }
+        }
+        workers.sort(
+            Comparator.comparing(BidirectionalBatchExchangeClient.WorkerProfile::exchangeId)
+                .thenComparingInt(BidirectionalBatchExchangeClient.WorkerProfile::workerId)
+        );
+        return new Profile(
+            processNanos,
+            timeToFirstResultNanos,
+            responseNanos,
+            exchangeWaitNanos.get(),
+            mergeNanos,
+            totalSetupNanos,
+            maxSetupNanos,
+            fetchNanos,
+            maxFetchNanos,
+            fetchCpuNanos,
+            fieldLoadNanos,
+            valuesLoaded,
+            sourceDocsLoaded,
+            sourceFieldReads,
+            sourceBytesLoaded,
+            bytesRead,
+            requestPages,
+            requestRows,
+            responsePages,
+            responseRows,
+            workers
+        );
     }
 
     /**
@@ -511,9 +647,15 @@ public final class RemoteFetchOperator implements Operator {
      * the pushdown pruned before they crossed the wire, and {@code batchesSent}/{@code exchangesOpened} show how the
      * fetch fanned out across target sessions.
      */
-    public record Status(int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted, long batchesSent, int exchangesOpened)
-        implements
-            Operator.Status {
+    public record Status(
+        int pagesReceived,
+        int pagesEmitted,
+        long rowsReceived,
+        long rowsEmitted,
+        long batchesSent,
+        int exchangesOpened,
+        Profile profile
+    ) implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "remote_fetch",
@@ -524,7 +666,19 @@ public final class RemoteFetchOperator implements Operator {
         );
 
         Status(StreamInput in) throws IOException {
-            this(in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVInt());
+            this(
+                in.readVInt(),
+                in.readVInt(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVInt(),
+                in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE) ? new Profile(in) : Profile.EMPTY
+            );
+        }
+
+        public Status(int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted, long batchesSent, int exchangesOpened) {
+            this(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, batchesSent, exchangesOpened, Profile.EMPTY);
         }
 
         @Override
@@ -535,6 +689,9 @@ public final class RemoteFetchOperator implements Operator {
             out.writeVLong(rowsEmitted);
             out.writeVLong(batchesSent);
             out.writeVInt(exchangesOpened);
+            if (out.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE)) {
+                profile.writeTo(out);
+            }
         }
 
         @Override
@@ -556,7 +713,170 @@ public final class RemoteFetchOperator implements Operator {
             builder.field("rows_emitted", rowsEmitted);
             builder.field("batches_sent", batchesSent);
             builder.field("exchanges_opened", exchangesOpened);
+            if (profile.equals(Profile.EMPTY) == false) {
+                profile.toXContent(builder);
+            }
             return builder.endObject();
+        }
+    }
+
+    /**
+     * Timing and loading breakdown for remote fetch.
+     * <p>
+     * {@code processNanos} covers the operator's end-to-end critical path, {@code exchangeWaitNanos} sums the time
+     * unresolved exchange listeners remained pending, and {@code responseNanos} is the span from the first to the last response page.
+     * Setup and fetch totals sum work across exchanges, while their maxima identify the slowest individual exchange.
+     * Request and response page and row counts come from the server-side exchange operators.
+     * <p>
+     * {@code valuesLoaded} aggregates {@link org.elasticsearch.compute.operator.OperatorStatus#valuesLoaded()} across every
+     * operator in the server-side fetch driver. {@code fieldLoadNanos} and the {@code source*} fields come only from
+     * {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus} instances in that driver.
+     */
+    public record Profile(
+        long processNanos,
+        long timeToFirstResultNanos,
+        long responseNanos,
+        long exchangeWaitNanos,
+        long mergeNanos,
+        long totalSetupNanos,
+        long maxSetupNanos,
+        long fetchNanos,
+        long maxFetchNanos,
+        long fetchCpuNanos,
+        long fieldLoadNanos,
+        long valuesLoaded,
+        long sourceDocsLoaded,
+        long sourceFieldReads,
+        long sourceBytesLoaded,
+        long bytesRead,
+        long requestPages,
+        long requestRows,
+        long responsePages,
+        long responseRows,
+        List<BidirectionalBatchExchangeClient.WorkerProfile> workers
+    ) implements org.elasticsearch.common.io.stream.Writeable {
+        static final Profile EMPTY = new Profile(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, List.of());
+
+        public Profile {
+            workers = List.copyOf(workers);
+        }
+
+        Profile(StreamInput in) throws IOException {
+            this(
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
+                in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
+                in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
+                in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
+                in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE)
+                    ? in.readCollectionAsImmutableList(BidirectionalBatchExchangeClient.WorkerProfile::new)
+                    : List.of()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(processNanos);
+            out.writeVLong(timeToFirstResultNanos);
+            out.writeVLong(responseNanos);
+            out.writeVLong(exchangeWaitNanos);
+            out.writeVLong(mergeNanos);
+            out.writeVLong(totalSetupNanos);
+            out.writeVLong(maxSetupNanos);
+            out.writeVLong(fetchNanos);
+            out.writeVLong(maxFetchNanos);
+            out.writeVLong(fetchCpuNanos);
+            out.writeVLong(fieldLoadNanos);
+            out.writeVLong(valuesLoaded);
+            out.writeVLong(sourceDocsLoaded);
+            out.writeVLong(sourceFieldReads);
+            out.writeVLong(sourceBytesLoaded);
+            out.writeVLong(bytesRead);
+            if (out.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE)) {
+                out.writeVLong(requestPages);
+                out.writeVLong(requestRows);
+                out.writeVLong(responsePages);
+                out.writeVLong(responseRows);
+                out.writeCollection(workers);
+            }
+        }
+
+        void toXContent(XContentBuilder builder) throws IOException {
+            builder.field("process_nanos", processNanos);
+            builder.field("time_to_first_result_nanos", timeToFirstResultNanos);
+            builder.field("response_nanos", responseNanos);
+            builder.field("exchange_wait_nanos", exchangeWaitNanos);
+            builder.field("merge_nanos", mergeNanos);
+            builder.field("setup_nanos", totalSetupNanos);
+            builder.field("max_setup_nanos", maxSetupNanos);
+            builder.field("fetch_nanos", fetchNanos);
+            builder.field("max_fetch_nanos", maxFetchNanos);
+            builder.field("fetch_cpu_nanos", fetchCpuNanos);
+            builder.field("field_load_nanos", fieldLoadNanos);
+            builder.field("values_loaded", valuesLoaded);
+            builder.field("source_docs_loaded", sourceDocsLoaded);
+            builder.field("source_field_reads", sourceFieldReads);
+            builder.field("source_bytes_loaded", sourceBytesLoaded);
+            builder.field("bytes_read", bytesRead);
+            builder.field("request_pages", requestPages);
+            builder.field("request_rows", requestRows);
+            builder.field("response_pages", responsePages);
+            builder.field("response_rows", responseRows);
+            builder.startArray("workers");
+            for (BidirectionalBatchExchangeClient.WorkerProfile worker : workers) {
+                workerToXContent(builder, worker);
+            }
+            builder.endArray();
+        }
+
+        private static void workerToXContent(XContentBuilder builder, BidirectionalBatchExchangeClient.WorkerProfile worker)
+            throws IOException {
+            builder.startObject();
+            builder.field("exchange_id", worker.exchangeId());
+            builder.field("node_id", worker.nodeId());
+            builder.field("node_name", worker.nodeName());
+            builder.field("worker_id", worker.workerId());
+            builder.field("local", worker.local());
+            builder.field("bytes_read", worker.bytesRead());
+            builder.startObject("setup");
+            builder.field("round_trip_nanos", worker.setupNanos());
+            BatchExchangeStatusResponse.Profile server = worker.server();
+            builder.endObject();
+            if (server != null) {
+                builder.startObject("request");
+                builder.field("pages", server.requestPages());
+                builder.field("rows", server.requestRows());
+                builder.endObject();
+                builder.startObject("response");
+                builder.field("pages", server.responsePages());
+                builder.field("rows", server.responseRows());
+                builder.endObject();
+                builder.startObject("driver");
+                builder.field("took_nanos", server.driverTookNanos());
+                builder.field("cpu_nanos", server.driverCpuNanos());
+                builder.field("field_load_nanos", server.fieldLoadNanos());
+                builder.field("values_loaded", server.valuesLoaded());
+                builder.field("source_docs_loaded", server.sourceDocsLoaded());
+                builder.field("source_field_reads", server.sourceFieldReads());
+                builder.field("source_bytes_loaded", server.sourceBytesLoaded());
+                builder.endObject();
+            }
+            builder.endObject();
         }
     }
 

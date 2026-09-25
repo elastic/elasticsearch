@@ -331,7 +331,9 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             datasetMetadata,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            false
         );
         return optimize(analyzer().externalSourceResolution(resource, schema, FileList.UNRESOLVED).buildAnalyzer().analyze(rewritten));
     }
@@ -378,7 +380,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         List<Expression> dims = new ArrayList<>();
         for (NamedExpression aggregate : aggregates) {
             aggregate.forEachDown(DimensionValues.class, values -> dims.add(values.field()));
-            aggregate.forEachDown(PackDimsAgg.class, packed -> dims.addAll(packed.dims()));
+            aggregate.forEachDown(PackDimsAgg.class, packed -> dims.addAll(packed.fields()));
         }
         return dims;
     }

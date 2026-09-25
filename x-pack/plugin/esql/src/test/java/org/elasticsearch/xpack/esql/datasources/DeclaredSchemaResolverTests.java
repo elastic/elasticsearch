@@ -88,7 +88,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
         DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(
             inferred,
-            new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"))
+            new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of()))
         );
         assertSame(inferred, o.output());
         assertSame(inferred, o.fileSchema());
@@ -127,9 +127,9 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     public void testNoMappingsYieldsEmpty() {
-        DatasetMapping roleOnly = new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"));
-        assertTrue(DeclaredSchemaResolver.declaredAttributes(roleOnly).isEmpty());
-        assertTrue(DeclaredSchemaResolver.renameMap(roleOnly).isEmpty());
+        DatasetMapping noProperties = new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of()));
+        assertTrue(DeclaredSchemaResolver.declaredAttributes(noProperties).isEmpty());
+        assertTrue(DeclaredSchemaResolver.renameMap(noProperties).isEmpty());
         assertTrue(DeclaredSchemaResolver.declaredAttributes(null).isEmpty());
         assertTrue(DeclaredSchemaResolver.renameMap(null).isEmpty());
     }

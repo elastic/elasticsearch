@@ -82,9 +82,7 @@ public abstract class AbstractDiversifyingChildrenIVFKnnSlicedVectorQueryTestCas
     }
 
     protected static SortField routingSliceSortField() {
-        SortField sf = new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING);
-        sf.setMissingValue(SortField.STRING_LAST);
-        return sf;
+        return new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING, false, SortField.STRING_LAST);
     }
 
     @Before

@@ -23,6 +23,10 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogicalPlanOptimizerTests {
 
+    protected SubstituteSurrogatePlansFillNullCommandTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testFillNullChainedWithFork() {
         assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         var plan = plan("""

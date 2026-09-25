@@ -301,6 +301,10 @@ public class ExternalSourceCacheService implements Closeable {
             throw e;
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
+            if (cause instanceof InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw ie;
+            }
             if (cause instanceof Exception ex) {
                 throw ex;
             }

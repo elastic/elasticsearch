@@ -1216,7 +1216,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("Failed to parse CSV value") && e.getMessage().contains("[IP]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("cannot read [") && e.getMessage().contains("] as [ip]"));
     }
 
     public void testMultiValueBracketsDateNanos() throws IOException {
@@ -1250,7 +1250,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("Failed to parse CSV date_nanos value"));
+        assertTrue(e.getMessage(), e.getMessage().contains("] as [date_nanos]"));
     }
 
     public void testMultiValueBracketsManyBatchesVariedCardinality() throws IOException {
@@ -1677,11 +1677,11 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue(e.getMessage().contains("Failed to parse CSV value"));
+        assertTrue(e.getMessage().contains("cannot read ["));
         // Malformed user data must surface as HTTP 400, not a 500 server error.
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
         // Row index and a capped row excerpt must be present so the user can locate the offending input.
-        assertTrue("expected row index, got: " + e.getMessage(), e.getMessage().contains("row [2]"));
+        assertTrue("expected row index, got: " + e.getMessage(), e.getMessage().contains("Row [2]"));
         assertTrue("expected row excerpt, got: " + e.getMessage(), e.getMessage().contains("not_a_number"));
     }
 
@@ -1737,7 +1737,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue(e.getMessage().contains("error budget exceeded"));
+        assertTrue(e.getMessage().contains("over [max_errors] of [2]"));
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }
 
@@ -1837,7 +1837,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue(e.getMessage().contains("error budget exceeded"));
+        assertTrue(e.getMessage().contains("over [max_error_ratio] of [0.3]"));
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }
 
@@ -2289,7 +2289,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue(e.getMessage().contains("Failed to parse CSV value"));
+        assertTrue(e.getMessage().contains("cannot read ["));
         assertTrue("expected trimmed value in message, got: " + e.getMessage(), e.getMessage().contains("[5x]"));
     }
 
@@ -3066,7 +3066,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue(e.getMessage().contains("error budget exceeded"));
+        assertTrue(e.getMessage().contains("over [max_errors] of [1]"));
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }
 
@@ -3395,7 +3395,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue(e.getMessage().contains("Failed to parse CSV value"));
+        assertTrue(e.getMessage().contains("cannot read [") && e.getMessage().contains("] as [integer]"));
     }
 
     public void testWithConfigSchemaSampleSizeOverride() throws IOException {
@@ -3774,7 +3774,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue(e.getMessage().contains("Failed to parse CSV value"));
+        assertTrue(e.getMessage().contains("cannot read ["));
     }
 
     public void testMultiValueBracketsQuotedStrings() throws IOException {
@@ -3933,8 +3933,8 @@ public class CsvFormatReaderTests extends ESTestCase {
                 FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(tooWide).build()
             ).close()
         );
-        assertThat(e.getMessage(), Matchers.containsString("pinned schema has 3 columns"));
-        assertThat(e.getMessage(), Matchers.containsString("] has only 2 —"));
+        assertThat(e.getMessage(), Matchers.containsString("[memory://test.csv] has [2] columns, the schema has [3]"));
+        assertThat(e.getMessage(), Matchers.containsString("] has [2] columns, the schema has [3]"));
 
         // A 2-column pinned schema matches the two real columns and reads.
         List<Attribute> exact = List.of(
@@ -4336,7 +4336,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // and embedded commas (e.g. `[some text",1,2013-...,38,-12345]`). The lookahead must mirror the splitter:
         // inside `[..]` only `[` and `]` matter — a stray `"` is a literal byte. Otherwise the lookahead reports
         // "no matching ]" and the splitter falls back to treating `[` as plain text, which turns inner commas into
-        // delimiters and produces `row has [N+k] columns but schema defines [N]` failures.
+        // delimiters and produces `[N+k] columns, the schema has [N]` failures.
         String csv = "id:long,tags:keyword,when:keyword\n"
             + "1,[some text\",1,2013-07-15 13:51:28,2013-07-15,38,177794517],ok\n"
             + "2,[plain],ok\n";
@@ -4938,9 +4938,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         // 1 summary + 2 details
         List<String> warnings = drainWarnings();
         assertEquals(3, warnings.size());
-        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
-        assertTrue("Detail should include row number, got: " + warnings.get(1), warnings.get(1).contains("Row [2]"));
-        assertTrue("Detail should include row number, got: " + warnings.get(2), warnings.get(2).contains("Row [4]"));
+        assertTrue(
+            "Summary should name the skip_row outcome, got: " + warnings.get(0),
+            warnings.get(0).contains("cannot be read; skipping them")
+        );
+        assertTrue("Detail should include row number, got: " + warnings.get(1), warnings.get(1).startsWith("row [2]"));
+        assertTrue("Detail should include row number, got: " + warnings.get(2), warnings.get(2).startsWith("row [4]"));
     }
 
     public void testWarningsIncludeFieldNameInPermissiveMode() throws IOException {
@@ -4968,10 +4971,13 @@ public class CsvFormatReaderTests extends ESTestCase {
         // 1 summary + 2 details
         List<String> warnings = drainWarnings();
         assertEquals(3, warnings.size());
-        assertTrue("Summary should mention null_field, got: " + warnings.get(0), warnings.get(0).contains("policy: null_field"));
-        assertTrue("Detail should include field name, got: " + warnings.get(1), warnings.get(1).contains("field [id]"));
-        assertTrue("Detail should include field name, got: " + warnings.get(2), warnings.get(2).contains("field [score]"));
-        assertTrue("Detail should include row number, got: " + warnings.get(1), warnings.get(1).contains("Row [2]"));
+        assertTrue(
+            "Summary should name the null_field outcome, got: " + warnings.get(0),
+            warnings.get(0).contains("cannot be read; returning null")
+        );
+        assertTrue("Detail should include field name, got: " + warnings.get(1), warnings.get(1).contains("column [id]"));
+        assertTrue("Detail should include field name, got: " + warnings.get(2), warnings.get(2).contains("column [score]"));
+        assertTrue("Detail should include row number, got: " + warnings.get(1), warnings.get(1).startsWith("row [2]"));
     }
 
     public void testWarningsOverflowMessage() throws IOException {
@@ -4994,8 +5000,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         // 1 summary + 20 details + 1 overflow
         List<String> warnings = drainWarnings();
         assertEquals(22, warnings.size());
-        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
-        assertTrue("First detail should have row number, got: " + warnings.get(1), warnings.get(1).contains("Row [1]"));
+        assertTrue(
+            "Summary should name the skip_row outcome, got: " + warnings.get(0),
+            warnings.get(0).contains("cannot be read; skipping them")
+        );
+        assertTrue("First detail should have row number, got: " + warnings.get(1), warnings.get(1).startsWith("row [1]"));
         assertTrue(
             "Last warning should note suppression, got: " + warnings.get(21),
             warnings.get(21).contains("further warnings suppressed")
@@ -5048,11 +5057,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         List<String> nonFusedWarnings = drainWarnings();
 
-        // Both paths should report "Row [3]" for the bad row (1-based: header excluded, 3rd data row)
-        String fusedDetail = fusedWarnings.stream().filter(w -> w.contains("Row [")).findFirst().orElse("");
-        String nonFusedDetail = nonFusedWarnings.stream().filter(w -> w.contains("Row [")).findFirst().orElse("");
-        assertTrue("Fused path should report Row [3], got: " + fusedDetail, fusedDetail.contains("Row [3]"));
-        assertTrue("Non-fused path should report Row [3], got: " + nonFusedDetail, nonFusedDetail.contains("Row [3]"));
+        // Both paths should report "row [3]" for the bad row (1-based: header excluded, 3rd data row)
+        String fusedDetail = fusedWarnings.stream().filter(w -> w.startsWith("row [")).findFirst().orElse("");
+        String nonFusedDetail = nonFusedWarnings.stream().filter(w -> w.startsWith("row [")).findFirst().orElse("");
+        assertTrue("Fused path should report row [3], got: " + fusedDetail, fusedDetail.startsWith("row [3]"));
+        assertTrue("Non-fused path should report row [3], got: " + nonFusedDetail, nonFusedDetail.startsWith("row [3]"));
     }
 
     /**
@@ -5087,8 +5096,8 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         // 1 summary + 1 detail
         assertEquals(2, sunk.size());
-        assertTrue("Summary should mention skip_row, got: " + sunk.get(0), sunk.get(0).contains("policy: skip_row"));
-        assertTrue("Detail should include row number, got: " + sunk.get(1), sunk.get(1).contains("Row [2]"));
+        assertTrue("Summary should name the skip_row outcome, got: " + sunk.get(0), sunk.get(0).contains("cannot be read; skipping them"));
+        assertTrue("Detail should include row number, got: " + sunk.get(1), sunk.get(1).startsWith("row [2]"));
         assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
     }
 
@@ -5176,7 +5185,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             });
             assertTrue("expected the rejected token in the message, got: " + e.getMessage(), e.getMessage().contains("[" + badToken + "]"));
-            assertTrue("expected the target type in the message, got: " + e.getMessage(), e.getMessage().contains("BOOLEAN"));
+            assertTrue("expected the target type in the message, got: " + e.getMessage(), e.getMessage().contains("[boolean]"));
             drainWarnings();
 
             // null_field: the cell nulls - never reads as false - and the rejection is surfaced as a warning.
@@ -6376,7 +6385,14 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue("expected CSV parse error, got: " + e.getMessage(), e.getMessage().contains("CSV parse error"));
+        assertTrue(
+            "expected a row error naming the file, got: " + e.getMessage(),
+            e.getMessage().startsWith("Row [") && e.getMessage().contains("] of [memory://test.csv]: ")
+        );
+        assertTrue(
+            "expected skip_row hint, got: " + e.getMessage(),
+            e.getMessage().endsWith("; set [error_mode] to [skip_row] to skip the row instead")
+        );
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }
 
@@ -6432,7 +6448,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue("expected budget message, got: " + e.getMessage(), e.getMessage().contains("error budget exceeded"));
+        assertTrue("expected budget message, got: " + e.getMessage(), e.getMessage().contains("over [max_errors] of [2]"));
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }
 
@@ -6750,7 +6766,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * schema. The planner calls {@code withSchema(context.attributes())} at operator-factory
      * time with the projected output attributes, not the file's column layout. Treating that
      * list as the file schema would mis-align column indices and trigger spurious
-     * "row has [N] columns but schema defines [M] columns" errors on every data row.
+     * "[N] columns, the schema has [M]" errors on every data row.
      *
      * <p>The bound-schema fast path is reserved for streaming-coordinator dispatch where
      * {@code recordAligned=true} signals that the upstream caller has bound the FULL file
@@ -6842,9 +6858,12 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue("expected sampling error message, got: " + e.getMessage(), e.getMessage().contains("CSV schema sampling failed"));
+        assertTrue("expected sampling error message, got: " + e.getMessage(), e.getMessage().startsWith("schema sampling failed at row ["));
         assertTrue("expected row index, got: " + e.getMessage(), e.getMessage().contains("row [1]"));
-        assertTrue("expected skip_row hint, got: " + e.getMessage(), e.getMessage().contains("skip_row"));
+        assertTrue(
+            "expected skip_row hint, got: " + e.getMessage(),
+            e.getMessage().endsWith("; set [error_mode] to [skip_row] to skip the row instead")
+        );
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
         assertTrue("expected capped message, got " + e.getMessage().length() + " chars", e.getMessage().length() <= 4096);
     }
@@ -6872,7 +6891,10 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue("expected budget message, got: " + e.getMessage(), e.getMessage().contains("schema sampling exceeded error budget"));
+        assertTrue(
+            "expected budget message, got: " + e.getMessage(),
+            e.getMessage().startsWith("schema sampling: [") && e.getMessage().contains("over [max_errors] of [5]; first errors: ")
+        );
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }
 
@@ -6959,6 +6981,19 @@ public class CsvFormatReaderTests extends ESTestCase {
             }
         });
         assertTrue("expected skip_row hint, got: " + e.getMessage(), e.getMessage().contains("skip_row"));
+    }
+
+    public void testRowErrorReasonRendersJacksonFieldTooLong() {
+        String jackson = "String value length (12) exceeds the maximum allowed (10, "
+            + "from `StreamReadConstraints.getMaxStringLength()`)";
+        assertEquals("field of [12] characters exceeds [10]", CsvFormatReader.rowErrorReason(jackson));
+    }
+
+    public void testRowErrorReasonFallbackDropsJacksonConstraintReference() {
+        // A reworded Jackson message misses JACKSON_FIELD_TOO_LONG; the fallback must still not name the Jackson class.
+        String reworded = CsvFormatReader.READ_RECORD_FAILURE
+            + ": String length (12) is over the limit (10, from `StreamReadConstraints.getMaxStringLength()`)";
+        assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded));
     }
 
     public void testCsvErrorMessagesSummarizeShortValuePassesThrough() {
@@ -7667,9 +7702,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"));
                 List<String> warnings = drainWarnings();
                 assertEquals(desc, 1, rows);
-                String expected = declared
-                    ? "CSV row has [5] columns but the file's header defines [3] columns"
-                    : "CSV row has [5] columns but schema defines [3] columns";
+                String expected = declared ? "[5] columns, the header has [3]" : "[5] columns, the schema has [3]";
                 assertTrue(desc + " expected " + expected + ", got: " + warnings, warnings.stream().anyMatch(w -> w.contains(expected)));
             }
         }
@@ -7683,7 +7716,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of());
             List<String> warnings = drainWarnings();
             assertEquals(desc, 1, rows);
-            assertTrue(desc + " got: " + warnings, warnings.stream().anyMatch(w -> w.contains("but the file's header defines [3]")));
+            assertTrue(desc + " got: " + warnings, warnings.stream().anyMatch(w -> w.contains("the header has [3]")));
         }
     }
 
@@ -7696,7 +7729,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 Exception.class,
                 () -> readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"))
             );
-            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("the file's header defines [3]"));
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("the header has [3]"));
             drainWarnings();
         }
     }
@@ -7717,7 +7750,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"));
         List<String> warnings = drainWarnings();
         assertEquals(1, rows);
-        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("the file's header defines [3]")));
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("the header has [3]")));
     }
 
     /**
@@ -7758,7 +7791,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals("directBlock=" + directBlock, 0, rows);
             assertTrue(
                 "directBlock=" + directBlock + " got: " + warnings,
-                warnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
+                warnings.stream().anyMatch(w -> w.contains("[3] columns, the header has [2]"))
             );
         }
     }
@@ -7766,7 +7799,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * A row too wide reports the WIDTH error whatever you project. The direct walkers tokenize and convert in one
      * pass, so before the review fix a bad value in a surplus field reported first: projecting `score` on the
-     * motivating fixture died with `Failed to parse CSV value [beta] as [INTEGER]` — a cell in no logical column of
+     * motivating fixture died with `cannot read [beta] as [integer]` — a cell in no logical column of
      * the file — while projecting `id, tags` produced the structural error for the same row.
      */
     public void testRowWidthErrorBeatsCoercionErrorWhateverIsProjected() throws Exception {
@@ -7779,11 +7812,11 @@ public class CsvFormatReaderTests extends ESTestCase {
                 assertEquals(desc, 1, rows);
                 assertTrue(
                     desc + " expected the structural width error, got: " + warnings,
-                    warnings.stream().anyMatch(w -> w.contains("CSV row has [5] columns but the file's header defines [3] columns"))
+                    warnings.stream().anyMatch(w -> w.contains("[5] columns, the header has [3]"))
                 );
                 assertFalse(
                     desc + " the coercion error must not surface for a surplus cell: " + warnings,
-                    warnings.stream().anyMatch(w -> w.contains("Failed to parse CSV value [beta]"))
+                    warnings.stream().anyMatch(w -> w.contains("cannot read [beta]"))
                 );
             }
         }
@@ -7799,12 +7832,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             String desc = "directBlock=" + directBlock;
             CsvFormatReader reader = declaredReader(true, directBlock, config);
             int rows = readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("score"));
-            List<String> warnings = drainWarnings();
+            drainWarnings();
+            // An exhausted budget throws out of readRowCount, so reaching this line with the good row is the check.
             assertEquals(desc + " the good row survives a budget of one", 1, rows);
-            assertFalse(
-                desc + " one row must not exhaust a budget of one: " + warnings,
-                warnings.stream().anyMatch(w -> w.contains("error budget exceeded"))
-            );
         }
     }
 
@@ -7842,7 +7872,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(desc + " the trailing empty makes the row wider than its header", 0, rows);
             assertTrue(
                 desc + " expected a width warning naming 3 counted fields, got: " + warnings,
-                warnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
+                warnings.stream().anyMatch(w -> w.contains("[3] columns, the header has [2]"))
             );
         }
     }
@@ -7863,7 +7893,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             int rows = readRowCount(reader, createStorageObject(csv), schema, List.of("id", "score"));
             List<String> warnings = drainWarnings();
             assertEquals(desc + " only the clean row survives", 1, rows);
-            long rowErrors = warnings.stream().filter(w -> w.contains("Row [1] error:")).count();
+            long rowErrors = warnings.stream().filter(w -> w.startsWith("row [1]: ")).count();
             assertEquals(desc + " one row, one charged error, got: " + warnings, 1L, rowErrors);
         }
     }
@@ -7911,7 +7941,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(desc, 0, exactRows);
             assertTrue(
                 desc + " expected a width warning, got: " + exactWarnings,
-                exactWarnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
+                exactWarnings.stream().anyMatch(w -> w.contains("[3] columns, the header has [2]"))
             );
         }
     }
@@ -7994,10 +8024,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         int rows = readRowCount(reader, createStorageObject(csv), readSchema, List.of("a", "b"));
         List<String> warnings = drainWarnings();
         assertEquals(0, rows);
-        assertTrue(
-            "got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
-        );
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("[3] columns, the header has [2]")));
     }
 
     /**
@@ -8033,7 +8060,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(desc + " declared must reach the same verdict", inferredRows, declaredRows);
             assertTrue(
                 desc + " expected a header-width warning, got: " + declaredWarnings,
-                declaredWarnings.stream().anyMatch(w -> w.contains("CSV row has [5] columns but the file's header defines [3] columns"))
+                declaredWarnings.stream().anyMatch(w -> w.contains("[5] columns, the header has [3]"))
             );
         }
     }
@@ -8094,7 +8121,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals("directBlock=" + directBlock, 0, rows);
             assertTrue(
                 "directBlock=" + directBlock + " got: " + warnings,
-                warnings.stream().anyMatch(w -> w.contains("CSV row has [3] columns but the file's header defines [2] columns"))
+                warnings.stream().anyMatch(w -> w.contains("[3] columns, the header has [2]"))
             );
         }
     }
@@ -8122,7 +8149,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         int rows = readRowCount(reader, createStorageObject(tsv), idTagsScore(), List.of("id", "tags"));
         List<String> warnings = drainWarnings();
         assertEquals(1, rows);
-        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("but the file's header defines [3] columns")));
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("the header has [3]")));
     }
 
     // --- Increment-0 characterization: by-name binding across the CSV walkers ---
@@ -9964,7 +9991,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * trips the cap during the {@link java.io.BufferedReader} bulk fill (potentially before any individual
      * row has been emitted), the {@link CsvRecordTooLargeException} propagates as an {@link IOException},
      * and the outer {@code CsvBatchIterator.hasNext()} wraps it in a {@link RuntimeException} whose cause
-     * chain carries the original {@code "external_max_record_size [N]"} message.
+     * chain carries the original {@code "record exceeds [N]"} message.
      */
     public void testJacksonBulkPathPropagatesMaxRecordSizeError() {
         int maxRecordBytes = 32;
@@ -9993,7 +10020,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             rootCause = rootCause.getCause();
         }
         assertTrue("expected a CsvRecordTooLargeException in the cause chain, got: " + ex, rootCause instanceof CsvRecordTooLargeException);
-        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
     }
 
     /**
@@ -10039,7 +10066,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             "lenient policy must still abort with the cap exception in the cause chain, got: " + ex,
             rootCause instanceof CsvRecordTooLargeException
         );
-        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
     }
 
     /**
@@ -10182,7 +10209,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             "inferred-schema reads must engage the fast path after sampling and enforce the per-record cap, got: " + ex,
             rootCause instanceof CsvRecordTooLargeException
         );
-        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]"));
     }
 
     /**
@@ -10257,12 +10284,20 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(encoded("18446744073709551615"), block.getLong(3));  // 2^64-1
     }
 
-    /** Fractional and scientific tokens truncate toward zero — matching ::unsigned_long, deliberately unlike long's rounding. */
-    public void testDeclaredUnsignedLongTruncatesTowardZero() throws IOException {
+    /**
+     * Whole-number scientific / trailing-zero tokens succeed; a non-whole fraction is refused (exact read),
+     * deliberately unlike {@code ::unsigned_long} which truncates toward zero.
+     */
+    public void testDeclaredUnsignedLongRequiresExactWholeNumber() throws IOException {
         FormatReader reader = new CsvFormatReader(blockFactory);
-        LongBlock block = readOneUnsignedLongColumn(reader, "v\n42.9\n1e3\n");
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n42.0\n1e3\n");
         assertEquals(encoded("42"), block.getLong(0));
         assertEquals(encoded("1000"), block.getLong(1));
+
+        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        LongBlock refused = readOneUnsignedLongColumn(lenient, "v\n42.9\n5\n");
+        assertTrue("non-whole fraction must null the cell", refused.isNull(0));
+        assertEquals(encoded("5"), refused.getLong(1));
     }
 
     /** An absent/empty cell nulls the cell exactly as it does for a declared long — no special arm. */
@@ -10312,11 +10347,9 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A token whose decimal exponent is large enough that materializing the integer would overflow BigInteger --
-     * "1e999999999", and "1e-999999999" which truncates toward 0 but cannot be computed to get there -- makes
-     * BigDecimal.toBigInteger() throw ArithmeticException, which is not an IllegalArgumentException. Unhandled it
-     * escapes the per-field catch and hard-fails the whole read on every error_mode, precisely the failure declared
-     * unsigned_long support exists to remove. It must instead be an ordinary per-cell failure.
+     * Exotic exponents must stay ordinary per-cell failures (never escape as {@link ArithmeticException}).
+     * {@code 1e999999999} is a whole that cannot be materialized → out of range; {@code 1e-999999999} is not
+     * a whole number.
      */
     public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
         String csv = "v\n1e999999999\n1e-999999999\n5\n";
@@ -10328,6 +10361,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("the good cell still reads", encoded("5"), block.getLong(2));
 
         // fail_fast still fails, but as an ordinary bad-value failure, not an escaped ArithmeticException.
+        // Message text (out of range vs not a whole number) is pinned on DeclaredTypeCoercionsTests —
+        // the CSV wrapper reports a fixed "Failed to parse … as [UNSIGNED_LONG]" without the cause detail.
         FormatReader failFast = new CsvFormatReader(blockFactory);
         Exception e = expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
         assertFalse("ArithmeticException must not escape the coercer", e instanceof ArithmeticException);

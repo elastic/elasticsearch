@@ -101,14 +101,15 @@ count:long
 shadowedColumnSubstitutionAndWarning
 required_capability: dataset_in_from_command
 required_capability: partition_detection_on_read_path
+required_capability: external_dataset_messages
 dataset: employees_hive_shadow_ds: "{{employees_hive_shadow}}"
 
 FROM employees_hive_shadow_ds
 | STATS count = COUNT(*) BY languages
 | SORT languages NULLS LAST;
 
-warningRegex:.*one or more physical columns are shadowed by same-named Hive partition keys.*Set partition_detection to none to read the physical column instead.*
-warningRegex:.*physical column \[languages\] is shadowed by a same-named Hive partition key.*
+warningRegex:Columns named like a partition key are read from the path, not the file; set \[partition_detection\] to \[none\] to read the file
+warningRegex:column \[languages\]: also a partition key
 
 count:long | languages:integer
 15         | 1
@@ -153,14 +154,15 @@ count:long | languages:integer
 multiSourceShadowedColumnAggregate
 required_capability: dataset_in_from_command
 required_capability: partition_detection_on_read_path
+required_capability: external_dataset_messages
 dataset: emp_shadow_a: "{{employees_hive_shadow}}"
 dataset: emp_shadow_b: "{{employees_hive_shadow}}"
 
 FROM emp_shadow_a, emp_shadow_b
 | STATS total = COUNT(*), sum_salary = SUM(salary), avg_salary = AVG(salary);
 
-warningRegex:.*one or more physical columns are shadowed by same-named Hive partition keys.*Set partition_detection to none to read the physical column instead.*
-warningRegex:.*physical column \[languages\] is shadowed by a same-named Hive partition key.*
+warningRegex:Columns named like a partition key are read from the path, not the file; set \[partition_detection\] to \[none\] to read the file
+warningRegex:column \[languages\]: also a partition key
 
 total:long | sum_salary:long | avg_salary:double
 200        | 9649710         | 48248.55
@@ -169,6 +171,7 @@ total:long | sum_salary:long | avg_salary:double
 multiSourceShadowedColumnAggregateGroupedByShadowedKey
 required_capability: dataset_in_from_command
 required_capability: partition_detection_on_read_path
+required_capability: external_dataset_messages
 dataset: emp_shadow_grp_a: "{{employees_hive_shadow}}"
 dataset: emp_shadow_grp_b: "{{employees_hive_shadow}}"
 
@@ -176,8 +179,8 @@ FROM emp_shadow_grp_a, emp_shadow_grp_b
 | STATS total = COUNT(*), sum_salary = SUM(salary) BY languages
 | SORT languages NULLS LAST;
 
-warningRegex:.*one or more physical columns are shadowed by same-named Hive partition keys.*Set partition_detection to none to read the physical column instead.*
-warningRegex:.*physical column \[languages\] is shadowed by a same-named Hive partition key.*
+warningRegex:Columns named like a partition key are read from the path, not the file; set \[partition_detection\] to \[none\] to read the file
+warningRegex:column \[languages\]: also a partition key
 
 total:long | sum_salary:long | languages:integer
 30         | 1517300         | 1

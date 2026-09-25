@@ -12,16 +12,14 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
-import org.apache.lucene.util.IntroSorter;
-
-import java.util.function.IntBinaryOperator;
 
 /**
  * Ranks a surveyed column's terms by what they are worth, and answers each {@link TermQuota} asked of it
  * with the terms that quota pays for.
  *
- * <p>The ranking is done once, in the constructor, because every answer is a prefix of it and ranking is
- * the expensive part. What each consumer asks for is stated by its quota rather than here.
+ * <p>The ranking is done once, in the constructor, because every answer walks it in order and ranking is
+ * the expensive part. Terms rank by what they name per byte they cost, since the budget is spent on bytes
+ * and buys named values. What each consumer asks for is stated by its quota rather than here.
  *
  * <p>Answers come back in term order, which is the order a dictionary is written and searched in, and ties
  * are broken by term, so the same column always yields the same answer however its values arrived.
@@ -30,11 +28,8 @@ final class TermSelection {
 
     private final BytesRefHash terms;
     private final long[] counts;
-    private final int[] byFrequency;
-
-    TermSelection(BytesRefHash terms, int[] counts) {
-        this(terms, widen(counts, terms.size()));
-    }
+    private final TermOrdering ordering;
+    private final int[] byDensity;
 
     /**
      * Counts summed across merged columns pass what an int holds long before a column does, and a ranking
@@ -43,7 +38,8 @@ final class TermSelection {
     TermSelection(BytesRefHash terms, long[] counts) {
         this.terms = terms;
         this.counts = counts;
-        this.byFrequency = idsByFrequency(terms, counts);
+        this.ordering = new TermOrdering(terms);
+        this.byDensity = idsByDensity(ordering, terms, counts);
     }
 
     /**
@@ -54,89 +50,53 @@ final class TermSelection {
         return counts;
     }
 
+    BytesRefHash terms() {
+        return terms;
+    }
+
     /** The most valuable ids whose bytes {@code quota} pays for, in term order. */
     int[] thatFit(TermQuota quota) {
+        final int[] admitted = new int[byDensity.length];
         int keptCount = 0;
         long bytes = 0;
         final BytesRef scratch = new BytesRef();
-        for (int id : byFrequency) {
+        for (int id : byDensity) {
+            // NOTE: density ranks a short term held once ahead of a long one held often, so neither the
+            // count a quota asks for nor the bytes it has left fall away along the ranking. A term either
+            // refuses is stepped over; ending the walk there would refuse every term behind it. The walk
+            // is therefore always a full one, and the budget is spent exactly rather than nearly.
             if (counts[id] < quota.minCount()) {
-                break;
+                continue;
             }
             terms.get(id, scratch);
             if (bytes + TermQuota.cost(scratch) > quota.budget()) {
-                break;
+                continue;
             }
             bytes += TermQuota.cost(scratch);
-            keptCount++;
+            admitted[keptCount++] = id;
         }
-        final int[] kept = ArrayUtil.copyOfSubArray(byFrequency, 0, keptCount);
-        sort(kept, 0, keptCount, terms, null);
+        final int[] kept = ArrayUtil.copyOfSubArray(admitted, 0, keptCount);
+        ordering.byTerm(kept, 0, keptCount);
         return kept;
     }
 
-    private static long[] widen(int[] counts, int size) {
-        final long[] widened = new long[size];
-        for (int id = 0; id < size; id++) {
-            widened[id] = counts[id];
-        }
-        return widened;
-    }
-
-    /** Every id the survey saw, most frequent first, so all the answers share one ranking. */
-    private static int[] idsByFrequency(BytesRefHash terms, long[] counts) {
+    /**
+     * Cross multiplication orders by count per byte without dividing. The products cannot overflow: a count
+     * is bounded by the values one merged column holds and a length by a {@link BytesRef}, so the largest
+     * either can reach leaves the product far inside a long.
+     */
+    private static int[] idsByDensity(TermOrdering ordering, BytesRefHash terms, long[] counts) {
         final int size = terms.size();
         final int[] ids = new int[size];
+        final int[] lengths = new int[size];
+        final BytesRef term = new BytesRef();
         for (int id = 0; id < size; id++) {
             ids[id] = id;
+            terms.get(id, term);
+            lengths[id] = (int) TermQuota.cost(term);
         }
-        sort(ids, 0, size, terms, (a, b) -> Long.compare(counts[b], counts[a]));
+        ordering.sort(ids, 0, size, (a, b) -> Long.compare(counts[b] * lengths[a], counts[a] * lengths[b]));
         return ids;
     }
 
-    /**
-     * Sorts {@code ids} by {@code first}, and by term where that does not decide, so an ordering is total
-     * and a column does not depend on the order its values happened to arrive in.
-     */
-    private static void sort(int[] ids, int from, int to, BytesRefHash terms, IntBinaryOperator first) {
-        new IntroSorter() {
-            private final BytesRef left = new BytesRef();
-            private final BytesRef right = new BytesRef();
-            private int pivotId;
-
-            @Override
-            protected void swap(int i, int j) {
-                final int tmp = ids[i];
-                ids[i] = ids[j];
-                ids[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return compareIds(ids[i], ids[j]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivotId = ids[i];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return compareIds(pivotId, ids[j]);
-            }
-
-            private int compareIds(int a, int b) {
-                if (first != null) {
-                    final int cmp = first.applyAsInt(a, b);
-                    if (cmp != 0) {
-                        return cmp;
-                    }
-                }
-                terms.get(a, left);
-                terms.get(b, right);
-                return left.compareTo(right);
-            }
-        }.sort(from, to);
-    }
 }

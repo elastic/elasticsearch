@@ -12,7 +12,7 @@ public final class EsqlDataSourcesCapabilities {
     /** Advertises that this node exposes the data_sources + datasets CRUD endpoints. */
     public static final String DATA_SOURCES = "data_sources";
 
-    /** The dataset PUT body accepts a declared `mappings` block (types, path renames, format, _id). */
+    /** The dataset PUT body accepts a declared `mappings` block (types, path renames, format). */
     public static final String DATASET_DECLARED_SCHEMA = "dataset_declared_schema";
 
     /**
@@ -29,11 +29,33 @@ public final class EsqlDataSourcesCapabilities {
      */
     public static final String DATA_SOURCES_SERVERLESS_SCOPE = "data_sources_serverless_scope";
 
+    /** Advertises that this node exposes {@code POST /_query/data_source/_test}. */
+    public static final String DATA_SOURCE_TEST_CONNECTION = "data_source_test_connection";
+
+    /**
+     * Advertises that the {@code local} data source type is registered on this node
+     * (i.e. the {@code esql_external_datasources_local} feature flag is enabled).
+     * Guards YAML tests that send {@code type: "local"} and expect {@code status: "untestable"}.
+     */
+    public static final String DATA_SOURCE_LOCAL_TYPE = "data_source_local_type";
+
+    /**
+     * The data-source warning texts were rewritten (the {@code region} deprecation among them). Guards YAML tests that
+     * assert those texts, so a mixed cluster with an older node does not assert its older texts.
+     */
+    public static final String EXTERNAL_DATASET_MESSAGES = "external_dataset_messages";
+
     /**
      * Registration rejects a column declared {@code text}. Gates the yaml pin on that rejection, because the suite
      * also runs mixed-cluster, where a node without this capability accepts the declaration and answers 200.
      */
     public static final String DATASET_TEXT_TYPE_NOT_DECLARABLE = "dataset_text_type_not_declarable";
+
+    /**
+     * Registration rejects an {@code _id} mappings block. Gates the yaml pin on that rejection, because the suite also
+     * runs mixed-cluster, where a node without this capability parses the block and answers on the data source instead.
+     */
+    public static final String DATASET_ID_NOT_DECLARABLE = "dataset_id_not_declarable";
 
     private EsqlDataSourcesCapabilities() {}
 }

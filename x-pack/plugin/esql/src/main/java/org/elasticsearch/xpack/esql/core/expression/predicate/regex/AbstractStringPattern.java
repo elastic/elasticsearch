@@ -12,6 +12,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -34,12 +35,13 @@ public abstract class AbstractStringPattern implements StringPattern, NodeString
 
     private Automaton automaton;
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     public final Automaton createAutomaton(boolean ignoreCase) {
         try {
             return doCreateAutomaton(ignoreCase);
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException("Pattern was too complex to determinize", e);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
         }
     }

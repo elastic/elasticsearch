@@ -72,18 +72,17 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
     }
 
     /**
-     * The per-row composed pair is reserved too: {@code {_id}} and {@code {_source}} placeholders
-     * must not reach {@code VirtualColumnIterator}'s name-keyed role dispatch (a bare {@code _id}
-     * partition column crashes on the missing {@code _rowPosition} channel; a bare {@code _source}
-     * silently substitutes synthesized JSON for the layout's value).
+     * {@code _id} and {@code _source} are reserved names, so {@code {_id}} and {@code {_source}}
+     * placeholders are renamed rather than surfaced bare: a dataset answers both as SQL NULL, and a
+     * partition column under either name would be shadowed by that answer.
      */
     public void testReservedPerRowNamesAreRenamedToo() {
         List<String> warnings = new ArrayList<>();
@@ -101,9 +100,9 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_id] surfaced as [_partition._id]",
-                "partition column [_source] surfaced as [_partition._source]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_id] is named [_partition._id]",
+                "partition key [_source] is named [_partition._source]"
             ),
             warnings
         );
@@ -373,8 +372,8 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(Set.of("_partition._index"), match.partitionColumns().keySet());
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
@@ -476,8 +475,8 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             sink
         );

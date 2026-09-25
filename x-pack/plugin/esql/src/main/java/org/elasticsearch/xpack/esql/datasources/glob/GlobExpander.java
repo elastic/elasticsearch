@@ -255,8 +255,9 @@ public final class GlobExpander {
      * genuinely matches nothing and the caller's "matched no files" error stands. A full re-list can exceed
      * {@code max_discovered_files} and throw, exactly as the unfiltered query would; that is deliberate, because
      * telling a narrowing miss from a genuinely empty dataset needs the whole listing. A multi-value hint does not
-     * rewrite the glob, so an empty value-filtered listing is not retried: the retry would put back the files the
-     * filter dropped.
+     * rewrite the glob, so this method does not retry it. The flat listing lists once more, without the value
+     * filter, when that filter keeps nothing. Hints stay on the query, so the row filter still yields zero rows
+     * from that anchor.
      *
      * <p>Narrowing is only ever an optimisation: the query's filter still runs on the rows, so listing a superset
      * is always correct while listing a subset is a wrong answer. When nothing narrowed the glob there is nothing

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -31,9 +33,11 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -44,6 +48,9 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -89,6 +96,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -689,6 +697,112 @@ public class PlannerUtils {
         });
 
         return Queries.combine(FILTER, requestFilters);
+    }
+
+    /**
+     * Extracts a routing value from {@code _slice} predicates sitting directly on top of an {@link EsRelation}, so the
+     * coordinator can prune shards that cannot hold any of the requested slices (slice value == routing value on a
+     * slice-enabled index).
+     * <p>
+     * Only predicates whose <em>entire</em> expression is composed of {@code _slice} equalities/{@code IN}s (optionally
+     * OR-ed together) are considered. That guarantees the expression references nothing but {@code _slice}, so turning it
+     * into routing can never drop a shard that another field in the same disjunction still needs (e.g.
+     * {@code _slice == "s1" OR foo > 3} contributes no routing). Values collected across multiple conjunctions are
+     * unioned: this can over-approximate the shard set (e.g. two intersecting {@code IN}s), which only costs a little
+     * pruning and never affects correctness, because the {@code _slice} filter is still applied on the shard.
+     *
+     * @return a comma-joined routing value, or {@code null} when no usable {@code _slice} predicate was found
+     */
+    @Nullable
+    public static String detectSliceRouting(PhysicalPlan plan) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return null;
+        }
+        LinkedHashSet<String> sliceValues = new LinkedHashSet<>();
+        plan.forEachDown(FragmentExec.class, fe -> fe.fragment().forEachUp(Filter.class, f -> {
+            // Only a filter directly above the relation can be turned into routing; anything above an Eval/Project (e.g.
+            // a renamed _slice) is left alone, matching the pushdown shape used by detectFilter.
+            if (f.child() instanceof EsRelation) {
+                for (Expression conjunction : Predicates.splitAnd(f.condition())) {
+                    Set<String> values = extractSliceValues(conjunction);
+                    if (values != null) {
+                        sliceValues.addAll(values);
+                    }
+                }
+            }
+        }));
+        // _all means "no routing restriction"; if it ever shows up, fall back to scanning every shard.
+        if (sliceValues.isEmpty() || sliceValues.contains(SliceIndexing.SLICE_ALL)) {
+            return null;
+        }
+        return String.join(",", sliceValues);
+    }
+
+    /**
+     * Returns the set of slice values an expression restricts {@code _slice} to, or {@code null} if the expression is not
+     * a pure {@code _slice} equality / {@code IN} / OR-of-those over string literals. Returning {@code null} means "cannot
+     * turn this into routing", which is always safe (the predicate is still applied as a filter).
+     */
+    @Nullable
+    private static Set<String> extractSliceValues(Expression expression) {
+        return switch (expression) {
+            case Equals eq -> {
+                if (isSliceAttribute(eq.left()) && eq.right() instanceof Literal literal) {
+                    yield sliceValueSet(literal);
+                }
+                if (isSliceAttribute(eq.right()) && eq.left() instanceof Literal literal) {
+                    yield sliceValueSet(literal);
+                }
+                yield null;
+            }
+            case In in -> {
+                if (isSliceAttribute(in.value()) == false) {
+                    yield null;
+                }
+                LinkedHashSet<String> values = new LinkedHashSet<>();
+                for (Expression item : in.list()) {
+                    if (item instanceof Literal literal) {
+                        String value = sliceValue(literal);
+                        if (value == null) {
+                            yield null;
+                        }
+                        values.add(value);
+                    } else {
+                        yield null;
+                    }
+                }
+                yield values.isEmpty() ? null : values;
+            }
+            case Or or -> {
+                Set<String> left = extractSliceValues(or.left());
+                Set<String> right = extractSliceValues(or.right());
+                // A disjunction is only routable if *both* sides are; otherwise a non-slice branch could match other
+                // slices and we must not prune their shards.
+                if (left == null || right == null) {
+                    yield null;
+                }
+                LinkedHashSet<String> values = new LinkedHashSet<>(left);
+                values.addAll(right);
+                yield values;
+            }
+            default -> null;
+        };
+    }
+
+    private static boolean isSliceAttribute(Expression expression) {
+        return expression instanceof Attribute attribute && SliceIndexing.FIELD_NAME.equals(attribute.name());
+    }
+
+    @Nullable
+    private static Set<String> sliceValueSet(Literal literal) {
+        String value = sliceValue(literal);
+        return value == null ? null : Set.of(value);
+    }
+
+    @Nullable
+    private static String sliceValue(Literal literal) {
+        Object value = literal.value();
+        return value == null ? null : BytesRefs.toString(value);
     }
 
     /**

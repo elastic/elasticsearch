@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -612,7 +613,9 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 DataType type = types.get(name);
                 return type == null ? Literal.NULL : new ReferenceAttribute(Source.EMPTY, name, type);
             };
-            boolean translatedInFull = new QueryDslTranslator(binder, types.keySet(), TEST_CFG).translate(filter).unsupported().isEmpty();
+            boolean translatedInFull = new QueryDslTranslator(binder, types.keySet(), TEST_CFG, TransportVersion.current()).translate(
+                filter
+            ).unsupported().isEmpty();
             assertThat(Strings.toString(filter), translatedInFull, equalTo(warned == false));
         }
     }

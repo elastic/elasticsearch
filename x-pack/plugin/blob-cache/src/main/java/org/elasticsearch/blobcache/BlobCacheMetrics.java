@@ -72,6 +72,7 @@ public class BlobCacheMetrics {
     public static final String LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY = "es_lock_acquire_site";
     public static final String BLOB_CACHE_READ_TOTAL = "es.blob_cache.read.total";
     public static final String BLOB_CACHE_MISS_TOTAL = "es.blob_cache.miss.total";
+    public static final String BLOB_CACHE_BCC_CHAIN_WALK_DURING_RELOCATION_WAIT_TIME = "es.blob_cache.bcc_chain_walk.wait_time.histogram";
     /**
      * Age of each cache-path read in hours, bucketed with the {@link TimeRangeBucket} thresholds.
      * Intended for <em>search-node</em> observability: indexing-tier region timestamps are not
@@ -132,6 +133,7 @@ public class BlobCacheMetrics {
     private final DoubleHistogram lockAcquireTime;
     private final DoubleHistogram readAgeHourHistogram;
     private final DoubleHistogram missAgeHourHistogram;
+    private final LongHistogram bccChainWalkDuringRelocationWaitTime;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
@@ -312,6 +314,11 @@ public class BlobCacheMetrics {
                 "hours",
                 TimeRangeBucket.histogramHourBoundaries()
             ),
+            meterRegistry.registerLongHistogram(
+                BLOB_CACHE_BCC_CHAIN_WALK_DURING_RELOCATION_WAIT_TIME,
+                "Time in milliseconds a read blocked waiting for a cache range to be populated during the BCC chain walk of a relocation",
+                "milliseconds"
+            ),
             timeProvider
         );
 
@@ -359,6 +366,7 @@ public class BlobCacheMetrics {
         DoubleHistogram lockAcquireTime,
         DoubleHistogram readAgeHourHistogram,
         DoubleHistogram missAgeHourHistogram,
+        LongHistogram bccChainWalkDuringRelocationWaitTime,
         TimeProvider timeProvider
     ) {
         this.cacheMissCounter = cacheMissCounter;
@@ -378,6 +386,7 @@ public class BlobCacheMetrics {
         this.lockAcquireTime = lockAcquireTime;
         this.readAgeHourHistogram = readAgeHourHistogram;
         this.missAgeHourHistogram = missAgeHourHistogram;
+        this.bccChainWalkDuringRelocationWaitTime = bccChainWalkDuringRelocationWaitTime;
         this.timeProvider = timeProvider;
     }
 
@@ -529,6 +538,11 @@ public class BlobCacheMetrics {
     /// @param site the operation that acquired the lock (see [LockAcquireSite])
     public void recordLockAcquire(long elapsedNanos, LockAcquireSite site) {
         lockAcquireTime.record((double) elapsedNanos / 1000, Map.of(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY, site.name()));
+    }
+
+    /// Record the time spent waiting on gaps to be filled during the BCC-chain walk of a relocation
+    public void recordCacheWait(long waitNanos) {
+        bccChainWalkDuringRelocationWaitTime.record(TimeUnit.NANOSECONDS.toMillis(waitNanos));
     }
 
     public long readCount() {

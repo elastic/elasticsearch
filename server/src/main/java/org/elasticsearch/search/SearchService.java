@@ -328,6 +328,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "async_search.default_keep_alive",
         TimeValue.timeValueDays(5),
         TimeValue.timeValueMinutes(1),
+        TimeValue.MAX_VALUE,
+        new AsyncKeepAliveValidator(),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -341,6 +343,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "async_search.max_keep_alive",
         TimeValue.MINUS_ONE,
         TimeValue.MINUS_ONE,
+        TimeValue.MAX_VALUE,
+        new AsyncKeepAliveValidator(),
         Property.Dynamic,
         Property.NodeScope
     );

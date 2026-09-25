@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -150,6 +151,7 @@ public class Verifier {
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
+        checkDenseVectorSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
         var planCheckers = planCheckers(plan, context.analysisRegistry());
@@ -218,6 +220,23 @@ public class Verifier {
                 fail(
                     highlight,
                     "HIGHLIGHT is not supported on every participating node; "
+                        + "rolling upgrade in progress, or a remote cluster is on an older version"
+                )
+            )
+        );
+    }
+
+    /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
+    private static void checkDenseVectorSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(DenseVector.ESQL_DENSE_VECTOR_COMMAND)) {
+            return;
+        }
+        plan.forEachDown(
+            DenseVector.class,
+            denseVector -> failures.add(
+                fail(
+                    denseVector,
+                    "DENSE_VECTOR is not supported on every participating node; "
                         + "rolling upgrade in progress, or a remote cluster is on an older version"
                 )
             )

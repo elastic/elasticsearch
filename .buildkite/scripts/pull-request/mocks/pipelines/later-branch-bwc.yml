@@ -1,0 +1,25 @@
+config:
+  skip-target-branches:
+    - "main"
+    - "8.19"
+  skip-labels:
+    - ">test-mute"
+steps:
+  - group: later-branch-bwc
+    steps:
+      - label: "{{matrix.LATER_BRANCH}} / Part {{matrix.PART}} / later-branch-bwc"
+        key: "later-branch-bwc"
+        command: .buildkite/scripts/later-branch-bwc.sh
+        timeout_in_minutes: 300
+        env:
+          LATER_BRANCH: "{{matrix.LATER_BRANCH}}"
+          BWC_PART: "{{matrix.PART}}"
+        matrix:
+          setup:
+            LATER_BRANCH: $LATER_BRANCHES
+            PART: ["1", "2", "3", "4", "5", "6"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-standard-16
+          buildDirectory: /dev/shm/bk

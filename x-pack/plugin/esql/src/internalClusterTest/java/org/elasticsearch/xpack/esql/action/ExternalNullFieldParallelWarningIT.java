@@ -71,11 +71,11 @@ public class ExternalNullFieldParallelWarningIT extends AbstractExternalDataSour
         List<String> warnings = runAndCollectWarnings("null_field_small", SMALL_ROWS, SMALL_ROWS);
         assertTrue(
             "serial path must deliver at least one per-field parse warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("Failed to parse") && w.contains("[LONG]"))
+            warnings.stream().anyMatch(w -> w.contains("cannot read [") && w.contains("] as [long]"))
         );
         assertTrue(
             "serial path must deliver the one-time policy summary, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("encountered parse errors handled per policy"))
+            warnings.stream().anyMatch(w -> w.contains("cannot be read; returning null"))
         );
     }
 
@@ -88,7 +88,7 @@ public class ExternalNullFieldParallelWarningIT extends AbstractExternalDataSour
         List<String> warnings = runAndCollectWarnings("null_field_large", LARGE_ROWS, LARGE_ROWS);
         assertTrue(
             "parallel path must still deliver at least one per-field parse warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("Failed to parse") && w.contains("[LONG]"))
+            warnings.stream().anyMatch(w -> w.contains("cannot read [") && w.contains("] as [long]"))
         );
     }
 

@@ -27,8 +27,8 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
      * [> 2025-05-24 && < 2025-09-07] known issue https://github.com/minio/minio/issues/21456; workaround in #131815
      * [>= 2025-09-07               ] no known issues (yet)
      *
-     * The image is pulled from quay.io (MinIO's canonical registry) because the minio/minio
-     * repository was removed from Docker Hub, see https://github.com/elastic/elasticsearch/issues/159137.
+     * The image is pulled from Chainguard because the previously used quay.io image disappeared from public
+     * access, see https://github.com/elastic/elasticsearch/issues/159137.
      */
     public static final String DOCKER_BASE_IMAGE = "chainguard/minio:latest";
 
@@ -56,6 +56,11 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
         try {
             dataFolder.create();
             bucketFolder = dataFolder.newFolder("minio", "data", bucketName);
+            // Chainguard's image runs as a non-root user, so the bind-mounted data path must be writable by arbitrary UIDs.
+            makeWritableByContainerUser(dataFolder.getRoot());
+            makeWritableByContainerUser(bucketFolder.getParentFile().getParentFile());
+            makeWritableByContainerUser(bucketFolder.getParentFile());
+            makeWritableByContainerUser(bucketFolder);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -100,5 +105,13 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     public String getAddress() {
         return "http://127.0.0.1:" + getMappedPort(servicePort);
+    }
+
+    private static void makeWritableByContainerUser(File directory) throws IOException {
+        if (directory.setReadable(true, false) == false
+            || directory.setWritable(true, false) == false
+            || directory.setExecutable(true, false) == false) {
+            throw new IOException("failed to make directory writable by container user: " + directory);
+        }
     }
 }

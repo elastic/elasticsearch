@@ -158,7 +158,9 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
 
     /** Checks the analyzer version boundary for both grouped and ungrouped cross-cluster responses. */
     public void testIndexAnalyzerSerialization() throws IOException {
-        var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer("english").build();
+        var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer("english")
+            .indexAnalyzerPositionIncrementGap(7)
+            .build();
         var body = new IndexFieldCapabilitiesBuilder("body", "text").indexLocalAnalyzer(true).build();
         var tag = new IndexFieldCapabilitiesBuilder("tag", "keyword").build();
         var fields = Map.of("title", title, "body", body, "tag", tag);
@@ -171,22 +173,23 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 )
             )
             .build();
-        for (TransportVersion version : List.of(
-            TransportVersionUtils.getPreviousVersion(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER),
-            FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER
-        )) {
-            var copy = copyInstance(response, version);
-            var expectedTitle = version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
-                ? title
-                : new IndexFieldCapabilitiesBuilder("title", "text").build();
-            var expectedBody = version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
-                ? body
-                : new IndexFieldCapabilitiesBuilder("body", "text").build();
-            assertThat(copy.getIndexResponses(), hasSize(3));
-            for (var indexResponse : copy.getIndexResponses()) {
-                assertEquals(Map.of("title", expectedTitle, "body", expectedBody, "tag", tag), indexResponse.get());
-            }
-        }
+        var withoutAnalyzers = Map.of(
+            "title",
+            new IndexFieldCapabilitiesBuilder("title", "text").build(),
+            "body",
+            new IndexFieldCapabilitiesBuilder("body", "text").build(),
+            "tag",
+            tag
+        );
+
+        var current = copyInstance(response, FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER);
+        assertThat(fieldsPerIndex(current), equalTo(Collections.nCopies(3, fields)));
+        var previous = copyInstance(response, TransportVersionUtils.getPreviousVersion(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER));
+        assertThat(fieldsPerIndex(previous), equalTo(Collections.nCopies(3, withoutAnalyzers)));
+    }
+
+    private static List<Map<String, IndexFieldCapabilities>> fieldsPerIndex(FieldCapabilitiesResponse response) {
+        return response.getIndexResponses().stream().map(FieldCapabilitiesIndexResponse::get).toList();
     }
 
     public void testSerializeCCSResponseBetweenNewClusters() throws Exception {

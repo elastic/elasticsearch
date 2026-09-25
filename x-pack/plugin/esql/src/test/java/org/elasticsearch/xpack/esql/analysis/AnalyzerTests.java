@@ -4156,6 +4156,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     public void testKnnInfersSimilarityFromDenseVectorAndTextEmbedding() {
+        assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
             .addIndex("books", "mapping-books.json")
@@ -4175,6 +4176,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     public void testKnnInfersSimilarityFromDenseVectorForRuntimeExpression() {
+        assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
             .addIndex("books", "mapping-books.json")
@@ -4193,6 +4195,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     public void testKnnInfersSimilarityFromTextEmbeddingForRuntimeExpression() {
+        assumeKnnRuntimeEnabled();
         TestAnalyzer analyzer = denseVector().configuration(knnRuntimeConfiguration())
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT);
 
@@ -4209,6 +4212,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     public void testKnnInfersSimilarityFromEmbeddingForRuntimeExpression() {
+        assumeKnnRuntimeEnabled();
         TestAnalyzer analyzer = denseVector().configuration(knnRuntimeConfiguration())
             .addInferenceResolution("query-endpoint", TaskType.EMBEDDING, SimilarityMeasure.L2_NORM);
 
@@ -4225,6 +4229,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     public void testKnnHonorsSimilarityOverride() {
+        assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
             .addIndex("books", "mapping-books.json")
@@ -4243,6 +4248,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     public void testKnnRejectsConflictingInferredSimilarities() {
+        assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
             .addIndex("books", "mapping-books.json")
@@ -4264,7 +4270,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     public void testInferKnnSimilarityDoesNotRunOnIndexField() {
-        assumeDenseVectorCommandEnabled();
+        assumeKnnRuntimeEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
             .addIndex("index", "mapping-dense_vector.json")
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
@@ -4285,6 +4291,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
      * The resolved similarity is therefore query embedding endpoint's similarity (L2_NORM).
      */
     public void testKnnInfersSimilarityWithDerivedField() {
+        assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
         TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
             .addIndex("books", "mapping-books.json")
@@ -4301,6 +4308,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Knn knn = findKnn(plan);
         MapExpression options = as(knn.options(), MapExpression.class);
         assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+    }
+
+    private static void assumeKnnRuntimeEnabled() {
+        assumeTrue("Knn on runtime expression requires corresponding capability", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
     }
 
     private static Configuration knnRuntimeConfiguration() {

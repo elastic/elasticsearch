@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -23,17 +25,39 @@ import java.util.Map;
  */
 public class DefinitionVersionTests extends ESTestCase {
 
+    /** Plaintext settings, as a data source registered while encryption is unavailable stores them. */
     private static DataSource source(Map<String, Object> settings) {
+        return source("src", settings);
+    }
+
+    private static DataSource source(String name, Map<String, Object> settings) {
         Map<String, DataSourceSetting> wrapped = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : settings.entrySet()) {
             boolean secret = e.getKey().contains("key") || e.getKey().contains("token");
             wrapped.put(e.getKey(), new DataSourceSetting(e.getValue(), secret));
         }
+        return new DataSource(name, "s3", null, wrapped);
+    }
+
+    /**
+     * A data source as it is actually stored: a secret is an {@link EncryptedData} carrier, not a
+     * {@link String}. This is the shape the production path produces, so it is the shape the rotation
+     * case below has to be built on — over a plaintext carrier that case passes without proving
+     * anything about a real rotation.
+     */
+    private static DataSource encryptedSource(String endpoint, String keyId, String secretCiphertext) {
+        Map<String, DataSourceSetting> wrapped = new LinkedHashMap<>();
+        wrapped.put("endpoint", new DataSourceSetting(endpoint, false));
+        wrapped.put("secret_key", new DataSourceSetting(new EncryptedData(keyId, secretCiphertext.getBytes(StandardCharsets.UTF_8)), true));
         return new DataSource("src", "s3", null, wrapped);
     }
 
     private static Dataset dataset(String resource, Map<String, Object> settings) {
-        return new Dataset("parts", new DataSourceReference("src"), resource, null, settings);
+        return dataset("parts", resource, settings);
+    }
+
+    private static Dataset dataset(String name, String resource, Map<String, Object> settings) {
+        return new Dataset(name, new DataSourceReference("src"), resource, null, settings);
     }
 
     public void testSameDefinitionsProduceTheSameVersion() {
@@ -60,6 +84,21 @@ public class DefinitionVersionTests extends ESTestCase {
         );
     }
 
+    /**
+     * A name decides nothing about what is read, so two definitions equal in content address one set of
+     * entries. Without this, N datasets over one prefix each hold their own copy of the listing and each
+     * issue their own LIST, and a rename throws away a warm cache.
+     */
+    public void testNamesDoNotChangeTheVersion() {
+        Map<String, Object> dsSettings = Map.of("format", "csv");
+        Map<String, Object> srcSettings = Map.of("endpoint", "https://s3.example");
+        assertEquals(
+            "two datasets equal in content must share their derived entries",
+            DefinitionVersion.of(dataset("parts_a", "s3://b/*.csv", dsSettings), source("src_one", srcSettings)),
+            DefinitionVersion.of(dataset("parts_b", "s3://b/*.csv", dsSettings), source("src_two", srcSettings))
+        );
+    }
+
     public void testEditingADatasetSettingChangesTheVersion() {
         DataSource src = source(Map.of("endpoint", "https://s3.example"));
         String before = DefinitionVersion.of(dataset("s3://b/*.csv", Map.of("format", "csv", "error_mode", "fail_fast")), src);
@@ -77,11 +116,39 @@ public class DefinitionVersionTests extends ESTestCase {
     }
 
     /**
-     * The case this mechanism exists for. Credentials are absent from every other component of a cache
-     * key, so before this nothing about a rotation reached the key and entries harvested under the old
-     * credentials stayed addressable.
+     * The case this mechanism exists for, on the carrier production actually stores. An
+     * {@link EncryptedData}'s {@code toString} redacts its ciphertext, so a version that let the carrier
+     * render itself would be identical across a rotation and every entry harvested under the old
+     * credential would stay addressable.
      */
-    public void testRotatingACredentialOnTheDataSourceChangesTheVersion() {
+    public void testRotatingAnEncryptedCredentialChangesTheVersion() {
+        String before = DefinitionVersion.of(
+            dataset("s3://b/*.csv", Map.of("format", "csv")),
+            encryptedSource("https://s3.example", "project-key-1", "ciphertext-of-AAA")
+        );
+        String after = DefinitionVersion.of(
+            dataset("s3://b/*.csv", Map.of("format", "csv")),
+            encryptedSource("https://s3.example", "project-key-1", "ciphertext-of-BBB")
+        );
+        assertNotEquals("a rotation under one encryption key must still change the version", before, after);
+    }
+
+    /** Re-keying without changing the secret is also a change to what is stored, and also invalidates. */
+    public void testChangingTheEncryptionKeyChangesTheVersion() {
+        assertNotEquals(
+            DefinitionVersion.of(
+                dataset("s3://b/*.csv", Map.of("format", "csv")),
+                encryptedSource("https://s3.example", "project-key-1", "same-ciphertext")
+            ),
+            DefinitionVersion.of(
+                dataset("s3://b/*.csv", Map.of("format", "csv")),
+                encryptedSource("https://s3.example", "project-key-2", "same-ciphertext")
+            )
+        );
+    }
+
+    /** The same case on the plaintext carrier, which is what a cluster without encryption stores. */
+    public void testRotatingAPlaintextCredentialChangesTheVersion() {
         Map<String, Object> settings = Map.of("format", "csv");
         String before = DefinitionVersion.of(
             dataset("s3://b/*.csv", settings),
@@ -105,11 +172,52 @@ public class DefinitionVersionTests extends ESTestCase {
 
     /** No credential value may appear in what the version is, since the version reaches a cache key. */
     public void testTheVersionCarriesNoCredentialValue() {
-        String version = DefinitionVersion.of(
+        String plaintext = DefinitionVersion.of(
             dataset("s3://b/*.csv", Map.of("format", "csv")),
             source(Map.of("endpoint", "https://s3.example", "access_key", "AKIAEXAMPLESECRET", "secret_key", "sh4redS3cret"))
         );
-        assertFalse("a credential must not survive into the version", version.contains("AKIAEXAMPLESECRET"));
-        assertFalse("a credential must not survive into the version", version.contains("sh4redS3cret"));
+        assertFalse("a credential must not survive into the version", plaintext.contains("AKIAEXAMPLESECRET"));
+        assertFalse("a credential must not survive into the version", plaintext.contains("sh4redS3cret"));
+
+        String encrypted = DefinitionVersion.of(
+            dataset("s3://b/*.csv", Map.of("format", "csv")),
+            encryptedSource("https://s3.example", "project-key-1", "ciphertext-material")
+        );
+        assertFalse("not even the ciphertext survives into the version", encrypted.contains("ciphertext-material"));
+        assertFalse("nor the encryption key id", encrypted.contains("project-key-1"));
+    }
+
+    /**
+     * Fixed width, because the halves of the digest are concatenated: unpadded, {@code (0x1, 0x23)} and
+     * {@code (0x12, 0x3)} both render {@code "123"}, and two definitions rendering to one version share
+     * every cache address.
+     */
+    public void testTheVersionIsFixedWidth() {
+        for (int i = 0; i < 200; i++) {
+            String version = DefinitionVersion.of(
+                dataset("s3://b/" + randomAlphaOfLength(8) + "/*.csv", Map.of("format", "csv")),
+                source(Map.of("endpoint", "https://" + randomAlphaOfLength(6) + ".example"))
+            );
+            assertEquals("the two 64-bit halves are each zero-padded to 16 hex digits: " + version, 32, version.length());
+        }
+    }
+
+    /**
+     * A setting value cannot forge a field boundary. The pair below collides under an unprefixed
+     * {@code name=value\0} encoding: one setting whose value embeds a separator and a name is
+     * indistinguishable from two settings.
+     */
+    public void testASettingValueCannotForgeAFieldBoundary() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        Map<String, Object> twoSettings = new LinkedHashMap<>();
+        twoSettings.put("a", "1");
+        twoSettings.put("b", "2");
+        Map<String, Object> oneForgedSetting = Map.of("a", "1\u0000b=2");
+
+        assertNotEquals(
+            "a value that embeds a separator must not encode as two settings",
+            DefinitionVersion.of(dataset("s3://b/*.csv", twoSettings), src),
+            DefinitionVersion.of(dataset("s3://b/*.csv", oneForgedSetting), src)
+        );
     }
 }

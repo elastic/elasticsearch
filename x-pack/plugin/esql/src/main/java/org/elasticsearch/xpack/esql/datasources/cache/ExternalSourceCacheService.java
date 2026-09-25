@@ -67,13 +67,6 @@ public class ExternalSourceCacheService implements Closeable {
      * per-file churn evict it and the warm dataset {@code COUNT} decayed mid-use. No time expiry — the
      * fingerprint is a correct-or-miss identity key; only weight/LRU reclaims it.
      */
-    /**
-     * A file's harvested statistics, addressed by the read they came from as well as by the file: the key
-     * is {@link SchemaCacheKey#forStatistics}. Separate from {@link #schemaCache} because the two hold
-     * facts with different identities — what a file is does not depend on how anything read it, what a
-     * read measured does.
-     */
-    private final Cache<SchemaCacheKey, SchemaCacheEntry> statisticsCache;
     private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
@@ -159,10 +152,9 @@ public class ExternalSourceCacheService implements Closeable {
         // Per-file schema stays at its established 20%; the dataset-aggregate cache gets a small dedicated
         // slice carved from listing (each dataset entry is a single row count — kilobytes suffice — so its
         // exact size barely matters; what matters is that it is ITS OWN slice, immune to per-file churn).
-        long schemaBudget = maxTotalBytes / 10;              // 10%
-        long statisticsBudget = maxTotalBytes / 10;          // 10%
+        long schemaBudget = maxTotalBytes / 5;               // 20%
         long datasetAggregateBudget = maxTotalBytes / 50;    // 2%
-        long listingBudget = maxTotalBytes - schemaBudget - statisticsBudget - datasetAggregateBudget; // ~78%
+        long listingBudget = maxTotalBytes - schemaBudget - datasetAggregateBudget; // ~78%
 
         // No setExpireAfterWrite on schemaCache or datasetAggregateCache: both are identity-keyed (per-file by
         // mtime, dataset by file-set fingerprint), so a changed input already misses. A timer would only
@@ -171,13 +163,6 @@ public class ExternalSourceCacheService implements Closeable {
         // per-file key to invalidate on, so they must refresh on a clock.
         this.schemaCache = CacheBuilder.<SchemaCacheKey, SchemaCacheEntry>builder()
             .setMaximumWeight(schemaBudget)
-            .weigher((key, value) -> value.estimatedBytes())
-            .build();
-
-        // Same shape and no timer, for the same reason: the key carries the read configuration and the
-        // definition version, so anything that changes what an entry holds already misses.
-        this.statisticsCache = CacheBuilder.<SchemaCacheKey, SchemaCacheEntry>builder()
-            .setMaximumWeight(statisticsBudget)
             .weigher((key, value) -> value.estimatedBytes())
             .build();
 
@@ -722,8 +707,9 @@ public class ExternalSourceCacheService implements Closeable {
             return Map.of(); // no sibling to evict — the fallback is never consulted; skip the whole-cache sweep
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
-        // get()s: SchemaCacheKey is a 7-component record (path, mtime, formatType, formatConfig, endpoint,
-        // region, fileSetFingerprint), so a contribution path alone does not reconstruct a key, and forEach
+        // get()s: SchemaCacheKey is a multi-component record (path, mtime, formatType, formatConfig, endpoint,
+        // region, definitionVersion, fileSetFingerprint, readConfig), so a contribution path alone does not
+        // reconstruct a key, and forEach
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
         // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
         // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first

@@ -206,13 +206,19 @@ public class StorageProviderRegistry implements Closeable {
      * Framework-level WITH keys that are consumed by {@link FileSourceFactory} / format readers
      * and must not be forwarded to storage provider configurations. References the canonical
      * constants so adding/renaming a framework option in one place updates the filter here too.
+     * <p>
+     * {@link DefinitionVersion#CONFIG_KEY} is here because the provider cache keys on the whole
+     * config map: left in, it would fragment the client pool per dataset, since the version differs
+     * whenever any part of a dataset's definition does while the credentials the provider is built
+     * from may be identical.
      */
     static final Set<String> FRAMEWORK_KEYS = Set.of(
         FormatNameResolver.CONFIG_FORMAT,
         FormatNameResolver.CONFIG_READER,
         ErrorPolicy.CONFIG_MAX_ERRORS,
         ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
-        ErrorPolicy.CONFIG_ERROR_MODE
+        ErrorPolicy.CONFIG_ERROR_MODE,
+        DefinitionVersion.CONFIG_KEY
     );
 
     /**

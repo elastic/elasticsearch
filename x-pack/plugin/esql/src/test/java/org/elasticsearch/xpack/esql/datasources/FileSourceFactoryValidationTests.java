@@ -78,11 +78,29 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
      * to FRAMEWORK_KEYS (for the storage-side strip step) but forgets the coordinator side, the
      * validator silently rejects every query that uses it. This unit-time check catches that
      * drift before it ships.
+     * <p>
+     * Restricted to keys a user can write. A framework-injected key is {@code _}-prefixed, and
+     * {@code ConfigKeyValidator} never reports one, so the rejection this pin guards against cannot
+     * happen for it and there is nothing for the coordinator side to declare.
      */
     public void testFrameworkKeysAreSubsetOfCoordinatorKeys() {
         Set<String> missing = new TreeSet<>(StorageProviderRegistry.FRAMEWORK_KEYS);
+        missing.removeIf(key -> key.startsWith("_"));
         missing.removeAll(FileSourceFactory.COORDINATOR_KEYS);
         assertTrue("FRAMEWORK_KEYS not in COORDINATOR_KEYS: " + missing, missing.isEmpty());
+    }
+
+    /**
+     * The provider cache keys on the whole config map, so a framework-injected key left in it
+     * fragments the cloud-client pool. With the definition version that is per dataset: every
+     * dataset over one bucket would build its own client, and past
+     * {@code StorageProviderCache.MAX_TOTAL_ENTRIES} concurrent ones the query fails outright.
+     */
+    public void testFrameworkKeysStripTheDefinitionVersion() {
+        assertTrue(
+            "the definition version must not reach a storage provider configuration",
+            StorageProviderRegistry.FRAMEWORK_KEYS.contains(DefinitionVersion.CONFIG_KEY)
+        );
     }
 
     public void testCoordinatorKeysIncludesAllErrorPolicyKeys() {

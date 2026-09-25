@@ -97,16 +97,6 @@ public record SchemaCacheKey(
         "file_order"
     );
 
-    private static final Set<String> CREDENTIAL_PARAMS = Set.of(
-        "access_key",
-        "secret_key",
-        "connection_string",
-        "key",
-        "sas_token",
-        "credentials",
-        "token"
-    );
-
     /**
      * The version of the stored definitions this query reads under, as a named component rather than
      * a format setting: it is not an option a reader parses, and it must not be filtered by the
@@ -259,14 +249,16 @@ public record SchemaCacheKey(
 
     /**
      * Whether {@code key} participates in the cache identity: it changes how rows are interpreted (or whether
-     * inference fails on the same bytes) and is not a credential. The single predicate behind
+     * inference fails on the same bytes). Credentials are not excluded here because no credential name is in
+     * the allow-list to begin with; what isolates two identities over one object is the definition version.
+     * The single predicate behind
      * {@link #buildFormatConfig}, exposed so each format module can assert that every key its reader consumes is
      * either identity-affecting here or explicitly declared inert on that module's side. Without that assertion a
      * newly added reader option defaults to "does not affect identity" silently, and two queries that read the same
      * bytes differently collide on one cache entry.
      */
     public static boolean affectsIdentity(String key) {
-        return FORMAT_AFFECTING_PARAMS.contains(key) && CREDENTIAL_PARAMS.contains(key) == false;
+        return FORMAT_AFFECTING_PARAMS.contains(key);
     }
 
     /**

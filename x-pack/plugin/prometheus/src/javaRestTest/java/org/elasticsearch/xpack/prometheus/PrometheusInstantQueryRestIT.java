@@ -560,4 +560,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         return names;
     }
 
+    /**
+     * A scalar operand ({@code scalar(..)}, an aggregate of one series) applies to every element of the vector operand:
+     * the operands join on the step alone, the vector side keeps its labels and loses the metric name.
+     */
+    public void testInstantScalarOperandBroadcasts() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("scalar(sum(tx)) * rx", 104, 156, 208);
+        assertBinopInstantValues("rx / scalar(sum(tx))", 2.0 / 52, 3.0 / 52, 4.0 / 52);
+        assertBinopInstantValues("scalar(tx{host=\"a\"}) * rx", 20, 30, 40);
+        assertBinopInstantValues("rx * (scalar(tx{host=\"a\"}) + 1)", 22, 33, 44);
+        assertBinopInstantGroups("sum by (cluster) (tx) * scalar(max(rx))", "cluster", Map.of("prod", 160.0, "qa", 48.0));
+        assertBinopInstantGroups("scalar(min(tx)) - sum by (host) (rx)", "host", Map.of("a", 8.0, "b", 7.0, "c", 6.0));
+        assertBinopInstantValues("count(rx * scalar(sum(tx)))", 3);
+        assertThat(metricLabelNames("scalar(sum(tx)) * rx"), equalTo(List.of("cluster", "host")));
+    }
 }

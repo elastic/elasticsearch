@@ -2068,7 +2068,50 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * be served here, and a query that reads rows would scan 1,000 files of a 2,500-file dataset and report
      * success.
      */
-    public void testSchemaDiscoveryIsBoundedAndLeavesTheListingCacheClean() throws Exception {
+    /**
+     * A dataset's partition columns are derived from the paths its schema's listing saw, so they are the dataset's
+     * answer and not the query's. Before the two listings were separated, a query reading rows folded over every
+     * path while one reading none folded over a sample, and a value late in listing order could widen a column's
+     * type for the first and not the second - the same dataset reporting a column differently depending on the
+     * limit it was asked for.
+     */
+    public void testPartitionColumnsAreTheSameWhateverTheQueryAsksFor() throws Exception {
+        String glob = PREFIX + "year=*/*.parquet";
+        List<StorageEntry> listing = List.of(
+            entry(PREFIX + "year=2024/a.parquet", 100),
+            entry(PREFIX + "year=2024/b.parquet", 100),
+            // Past the sample, and it would widen year from a number to a keyword for anyone who folded this far.
+            entry(PREFIX + "year=unknown/c.parquet", 100)
+        );
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        for (StorageEntry e : listing) {
+            schemas.put(e.path().toString(), List.of(attr("x", DataType.INTEGER)));
+        }
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put("partition_detection", "hive");
+        config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 2);
+
+        Map<String, DataType> readingNoRows = partitionColumnsOf(schemas, listing, glob, config, Set.of(glob));
+        Map<String, DataType> readingRows = partitionColumnsOf(schemas, listing, glob, config, Set.of());
+
+        assertEquals("the partition columns are the dataset's, not the query's", readingNoRows, readingRows);
+        assertEquals("and they are typed from the paths the mode's listing saw", Map.of("year", DataType.INTEGER), readingRows);
+    }
+
+    private Map<String, DataType> partitionColumnsOf(
+        Map<String, List<Attribute>> schemas,
+        List<StorageEntry> listing,
+        String glob,
+        Map<String, Object> config,
+        Set<String> pathsReadingNoRows
+    ) {
+        ExternalSourceResolver resolver = createResolver(schemas, Map.of(PREFIX, listing));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), null, null, Set.of(), pathsReadingNoRows, future);
+        return future.actionGet().resolvedSource(glob).fileList().partitionMetadata().partitionColumns();
+    }
+
+    public void testTheSchemasListingCostsTheSameWhateverTheQueryAsksFor() throws Exception {
         int wide = 2500;
         List<StorageEntry> listing = new ArrayList<>();
         Map<String, List<Attribute>> schemas = new HashMap<>();
@@ -2086,16 +2129,31 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, cacheService);
 
             ExternalSourceResolution discovery = resolveWithNoRowPaths(resolver, Set.of(GLOB));
+            // Each resolve gets its own provider and resolver, so the second is as cold as the first: a warm schema
+            // cache would otherwise make the reading query look cheaper than it is.
             ExternalSourceResolution.ResolvedSource bounded = discovery.resolvedSource(GLOB);
             assertNotNull(bounded);
             assertEquals("schema discovery stops at the key bound", 1000, bounded.fileList().fileCount());
             assertTrue("and says that it did", bounded.fileList().isTruncated());
+            int listsForNoRows = provider.listCallCount.get();
+            int opensForNoRows = provider.schemaCallCount.get();
 
-            ExternalSourceResolution reading = resolveWithNoRowPaths(resolver, Set.of());
-            ExternalSourceResolution.ResolvedSource full = reading.resolvedSource(GLOB);
+            CountingStorageProvider readingProvider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+            ExternalSourceResolution.ResolvedSource full;
+            try (ExternalSourceCacheService readingCache = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                ExternalSourceResolver readingResolver = buildStatsResolver(readingProvider, stats, null, readingCache);
+                full = resolveWithNoRowPaths(readingResolver, Set.of()).resolvedSource(GLOB);
+            }
             assertNotNull(full);
-            assertEquals("a query that reads rows sees the whole dataset", wide, full.fileList().fileCount());
-            assertFalse(full.fileList().isTruncated());
+
+            // The mode says one file defines the schema, so answering it costs the same whatever the query asked
+            // for. What a query that reads rows needs beyond that is split discovery's to find, and the end-to-end
+            // guarantee that it does find it is ExternalSchemaDiscoveryBoundIT's.
+            assertEquals("the schema's listing is the mode's, not the query's", 1000, full.fileList().fileCount());
+            assertTrue(full.fileList().isTruncated());
+            assertEquals("and lists no more for a reading query", listsForNoRows, readingProvider.listCallCount.get());
+            assertEquals("and opens no more files for it", opensForNoRows, readingProvider.schemaCallCount.get());
+            assertEquals("one file defines the schema under first_file_wins", 1, opensForNoRows);
         }
     }
 
@@ -2206,7 +2264,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * therefore answers a schema request from a different file than the query that reads rows resolves, which under
      * FIRST_FILE_WINS is a different schema. The bound must be declined.
      */
-    public void testFileMetadataHintDeclinesTheBound() throws Exception {
+    public void testAFileMetadataHintDoesNotDecideWhichFileDefinesTheSchema() throws Exception {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/a.parquet", 100),
             entry("s3://bucket/data/b.parquet", 200),
@@ -2231,10 +2289,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution resolved = future.actionGet();
 
         ExternalSourceResolution.ResolvedSource source = resolved.resolvedSource(GLOB);
-        assertFalse("a hinted listing must not be bounded - the hint picks the anchor", source.fileList().isTruncated());
         assertEquals(
-            "the schema must come from the file the hint selects, not the first key visited",
-            List.of("from_c"),
+            "the schema comes from the dataset's first file, whatever the query filters on",
+            List.of("from_a"),
             source.metadata().schema().stream().map(Attribute::name).toList()
         );
     }
@@ -2246,7 +2303,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * the resolver declines it. This is the sole statement of that rule; the expander is told the extents and
      * honours them.
      */
-    public void testPartitionPruningHintDeclinesTheBound() throws Exception {
+    public void testAPartitionHintDoesNotPruneTheSchemasListing() throws Exception {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/year=2024/a.parquet", 100),
             entry("s3://bucket/data/year=2025/b.parquet", 200)
@@ -2268,8 +2325,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
         resolver.resolve(List.of(glob), Map.of(glob, config), Map.of(glob, List.of(hint)), null, Set.of(), Set.of(glob), future);
 
         ExternalSourceResolution.ResolvedSource source = future.actionGet().resolvedSource(glob);
-        assertFalse("a pruned listing is not a prefix of the flat one, so the bound must be declined", source.fileList().isTruncated());
-        assertEquals("every file the pattern matched is in the list, not the first key of it", 2, source.fileList().fileCount());
+        // partition_sample_size is 1 here, and the schema's listing is bounded by the dataset's mode whatever the
+        // query asked for - so one key, and it is the dataset's first, not the hinted subtree's.
+        assertEquals("the schema's listing is bounded by the mode", 1, source.fileList().fileCount());
+        assertTrue(source.fileList().isTruncated());
+        assertEquals(
+            "and it is the front of the dataset, not the folder the hint selects",
+            "s3://bucket/data/year=2024/a.parquet",
+            source.fileList().path(0).toString()
+        );
     }
 
     private ExternalSourceResolution resolveForSchemaDiscovery(ExternalSourceResolver resolver, Map<String, Object> config) {
@@ -4565,7 +4629,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Loops {@link #MULTI_FILE_STRATEGIES}: file-count is the assertion the IT cannot make, and default
      * UNION_BY_NAME is the product rail.
      */
-    public void testListingCacheNotPoisonedByFileMetadataHint() throws Exception {
+    public void testAFileMetadataHintCannotNarrowTheSchemasListing() throws Exception {
         String glob = "s3://bucket/data/*.parquet";
         Map<String, List<Attribute>> schemas = new HashMap<>();
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
@@ -4588,12 +4652,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
             try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
                 ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
+                // The schema's listing applies no query filter, so a hint cannot narrow what is listed or cached,
+                // and one query's filter can no longer be served to another. The files the filtered query reads are
+                // split discovery's to find.
                 ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
-                assertEquals("[" + strategy + "]", 1, filtered.resolvedSource(glob).fileList().fileCount());
+                assertEquals(
+                    "[" + strategy + "] a hint does not narrow the schema's listing",
+                    3,
+                    filtered.resolvedSource(glob).fileList().fileCount()
+                );
 
                 ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of(), strategy);
                 assertEquals(
-                    "[" + strategy + "] the unfiltered query must see every file, not the filtered query's cached subset",
+                    "[" + strategy + "] and the unfiltered query sees the same",
                     3,
                     unfiltered.resolvedSource(glob).fileList().fileCount()
                 );
@@ -4606,7 +4677,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * folder, so the cached listing enumerates only that folder. An unfiltered follow-up must not be served that
      * narrowed listing.
      */
-    public void testListingCacheNotPoisonedByPartitionHint() throws Exception {
+    public void testAPartitionHintCannotNarrowTheSchemasListing() throws Exception {
         String glob = "s3://bucket/data/year=*/*.parquet";
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
         Map<String, List<Attribute>> schemas = new HashMap<>();
@@ -4629,8 +4700,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
                 ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
 
+                // No query filter reaches the schema's listing, so a hint can neither prune it nor be cached as
+                // though it had. What the filtered query reads is split discovery's to find.
                 ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
-                assertEquals("[" + strategy + "]", 1, filtered.resolvedSource(glob).fileList().fileCount());
+                assertEquals(
+                    "[" + strategy + "] a hint does not prune the schema's listing",
+                    2,
+                    filtered.resolvedSource(glob).fileList().fileCount()
+                );
 
                 ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of(), strategy);
                 assertEquals(

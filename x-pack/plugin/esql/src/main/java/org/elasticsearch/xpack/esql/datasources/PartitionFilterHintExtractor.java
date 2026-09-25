@@ -125,6 +125,22 @@ public final class PartitionFilterHintExtractor {
      * and in particular keeps the hint in {@code WHERE year == 2025 | EVAL year = 9}, where the filter reads the
      * partition column and the {@code EVAL} only affects what comes after it.
      */
+    /**
+     * The hints in a set of conjuncts already bound to one relation occurrence, for a caller that holds the
+     * filters rather than the plan they came from.
+     * <p>
+     * {@link #extract} exists for the phase before analysis, where one listing serves every occurrence of a path
+     * and hints must therefore be intersected across them. A caller discovering files for a single occurrence has
+     * no such constraint: the filters it holds are that occurrence's, and narrowing to them starves nobody.
+     */
+    public static List<PartitionFilterHint> fromConjuncts(List<Expression> conjuncts, Set<String> requestedMetadata) {
+        List<PartitionFilterHint> hints = new ArrayList<>();
+        for (Expression conjunct : conjuncts) {
+            extractFromExpression(conjunct, hints, requestedMetadata);
+        }
+        return hints;
+    }
+
     private static void collectHints(
         LogicalPlan node,
         List<Expression> guardingConjuncts,

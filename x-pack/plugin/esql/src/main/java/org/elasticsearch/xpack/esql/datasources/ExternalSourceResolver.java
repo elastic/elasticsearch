@@ -1121,7 +1121,13 @@ public class ExternalSourceResolver {
         // dataset's, and the aggregate below folds the files a reader will open.
         FileList listing = discovery.scanFileSet();
         try {
-            final ExternalSourceMetadata base = withSourceType(enrichWithFileCount(anchorMetadata, listing.fileCount()), datasetFormat);
+            // A dataset's file count is only known when the listing was the whole dataset. Where the schema was
+            // answered from a prefix, split discovery is what enumerates the rest, and the count it reports is the
+            // one a reader sees; stamping a prefix's count here would publish a smaller dataset than there is.
+            final ExternalSourceMetadata counted = discovery.schemaListingIsComplete()
+                ? enrichWithFileCount(anchorMetadata, listing.fileCount())
+                : markStatsAsPartial(anchorMetadata);
+            final ExternalSourceMetadata base = withSourceType(counted, datasetFormat);
             if (listing.fileCount() > 1 && demand.requiresStats()) {
                 // For multi-file FIRST_FILE_WINS, read all files' metadata during Phase 1 to aggregate statistics
                 // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
@@ -1449,10 +1455,14 @@ public class ExternalSourceResolver {
         ResolutionDemand demand
     ) throws Exception {
         long discoveryStartNanos = System.nanoTime();
-        ListingExtents extents = listingExtentsFor(demand, schemaResolution, config, hints);
+        // The schema's listing, so the query's filters are not applied to it: which file defines the columns is a
+        // property of the dataset and its listing order, and a filter that moved the anchor would make a dataset's
+        // schema depend on the query that asked. The files this query reads are discovered separately, with the
+        // filters, by split discovery.
+        ListingExtents extents = listingExtentsFor(demand, schemaResolution, config);
         FileList listing = cacheable && extents.boundsFileSet() == false
-            ? cachedListing(path, storagePath, provider, hints, config)
-            : expandAndCompact(path, provider, hints, config, storagePath, extents);
+            ? cachedListing(path, storagePath, provider, null, config)
+            : expandAndCompact(path, provider, null, config, storagePath, extents);
         assert listing.isTruncated() == false || extents.boundsFileSet()
             : "a listing was truncated without a file-set extent being asked for";
         pendingListingWarnings.addAll(listing.listingWarnings());
@@ -1476,20 +1486,17 @@ public class ExternalSourceResolver {
     private ListingExtents listingExtentsFor(
         ResolutionDemand demand,
         @Nullable FormatReader.SchemaResolution schemaResolution,
-        Map<String, Object> config,
-        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints
+        Map<String, Object> config
     ) {
-        if (demand.isSchemaDiscovery() == false || schemaAnswerableFromAPrefix(schemaResolution) == false) {
+        if (schemaAnswerableFromAPrefix(schemaResolution) == false) {
+            return ListingExtents.UNBOUNDED;
+        }
+        // A dataset-wide aggregate folds every file, so this query needs the whole dataset listed - not because a
+        // schema does, but because the answer it asked for is over all of it.
+        if (demand.requiresStats()) {
             return ListingExtents.UNBOUNDED;
         }
         if (FileOrderConfig.forListing(config).equals(FileOrderConfig.DEFAULT) == false) {
-            return ListingExtents.UNBOUNDED;
-        }
-        // Any hint, not only a pruning one. A _file.* filter prunes no folder, but it decides which entry becomes
-        // the anchor: when nothing in the listing matches it, the first entry visited is stashed and used. Over a
-        // prefix that is the first key of the dataset; over the whole glob it is the matching file. Bounding here
-        // would answer a schema request from a different file than the query that reads rows would use.
-        if (hints != null && hints.isEmpty() == false) {
             return ListingExtents.UNBOUNDED;
         }
         int sampleSize = PartitionConfig.sampleSize(config);
@@ -3728,7 +3735,7 @@ public class ExternalSourceResolver {
         // resolution is how that is said here. The file order is still consulted in listingExtentsFor, where
         // forListing answers NAME_ASC for every mode but first_file_wins, so a declared mapping is bounded only
         // under first_file_wins, the default.
-        ListingExtents extents = listingExtentsFor(demand, null, config, hints);
+        ListingExtents extents = listingExtentsFor(demand, null, config);
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(
                 path,

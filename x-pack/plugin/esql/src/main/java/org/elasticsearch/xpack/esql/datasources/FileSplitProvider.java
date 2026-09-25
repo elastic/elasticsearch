@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -69,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -396,11 +399,67 @@ public class FileSplitProvider implements SplitProvider {
         this.executor = executor;
     }
 
+    /**
+     * The files this query must read. Resolution lists a dataset for the schema, which under some modes is a prefix
+     * of it and under others the whole of it; when what it established does not cover the query's needs, this
+     * discovers the rest for itself, with the query's own filters applied.
+     * <p>
+     * One place answers this so no caller has to ask whether the listing it was handed happens to be complete. The
+     * mode-dependent half — how far resolution listed, and whether this continues from it or starts over — arrives
+     * with the schema's own bound; today resolution always hands over a complete set, so this returns it unchanged.
+     */
+    private FileList scanFileSet(SplitDiscoveryContext context) throws IOException {
+        DatasetDiscovery discovery = DatasetDiscovery.shared(context.fileList());
+        if (discovery.schemaListingIsComplete()) {
+            return discovery.scanFileSet();
+        }
+        return listForQuery(context);
+    }
+
+    /**
+     * Lists the dataset this query reads, narrowing by the filters bound to this relation occurrence. Those filters
+     * are this occurrence's alone, so unlike the pre-analysis extraction — which serves every occurrence of a path
+     * with one listing and must therefore intersect them — narrowing to them starves no sibling branch.
+     */
+    private FileList listForQuery(SplitDiscoveryContext context) throws IOException {
+        String pattern = context.metadata().location();
+        Map<String, Object> config = context.config();
+        StoragePath storagePath = StoragePath.of(pattern);
+        StorageProvider provider = storageRegistry == null ? null : storageRegistry.createProvider(storagePath.scheme(), settings, config);
+        if (provider == null) {
+            return context.fileList();
+        }
+        try {
+            List<PartitionFilterHintExtractor.PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+                context.filterHints(),
+                context.metadataColumnNames()
+            );
+            return GlobExpander.expandAndCompact(
+                pattern,
+                provider,
+                hints.isEmpty() ? null : hints,
+                config,
+                storagePath,
+                ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings),
+                ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings),
+                ExternalSourceSettings.MAX_LISTED_OBJECTS.get(settings),
+                ListingExtents.UNBOUNDED
+            );
+        } finally {
+            StorageProviderCache.closeLease(provider);
+        }
+    }
+
     @Override
     public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
-        FileList fileList = context.fileList();
-        if (fileList == null || fileList.isResolved() == false) {
+        if (context.fileList() == null || context.fileList().isResolved() == false) {
             return SplitDiscoveryResult.EMPTY;
+        }
+        final FileList fileList;
+        try {
+            fileList = scanFileSet(context);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
 
         Map<String, Object> config = context.config();
@@ -490,9 +549,15 @@ public class FileSplitProvider implements SplitProvider {
         Executor requestedExecutor,
         ActionListener<SplitDiscoveryResult> listener
     ) {
-        FileList fileList = context.fileList();
-        if (fileList == null || fileList.isResolved() == false) {
+        if (context.fileList() == null || context.fileList().isResolved() == false) {
             listener.onResponse(SplitDiscoveryResult.EMPTY);
+            return;
+        }
+        final FileList fileList;
+        try {
+            fileList = scanFileSet(context);
+        } catch (IOException e) {
+            listener.onFailure(e);
             return;
         }
 

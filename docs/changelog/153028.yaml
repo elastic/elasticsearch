@@ -1,0 +1,6 @@
+area: Inference
+issues:
+- 153028
+pr: 0
+summary: Default new float dense-embedding inference endpoints to cosine similarity
+type: bug

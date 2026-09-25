@@ -176,7 +176,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
         if (model instanceof NvidiaEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
 
             if (similarityToUse.equals(similarityFromModel) && Objects.equals(embeddingSize, serviceSettings.dimensions())) {
                 // Avoid creating a new model if similarity and embedding size are unchanged

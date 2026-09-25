@@ -24,6 +24,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
@@ -251,6 +252,8 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
         if (model instanceof GoogleVertexAiEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
 
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
             var updatedServiceSettings = new GoogleVertexAiEmbeddingsServiceSettings(
                 serviceSettings.location(),
                 serviceSettings.projectId(),
@@ -259,7 +262,7 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
                 serviceSettings.maxInputTokens(),
                 embeddingSize,
                 serviceSettings.maxBatchSize(),
-                serviceSettings.similarity(),
+                similarityToUse,
                 serviceSettings.rateLimitSettings()
             );
 

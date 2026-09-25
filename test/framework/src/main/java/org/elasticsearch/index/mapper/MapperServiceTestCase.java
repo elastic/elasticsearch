@@ -192,6 +192,16 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(settings, mappings).documentMapper();
     }
 
+    /**
+     * Like {@link #createColumnarModeDocumentMapper(XContentBuilder)} but with an explicit index version,
+     * for testing pre-gate BWC behavior.
+     */
+    protected final DocumentMapper createColumnarModeDocumentMapper(IndexVersion indexVersion, XContentBuilder mappings)
+        throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(indexVersion, settings, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createColumnarLogsdbModeDocumentMapper(XContentBuilder mappings) throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
         return createMapperService(settings, mappings).documentMapper();
@@ -529,12 +539,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         builder.endObject();
         return new SourceToParse(
             id,
-            BytesReference.bytes(builder),
-            XContentType.JSON,
+            new BytesSource(BytesReference.bytes(builder), XContentType.JSON, true),
             routing,
             dynamicTemplates,
             dynamicTemplateParams,
-            true,
             xContentMeteringParserDecorator(),
             null
         );

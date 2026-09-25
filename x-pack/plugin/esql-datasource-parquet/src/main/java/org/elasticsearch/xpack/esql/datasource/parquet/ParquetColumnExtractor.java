@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -175,7 +174,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         @Nullable Consumer<String> warningSink
     ) {
         this.storageObject = Objects.requireNonNull(storageObject, "storageObject");
-        this.messageLocation = ExternalFailures.redactHttpUrl(storageObject.path().toString());
+        this.messageLocation = storageObject.path().objectName();
         this.reader = Objects.requireNonNull(reader, "reader");
         this.ownedFooter = Objects.requireNonNull(ownedFooter, "ownedFooter");
         this.errorPolicy = Objects.requireNonNull(errorPolicy, "errorPolicy");

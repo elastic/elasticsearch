@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -2358,7 +2357,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 rowLimit,
                 createdBy,
                 // Messages and logs are the only readers of the iterator's location, so it is redacted here.
-                ExternalFailures.redactHttpUrl(object.path().toString()),
+                object.path().objectName(),
                 hasRecordFilter,
                 rangeBlockGlobalOffsets,
                 counters,
@@ -2402,7 +2401,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         String[] absentColumnWarnings = buildAbsentColumnWarnings(projectedAttributes, columnInfos);
         validatePlannerTypesAgainstFile(
             logger,
-            ExternalFailures.redactHttpUrl(storageObject.path().toString()),
+            storageObject.path().objectName(),
             reader,
             projectedAttributes,
             columnInfos,
@@ -2551,7 +2550,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 rowLimit,
                 createdBy,
                 // Messages and logs are the only readers of the iterator's location, so it is redacted here.
-                ExternalFailures.redactHttpUrl(storageObject.path().toString()),
+                storageObject.path().objectName(),
                 columnInfos,
                 preloadedMetadata,
                 storageObject,

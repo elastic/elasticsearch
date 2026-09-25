@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
@@ -49,10 +50,19 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
 
         List<String> sampleMessages = Arrays.asList(sample.split("\n"));
-        for (String sampleMessage : sampleMessages) {
+        for (int lineNum = 0; lineNum < sampleMessages.size(); ++lineNum) {
+            String sampleMessage = sampleMessages.get(lineNum);
             try (XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, sampleMessage)) {
                 sampleRecords.add(parser.mapOrdered());
                 timeoutChecker.check("NDJSON parsing");
+            } catch (XContentEOFException e) {
+                // Mirrors the tolerance in NdJsonTextStructureFinderFactory#canCreateFromSample: a
+                // truncated final document (as opposed to malformed JSON) is assumed to result from
+                // the sample being cut off mid-document, and is dropped rather than treated as fatal.
+                if (lineNum == sampleMessages.size() - 1 && sampleRecords.isEmpty() == false) {
+                    break;
+                }
+                throw e;
             }
         }
 

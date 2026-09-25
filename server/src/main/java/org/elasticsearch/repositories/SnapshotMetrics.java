@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -62,6 +63,7 @@ public record SnapshotMetrics(
     public static final String SNAPSHOT_UPLOAD_READ_DURATION = "es.repositories.snapshots.upload.read_time.total";
     public static final String SNAPSHOT_CREATE_THROTTLE_DURATION = "es.repositories.snapshots.create_throttling.time.total";
     public static final String SNAPSHOT_RESTORE_THROTTLE_DURATION = "es.repositories.snapshots.restore_throttling.time.total";
+    public static final String SNAPSHOT_SHARDS_WAITING_LATENCY = "es.repositories.snapshots.shards.waiting.latency.time.current";
 
     public SnapshotMetrics(MeterRegistry meterRegistry) {
         this(
@@ -99,8 +101,8 @@ public record SnapshotMetrics(
         );
     }
 
-    public void createSnapshotShardsInProgressMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver) {
-        meterRegistry.registerLongsAsyncGauge(
+    public LongAsyncGauge createSnapshotShardsInProgressMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver) {
+        return meterRegistry.registerLongsAsyncGauge(
             SNAPSHOT_SHARDS_IN_PROGRESS,
             "shard snapshots in progress",
             "unit",
@@ -108,8 +110,8 @@ public record SnapshotMetrics(
         );
     }
 
-    public void createSnapshotShardsByStateMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver) {
-        meterRegistry.registerLongsAsyncGauge(
+    public LongAsyncGauge createSnapshotShardsByStateMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver) {
+        return meterRegistry.registerLongsAsyncGauge(
             SNAPSHOT_SHARDS_BY_STATE,
             "snapshotting shards by state",
             "unit",
@@ -117,8 +119,17 @@ public record SnapshotMetrics(
         );
     }
 
-    public void createSnapshotsByStateMetric(Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver) {
-        meterRegistry.registerLongsAsyncGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
+    public LongAsyncGauge createSnapshotsByStateMetric(Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver) {
+        return meterRegistry.registerLongsAsyncGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
+    }
+
+    public LongAsyncGauge createLongestWaitingTimeMetric(Supplier<Collection<LongWithAttributes>> longestWaitingTimeMillisObserver) {
+        return meterRegistry.registerLongsAsyncGauge(
+            SNAPSHOT_SHARDS_WAITING_LATENCY,
+            "current longest time any shard snapshot has been WAITING (with the current master)",
+            "milliseconds",
+            longestWaitingTimeMillisObserver
+        );
     }
 
     @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")

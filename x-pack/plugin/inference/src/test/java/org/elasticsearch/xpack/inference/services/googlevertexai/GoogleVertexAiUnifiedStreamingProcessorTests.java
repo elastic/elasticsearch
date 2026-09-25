@@ -30,6 +30,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
     private static final String REASONING_FORMAT = "google-vertex-ai-v1";
     private static final String GOOGLE_TOOL_CALL_ID = "call_299965";
     private static final String FUNCTION_NAME = "schedule_meeting";
+    private static final String ASSISTANT_ROLE = "assistant";
 
     public void testJsonLiteral() {
         String json = """
@@ -74,7 +75,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
             var choice = chunk.choices().getFirst();
             assertEquals("Elastic", choice.message().content());
-            assertEquals("model", choice.message().role());
+            assertThat(choice.message().role(), is(ASSISTANT_ROLE));
             assertEquals("gemini-2.0-flash-lite", chunk.model());
             assertEquals(0, choice.index()); // VertexAI response does not have Index. Use 0 as default
             assertEquals("MAXTOKENS", choice.finishReason());
@@ -123,7 +124,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(1, chunk.choices().size());
             var choice = chunk.choices().getFirst();
             assertEquals("Hello", choice.message().content());
-            assertEquals("model", choice.message().role());
+            assertThat(choice.message().role(), is(ASSISTANT_ROLE));
             assertEquals("STOP", choice.finishReason());
             assertEquals(0, choice.index());
             assertNull(choice.message().toolCalls());
@@ -168,7 +169,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("resId789", chunk.id());
             assertEquals(1, chunk.choices().size());
             var choice = chunk.choices().getFirst();
-            assertEquals("model", choice.message().role());
+            assertThat(choice.message().role(), is(ASSISTANT_ROLE));
             assertNull(choice.message().content());
 
             assertNotNull(choice.message().toolCalls());
@@ -217,7 +218,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(1, chunk.choices().size());
 
             var choice = chunk.choices().getFirst();
-            assertEquals("model", choice.message().role());
+            assertThat(choice.message().role(), is(ASSISTANT_ROLE));
             // Verify that the text from multiple parts is concatenated
             assertEquals("This is the first part. This is the second part.", choice.message().content());
             assertEquals("STOP", choice.finishReason());
@@ -477,7 +478,8 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         var choice = chunk.choices().getFirst();
         assertThat(choice.finishReason(), is("SAFETY"));
         assertNull(choice.message().content());
-        assertNull(choice.message().role());
+        // Even a candidate without content gets "assistant" on the first chunk.
+        assertThat(choice.message().role(), is(ASSISTANT_ROLE));
     }
 
     public void testReasoningIndexKeepsCountingAcrossTheChunksOfAStream() throws IOException {
@@ -678,6 +680,72 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
         // The function call ended the thought block, so the second thought is at index 1.
         assertThat(asTextReasoningDetail(secondThoughtChunk, 0).index(), is(1L));
+    }
+
+    public void testRole_IsAssistantOnTheFirstChunkOnly() throws IOException {
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunkParser = new GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser(false);
+
+        // First chunk (thought): should get "assistant".
+        var firstChunk = parseWith(chunkParser, parserConfig, thoughtChunk("Analyzing the request.", THOUGHT_SIGNATURE));
+        // Second chunk (text): role consumed already, should be null.
+        var secondChunk = parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "The answer is 42." } ] }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 10, "totalTokenCount": 20 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r2"
+            }
+            """);
+        // Third chunk (finish): role should still be null.
+        var thirdChunk = parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "" } ] },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 12, "totalTokenCount": 22 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r3"
+            }
+            """);
+
+        assertThat(firstChunk.choices().getFirst().message().role(), is(ASSISTANT_ROLE));
+        assertNull(secondChunk.choices().getFirst().message().role());
+        assertNull(thirdChunk.choices().getFirst().message().role());
+    }
+
+    public void testRole_UsageOnlyChunkDoesNotConsumeTheRole() throws IOException {
+        // A usage-only chunk ("candidates": []) must not consume the role slot.
+        // The first chunk that carries a choice should still emit "assistant".
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunkParser = new GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser(false);
+
+        // usage-only frame — no candidates, so candidateToChoice is never called.
+        parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 0, "totalTokenCount": 10 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r0"
+            }
+            """);
+
+        var contentChunk = parseWith(chunkParser, parserConfig, """
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "Hello" } ] },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 5, "totalTokenCount": 15 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r1"
+            }
+            """);
+
+        assertThat(contentChunk.choices().getFirst().message().role(), is(ASSISTANT_ROLE));
     }
 
     private static String thoughtChunk(String thought, String signature) {

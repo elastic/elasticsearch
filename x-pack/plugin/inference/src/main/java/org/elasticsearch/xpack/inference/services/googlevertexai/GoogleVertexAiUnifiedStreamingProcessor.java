@@ -51,7 +51,6 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
     private static final String CANDIDATES_FIELD = "candidates";
     private static final String CONTENT_FIELD = "content";
-    private static final String ROLE_FIELD = "role";
     private static final String PARTS_FIELD = "parts";
     private static final String TEXT_FIELD = "text";
     private static final String THOUGHT_FIELD = "thought";
@@ -72,6 +71,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
     private static final String CHAT_COMPLETION_CHUNK = "chat.completion.chunk";
     private static final String FUNCTION_TYPE = "function";
+    private static final String ASSISTANT_ROLE = "assistant";
 
     /**
      * Identifies reasoning details as having come from this provider, so a client knows how to echo them back.
@@ -130,6 +130,13 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
         private final boolean excludeReasoning;
         /**
+         * Gemini repeats {@code Content.role} ("model") on every chunk, while the OpenAI schema
+         * sends "assistant" exactly once, on the first chunk. This flag tracks whether the role
+         * has been included in a choice yet. Like the other stream-level state here, this assumes
+         * a single candidate — the outbound request never sets {@code candidateCount}.
+         */
+        private boolean roleSent = false;
+        /**
          * Incremented at the start of each tool call across the stream so that clients accumulating
          * tool-call deltas by index can distinguish parallel calls.
          */
@@ -183,14 +190,16 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             List<ChatCompletionToolCallResponse> toolCalls = new ArrayList<>();
             List<ReasoningDetail> reasoningDetails = new ArrayList<>();
 
-            String role = null;
+            // Emit "assistant" on the first choice only. Gemini repeats "model" on every chunk;
+            // the OpenAI schema requires "assistant" once, on the first chunk.
+            var role = roleSent ? null : ASSISTANT_ROLE;
+            roleSent = true;
 
             var contentAndPartsAreNotEmpty = candidate.content() != null
                 && candidate.content().parts() != null
                 && candidate.content().parts().isEmpty() == false;
 
             if (contentAndPartsAreNotEmpty) {
-                role = candidate.content().role(); // Role is at the content level
                 for (Part part : candidate.content().parts()) {
                     if (part.functionCall() != null) {
                         // A function call ends any open thought block.
@@ -366,21 +375,20 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    private record Content(@Nullable String role, @Nullable List<Part> parts) {}
+    private record Content(@Nullable List<Part> parts) {}
 
     private static class ContentParser {
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Content, Void> PARSER = new ConstructingObjectParser<>(
             CONTENT_FIELD,
             true,
-            args -> new Content((String) args[0], (List<Part>) args[1])
+            args -> new Content((List<Part>) args[0])
         );
 
         static {
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ROLE_FIELD));
             // Gemini sends content without parts when the output budget ran out before any part was produced, e.g. a
             // Gemini 2.5 model that spent all of max_completion_tokens thinking: {"role": "model"} with
-            // finishReason MAX_TOKENS.
+            // finishReason MAX_TOKENS. The "role" key is skipped by the lenient parser.
             PARSER.declareObjectArray(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> PartParser.parse(p),

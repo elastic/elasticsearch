@@ -453,6 +453,10 @@ public class TransformIndexerStateTests extends ESTestCase {
             context
         );
 
+        // Align lastSaveState with the fake clock. Construction uses System.nanoTime() (must not call
+        // overridable getTimeNanos from a ctor); seed persistence at t=0 so the timeline below holds.
+        indexer.setTimeMillis(0);
+        indexer.doSaveState(IndexerState.INDEXING, null, () -> {});
         assertFalse(indexer.triggerSaveState());
         // simple: advancing the time should trigger state persistence
         indexer.setTimeMillis(80_000);

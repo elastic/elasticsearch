@@ -28,7 +28,10 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
@@ -127,6 +130,20 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
                         config.getVersion(),
                         TransformDeprecations.MIN_TRANSFORM_VERSION
                     )
+                )
+            );
+            return;
+        }
+
+        // Fail closed when security is on but the config has neither stored headers nor a UIAM
+        // credential id — empty headers fall through to TRANSFORM_ORIGIN and bypass DLS.
+        // Checked even when deferValidation is true: an unsafe config must not be waved through.
+        if (XPackSettings.SECURITY_ENABLED.get(nodeSettings)
+            && config.getCredentialId() == null
+            && ClientHelper.filterSecurityHeaders(config.getHeaders()).isEmpty()) {
+            listener.onFailure(
+                Exceptions.authorizationError(
+                    TransformMessages.getMessage(TransformMessages.TRANSFORM_CANNOT_START_WITHOUT_CREDENTIALS, config.getId())
                 )
             );
             return;

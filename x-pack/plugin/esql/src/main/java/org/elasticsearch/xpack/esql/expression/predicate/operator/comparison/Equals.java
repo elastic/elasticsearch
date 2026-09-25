@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -309,9 +310,9 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     @Override
     public String nullMisuseAlternative() {
         Expression kept;
-        if (Expressions.isGuaranteedNull(right())) {
+        if (isNullOperand(right())) {
             kept = left();
-        } else if (Expressions.isGuaranteedNull(left())) {
+        } else if (isNullOperand(left())) {
             kept = right();
         } else {
             return null;
@@ -322,6 +323,10 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         }
         String text = kept.sourceText();
         return text.isEmpty() ? null : text + " IS NULL";
+    }
+
+    private static boolean isNullOperand(Expression e) {
+        return Expressions.isGuaranteedNull(e) || ConvertFunction.isExplicitNull(e);
     }
 
 }

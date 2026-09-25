@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -30,6 +31,8 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
  *     <li>{@code IN} — a {@code NULL} in the list is ignored, not treated as always-null.</li>
  *     <li>{@code !=} and {@code NOT IN} — warn on the parsed {@code NOT} so the message
  *     matches the source the user wrote.</li>
+ *     <li>A cast or conversion of an explicit {@code NULL} ({@code null::string}, {@code TO_INTEGER(NULL)})
+ *     is a typed null, not a warning. A parent that uses it still warns.</li>
  * </ul>
  * Only literals whose source text is {@code NULL} count; null-typed attributes and
  * synthesized nulls do not.
@@ -45,6 +48,11 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
     }
 
     private static void check(Expression e) {
+        // null::type and TO_TYPE(null) are how you spell a typed null. Skip the conversion itself;
+        // parents still see it via isExplicitNull.
+        if (e instanceof ConvertFunction && ConvertFunction.isExplicitNull(e)) {
+            return;
+        }
         // `NOT IN` is parsed as NOT(IN) sharing the user's source; warn on the NOT.
         if (e instanceof Not not && not.field() instanceof In in && hasExplicitNullInList(in)) {
             warnInListNull(not, in, true);
@@ -62,7 +70,7 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
             in.children().forEach(WarnNullMisuse::check);
             return;
         }
-        if (FoldNull.foldsToNull(e, WarnNullMisuse::isExplicitNullLiteral)) {
+        if (FoldNull.foldsToNull(e, ConvertFunction::isExplicitNull)) {
             warnNullLiteral(e);
         }
         // Keep descending: other children may misuse their own, different NULL literal.
@@ -70,15 +78,11 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
     }
 
     private static boolean isNullComparison(Expression e) {
-        return (e instanceof Equals || e instanceof InsensitiveEquals) && FoldNull.foldsToNull(e, WarnNullMisuse::isExplicitNullLiteral);
+        return (e instanceof Equals || e instanceof InsensitiveEquals) && FoldNull.foldsToNull(e, ConvertFunction::isExplicitNull);
     }
 
     private static boolean hasExplicitNullInList(In in) {
-        return in.list().stream().anyMatch(WarnNullMisuse::isExplicitNullLiteral);
-    }
-
-    private static boolean isExplicitNullLiteral(Expression e) {
-        return e instanceof Literal literal && literal.value() == null && literal.sourceText().equalsIgnoreCase("null");
+        return in.list().stream().anyMatch(ConvertFunction::isExplicitNull);
     }
 
     /**
@@ -90,7 +94,7 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
             return;
         }
         String kept = operandText(in.value());
-        boolean allNull = in.list().stream().allMatch(WarnNullMisuse::isExplicitNullLiteral);
+        boolean allNull = in.list().stream().allMatch(ConvertFunction::isExplicitNull);
         if (allNull && kept != null) {
             addWarning(
                 "Line {}:{}: NULL in the IN list of [{}] is ignored, did you mean [{}]?",

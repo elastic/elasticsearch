@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -284,9 +285,9 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     @Override
     public String nullMisuseAlternative() {
         Expression kept;
-        if (Expressions.isGuaranteedNull(right())) {
+        if (Expressions.isGuaranteedNull(right()) || ConvertFunction.isExplicitNull(right())) {
             kept = left();
-        } else if (Expressions.isGuaranteedNull(left())) {
+        } else if (Expressions.isGuaranteedNull(left()) || ConvertFunction.isExplicitNull(left())) {
             kept = right();
         } else {
             return null;

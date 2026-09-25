@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
@@ -135,20 +136,24 @@ public class Not extends UnaryScalarFunction
         if (field() instanceof InsensitiveEquals insensitiveEquals) {
             return keptNonNullOperand(insensitiveEquals.left(), insensitiveEquals.right());
         }
-        if (field() instanceof In in && in.list().stream().allMatch(Expressions::isGuaranteedNull)) {
+        if (field() instanceof In in && in.list().stream().allMatch(Not::isNullOperand)) {
             return in.value();
         }
         return null;
     }
 
     private static Expression keptNonNullOperand(Expression left, Expression right) {
-        if (Expressions.isGuaranteedNull(right)) {
+        if (isNullOperand(right)) {
             return left;
         }
-        if (Expressions.isGuaranteedNull(left)) {
+        if (isNullOperand(left)) {
             return right;
         }
         return null;
+    }
+
+    private static boolean isNullOperand(Expression e) {
+        return Expressions.isGuaranteedNull(e) || ConvertFunction.isExplicitNull(e);
     }
 
     @Override

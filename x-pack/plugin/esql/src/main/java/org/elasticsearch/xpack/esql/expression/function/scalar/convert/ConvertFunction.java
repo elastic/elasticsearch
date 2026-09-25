@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Set;
@@ -38,5 +39,16 @@ public interface ConvertFunction {
      */
     default boolean isNoop() {
         return field().dataType() == dataType();
+    }
+
+    /**
+     * An explicit {@code NULL} literal, or a cast / conversion of one ({@code null::string}, {@code TO_INTEGER(NULL)}).
+     * A typed null is not itself a misuse; callers that consume it still are.
+     */
+    public static boolean isExplicitNull(Expression e) {
+        if (e instanceof Literal literal && literal.value() == null && literal.sourceText().equalsIgnoreCase("null")) {
+            return true;
+        }
+        return e instanceof ConvertFunction convert && isExplicitNull(convert.field());
     }
 }

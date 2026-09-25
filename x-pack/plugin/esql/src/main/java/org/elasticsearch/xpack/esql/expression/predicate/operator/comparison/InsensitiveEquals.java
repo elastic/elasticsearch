@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -158,9 +159,9 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison implements Ev
     @Override
     public String nullMisuseAlternative() {
         Expression kept;
-        if (Expressions.isGuaranteedNull(right())) {
+        if (Expressions.isGuaranteedNull(right()) || ConvertFunction.isExplicitNull(right())) {
             kept = left();
-        } else if (Expressions.isGuaranteedNull(left())) {
+        } else if (Expressions.isGuaranteedNull(left()) || ConvertFunction.isExplicitNull(left())) {
             kept = right();
         } else {
             return null;

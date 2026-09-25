@@ -200,15 +200,31 @@ public class WarnNullMisuseTests extends AbstractLogicalPlanOptimizerTests {
         assertWarnings("Line 2:12: NULL in the IN list of [emp_no IN (1, NULL)] is ignored, you can move it to [OR emp_no IS NULL].");
     }
 
-    public void testToIntegerNullWarningLocation() {
+    /**
+     * {@code null::type} and {@code TO_TYPE(NULL)} are a typed null, not a misuse.
+     */
+    public void testCastAndConversionOfNullDoNotWarn() {
+        plan("ROW x = null::string, y = TO_INTEGER(NULL), z = null::long::int");
+        ensureNoWarnings();
+    }
+
+    /**
+     * The conversion is not the warning; the comparison that consumes the typed null is.
+     */
+    public void testComparisonWithCastNullWarnsOnComparison() {
         plan("""
-            FROM test
-            | RENAME languages AS language_code
-            | SORT emp_no, language_code
-            | LIMIT 4
-            | EVAL language_code = TO_INTEGER(NULL)
+            ROW emp_no = 1
+            | EVAL x = emp_no == null::integer
             """);
-        assertWarnings("Line 5:24: Expression [TO_INTEGER(NULL)] always evaluates to NULL.");
+        assertWarnings("Line 2:12: Expression [emp_no == null::integer] always evaluates to NULL, did you mean [emp_no IS NULL]?");
+    }
+
+    public void testAddOfConvertedNullWarnsOnAdd() {
+        plan("""
+            ROW emp_no = 1
+            | EVAL x = emp_no + TO_INTEGER(NULL)
+            """);
+        assertWarnings("Line 2:12: Expression [emp_no + TO_INTEGER(NULL)] always evaluates to NULL.");
     }
 
     @Override

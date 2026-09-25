@@ -11,6 +11,8 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
@@ -35,6 +37,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -135,9 +139,9 @@ class FieldCapabilitiesFetcher {
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
             // The mapping hash omits index.analysis, which decides whether an analyzer name is withheld as index-local.
-            Set<String> configuredAnalyzers = configuredAnalyzerNames(searchExecutionContext);
-            String analyzersSuffix = configuredAnalyzers.isEmpty() ? "" : configuredAnalyzers.toString();
-            indexMappingHash = mapping != null ? mapping.getSha256() + indexMode + analyzersSuffix : null;
+            indexMappingHash = mapping != null
+                ? mapping.getSha256() + indexMode + analyzerNamesDigest(configuredAnalyzerNames(searchExecutionContext))
+                : null;
         } else {
             // even if the mapping is the same if we return only fields with values we need
             // to make sure that we consider all the shard-mappings pair, that is why we
@@ -269,9 +273,25 @@ class FieldCapabilitiesFetcher {
         return responseMap;
     }
 
-    /** Names under {@code index.analysis.analyzer}, sorted so the dedup hash is stable. */
+    /** Names under {@code index.analysis.analyzer}. */
     private static Set<String> configuredAnalyzerNames(SearchExecutionContext context) {
-        return new TreeSet<>(context.getIndexSettings().getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER).keySet());
+        return context.getIndexSettings().getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER).keySet();
+    }
+
+    /**
+     * Fixed-size digest of the configured analyzer names for the dedup hash. Names are sorted and length-prefixed so
+     * distinct sets never collide. The digest is non-empty even with no configured analyzers, so the hash never equals
+     * one from a node before {@link FieldCapabilities#FIELD_CAPS_INDEX_ANALYZER}: the coordinator shares caps across
+     * equal hashes, and an older node's index may withhold a name that this node reports.
+     */
+    static String analyzerNamesDigest(Set<String> names) {
+        MessageDigest digest = MessageDigests.sha256();
+        for (String name : new TreeSet<>(names)) {
+            byte[] bytes = name.getBytes(StandardCharsets.UTF_8);
+            digest.update(Numbers.intToBytes(bytes.length));
+            digest.update(bytes);
+        }
+        return MessageDigests.toHexString(digest.digest());
     }
 
     private static boolean checkIncludeParents(String[] filters) {

@@ -9,14 +9,9 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -24,7 +19,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.FieldPredicate;
 
 import java.io.IOException;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -345,23 +343,33 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
     }
 
     public void testIndexLocalAnalyzerNameIsDropped() throws IOException {
-        // "english" is redefined under index.analysis, so field-caps must not advertise that name.
-        // A field on the built-in default analyzer still keeps its name.
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.english.type", "custom")
-            .put("index.analysis.analyzer.english.tokenizer", "standard")
-            .build();
-        MapperService mapperService = createMapperService(settings, """
+        // The same mapping in two indices. The built-in name "default" is reported with the mapping's
+        // position_increment_gap, until index.analysis redefines it and field-caps must withhold it.
+        String mapping = """
             { "_doc" : {
               "properties" : {
-                "local" : { "type" : "text", "analyzer" : "english" },
-                "plain" : { "type" : "text" }
+                "body" : { "type" : "text", "position_increment_gap" : 7 }
               }
             } }
-            """);
-        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+            """;
+        Settings redefinesDefault = Settings.builder()
+            .put("index.analysis.analyzer.default.type", "custom")
+            .put("index.analysis.analyzer.default.tokenizer", "standard")
+            .build();
 
-        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+        IndexFieldCapabilities reported = retrieveBodyFieldCaps(Settings.EMPTY, mapping);
+        assertEquals("default", reported.indexAnalyzer());
+        assertEquals(7, reported.indexAnalyzerPositionIncrementGap());
+        assertFalse(reported.indexLocalAnalyzer());
+
+        IndexFieldCapabilities withheld = retrieveBodyFieldCaps(redefinesDefault, mapping);
+        assertNull(withheld.indexAnalyzer());
+        assertTrue(withheld.indexLocalAnalyzer());
+    }
+
+    private IndexFieldCapabilities retrieveBodyFieldCaps(Settings settings, String mapping) throws IOException {
+        SearchExecutionContext sec = createSearchExecutionContext(createMapperService(settings, mapping));
+        return FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
             s -> true,
             Strings.EMPTY_ARRAY,
@@ -369,25 +377,21 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
             true
-        );
-
-        assertNull(response.get("local").indexAnalyzer());
-        assertTrue(response.get("local").indexLocalAnalyzer());
-        assertEquals("default", response.get("plain").indexAnalyzer());
-        assertFalse(response.get("plain").indexLocalAnalyzer());
+        ).get("body");
     }
 
-    @Override
-    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        // The harness resolves "english"; the index settings above are what make that name index-local.
-        return IndexAnalyzers.of(
-            Map.of(
-                "default",
-                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
-                "english",
-                new NamedAnalyzer("english", AnalyzerScope.INDEX, new StandardAnalyzer())
-            )
+    public void testAnalyzerNamesDigest() {
+        // Both sets print as [standard, x, y], yet only the first withholds "standard".
+        assertNotEquals(
+            FieldCapabilitiesFetcher.analyzerNamesDigest(Set.of("standard", "x, y")),
+            FieldCapabilitiesFetcher.analyzerNamesDigest(Set.of("standard, x", "y"))
         );
+        assertEquals(
+            FieldCapabilitiesFetcher.analyzerNamesDigest(new LinkedHashSet<>(List.of("a", "b"))),
+            FieldCapabilitiesFetcher.analyzerNamesDigest(new LinkedHashSet<>(List.of("b", "a")))
+        );
+        // Non-empty without configured analyzers, so the dedup hash never equals one from an older node.
+        assertFalse(FieldCapabilitiesFetcher.analyzerNamesDigest(Set.of()).isEmpty());
     }
 
     private IndexShard getMockIndexShard() {

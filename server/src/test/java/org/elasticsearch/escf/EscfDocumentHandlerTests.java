@@ -316,4 +316,31 @@ public class EscfDocumentHandlerTests extends ESTestCase {
         encodeItemsArrayViaSimdWalk("""
             {"items":[{"inner":[{"leaf":["x"]}],"n":1}]}""", inner);
     }
+
+    /**
+     * Stress test for the kv-inline-array nesting stack at depth 3: array → object → array → object
+     * → array → object → array. Verifies that the stack introduced by the nesting-bug fix handles
+     * more than one level of saved state correctly.
+     *
+     * <p>This test drives the handler directly (without simdjson) to isolate the event-dispatch logic.
+     */
+    public void testTripleNestedArrayInsideObjectInArrayKvMatchesHandler() throws IOException {
+        // items: [ { criteria: [ { conditions: [ { values: ["x"], k: 1 } ], m: 2 } ], n: 3 } ]
+        // "criteria" pushes stack depth 0, "conditions" pushes depth 1, "values" pushes depth 2.
+        String inner = """
+            {"criteria":[{"conditions":[{"values":["x"],"k":1}],"m":2}],"n":3}""";
+        assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
+    }
+
+    /**
+     * Same triple-nesting regression as {@link #testTripleNestedArrayInsideObjectInArrayKvMatchesHandler}
+     * but exercised through the simdjson path.
+     */
+    public void testSimdWalkTripleNestedArrayMatchesHelper() throws IOException {
+        assumeTrue("simdjson ESCF encoding required", EscfEncoder.isSimdEnabled());
+        String inner = """
+            {"criteria":[{"conditions":[{"values":["x"],"k":1}],"m":2}],"n":3}""";
+        encodeItemsArrayViaSimdWalk("""
+            {"items":[{"criteria":[{"conditions":[{"values":["x"],"k":1}],"m":2}],"n":3}]}""", inner);
+    }
 }

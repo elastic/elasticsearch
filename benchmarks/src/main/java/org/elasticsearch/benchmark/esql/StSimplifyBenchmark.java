@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.esql;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.IterativeDouglasPeuckerSimplifier;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -67,7 +67,7 @@ import java.util.concurrent.TimeUnit;
 public class StSimplifyBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /** Number of vertices in the input polygon. */

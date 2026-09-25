@@ -36,7 +36,20 @@ class NativeLibrariesPluginFuncTest extends AbstractGradleInternalPluginFuncTest
           dockerCommand = ['make', 'all']
           hostCommand { outputDir -> ['sh', '-c', "mkdir -p \$outputDir.asFile/${PLATFORM} && echo built > \$outputDir.asFile/${PLATFORM}/libtest.so"] }
         }
+        // libtest.so above is a placeholder, not a real ELF file, so the real objdump on the
+        // Linux CI host cannot parse it. Stub it to report no version references, since this
+        // suite is not exercising the ABI check itself.
+        tasks.named('verifyNativeLibrariesLinuxAbi').configure {
+          objdumpExecutable.set("${projectDir}/fake-objdump")
+        }
         """
+        file("fake-objdump").text = '''#!/bin/sh
+if [ "$1" = "--version" ]; then
+  exit 0
+fi
+exit 0
+'''
+        file("fake-objdump").setExecutable(true)
         buildFile << """
         nativeLibraries {
           test {

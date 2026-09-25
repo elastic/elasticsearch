@@ -695,6 +695,3 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
   method: testTcpHandshake
   issue: https://github.com/elastic/elasticsearch/issues/160280
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/160285

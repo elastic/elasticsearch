@@ -4130,7 +4130,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.log.gz", new ExecutionException("wrapped", original));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
-        assertThat("IAE must be wrapped in ExternalClientException to carry dataset context", mapped, instanceOf(ExternalClientException.class));
+        assertThat(
+            "IAE must be wrapped in ExternalClientException to carry dataset context",
+            mapped,
+            instanceOf(ExternalClientException.class)
+        );
         assertThat("storage path must not appear in the mapped message", mapped.getMessage(), not(containsString("s3://b/x.log.gz")));
     }
 

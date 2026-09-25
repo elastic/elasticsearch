@@ -846,7 +846,8 @@ public class ExternalSourceResolver {
             // Log the full IAE detail locally; forward only if free of storage-URI schemes.
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
             String iaeMsg = clientError.getMessage();
-            String safeMsg = (iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg)) ? iaeMsg
+            String safeMsg = (iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg))
+                ? iaeMsg
                 : "Malformed external data (" + clientError.getClass().getSimpleName() + ")";
             // Wrap in ExternalClientException so the caller can annotate with dataset context.
             return new ExternalClientException(safeMsg);

@@ -58,6 +58,7 @@ Task Management::
 
 Vector Search::
 * Fix `vec_caps` to test for OS support too (on x64) {es-pull}126911[#126911] (issue: {es-issue}126809[#126809])
+* Revert enabling madvise by default to fix vector search performance degradation on Linux with MGLRU enabled {es-pull}126308[#126308] (issue: {es-issue}124499[#124499])
 
 [[enhancement-8.18.1]]
 [float]

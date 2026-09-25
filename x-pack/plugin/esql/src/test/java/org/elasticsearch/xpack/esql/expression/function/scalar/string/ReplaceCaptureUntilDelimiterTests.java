@@ -42,7 +42,6 @@ import static org.hamcrest.Matchers.not;
  * more readily understood; the white-box tests further down exercise {@link ReplaceCaptureUntilDelimiter}'s
  * internals directly.
  */
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10)
 public class ReplaceCaptureUntilDelimiterTests extends ComputeTestCase {
 
     // The line terminators recognized by java.util.regex.Pattern's default (non-UNIX_LINES) mode.

@@ -692,3 +692,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.s3.EsqlContainerCredentialsProviderTests
   method: testAMissingTokenFileNamesTheFileToCreate
   issue: https://github.com/elastic/elasticsearch/issues/160275
+- class: org.elasticsearch.xpack.esql.datasource.s3.S3CredentialsProviderTests
+  method: testManagedIdentityChainFailsWhenPodIdentityMisconfigured
+  issue: https://github.com/elastic/elasticsearch/issues/160276
+- class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
+  method: testTcpHandshake
+  issue: https://github.com/elastic/elasticsearch/issues/160280
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/160285

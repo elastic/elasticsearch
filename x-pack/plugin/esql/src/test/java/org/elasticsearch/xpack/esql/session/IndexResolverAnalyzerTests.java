@@ -38,8 +38,7 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
     public void testSharedIndexAnalyzerNeedsEveryIndexToAgree() {
         assertAnalyzer(resolveTitle("english", "english"), "english", UnknownAnalyzer.NONE);
         assertAnalyzer(resolveTitle("english", "standard"), null, UnknownAnalyzer.CONFLICT);
-        // A node new enough to run HIGHLIGHT always names a text field's analyzer, so a silent index is one whose
-        // index-local name was withheld. That is a real disagreement with an index naming a built-in.
+        // An index that reports no name, like one on an older node, still disagrees with an index naming a built-in.
         assertAnalyzer(resolveTitle("english", null), null, UnknownAnalyzer.CONFLICT);
         // Every index silent with nothing withheld: no analyzer to speak of, so standard without a warning.
         assertAnalyzer(resolveTitle(null, null), null, UnknownAnalyzer.NONE);

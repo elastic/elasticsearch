@@ -4278,6 +4278,33 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(knn.options(), nullValue());
     }
 
+
+    /**
+     * KNN is performed on {@code manipulated_vector}, a field derived from {@code DENSE_VECTOR vector}.
+     * Although the similarity function could be inferred from {@code vector}'s inference endpoint metadata, we don't fold
+     * this into {@code manipulated_vector}'s similarity measure.
+     * The resolved similarity is therefore query embedding endpoint's similarity (L2_NORM).
+     */
+    public void testKnnInfersSimilarityWithDerivedField() {
+        assumeDenseVectorCommandEnabled();
+        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+            .addIndex("books", "mapping-books.json")
+            .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT)
+            .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
+
+        LogicalPlan plan = analyzer.query("""
+                FROM books
+                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+                | EVAL manipulated_vector = vector * 2.0
+                | WHERE KNN(manipulated_vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
+                | LIMIT 10
+                """
+        );
+        Knn knn = findKnn(plan);
+        MapExpression options = as(knn.options(), MapExpression.class);
+        assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
+    }
+
     private static Configuration knnRuntimeConfiguration() {
         return EsqlTestUtils.configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.KNN_RUNTIME_FIELD.getKey(), true).build()));
     }

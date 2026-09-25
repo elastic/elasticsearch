@@ -26,7 +26,7 @@ $$$script-options$$$
 | `tag` | no | - | Identifier for the processor. Useful for debugging and metrics. |
 
 :::{note}
-While custom code can execute within {{es}}, troubleshooting its failures or optimizing its performance falls outside the of [scope of Elastic's support](https://www.elastic.co/support_policy#6).
+While custom code can run within {{es}}, troubleshooting its failures or optimizing its performance falls outside the of [scope of Elastic's support](https://www.elastic.co/support_policy#6).
 :::
 
 ## Access source fields [script-processor-access-source-fields]

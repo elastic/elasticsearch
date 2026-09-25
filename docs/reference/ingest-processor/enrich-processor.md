@@ -27,7 +27,7 @@ $$$enrich-options$$$
 | `tag` | no | - | Identifier for the processor. Useful for debugging and metrics. |
 
 ::::{important}
-The enrich processor performs several operations and may impact the speed of your ingest pipeline. We recommend [node roles](/reference/elasticsearch/configuration-reference/node-settings.md) co-locating ingest and data roles to minimize remote search operations.
+The enrich processor performs several operations and can impact the speed of your ingest pipeline. We recommend [node roles](/reference/elasticsearch/configuration-reference/node-settings.md) co-locating ingest and data roles to minimize remote search operations.
 
 We strongly recommend testing and benchmarking your enrich processors before deploying them in production.
 

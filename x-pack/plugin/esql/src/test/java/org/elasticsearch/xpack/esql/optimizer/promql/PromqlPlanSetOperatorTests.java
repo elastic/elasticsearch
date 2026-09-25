@@ -11,12 +11,14 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonRemove;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -86,6 +88,29 @@ public class PromqlPlanSetOperatorTests extends AbstractPromqlPlanOptimizerTests
                 .anyMatch(c -> c instanceof IsNotNull notNull && notNull.field() instanceof Attribute a && a.name().equals("v"));
             assertTrue("each branch must drop null values on the value column [v]: " + branch, dropsNullValues);
         }
+    }
+
+    /**
+     * The set-operator signature is the label set without {@code __name__}: the dedup keys on step and each branch's
+     * projection that excludes the name, never on the full record. The winning row retains its unmodified record.
+     */
+    public void testDedupKeysOnTheIdentityWithoutTheMetricName() {
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m v=(network.bytes_in or network.cost)", false);
+        TopNBy dedup = plan.collect(TopNBy.class).getFirst();
+        List<String> groupings = dedup.groupings().stream().map(g -> ((NamedExpression) g).name()).toList();
+        assertThat(groupings, hasSize(2));
+        assertEquals("step", groupings.getFirst());
+        assertNotEquals("_timeseries", groupings.getLast());
+        for (LogicalPlan branch : plan.collect(UnionAll.class).getFirst().children()) {
+            var edits = new ArrayList<JsonRemove>();
+            branch.forEachExpressionDown(JsonRemove.class, edits::add);
+            assertThat(edits, hasSize(1));
+            assertThat(edits.getFirst().fields(), hasItem("labels.__name__"));
+            Attribute current = branch.output().stream().filter(a -> a.name().equals("_timeseries")).findFirst().orElseThrow();
+            assertTrue(edits.getFirst().references().contains(current));
+            assertTrue(branch.output().stream().anyMatch(a -> a.name().equals(groupings.getLast())));
+        }
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("v", "step", "_timeseries")));
     }
 
     /**

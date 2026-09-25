@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -77,6 +79,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.any;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
 /**
@@ -397,27 +400,33 @@ public final class TranslationContext {
         }
 
         // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link.
-        var intermediateResultPlan = doTranslateUnion(
-            branches.stream().map(b -> translateIntermediate(b, new NameId(), new NameId())).toList()
-        );
-        return doTranslateFinal(intermediateResultPlan, null, false);
+        // Each branch carries its current labels. The union derives its name-free matching key from that record.
+        TranslationConstraint branchRequired = any();
+        var intermediateResults = new ArrayList<TranslationResult>(branches.size());
+        for (var branch : branches) {
+            intermediateResults.add(translateOperand(branch, branchRequired));
+        }
+        Union union = doTranslateUnion(intermediateResults);
+        return doTranslateFinal(union.plan(), union.identity(), false);
     }
 
     /**
-     * Shared by every `final` translation root. {@code identity} is the column carrying the result's series identity
-     * (its grain), or null when the label set is closed.
+     * Shared by every final translation root. The current label record is null when named columns describe the result.
      */
     private LogicalPlan doTranslateFinal(LogicalPlan plan, Attribute identity, boolean localRelation) {
         plan = emitNullsFilter(cmd.source(), emitFinalProjection(plan, identity), cmd.valueAttribute());
         return localRelation ? plan : emitByStepFilter(plan);
     }
 
+    /** A translated `or` chain: the deduplicated union and the identity each row carries, null when every branch is closed. */
+    private record Union(LogicalPlan plan, Attribute identity) {}
+
     /**
      * Union combinator over independently translated tabular results.
      * {@link UnionAll} aligns columns by name and null-fills missing labels, then
      * {@link TopNBy} keeps single row per {@code (step, labelset)} group ordered by incoming IR order.
      */
-    private LogicalPlan doTranslateUnion(List<TranslationResult> intermediateResults) {
+    private Union doTranslateUnion(List<TranslationResult> intermediateResults) {
         // Already validated against MergePlan.MAX_BRANCHES by PromqlCommand.verify
         assert MergePlan.exceedsMaxBranches(intermediateResults.size()) == false
             : "[INVARIANT]: merge branch count ["
@@ -428,53 +437,53 @@ public final class TranslationContext {
 
         var source = cmd.source();
         var branchPlans = new ArrayList<LogicalPlan>(intermediateResults.size());
+        String signatureName = TemporaryNameGenerator.locallyUniqueTemporaryName("signature");
         for (int i = 0; i < intermediateResults.size(); i++) {
             var ir = intermediateResults.get(i);
-            LogicalPlan branchPlan = ir.plan();
-            // Each branch is projected to its public shape: value, step, its labels, its series identity
-            // (renamed to `_timeseries` for name-based union alignment) and the branch tag. The explicit
-            // projection also pins the page layout to the branch output: pages cross an exchange and an
-            // Eval below (the value double-cast) can name-shadow a column, leaving its channel in the
-            // page but not in output() (see #158164).
+            LogicalPlan branchPlan = emitNullsFilter(source, ir.plan(), ir.valueColumn());
+            var definitions = new ArrayList<Alias>();
+            // Match without the metric name, but keep the complete current record for the winning branch's output.
+            Alias signature = new Alias(source, signatureName, excludeLabels(ir, List.of(LabelMatcher.NAME)));
+            definitions.add(signature);
             var branchOutput = new ArrayList<Attribute>();
             branchOutput.add(ir.valueColumn());
             branchOutput.add(ir.step());
-            for (String label : ir.labelNames()) {
-                branchOutput.add(ir.label(label));
-            }
+            branchOutput.addAll(ir.labels().values());
             Attribute identity = ir.packedLabels();
             if (identity != null) {
                 if (identity.name().equals(MetadataAttribute.TIMESERIES) == false) {
-                    var alias = new Alias(source, MetadataAttribute.TIMESERIES, identity, new NameId());
-                    branchPlan = new Eval(source, branchPlan, List.of(alias));
-                    identity = alias.toAttribute();
+                    Alias record = new Alias(source, MetadataAttribute.TIMESERIES, identity);
+                    definitions.add(record);
+                    identity = record.toAttribute();
                 }
                 branchOutput.add(identity);
             }
-            // Drop null-valued rows per branch so an absent left side does not shadow a present right side.
-            branchPlan = emitNullsFilter(source, branchPlan, ir.valueColumn());
-            var branchTag = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
+            branchOutput.add(signature.toAttribute());
+            Alias branchTag = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
+            definitions.add(branchTag);
             branchOutput.add(branchTag.toAttribute());
-            branchPlans.add(new Project(source, new Eval(source, branchPlan, List.of(branchTag)), branchOutput));
+            // Pin the branch page layout before the exchange: name-shadowing Evals can leave hidden channels (#158164).
+            branchPlans.add(new Project(source, new Eval(source, branchPlan, definitions), branchOutput));
         }
 
-        // The attribute ids chosen here are preserved by name when the analyzer later recomputes the UnionAll output,
-        // so the groupings below remain valid. The command coda projects the synthetic branch tag away.
         List<Attribute> unionOutput = VectorBinarySet.unionOutputByName(branchPlans);
-        var union = new UnionAll(source, branchPlans, unionOutput);
-
-        // Left-preferring dedup: group by every column except the value and the branch tag, keep the lowest branch.
+        LogicalPlan plan = new UnionAll(source, branchPlans, unionOutput);
         var groupings = new ArrayList<Expression>();
         Attribute branchAttr = null;
+        Attribute identity = null;
         for (Attribute attr : unionOutput) {
             if (attr.name().equals(cmd.branchColumnName())) {
                 branchAttr = attr;
-            } else if (attr.name().equals(cmd.valueColumnName()) == false) {
-                groupings.add(attr);
-            }
+            } else if (attr.name().equals(MetadataAttribute.TIMESERIES)) {
+                identity = attr;
+            } else if (attr.name().equals(cmd.valueColumnName()) == false
+                && LabelMatcher.NAME.equals(PromqlLabels.labelName(attr)) == false) {
+                    groupings.add(attr);
+                }
         }
         var order = new Order(source, branchAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        return new TopNBy(source, union, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
+        plan = new TopNBy(source, plan, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
+        return new Union(plan, identity);
     }
 
     /**

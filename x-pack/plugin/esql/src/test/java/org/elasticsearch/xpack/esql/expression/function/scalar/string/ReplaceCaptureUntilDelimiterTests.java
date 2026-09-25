@@ -85,29 +85,22 @@ public class ReplaceCaptureUntilDelimiterTests extends ComputeTestCase {
                 "cookie value with literal prefix and suffix"),
             new CommonPatternCase("^/api/v1/(?:beta/)?([^/]+)/.*$", "$1",     "/api/v1/beta/svc/x",          "svc",
                 "path segment, skips optional version prefix"),
-            // Scheme required, but written as a non-capturing group instead of a plain literal.
             new CommonPatternCase("^(?:https://)([^/]+)/.*$",       "$1",     "https://example.com/x",       "example.com",
                 "required (non-optional) (?:...) prefix segment"),
             new CommonPatternCase("^Mozilla/5\\.0 \\(([^;]+);.*$",  "$1",     "Mozilla/5.0 (X11; Linux)",    "X11",
                 "user-agent token inside parens"),
-            // Same pattern, anchored with \A instead of ^.
             new CommonPatternCase("\\A([^/]+)/.*$",                 "$1",     "host/path-tail",              "host",
                 "\\A start anchor instead of ^"),
-            // A literal prefix containing dots, quoted instead of individually escaped.
             new CommonPatternCase("^\\Qapi.v1.\\E([^/]+)/.*$",      "$1",     "api.v1.svc/tail",             "svc",
-                "\\Q...\\E quoted literal prefix"),
-            // An empty quoted section, equivalent to having no prefix at all.
+                "\\Q...\\E quoted literal prefix containing dots"),
             new CommonPatternCase("^\\Q\\E([^/]+)/.*$",             "$1",     "host/tail",                   "host",
-                "empty \\Q\\E section"),
-            // A literal prefix character outside the ASCII range.
+                "empty \\Q\\E section, equivalent to no prefix"),
             new CommonPatternCase("^\uD83D\uDE00([^/]+)/.*$",       "$1",     "\uD83D\uDE00host/tail",       "host",
                 "supplementary-plane literal (surrogate pair) prefix char"),
-            // A non-greedy quantifier on the capture group itself; it still has only one valid split point.
             new CommonPatternCase("^([^/]+?)/.*$",                  "$1",     "hostname/tail",               "hostname",
                 "lazy quantifier on the capture group"),
-            // Exactly MAX_OPTIONAL_PREFIX_PARTS independent optional segments, all present.
             new CommonPatternCase("^a?b?c?d?([^/]+)/.*$",           "$1",     "abcdhost/tail",               "host",
-                "four independent optional prefix segments")
+                "four independent optional prefix segments, the maximum supported")
         );
         // end::noformat
     }

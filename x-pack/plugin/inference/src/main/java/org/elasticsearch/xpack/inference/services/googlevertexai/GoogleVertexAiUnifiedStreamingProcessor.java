@@ -73,6 +73,22 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     private static final String FUNCTION_TYPE = "function";
     private static final String ASSISTANT_ROLE = "assistant";
 
+    // OpenAI finish reasons
+    private static final String STOP_FINISH_REASON = "stop";
+    private static final String LENGTH_FINISH_REASON = "length";
+    private static final String TOOL_CALLS_FINISH_REASON = "tool_calls";
+    private static final String CONTENT_FILTER_FINISH_REASON = "content_filter";
+
+    // Gemini finish reasons
+    private static final String GEMINI_STOP = "STOP";
+    private static final String GEMINI_MAX_TOKENS = "MAX_TOKENS";
+    private static final String GEMINI_SAFETY = "SAFETY";
+    private static final String GEMINI_RECITATION = "RECITATION";
+    private static final String GEMINI_BLOCKLIST = "BLOCKLIST";
+    private static final String GEMINI_PROHIBITED_CONTENT = "PROHIBITED_CONTENT";
+    private static final String GEMINI_SPII = "SPII";
+    private static final String GEMINI_MODEL_ARMOR = "MODEL_ARMOR";
+
     /**
      * Identifies reasoning details as having come from this provider, so a client knows how to echo them back.
      * Checked on the request side to filter out reasoning details from other providers.
@@ -138,7 +154,10 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         private boolean roleSent = false;
         /**
          * Incremented at the start of each tool call across the stream so that clients accumulating
-         * tool-call deltas by index can distinguish parallel calls.
+         * tool-call deltas by index can distinguish parallel calls. Also used by
+         * {@link #toOpenAiFinishReason} to detect whether any tool call was emitted: Gemini reports
+         * {@code STOP} even when it stopped to call a function, where the OpenAI schema says
+         * {@code tool_calls}.
          */
         private int toolCallIndex = 0;
         /**
@@ -182,6 +201,29 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 null,
                 ChatCompletionUsageResponse.CompletionTokenDetails.ofNullable(usage.thoughtsTokenCount())
             );
+        }
+
+        /**
+         * Translates Gemini's {@code finishReason} to the OpenAI vocabulary. Gemini reports {@code STOP} even when it
+         * stopped to call a function; the OpenAI schema uses {@code tool_calls} in that case. Since a function-call
+         * chunk can arrive on an earlier chunk than the finish-reason chunk, the whole-stream {@link #toolCallIndex}
+         * counter is checked rather than the current chunk's content.
+         */
+        private @Nullable String toOpenAiFinishReason(@Nullable String finishReason) {
+            if (finishReason == null) {
+                return null;
+            }
+            return switch (finishReason) {
+                // STOP is reported both for a normal stop and for a tool call; use the stream-level counter to tell them apart.
+                case GEMINI_STOP -> toolCallIndex > 0 ? TOOL_CALLS_FINISH_REASON : STOP_FINISH_REASON;
+                case GEMINI_MAX_TOKENS -> LENGTH_FINISH_REASON;
+                case GEMINI_SAFETY, GEMINI_RECITATION, GEMINI_BLOCKLIST, GEMINI_PROHIBITED_CONTENT, GEMINI_SPII, GEMINI_MODEL_ARMOR ->
+                    CONTENT_FILTER_FINISH_REASON;
+                default -> {
+                    logger.debug("Unhandled Google Vertex AI finish reason [{}], defaulting to [{}].", finishReason, STOP_FINISH_REASON);
+                    yield STOP_FINISH_REASON;
+                }
+            };
         }
 
         private ChatCompletionChoiceResponse candidateToChoice(Candidate candidate) {
@@ -293,7 +335,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 finalReasoningDetails
             );
 
-            return new ChatCompletionChoiceResponse(message, candidate.finishReason(), candidate.index());
+            return new ChatCompletionChoiceResponse(message, toOpenAiFinishReason(candidate.finishReason()), candidate.index());
         }
 
         @SuppressWarnings("unchecked")

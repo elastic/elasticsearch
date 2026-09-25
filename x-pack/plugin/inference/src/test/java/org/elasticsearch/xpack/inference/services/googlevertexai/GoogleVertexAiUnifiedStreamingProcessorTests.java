@@ -32,6 +32,12 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
     private static final String FUNCTION_NAME = "schedule_meeting";
     private static final String ASSISTANT_ROLE = "assistant";
 
+    // Expected OpenAI finish reason values
+    private static final String STOP_FINISH_REASON = "stop";
+    private static final String LENGTH_FINISH_REASON = "length";
+    private static final String TOOL_CALLS_FINISH_REASON = "tool_calls";
+    private static final String CONTENT_FILTER_FINISH_REASON = "content_filter";
+
     public void testJsonLiteral() {
         String json = """
                 {
@@ -48,7 +54,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
                         }
                       ]
                     },
-                    "finishReason": "MAXTOKENS"
+                    "finishReason": "MAX_TOKENS"
                   } ],
                   "usageMetadata" : {
                     "promptTokenCount": 10,
@@ -78,7 +84,8 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertThat(choice.message().role(), is(ASSISTANT_ROLE));
             assertEquals("gemini-2.0-flash-lite", chunk.model());
             assertEquals(0, choice.index()); // VertexAI response does not have Index. Use 0 as default
-            assertEquals("MAXTOKENS", choice.finishReason());
+            // MAX_TOKENS with a function call in the same chunk: tool call does not change MAX_TOKENS to tool_calls
+            assertThat(choice.finishReason(), is(LENGTH_FINISH_REASON));
 
             assertEquals(1, choice.message().toolCalls().size());
             var toolCall = choice.message().toolCalls().getFirst();
@@ -125,7 +132,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             var choice = chunk.choices().getFirst();
             assertEquals("Hello", choice.message().content());
             assertThat(choice.message().role(), is(ASSISTANT_ROLE));
-            assertEquals("STOP", choice.finishReason());
+            assertThat(choice.finishReason(), is(STOP_FINISH_REASON));
             assertEquals(0, choice.index());
             assertNull(choice.message().toolCalls());
 
@@ -221,7 +228,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertThat(choice.message().role(), is(ASSISTANT_ROLE));
             // Verify that the text from multiple parts is concatenated
             assertEquals("This is the first part. This is the second part.", choice.message().content());
-            assertEquals("STOP", choice.finishReason());
+            assertThat(choice.finishReason(), is(STOP_FINISH_REASON));
             assertEquals(0, choice.index());
             assertNull(choice.message().toolCalls());
             assertEquals("gemini-2.0-flash-001", chunk.model());
@@ -455,7 +462,7 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
         assertThat(chunk.choices().size(), is(1));
         var choice = chunk.choices().getFirst();
-        assertThat(choice.finishReason(), is("MAX_TOKENS"));
+        assertThat(choice.finishReason(), is(LENGTH_FINISH_REASON));
         assertNull(choice.message().content());
         assertNull(choice.message().toolCalls());
         assertNull(choice.message().reasoning());
@@ -476,10 +483,105 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
         assertThat(chunk.choices().size(), is(1));
         var choice = chunk.choices().getFirst();
-        assertThat(choice.finishReason(), is("SAFETY"));
+        assertThat(choice.finishReason(), is(CONTENT_FILTER_FINISH_REASON));
         assertNull(choice.message().content());
         // Even a candidate without content gets "assistant" on the first chunk.
         assertThat(choice.message().role(), is(ASSISTANT_ROLE));
+    }
+
+    public void testFinishReason_StopWithToolCallInSameChunk_IsToolCalls() throws IOException {
+        // Gemini 2 reports STOP even when it stopped to call a tool. When a function call and finishReason STOP
+        // arrive in the same chunk, the translated finish reason must be tool_calls.
+        var chunk = parse(Strings.format("""
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "functionCall": { "name": "%s", "args": { "topic": "Q3 planning" } }
+                    }
+                  ]
+                },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-2.5-flash",
+              "responseId": "responseId"
+            }
+            """, FUNCTION_NAME));
+
+        var choice = chunk.choices().getFirst();
+        assertThat(choice.finishReason(), is(TOOL_CALLS_FINISH_REASON));
+        assertNotNull(choice.message().toolCalls());
+    }
+
+    public void testFinishReason_StopAfterToolCallInEarlierChunk_IsToolCalls() throws IOException {
+        // Gemini 3's pattern: function-call chunk has no finish reason, then a trailing chunk with finishReason STOP.
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunkParser = new GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser(false);
+
+        var toolCallChunk = parseWith(chunkParser, parserConfig, Strings.format("""
+            {
+              "candidates": [ {
+                "content": {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "functionCall": { "name": "%s", "args": { "topic": "Q3 planning" }, "id": "%s" }
+                    }
+                  ]
+                }
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 10, "totalTokenCount": 20 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r1"
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+        // The tool-call chunk itself carries no finishReason.
+        assertNull(toolCallChunk.choices().getFirst().finishReason());
+
+        var finishChunk = parseWith(chunkParser, parserConfig, Strings.format("""
+            {
+              "candidates": [ {
+                "content": { "role": "model", "parts": [ { "text": "", "thoughtSignature": "%s" } ] },
+                "finishReason": "STOP"
+              } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 20, "totalTokenCount": 30 },
+              "modelVersion": "gemini-3.5-flash-lite",
+              "responseId": "r2"
+            }
+            """, THOUGHT_SIGNATURE));
+        // STOP on the trailing chunk must be translated to tool_calls because toolCallIndex > 0.
+        assertThat(finishChunk.choices().getFirst().finishReason(), is(TOOL_CALLS_FINISH_REASON));
+    }
+
+    public void testFinishReason_ContentFilterReasons_AreContentFilter() throws IOException {
+        var geminiContentFilterReason = randomFrom("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "MODEL_ARMOR");
+        var chunk = parse(Strings.format("""
+            {
+              "candidates": [ { "finishReason": "%s", "index": 0 } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 0, "totalTokenCount": 10 },
+              "modelVersion": "gemini-2.5-flash",
+              "responseId": "responseId"
+            }
+            """, geminiContentFilterReason));
+
+        assertThat(chunk.choices().getFirst().finishReason(), is(CONTENT_FILTER_FINISH_REASON));
+    }
+
+    public void testFinishReason_UnmappedReason_DefaultsToStop() throws IOException {
+        var unmappedReason = randomFrom("OTHER", "MALFORMED_FUNCTION_CALL", "FINISH_REASON_UNSPECIFIED");
+        var chunk = parse(Strings.format("""
+            {
+              "candidates": [ { "finishReason": "%s", "index": 0 } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 0, "totalTokenCount": 10 },
+              "modelVersion": "gemini-2.5-flash",
+              "responseId": "responseId"
+            }
+            """, unmappedReason));
+
+        assertThat(chunk.choices().getFirst().finishReason(), is(STOP_FINISH_REASON));
     }
 
     public void testReasoningIndexKeepsCountingAcrossTheChunksOfAStream() throws IOException {

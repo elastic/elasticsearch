@@ -64,8 +64,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 1;
     public static final int VERSION_DIRECT_IO = VERSION_START;
-    public static final int VERSION_ON_DISK_MERGE = VERSION_START;
-    public static final int VERSION_CURRENT = VERSION_START;
+    public static final int VERSION_ON_DISK_MERGE = 2;
+    public static final int VERSION_CURRENT = VERSION_ON_DISK_MERGE;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
@@ -110,6 +110,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean useDirectIO;
     private final boolean onDiskMerge;
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
+    private final int writeVersion;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
     private final boolean doPrecondition;
@@ -224,6 +225,47 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         IvfMergeConfigResolver ivfMergeConfigResolver,
         boolean onDiskMerge
     ) {
+        this(
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            doPrecondition,
+            preconditioningBlockDimension,
+            flatVectorThreshold,
+            sliceField,
+            ivfFlushConfigSource,
+            ivfMergeConfigResolver,
+            onDiskMerge,
+            VERSION_CURRENT
+        );
+    }
+
+    /**
+     * Full constructor that additionally accepts {@code writeVersion} for testing backwards-compatibility scenarios.
+     * Pass {@link #VERSION_START} to produce a segment that looks like one written before the {@code on_disk_merge}
+     * byte was introduced; pass {@link #VERSION_CURRENT} for normal production use.
+     */
+    ESNextDiskBBQVectorsFormat(
+        QuantEncoding quantEncoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        boolean doPrecondition,
+        int preconditioningBlockDimension,
+        int flatVectorThreshold,
+        String sliceField,
+        IvfFlushConfigSource ivfFlushConfigSource,
+        IvfMergeConfigResolver ivfMergeConfigResolver,
+        boolean onDiskMerge,
+        int writeVersion
+    ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -280,6 +322,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.sliceField = sliceField;
         this.ivfFlushConfigSource = ivfFlushConfigSource;
         this.ivfMergeConfigResolver = ivfMergeConfigResolver;
+        this.writeVersion = writeVersion;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -290,12 +333,13 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
+        boolean shouldUseOnDiskMerge = onDiskMerge && writeVersion >= VERSION_ON_DISK_MERGE;
         return new ESNextDiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
             useDirectIO,
-            onDiskMerge,
-            rawVectorFormat.fieldsWriter(state, onDiskMerge),
+            shouldUseOnDiskMerge,
+            rawVectorFormat.fieldsWriter(state, shouldUseOnDiskMerge),
             centroidIndexFormat,
             quantEncoding,
             vectorPerCluster,
@@ -307,7 +351,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             flatVectorThreshold,
             sliceField,
             ivfFlushConfigSource,
-            ivfMergeConfigResolver
+            ivfMergeConfigResolver,
+            writeVersion
         );
     }
 

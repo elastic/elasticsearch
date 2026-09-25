@@ -52,6 +52,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMetaVersionTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -938,6 +939,53 @@ public class ESNextDiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
                     assertThat(uniqueDocIds, hasSize(expectedDocs));
                 }
             }
+        }
+    }
+
+    /**
+     * Regression test for the BWC break introduced when {@code on_disk_merge} byte was added to the per-field
+     * meta record without bumping {@code VERSION_CURRENT}. A search node running the newer build tried to read
+     * that byte from segments written by the older build (which never wrote it), causing every subsequent field
+     * read to shift by one byte and throwing {@code CorruptIndexException: Invalid vector encoding id: 16777216}.
+     *
+     * <p>The fix is: {@link ESNextDiskBBQVectorsFormat#VERSION_ON_DISK_MERGE} &gt; {@link
+     * ESNextDiskBBQVectorsFormat#VERSION_START}, so a reader can use the meta version to decide whether the byte
+     * is present.
+     */
+    public void testReadsSegmentsWrittenBeforeOnDiskMergeByte() throws IOException {
+        KnnVectorsFormat oldWriter = new ESNextDiskBBQVectorsFormat(
+            QuantEncoding.ONE_BIT_4BIT_QUERY,
+            ESNextDiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
+            ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            ESNextDiskBBQVectorsFormat.defaultFlatThreshold(ESNextDiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER),
+            null,
+            null,
+            null,
+            false,
+            ESNextDiskBBQVectorsFormat.VERSION_START
+        );
+        KnnVectorsFormat currentWriter = new ESNextDiskBBQVectorsFormat();
+        try (Directory dir = newDirectory()) {
+            IvfMetaVersionTestUtils.assertReadsSegmentsWrittenBeforeOnDiskMergeByte(
+                dir,
+                oldWriter,
+                currentWriter,
+                ESNextDiskBBQVectorsFormat.NAME,
+                ESNextDiskBBQVectorsFormat.VERSION_START,
+                ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
+                random().nextInt(12, 200),
+                random().nextInt(
+                    ESNextDiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
+                    2 * ESNextDiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER
+                ),
+                random()
+            );
         }
     }
 

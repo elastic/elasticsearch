@@ -128,12 +128,54 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         IvfFlushConfigSource flushConfigSource,
         IvfMergeConfigResolver mergeConfigResolver
     ) throws IOException {
+        this(
+            state,
+            rawVectorFormatName,
+            useDirectIOReads,
+            onDiskMerge,
+            rawVectorDelegate,
+            centroidIndexFormat,
+            encoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            mergeExec,
+            numMergeWorkers,
+            blockDimension,
+            doPrecondition,
+            flatVectorThreshold,
+            sliceField,
+            flushConfigSource,
+            mergeConfigResolver,
+            ESNextDiskBBQVectorsFormat.VERSION_CURRENT
+        );
+    }
+
+    ESNextDiskBBQVectorsWriter(
+        SegmentWriteState state,
+        String rawVectorFormatName,
+        boolean useDirectIOReads,
+        boolean onDiskMerge,
+        FlatVectorsWriter rawVectorDelegate,
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding encoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        TaskExecutor mergeExec,
+        int numMergeWorkers,
+        int blockDimension,
+        boolean doPrecondition,
+        int flatVectorThreshold,
+        String sliceField,
+        IvfFlushConfigSource flushConfigSource,
+        IvfMergeConfigResolver mergeConfigResolver,
+        int writeVersion
+    ) throws IOException {
         super(
             state,
             rawVectorFormatName,
             useDirectIOReads,
             rawVectorDelegate,
-            ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
+            writeVersion,
             ESNextDiskBBQVectorsFormat.NAME,
             ESNextDiskBBQVectorsFormat.IVF_META_EXTENSION,
             ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
@@ -141,7 +183,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             true,
             flatVectorThreshold,
             onDiskMerge,
-            true
+            writeVersion >= ESNextDiskBBQVectorsFormat.VERSION_ON_DISK_MERGE
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidIndexFormat = centroidIndexFormat;

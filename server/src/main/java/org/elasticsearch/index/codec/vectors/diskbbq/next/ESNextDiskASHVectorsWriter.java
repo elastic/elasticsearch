@@ -101,12 +101,48 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         IvfMergeConfigResolver mergeConfigResolver,
         IvfSegmentConfig.AshConfig ashConfig
     ) throws IOException {
+        this(
+            state,
+            rawVectorFormatName,
+            useDirectIOReads,
+            onDiskMerge,
+            rawVectorDelegate,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            mergeExec,
+            numMergeWorkers,
+            flatVectorThreshold,
+            sliceField,
+            flushConfigSource,
+            mergeConfigResolver,
+            ashConfig,
+            ESNextDiskASHVectorsFormat.VERSION_CURRENT
+        );
+    }
+
+    ESNextDiskASHVectorsWriter(
+        SegmentWriteState state,
+        String rawVectorFormatName,
+        boolean useDirectIOReads,
+        boolean onDiskMerge,
+        FlatVectorsWriter rawVectorDelegate,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        TaskExecutor mergeExec,
+        int numMergeWorkers,
+        int flatVectorThreshold,
+        String sliceField,
+        IvfFlushConfigSource flushConfigSource,
+        IvfMergeConfigResolver mergeConfigResolver,
+        IvfSegmentConfig.AshConfig ashConfig,
+        int writeVersion
+    ) throws IOException {
         super(
             state,
             rawVectorFormatName,
             useDirectIOReads,
             rawVectorDelegate,
-            ESNextDiskASHVectorsFormat.VERSION_CURRENT,
+            writeVersion,
             ESNextDiskASHVectorsFormat.NAME,
             ESNextDiskASHVectorsFormat.IVF_META_EXTENSION,
             ESNextDiskASHVectorsFormat.CENTROID_EXTENSION,
@@ -114,7 +150,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             true,
             flatVectorThreshold,
             onDiskMerge,
-            true
+            writeVersion >= ESNextDiskASHVectorsFormat.VERSION_ON_DISK_MERGE
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;

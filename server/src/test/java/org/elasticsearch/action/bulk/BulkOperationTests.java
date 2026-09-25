@@ -311,6 +311,7 @@ public class BulkOperationTests extends ESTestCase {
      * paths exercise the same {@code catch (DataStream.TimestampError)} block and produce identical behavior.
      */
     public void testTsdbTimestampErrorDuringRoutingRedirectsToFailureStoreBatchMode() throws Exception {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         Instant start = Instant.parse("2020-01-01T00:00:00Z");
         Instant end = Instant.parse("2021-01-01T00:00:00Z");
         String tsdbStreamName = "my_tsdb_stream_batch";

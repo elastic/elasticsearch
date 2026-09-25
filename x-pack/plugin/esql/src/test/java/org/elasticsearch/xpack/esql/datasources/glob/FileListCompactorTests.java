@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.WarningSinks;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Round-trip characterization of {@link FileListCompactor}.
@@ -42,12 +44,16 @@ public class FileListCompactorTests extends ESTestCase {
      * {@link GlobExpander}'s behaviour when hive partitioning is off or finds no partitions.
      */
     private static GenericFileList listOf(String pattern, String... keys) {
+        return listOf(WarningSinks.FAILING, pattern, keys);
+    }
+
+    private static GenericFileList listOf(Consumer<String> warningSink, String pattern, String... keys) {
         Instant mtime = Instant.ofEpochMilli(1_700_000_000_000L);
         List<StorageEntry> entries = new ArrayList<>(keys.length);
         for (int i = 0; i < keys.length; i++) {
             entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), mtime));
         }
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, warningSink);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
     }
 
@@ -60,7 +66,7 @@ public class FileListCompactorTests extends ESTestCase {
             assertEquals("size at " + i, raw.size(i), compact.size(i));
             assertEquals("mtime at " + i, raw.lastModifiedMillis(i), compact.lastModifiedMillis(i));
         }
-        assertEquals("exclusion warnings", raw.exclusionWarnings(), compact.exclusionWarnings());
+        assertEquals("exclusion warnings", raw.listingWarnings(), compact.listingWarnings());
         return compact;
     }
 
@@ -139,10 +145,14 @@ public class FileListCompactorTests extends ESTestCase {
     /** A partition key colliding with a metadata name surfaces renamed; the directory on disk did not. */
     public void testReservedPartitionKeyKeepsOnDiskName() {
         String base = "s3://b/data/";
-        assertRoundTrip(base, listOf(base + "**/*.parquet", base + "_index=foo/f.parquet"));
-        assertWarnings(
-            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-            "partition column [_index] surfaced as [_partition._index]"
+        List<String> warnings = new ArrayList<>();
+        assertRoundTrip(base, listOf(warnings::add, base + "**/*.parquet", base + "_index=foo/f.parquet"));
+        assertEquals(
+            List.of(
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
+            ),
+            warnings
         );
     }
 
@@ -357,12 +367,10 @@ public class FileListCompactorTests extends ESTestCase {
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
     }
 
-    /** Compaction must copy {@code file_exclusions} warnings onto the compact encoding. */
-    public void testCompactPreservesExclusionWarnings() {
+    /** Compaction must copy listing notices onto the compact encoding. */
+    public void testCompactPreservesListingWarnings() {
         String base = "s3://b/data/";
-        String warning = "1 of 3 objects matching the resource under ["
-            + base
-            + "] was excluded by the [file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+        String warning = "partition key [_index] is named [_partition._index]";
         GenericFileList raw = new GenericFileList(
             List.of(
                 new StorageEntry(StoragePath.of(base + "a.parquet"), 100L, Instant.EPOCH),
@@ -374,7 +382,7 @@ public class FileListCompactorTests extends ESTestCase {
         );
         FileList compact = assertRoundTrip(base, raw);
         assertThat(compact, Matchers.not(Matchers.instanceOf(GenericFileList.class)));
-        assertEquals(List.of(warning), compact.exclusionWarnings());
+        assertEquals(List.of(warning), compact.listingWarnings());
     }
 
     /**
@@ -416,6 +424,42 @@ public class FileListCompactorTests extends ESTestCase {
     }
 
     /**
+     * Partition maps are planning memory. {@link FileList#estimatedBytes()} stays the listing-cache weight and
+     * does not grow with them; {@link FileList#planningBytes()} adds 560 bytes per partitioned file.
+     */
+    public void testPlanningBytesAddsPartitionMetadataOnGroupedList() {
+        String base = "s3://b/d/";
+        GenericFileList raw = listOf(base + "**/*.parquet", base + "year=2024/f1.parquet", base + "year=2024/f2.parquet");
+        FileList grouped = FileListCompactor.compact(base, raw);
+        assertThat(grouped, Matchers.instanceOf(DirectoryGroupedFileList.class));
+        assertFalse(grouped.partitionMetadata().isEmpty());
+        int partitionedFiles = grouped.partitionMetadata().filePartitionValues().size();
+        assertThat(partitionedFiles, Matchers.greaterThan(0));
+        assertEquals(grouped.estimatedBytes() + 560L * partitionedFiles, grouped.planningBytes());
+
+        // Same entries with and without partition metadata: estimatedBytes is the listing-cache weight and
+        // must not grow when the partition map is attached. planningBytes is the one that adds 560 per file.
+        GenericFileList without = new GenericFileList(raw.files(), raw.originalPattern(), PartitionMetadata.EMPTY);
+        GenericFileList with = new GenericFileList(raw.files(), raw.originalPattern(), grouped.partitionMetadata());
+        assertEquals(without.estimatedBytes(), with.estimatedBytes());
+        assertEquals(without.estimatedBytes(), without.planningBytes());
+        assertEquals(with.estimatedBytes() + 560L * with.partitionMetadata().filePartitionValues().size(), with.planningBytes());
+        assertThat(with.planningBytes(), Matchers.greaterThan(with.estimatedBytes()));
+    }
+
+    /** Empty partition metadata adds nothing on top of {@link FileList#estimatedBytes()}. */
+    public void testPlanningBytesIgnoresEmptyPartitionMetadata() {
+        StorageEntry file = new StorageEntry(StoragePath.of("s3://b/f.parquet"), 100L, Instant.EPOCH);
+        GenericFileList emptyMetadata = new GenericFileList(List.of(file), "s3://b/*.parquet", PartitionMetadata.EMPTY);
+        assertTrue(emptyMetadata.partitionMetadata().isEmpty());
+        assertEquals(emptyMetadata.estimatedBytes(), emptyMetadata.planningBytes());
+
+        GenericFileList noMetadata = new GenericFileList(List.of(file), "s3://b/*.parquet", null);
+        assertNull(noMetadata.partitionMetadata());
+        assertEquals(noMetadata.estimatedBytes(), noMetadata.planningBytes());
+    }
+
+    /**
      * Builds a raw listing with an explicit modification time per file, to drive the uniform / non-uniform
      * modification-time branches deterministically.
      */
@@ -424,7 +468,26 @@ public class FileListCompactorTests extends ESTestCase {
         for (int i = 0; i < keys.length; i++) {
             entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), Instant.ofEpochMilli(mtimesMillis[i])));
         }
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
+    }
+
+    /**
+     * Neither compacted encoding carries the truncation flag, and the check keeping a bounded listing out of the
+     * shared listing cache reads exactly that flag, so a truncated list must come back uncompacted and unchanged.
+     */
+    public void testCompactRefusesATruncatedListing() {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/year=2024/f-" + i + ".parquet"), 100L, Instant.EPOCH));
+        }
+        String pattern = "s3://b/*" + "*/*.parquet";
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
+        GenericFileList truncated = new GenericFileList(entries, pattern, pm, List.of(), true);
+        GenericFileList complete = new GenericFileList(entries, pattern, pm, List.of(), false);
+
+        assertSame("a truncated listing must not be compacted", truncated, FileListCompactor.compact("s3://b/", truncated));
+        assertTrue(FileListCompactor.compact("s3://b/", truncated).isTruncated());
+        assertFalse("the same listing untruncated is the control", FileListCompactor.compact("s3://b/", complete).isTruncated());
     }
 }

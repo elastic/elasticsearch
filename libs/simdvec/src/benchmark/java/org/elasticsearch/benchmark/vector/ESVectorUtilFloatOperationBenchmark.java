@@ -44,6 +44,7 @@ public class ESVectorUtilFloatOperationBenchmark {
 
     static {
         BenchmarkLogging.configure();
+        VectorizationInfo.printOnce();
     }
 
     @Param({ "SCALAR", "PANAMA", "NATIVE" })

@@ -98,6 +98,8 @@ setup:
         body:
           indices: "test_index"
           restore_over_existing: true
+          "index_settings":
+            "index.routing.rebalance.enable": "none"
 
   - do:
       indices.recovery:
@@ -150,6 +152,8 @@ setup:
         wait_for_completion: true
         body:
           indices: "test_index"
+          "index_settings":
+            "index.routing.rebalance.enable": "none"
 
   - do:
       indices.recovery:

@@ -411,6 +411,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING);
+            res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING);
@@ -440,6 +441,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         class StatelessNode extends TestClusterNodes.TestClusterNode {
 
             private TestStatelessPlugin testStatelessPlugin;
+            private StatelessPrimaryRelocationSourceService primaryRelocationService;
 
             StatelessNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) {
                 super(node, transportInterceptorFactory);
@@ -500,6 +502,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             @Override
             public void stop() {
+                if (primaryRelocationService != null) {
+                    primaryRelocationService.stop();
+                }
                 testStatelessPlugin.consistencyService.stop();
                 testStatelessPlugin.translogReplicator.stop();
                 testStatelessPlugin.statelessCommitService.stop();
@@ -507,6 +512,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 testStatelessPlugin.objectStoreService.stop();
                 testStatelessPlugin.cacheService.close();
                 super.stop();
+                // StatelessPrimaryRelocationSourceService::close should be called after IndicesService has already
+                // closed all shards.
+                if (primaryRelocationService != null) {
+                    primaryRelocationService.close();
+                }
             }
 
             @Override
@@ -519,7 +529,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 final var primaryRelocationMetricsCollectorProvider = new StatelessPrimaryRelocationMetricsCollectorProvider(
                     StatelessPrimaryRelocationMetricsCollector.NOOP
                 );
-                final var primaryRelocationSourceService = new StatelessPrimaryRelocationSourceService(
+                primaryRelocationService = new StatelessPrimaryRelocationSourceService(
+                    settings,
                     clusterService(),
                     transportService().getThreadPool(),
                     indicesService,
@@ -537,6 +548,16 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     mock(IndexShardCacheWarmer.class),
                     primaryRelocationMetricsCollectorProvider
                 );
+                final var transportPrimaryRelocationAction = new TransportStatelessPrimaryRelocationAction(
+                    transportService(),
+                    actionFilters,
+                    indicesService,
+                    new CompositeRecoverySchedulingListener(),
+                    primaryRelocationService,
+                    peerRecoveryTargetService,
+                    primaryRelocationMetricsCollectorProvider
+                );
+                primaryRelocationService.start();
                 return Map.of(
                     TransportNewCommitNotificationAction.TYPE,
                     new TransportNewCommitNotificationAction(
@@ -552,15 +573,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     TransportRegisterCommitForRecoveryAction.TYPE,
                     new TransportRegisterCommitForRecoveryAction(transportService(), indicesService, clusterService(), actionFilters),
                     StatelessPrimaryRelocationAction.TYPE,
-                    new TransportStatelessPrimaryRelocationAction(
-                        transportService(),
-                        actionFilters,
-                        indicesService,
-                        new CompositeRecoverySchedulingListener(),
-                        primaryRelocationSourceService,
-                        peerRecoveryTargetService,
-                        primaryRelocationMetricsCollectorProvider
-                    ),
+                    transportPrimaryRelocationAction,
                     TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
                     new TransportStatelessPrimaryRelocationPrewarmAction(transportService(), actionFilters, primaryRelocationTargetService),
                     TransportStatelessPrimaryRelocationHandoffAction.TYPE,
@@ -798,7 +811,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         public Collection<?> createComponents(PluginServices services) {
             this.projectResolver = services.projectResolver();
             this.threadPool = services.threadPool();
-            this.bccHeaderReadExecutor = new BCCHeaderReadExecutor(threadPool);
+            this.bccHeaderReadExecutor = new BCCHeaderReadExecutor(settings, threadPool, MeterRegistry.NOOP);
             this.client = services.client();
             this.clusterService = services.clusterService();
 
@@ -813,7 +826,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 services.nodeEnvironment(),
                 settings,
                 threadPool,
-                new BlobCacheMetrics(MeterRegistry.NOOP),
+                BlobCacheMetrics.NOOP,
                 clusterService,
                 services.indicesService(),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

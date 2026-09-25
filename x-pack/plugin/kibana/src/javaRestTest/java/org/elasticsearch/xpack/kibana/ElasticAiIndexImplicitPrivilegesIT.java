@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.not;
  * <p>
  * The happy path verifies that a role holding {@code ai_index:<kiType>/read} Kibana application privileges,
  * granted in different spaces (with no explicit index privileges), can read the Elastic AI Index
- * {@code .ai-index-idx-sml-data}, and that the implicit document-level-security filter restricts results
+ * {@code .ai-index-idx-elastic-index}, and that the implicit document-level-security filter restricts results
  * to the following rule: a document is visible only when the user holds <em>all</em> the
  * actions it requires <em>within a single space</em>. Actions accumulated across different spaces
  * must not grant access, and a document scoped to every space via {@code "*"} must still be visible
@@ -63,7 +63,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     private static final String ELASTIC_AI_INDEX_WORKFLOW_READ_ACTION = "ai_index:workflow/read";
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
-    private static final String ELASTIC_AI_INDEX = ".ai-index-idx-sml-data";
+    private static final String ELASTIC_AI_INDEX = ".ai-index-idx-elastic-index";
     // Installed by the stack plugin's AiIndexTemplateRegistry; match every `.ai-index-idx-*` / `.ai-index-ds-*` name.
     private static final String AI_INDEX_MANAGED_TEMPLATE = "ai-index-idx-managed";
     private static final String AI_INDEX_DS_MANAGED_TEMPLATE = "ai-index-ds-managed";

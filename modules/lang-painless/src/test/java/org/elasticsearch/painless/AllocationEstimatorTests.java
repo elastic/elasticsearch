@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -149,5 +150,131 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, resource));
         PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>());
+    }
+
+    // ---- java.time: flat values, composite chains, and text-sized formatter members. ----
+
+    public void testFlatTimeValueCharged() {
+        assertEquals(TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes("Instant.ofEpochMilli(0); return 'x';"));
+    }
+
+    public void testFlatTimeValueChargedPerCall() {
+        // One flat value per call.
+        assertEquals(
+            2 * TimeAllocationEstimators.FLAT_VALUE_BYTES,
+            allocatedBytes("Instant i = Instant.ofEpochMilli(0); i.plusSeconds(1); return 'x';")
+        );
+    }
+
+    public void testFlatTimeValueTripsLimit() {
+        assertTripsLimit("Instant.ofEpochMilli(0); return 'x';");
+    }
+
+    public void testAtZoneChargesTheWholeChain() {
+        // The Instant plus the whole zoned chain: ZonedDateTime, LocalDateTime, LocalDate and LocalTime.
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')); return 'x';")
+        );
+    }
+
+    public void testAtOffsetChargesTheOffsetChain() {
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.OFFSET_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atOffset(ZoneOffset.UTC); return 'x';")
+        );
+    }
+
+    public void testZonedDateTimeArithmeticChargesTheChain() {
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + 2 * TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')).plusDays(1); return 'x';")
+        );
+    }
+
+    public void testZonedDateTimeChainTripsLimit() {
+        assertTripsLimit("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')); return 'x';");
+    }
+
+    public void testZonedDateTimeParseChargedFromText() {
+        String text = "2020-01-01T00:00:00Z";
+        assertEquals(
+            TimeAllocationEstimators.parseZonedDateTimeBytes(text),
+            allocatedBytes("ZonedDateTime.parse('" + text + "'); return 'x';")
+        );
+    }
+
+    public void testInstantParseChargedFromText() {
+        String text = "2020-01-01T00:00:00Z";
+        assertEquals(TimeAllocationEstimators.parseFlatValueBytes(text), allocatedBytes("Instant.parse('" + text + "'); return 'x';"));
+    }
+
+    public void testOfPatternChargeGrowsWithThePattern() {
+        long shortPattern = allocatedBytes("DateTimeFormatter.ofPattern('yyyy'); return 'x';");
+        long longPattern = allocatedBytes("DateTimeFormatter.ofPattern('yyyy-MM-dd HH:mm:ss.SSS'); return 'x';");
+        assertEquals(TimeAllocationEstimators.ofPatternBytes("yyyy"), shortPattern);
+        assertEquals(TimeAllocationEstimators.ofPatternBytes("yyyy-MM-dd HH:mm:ss.SSS"), longPattern);
+        assertTrue("a longer pattern must cost more", longPattern > shortPattern);
+    }
+
+    public void testFormatChargedAsABoundedString() {
+        long expected = TimeAllocationEstimators.ofPatternBytes("yyyy") + TimeAllocationEstimators.formatBytes(null, null)
+            + TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES;
+        assertEquals(
+            expected,
+            allocatedBytes(
+                "DateTimeFormatter f = DateTimeFormatter.ofPattern('yyyy');"
+                    + "f.format(Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC'))); return 'x';"
+            )
+        );
+    }
+
+    public void testFormatterParseChargedFromText() {
+        String text = "2020";
+        long expected = TimeAllocationEstimators.ofPatternBytes("yyyy") + TimeAllocationEstimators.formatterParseBytes(null, text);
+        assertEquals(expected, allocatedBytes("DateTimeFormatter.ofPattern('yyyy').parse('" + text + "'); return 'x';"));
+    }
+
+    public void testDeclinedTimeMembersChargeNothing() {
+        // Fields and getters that return an existing object are not annotated, so they cost nothing.
+        assertEquals(0L, allocatedBytes("ZoneOffset z = ZoneOffset.UTC; Instant e = Instant.EPOCH; return 'x';"));
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')).toLocalDate(); return 'x';")
+        );
+    }
+
+    public void testTimeEstimatorChargedThroughDefDispatch() {
+        // A def call must charge the same as a typed call.
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("def i = Instant.ofEpochMilli(0); i.atZone(ZoneId.of('UTC')); return 'x';")
+        );
+    }
+
+    public void testEstimatorInNonAllowlistedClassCharged() {
+        // The estimator class is only named by the annotation, never allowlisted, like the x-pack ones.
+        assertEquals(5 * 8L, allocatedBytes("new AllocationEstimatorTestObject().externallyEstimated(5); return \"x\";"));
+    }
+
+    public void testEstimatorClassIsLinkableButNotVisibleToScripts() {
+        // A plugin's estimator is not in the generated script's loader, so it must be registered or the script fails to
+        // link. A unit test cannot reproduce that: one flat classpath means the parent loader finds everything. So assert
+        // the registration instead.
+        PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(
+            scriptContexts().get(PainlessTestScript.CONTEXT),
+            new HashMap<>(),
+            new HashMap<>()
+        );
+        String estimatorClass = AllocationExternalEstimators.class.getName();
+
+        assertNotNull("estimator class must be resolvable by the generated script's loader", lookup.javaClassNameToClass(estimatorClass));
+
+        // ... and gains no script-visible surface by being registered.
+        assertFalse(lookup.isValidCanonicalClassName(estimatorClass));
+        assertFalse(lookup.isValidCanonicalClassName("AllocationExternalEstimators"));
+        assertNull(lookup.canonicalTypeNameToType(estimatorClass));
+        assertNull("no PainlessClass means no callable members", lookup.lookupPainlessClass(AllocationExternalEstimators.class));
+        assertFalse(lookup.getClasses().stream().anyMatch(c -> c == AllocationExternalEstimators.class));
     }
 }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.openai.request;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -51,7 +51,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
     private static final String INCLUDE_USAGE_FIELD = "include_usage";
 
     private final OpenAiChatCompletionModel model;
-    private final UnifiedCompletionRequest unifiedRequest;
+    private final UnifiedCompletionRequestBody unifiedRequest;
     private final boolean stream;
 
     public OpenAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, OpenAiChatCompletionModel model) {

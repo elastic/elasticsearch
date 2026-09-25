@@ -10,17 +10,23 @@ package org.elasticsearch.xpack.prometheus;
 import org.apache.http.message.BasicNameValuePair;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.prometheus.PromqlResponseSeries.of;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -231,6 +237,261 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("status"), equalTo("success"));
         assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
         return responsePath;
+    }
+
+    // --- tx/rx queries across ingestion paths through the range query API ---
+    // Ingestion helpers live in the base class.
+
+    private static final String RANGE_START = "2024-05-09T23:59:00Z";
+    private static final String RANGE_END = "2024-05-10T00:00:00Z";
+    private static final String RANGE_STEP = "30s";
+    private static final Instant QUERY_END = Instant.parse(RANGE_END);
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeRawOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx / rx", 5, 10, 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("tx / rx", 5, 10, 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("tx / rx", 5, 10, 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeRawAndPairedOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeSumOverCrossMetricPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("sum(tx / rx)", 18);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / rx)", 18);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / rx)", 18);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeSumOverSameMetricPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("sum(tx / tx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / tx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / tx)", 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeSumOverChainedPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeGroupedSumOverPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeGroupedSumOverIncreasePairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeGroupedSumOverIratePairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeDefaultMatchingExcludesMetricName() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeIgnoringMatchingExcludesMetricName() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMatchingPreservesBothOperandSelections() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopRangeValues("bottomk(1, tx) + topk(1, tx)");
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopRangeValues("bottomk(1, tx) + topk(1, tx)");
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopRangeValues("bottomk(1, tx) + topk(1, tx)");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMatchingPreservesRightOperandSelection() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx / topk(1, rx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("tx / topk(1, rx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("tx / topk(1, rx)", 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMatchingPreservesLeftOperandSelection() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) / rx", 10);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) / rx", 10);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) / rx", 10);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMixedDuplicateRawMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeDuplicate("tx_dup / rx_dup");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMixedDuplicateLeftExpressionMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeDuplicate("(tx_dup + 0) / rx_dup");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMixedDuplicateRightExpressionMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeDuplicate("tx / (rx + 0)");
+    }
+
+    public void testRangeAggregatedOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeAggGroups();
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeAggGroups();
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeAggGroups();
+    }
+
+    public void testRangeExplicitOnMatchesRetainedMetricNames() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    private ObjectPath executeBinopRangeQuery(String expression) throws IOException {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", expression),
+            new BasicNameValuePair("start", RANGE_START),
+            new BasicNameValuePair("end", RANGE_END),
+            new BasicNameValuePair("step", RANGE_STEP)
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
+        return responsePath;
+    }
+
+    private void assertBinopRangeValues(String expression, double... expected) throws IOException {
+        ObjectPath response = executeBinopRangeQuery(expression);
+        List<Double> actual = PromqlResponseSeries.ofRange(response).stream().map(PromqlResponseSeries::value).sorted().toList();
+        Arrays.sort(expected);
+        assertEquals(expression + ": " + actual, expected.length, actual.size());
+        for (int i = 0; i < expected.length; i++) {
+            assertThat(expression, actual.get(i), closeTo(expected[i], 1e-10));
+        }
+    }
+
+    private void assertBinopRangeGroups(String expression, String group, Map<String, Double> expected) throws IOException {
+        ObjectPath response = executeBinopRangeQuery(expression);
+        Map<String, Double> actual = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofRange(response)) {
+            assertNull("duplicate output group", actual.put(series.labels().get(group), series.value()));
+        }
+        assertThat(expression, actual.keySet(), equalTo(expected.keySet()));
+        expected.forEach((label, value) -> assertThat(expression + " " + label, actual.get(label), closeTo(value, 1e-10)));
+    }
+
+    private void assertBinopRangeAggGroups() throws IOException {
+        // Default matching exercises folding; explicit matching exercises the join.
+        for (String match : List.of("", "on (host)", "ignoring ()")) {
+            assertBinopRangeGroups("sum by (host) (tx) / " + match + " sum by (host) (rx)", "host", txRxRatios());
+        }
+    }
+
+    private void assertBinopRangeDuplicate(String expression) {
+        ResponseException error = expectThrows(ResponseException.class, () -> executeBinopRangeQuery(expression));
+        assertThat(error.getMessage(), containsString("duplicate"));
     }
 
 }

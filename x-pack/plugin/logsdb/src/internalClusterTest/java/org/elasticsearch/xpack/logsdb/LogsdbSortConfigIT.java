@@ -38,7 +38,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -530,7 +530,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             // Read [test_id] through fielddata so the order check is independent of the keyword doc-values format: low-cardinality uses
             // sorted-set doc values while high-cardinality (columnar default) uses binary doc values, and fielddata abstracts over both.
             MappedFieldType testIdField = shard.mapperService().fieldType("test_id");
-            SortedBinaryDocValues dvs = testIdField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
+            SortableBinaryDocValues dvs = testIdField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(segment)
                 .getBytesValues();

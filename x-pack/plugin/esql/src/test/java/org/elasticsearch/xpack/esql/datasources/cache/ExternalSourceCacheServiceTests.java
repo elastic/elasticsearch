@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.WarningSinks;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -46,8 +47,6 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
     private static final Map<String, Object> HIVE_ON = Map.of();
-
-    private static final Map<String, Object> HIVE_OFF = Map.of("hive_partitioning", "false");
 
     private static Settings defaultSettings() {
         return Settings.builder()
@@ -364,6 +363,55 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             exec.shutdown();
 
             assertEquals(1, loaderCalls.get());
+        }
+    }
+
+    /**
+     * Concurrent misses for one key coalesce into a single loader call even when that load fails, and the
+     * failure is not retained — a later resolve may load successfully.
+     */
+    public void testFailedSchemaLoadCoalescesAndIsNotRetained() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            AtomicInteger loaderCalls = new AtomicInteger();
+            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/fail.parquet", 1000L, ".parquet", Map.of());
+            RuntimeException boom = new RuntimeException("schema load failed");
+
+            int threadCount = 8;
+            CountDownLatch startLatch = new CountDownLatch(1);
+            CountDownLatch doneLatch = new CountDownLatch(threadCount);
+            ExecutorService exec = Executors.newFixedThreadPool(threadCount);
+            List<Throwable> unexpected = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+            for (int i = 0; i < threadCount; i++) {
+                exec.submit(() -> {
+                    try {
+                        startLatch.await();
+                        service.getOrComputeSchema(key, k -> {
+                            loaderCalls.incrementAndGet();
+                            Thread.sleep(50);
+                            throw boom;
+                        });
+                        unexpected.add(new AssertionError("expected loader failure"));
+                    } catch (Exception e) {
+                        if (e != boom) {
+                            unexpected.add(e);
+                        }
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                });
+            }
+            startLatch.countDown();
+            doneLatch.await();
+            exec.shutdown();
+
+            assertTrue("unexpected outcomes: " + unexpected, unexpected.isEmpty());
+            assertEquals("failed loads must still coalesce to one loader call", 1, loaderCalls.get());
+            assertEquals("a failed load must not be retained in the schema cache", 0, service.usageStats().get("schema_cache.count"));
+
+            SchemaCacheEntry recovered = service.getOrComputeSchema(key, k -> testSchemaEntry());
+            assertNotNull(recovered);
+            assertEquals(1, service.usageStats().get("schema_cache.count"));
         }
     }
 
@@ -2795,7 +2843,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
         // Detect partitions the way production does, so the fixture exercises the real typing and
         // percent-decoding rather than the on-disk spelling a hand-built PartitionMetadata would carry.
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
         return GlobExpander.fileListOf(entries, "s3://bucket/data/*" + "*/*.parquet", pm);
     }
 }

@@ -77,9 +77,8 @@ FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 ```
 
 ### Cross-{{serverless-short}} project support
-
 ```{applies_to}
-serverless: preview
+serverless: ga
 ```
 
 `LOOKUP JOIN` is also supported in [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md).
@@ -92,7 +91,7 @@ If the lookup index is missing from one or more linked projects, use [coordinato
 
 ```{applies_to}
 stack: preview 9.6+
-serverless: preview
+serverless: ga
 ```
 
 In cross-cluster or cross-project queries, you can prefix the index name with `_coordinator:` to run the lookup on the local cluster or origin project instead of on each remote cluster or linked project.

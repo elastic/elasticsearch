@@ -21,7 +21,8 @@ import java.util.Set;
 
 /**
  * Standalone CSV parser for fixture generation. Parses CSV files with bracket-aware
- * multi-value support, matching the behavior of {@link CsvFormatReader}.
+ * multi-value support, matching the behavior {@link CsvFormatReader} has on the arm these fixtures stand in
+ * for: a read with no declared mappings, hence an inferred schema (see {@link #parseCell} on blank cells).
  * <p>
  * Used by OrcFixtureGenerator, ParquetFixtureGenerator, NdJsonFixtureGenerator, and TsvFixtureGenerator to read CSV fixtures
  * with correct multi-value handling (e.g. {@code [a,b,c]} as a list, not just first element).
@@ -278,8 +279,17 @@ public final class CsvFixtureParser {
             return null;
         }
         if (value.isEmpty()) {
-            // Mirror CsvFormatReader: a present-but-empty cell on a string column is the empty string,
-            // not null; a genuinely missing field or an empty cell on any other column type is null.
+            // Mirror CsvFormatReader: a blank cell is "" on a string (keyword/text) column, null on every
+            // other type. The generated fixtures stand in for these CSVs in the shared cross-format csv-spec
+            // suites, where the dataset is registered WITHOUT mappings -- so the CSV read of the same file
+            // infers its schema; writing "" for string columns keeps the CSV and its Parquet/ORC/NDJSON twins
+            // in agreement on grouping queries (e.g. a blank gender bucket counts identically across formats).
+            //
+            // This covers a blank in a LIST column too (one whose other rows hold [a,b]): the generators
+            // write it absent rather than as a one-element [""], which again is what the reader produces --
+            // a blank cell is never bracketed, so it takes the scalar path there as well. A blank ELEMENT
+            // inside brackets is a different question, decided by parseScalar; that one still diverges from
+            // the reader (it drops the element where the reader keeps ""), which predates this method's rule.
             return isStringType(type) ? "" : null;
         }
         if (value.startsWith("[") && value.endsWith("]")) {
@@ -288,8 +298,9 @@ public final class CsvFixtureParser {
         return parseScalar(value, type, quote);
     }
 
-    private static boolean isStringType(String type) {
-        return "keyword".equals(type) || "text".equals(type) || "string".equals(type);
+    /** Mirrors {@code DataType.isString}: true for keyword, text, and semantic_text (which maps to text). */
+    static boolean isStringType(String type) {
+        return "keyword".equals(type) || "text".equals(type) || "semantic_text".equals(type);
     }
 
     private static Object parseMultiValue(String value, String type, char quote, char esc) {

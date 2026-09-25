@@ -32,9 +32,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
@@ -264,10 +264,9 @@ final class ParquetColumnDecoding {
     static void warnTimestampOutOfRange(ColumnInfo info, @Nullable Consumer<String> warningSink) {
         ColumnDescriptor descriptor = info.descriptor();
         String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
-        String warning = "Parquet timestamp column ["
-            + column
-            + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
-            + "such values are returned as null";
+        // The outcome is the same in every error_mode: no caller charges the budget or drops the row. A scalar is
+        // nulled; a LIST element is dropped, and the list is null only when every element is out of range.
+        String warning = "column [" + column + "]: timestamps outside the [date_nanos] range (1677-09-21 to 2262-04-11); returning null";
         if (warningSink != null) {
             warningSink.accept(warning);
         } else {
@@ -333,7 +332,7 @@ final class ParquetColumnDecoding {
                     try {
                         builder.appendLong(DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter));
                     } catch (IllegalArgumentException | DateTimeException e) {
-                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
+                        DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
                         if (skipRow) failedPositionSink.accept(pos);
                         builder.appendNull();
                     }
@@ -350,7 +349,7 @@ final class ParquetColumnDecoding {
                         try {
                             parsed[v] = DeclaredTypeCoercions.parseDatetimeMillis(value.utf8ToString(), dateFormatter);
                         } catch (IllegalArgumentException | DateTimeException e) {
-                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings, skipRow);
+                            DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
                             failed = true;
                         }
                     }
@@ -595,6 +594,9 @@ final class ParquetColumnDecoding {
          */
         @Nullable
         private final Map<RecoveryScope, Long> chargedRows;
+        /** Shared budget for reader + adapter combined counting; {@code null} for the standalone path. */
+        @Nullable
+        private final SharedErrorBudget sharedBudget;
         private long errorCount;
         private long recoveredListErrorCount;
         private long droppedRowErrorCount;
@@ -602,7 +604,7 @@ final class ParquetColumnDecoding {
         private long rowsSeen;
 
         ListCorruptionHandler(ErrorPolicy errorPolicy, String fileLocation, @Nullable Consumer<String> warningSink) {
-            this(errorPolicy, fileLocation, warningSink, false);
+            this(errorPolicy, fileLocation, warningSink, false, null);
         }
 
         ListCorruptionHandler(
@@ -611,14 +613,21 @@ final class ParquetColumnDecoding {
             @Nullable Consumer<String> warningSink,
             boolean deduplicateRecoveries
         ) {
+            this(errorPolicy, fileLocation, warningSink, deduplicateRecoveries, null);
+        }
+
+        ListCorruptionHandler(
+            ErrorPolicy errorPolicy,
+            String fileLocation,
+            @Nullable Consumer<String> warningSink,
+            boolean deduplicateRecoveries,
+            @Nullable SharedErrorBudget sharedBudget
+        ) {
             this.errorPolicy = errorPolicy;
             this.fileLocation = fileLocation;
             this.chargedRows = deduplicateRecoveries ? new HashMap<>() : null;
-            this.warnings = SkipWarnings.of(
-                errorPolicy,
-                "Parquet file [" + fileLocation + "] has malformed LIST repetition levels; invalid fragments were skipped",
-                warningSink
-            );
+            this.sharedBudget = sharedBudget;
+            this.warnings = SkipWarnings.of(errorPolicy, "Malformed list data in [" + fileLocation + "]; skipping it", warningSink);
         }
 
         boolean isStrict() {
@@ -636,40 +645,47 @@ final class ParquetColumnDecoding {
             }
             errorCount++;
             recoveredListErrorCount++;
-            String detail = "Parquet column ["
+            String detail = "column ["
                 + columnName
-                + "] in file ["
-                + fileLocation
-                + "] row group ["
+                + "], row group ["
                 + (rowGroupOrdinal + 1)
-                + "] started row ["
+                + "], row ["
                 + rowOrdinal
-                + "] at a non-zero repetition level; discarded ["
+                + "]: ["
                 + discardedValues
-                + "] orphan values";
+                + "] list values dropped";
             warnings.add(detail);
             // Structural corruption is discovered while streaming. As with the text readers, a
             // ratio can trip before later good rows have a chance to dilute it.
             this.rowsSeen = Math.max(this.rowsSeen, Math.max(1L, rowsSeen));
-            checkBudget(warnings);
-            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, detail);
+            if (sharedBudget != null) {
+                sharedBudget.addErrors(1);
+                sharedBudget.ensureRowsAtLeast(Math.max(1L, rowsSeen));
+            }
+            checkBudget();
+            // The response detail omits the file (the summary names it); the log line has no summary, so it names it here.
+            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, "Malformed list data in [" + fileLocation + "]: " + detail);
         }
 
         /**
          * Completes one decoded batch and charges row drops to the same counter as recovered LIST fragments.
          */
-        void completeBatch(int sourceRows, int droppedRows, @Nullable SkipWarnings droppedRowWarnings) {
+        void completeBatch(int sourceRows, int droppedRows) {
             completedRows += sourceRows;
             rowsSeen = Math.max(rowsSeen, completedRows);
             errorCount += droppedRows;
             droppedRowErrorCount += droppedRows;
-            checkBudget(recoveredListErrorCount > 0 ? warnings : droppedRowWarnings);
+            if (sharedBudget != null) {
+                // Use ensureRowsAtLeast rather than addReaderBatch so that a prior ensureRowsAtLeast
+                // call from recoveredOrphan (which uses a file-global ordinal) does not cause
+                // double-counting when completedRows reaches the same value additively.
+                sharedBudget.ensureRowsAtLeast(completedRows);
+                sharedBudget.addErrors(droppedRows);
+            }
+            checkBudget();
         }
 
-        private void checkBudget(@Nullable SkipWarnings budgetWarnings) {
-            if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen) == false) {
-                return;
-            }
+        private void checkBudget() {
             String errorKind;
             if (droppedRowErrorCount == 0) {
                 errorKind = "structural errors";
@@ -678,18 +694,21 @@ final class ParquetColumnDecoding {
             } else {
                 errorKind = "errors";
             }
-            if (budgetWarnings != null) {
-                budgetWarnings.add(ColumnarRowDropHelper.budgetExceededWarning(errorPolicy, fileLocation, errorCount, rowsSeen, errorKind));
+            if (sharedBudget != null) {
+                sharedBudget.checkBudget(errorKind);
+                return;
+            }
+            if (errorPolicy.isBudgetExceeded(errorCount, rowsSeen) == false) {
+                return;
             }
             throw new ParsingException(
                 Source.EMPTY,
-                "Error budget exceeded: [{}] {} in [{}] decoded rows in [{}]; maximum allowed is [{}] errors or [{}] ratio",
+                "[{}] {} in [{}] rows of [{}]; {}",
                 errorCount,
                 errorKind,
                 rowsSeen,
                 fileLocation,
-                errorPolicy.maxErrors(),
-                errorPolicy.maxErrorRatio()
+                errorPolicy.trippedLimit(errorCount)
             );
         }
 
@@ -909,8 +928,7 @@ final class ParquetColumnDecoding {
      * one non-deduplicable line per file on a glob read. Shared with the read paths that own the collector so the
      * text has one source of truth.
      */
-    static final String NULL_LIST_ELEMENTS_SUMMARY = "Parquet lists with null elements were read with those elements "
-        + "omitted; an ES|QL multivalued field cannot hold null";
+    static final String NULL_LIST_ELEMENTS_SUMMARY = "Lists hold null elements, which a multivalued field cannot; dropping them";
 
     /**
      * The per-column detail for a LIST read that dropped null elements. {@code columnName} is the attribute name the
@@ -923,9 +941,7 @@ final class ParquetColumnDecoding {
      * batches, row groups, or files hit it.
      */
     static String nullListElementsMessage(String columnName) {
-        return "Parquet list column ["
-            + columnName
-            + "] contains lists with null elements; the column returns fewer values than the file holds";
+        return "column [" + columnName + "]: lists with null elements";
     }
 
     /**
@@ -1350,14 +1366,7 @@ final class ParquetColumnDecoding {
                             try {
                                 parsed[count++] = DeclaredTypeCoercions.parseDatetimeMillis(value, dateFormatter);
                             } catch (IllegalArgumentException | DateTimeException e) {
-                                DeclaredTypeCoercions.onCoercionFailure(
-                                    columnName,
-                                    DataType.KEYWORD,
-                                    DataType.DATETIME,
-                                    e,
-                                    warnings,
-                                    skipRow
-                                );
+                                DeclaredTypeCoercions.onCoercionFailure(columnName, DataType.KEYWORD, DataType.DATETIME, e, warnings);
                                 failed = true;
                             }
                         }

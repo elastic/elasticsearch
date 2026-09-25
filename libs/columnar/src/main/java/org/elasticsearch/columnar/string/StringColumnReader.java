@@ -15,11 +15,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
-import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -38,8 +37,7 @@ import java.util.function.Predicate;
  * <p>A null slot holds an address like any other, and {@link #isNullSlot} says whether one does — but the two
  * layouts answer it differently, which is why it is theirs to answer. A dictionary column names a null with a
  * reserved ordinal, so the ordinal already read to resolve the value settles it. A plain column has no spare
- * byte string to mean null with, so it stores one as a zero-length value and keeps a table of the addresses
- * that hold one.
+ * byte string to mean null with, so it stores a null as a code of its own in its lengths.
  *
  * <p>A column either stores its values or names them with ordinals into a dictionary, and the two answer
  * every read and every filter differently. This holds what does not depend on that choice: how documents map
@@ -57,10 +55,11 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * Where each document's slots begin, and one past the last; null when every document holds exactly one
      * slot and a document's value address is therefore its rank.
      */
-    private final LongValues valueAddresses;
+    /** Null when the slots are in step with the documents, so a rank is its own value address. */
+    private final SlotAddressReader addresses;
 
     /** Held so a summary can be read on demand; a merge reads it, an ordinary search never does. */
-    protected final IndexInput data;
+    protected final ColumnInputs inputs;
 
     /** Carried across page reads, which arrive in document order; see {@link #ranksOfAll}. */
     private ColumnIterator pageIterator;
@@ -105,27 +104,19 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private int slotGeneration;
     private int slotMask;
 
-    StringColumnReader(StringColumnMetadata meta, IndexInput data, int blockSize) throws IOException {
+    StringColumnReader(StringColumnMetadata meta, ColumnInputs inputs, int blockSize) throws IOException {
         this.meta = meta;
-        this.data = data;
+        this.inputs = inputs;
         this.blockSize = blockSize;
-        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
-        this.valueAddresses = meta.hasValueAddresses()
-            ? MonotonicReader.open(
-                data,
-                meta.valueAddresses().meta(),
-                meta.numDocsWithField() + 1L,
-                meta.valueAddresses().dataOffset(),
-                meta.valueAddresses().dataLength()
-            )
-            : null;
+        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), inputs.addressing());
+        this.addresses = meta.hasValueAddresses() ? new SlotAddressReader(meta.addressing(), meta.numDocsWithField(), inputs) : null;
     }
 
     /** A reader for {@code meta}, which decides whether the column has a dictionary to read through. */
-    public static StringColumnReader open(StringColumnMetadata meta, IndexInput data) throws IOException {
+    public static StringColumnReader open(StringColumnMetadata meta, ColumnInputs inputs) throws IOException {
         return switch (meta) {
-            case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, data);
-            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, data);
+            case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, inputs);
+            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs);
         };
     }
 
@@ -139,7 +130,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * column holds exactly one slot per document.
      */
     public boolean hasValueAddresses() {
-        return valueAddresses != null;
+        return addresses != null;
     }
 
     /**
@@ -181,13 +172,13 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /** The value address of a document's first slot, given its rank. */
-    public long firstValueAddress(int rank) {
-        return valueAddresses == null ? rank : valueAddresses.get(rank);
+    public long firstValueAddress(int rank) throws IOException {
+        return addresses == null ? rank : addresses.firstValueAddress(rank);
     }
 
     /** The number of slots a document has, given its rank; null slots are counted. */
-    public long valueCount(int rank) {
-        return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
+    public long valueCount(int rank) throws IOException {
+        return addresses == null ? 1 : addresses.valueCount(rank);
     }
 
     /**
@@ -196,6 +187,24 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     protected void charge(long bytes) {
         budget.charge(bytes);
+    }
+
+    /**
+     * The length in bytes of the value at {@code valueAddress}, which must not be null. Read off the value
+     * unless the column keeps its lengths apart.
+     */
+    public int byteLengthAt(long valueAddress) throws IOException {
+        return valueAt(valueAddress).length;
+    }
+
+    /** The shortest value the column holds, in bytes, or {@code -1} when it holds none. */
+    public int minLength() {
+        return meta.minLength();
+    }
+
+    /** The longest value the column holds, in bytes, or {@code -1} when it holds none. */
+    public int maxLength() {
+        return meta.maxLength();
     }
 
     /**
@@ -233,7 +242,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     public void readSummary(List<BytesRef> terms, List<Long> counts) throws IOException {
         final StringColumnMetadata.Summary summary = meta.summary();
-        final ValueStream.Reader source = summary.terms() == null ? summarisedTerms() : summary.terms().open(data);
+        final ValueStream.Reader source = summary.terms() == null ? summarisedTerms() : summary.terms().open(inputs);
         final int size = summary.terms() == null ? summarisedTermCount() : Math.toIntExact(summary.terms().numValues());
         final BytesRef term = new BytesRef();
         for (int ordinal = 0; ordinal < size; ordinal++) {
@@ -241,7 +250,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             terms.add(BytesRef.deepCopyOf(term));
         }
         // Cloned rather than read in place: the caller's own reads are interleaved with these.
-        final IndexInput in = data.clone();
+        final IndexInput in = inputs.data().clone();
         in.seek(summary.countsOffset());
         for (int ordinal = 0; ordinal < size; ordinal++) {
             counts.add(in.readVLong());

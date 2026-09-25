@@ -42,8 +42,6 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
     private String routing;
     private boolean routingFromSlice;
     @Nullable
-    private String searchSlice;
-    @Nullable
     private String preference;
 
     private ResolvedIndexExpressions resolvedIndexExpressions;
@@ -75,10 +73,20 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
         this.allowPartialSearchResults = in.readBoolean();
         if (in.getTransportVersion().supports(SliceIndexing.OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION)) {
             this.routingFromSlice = in.readBoolean();
-            this.searchSlice = in.readOptionalString();
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
         } else {
             this.routingFromSlice = false;
-            this.searchSlice = null;
         }
     }
 
@@ -95,7 +103,9 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
         out.writeBoolean(allowPartialSearchResults);
         if (out.getTransportVersion().supports(SliceIndexing.OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION)) {
             out.writeBoolean(routingFromSlice);
-            out.writeOptionalString(searchSlice);
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
         }
     }
 
@@ -159,9 +169,6 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
     }
 
     public OpenPointInTimeRequest routing(String routing) {
-        if (routing != null && routingFromSlice) {
-            throw new IllegalArgumentException("[routing] is not allowed together with [slice]");
-        }
         this.routing = routing;
         return this;
     }
@@ -173,38 +180,30 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
         return routingFromSlice;
     }
 
-    /**
-     * Returns the requested {@code slice} value when routing comes from {@code slice}.
-     */
-    @Nullable
-    public String searchSlice() {
-        return searchSlice;
+    public OpenPointInTimeRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
     }
 
     /**
-     * Sets the user-provided {@code slice} value and derives routing/provenance from it.
-     * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code slice}.
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
      */
-    public OpenPointInTimeRequest searchSlice(@Nullable String searchSlice) {
-        if (searchSlice != null) {
-            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                throw new IllegalArgumentException("request does not support [slice]");
-            }
-            if (routing != null && routingFromSlice == false) {
-                throw new IllegalArgumentException("[routing] is not allowed together with [slice]");
-            }
+    @Nullable
+    public String searchSlice() {
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
+    }
+
+    /**
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
+     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     */
+    public OpenPointInTimeRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[slice] must not be null");
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [slice]");
         }
-        this.searchSlice = searchSlice;
-        if (searchSlice == null) {
-            if (routingFromSlice) {
-                this.routing = null;
-            }
-            this.routingFromSlice = false;
-        } else {
-            this.routingFromSlice = true;
-            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        }
-        return this;
+        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
     }
 
     public String preference() {
@@ -319,9 +318,8 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             + ", routing='"
             + routing
             + '\''
-            + ", searchSlice='"
-            + searchSlice
-            + '\''
+            + ", routingFromSlice="
+            + routingFromSlice
             + ", preference='"
             + preference
             + '\''
@@ -346,7 +344,6 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             && keepAlive.equals(that.keepAlive)
             && Objects.equals(routing, that.routing)
             && routingFromSlice == that.routingFromSlice
-            && Objects.equals(searchSlice, that.searchSlice)
             && Objects.equals(preference, that.preference)
             && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
     }
@@ -359,7 +356,6 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             maxConcurrentShardRequests,
             routing,
             routingFromSlice,
-            searchSlice,
             preference,
             allowPartialSearchResults
         );

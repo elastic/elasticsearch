@@ -49,7 +49,7 @@ import java.util.function.Consumer;
  * @param splitStartByte   file-global byte offset at which this split begins (i.e. {@code FileSplit.offset()}).
  *                         Text readers add the bytes they consume to this anchor to emit a file-global,
  *                         split-invariant start byte per record for the {@code _rowPosition} channel
- *                         (the substrate of {@code _file.record_ref} / {@code _id}). {@code 0} for the
+ *                         (the substrate of {@code _file.record_ref}). {@code 0} for the
  *                         whole-file (non-split) case and for columnar formats, which derive a file-global
  *                         row index from their own footer/stripe metadata rather than from a byte anchor.
  *                         <p>Note: this carries the SAME VALUE as {@code statsBaseOffset} at every current call
@@ -96,6 +96,12 @@ import java.util.function.Consumer;
  *                         header but still has to know what the columns are called — a chunk after the
  *                         first of a header-bearing file whose declared schema binds by name. Binding such
  *                         a chunk by position instead would shift every column silently.
+ * @param sharedErrorBudget per-read error budget shared between the columnar reader and
+ *                         {@code SchemaAdaptingIterator}. When non-{@code null}, both the reader and the
+ *                         adapter reference the same instance so that a single {@code max_errors} /
+ *                         {@code max_error_ratio} budget is enforced against the combined total rather than
+ *                         independently per layer. {@code null} for text-based readers (CSV, NDJSON) and
+ *                         for non-{@code SKIP_ROW} policies.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -114,7 +120,9 @@ public record FormatReadContext(
     StripeColumnScope statsColumnScope,
     @Nullable Consumer<String> informationalWarningSink,
     @Nullable List<String> fileHeaderColumns,
-    @Nullable CircuitBreaker breaker
+    @Nullable CircuitBreaker breaker,
+    @Nullable SharedErrorBudget sharedErrorBudget,
+    @Nullable FormatReadCounters readCounters
 ) {
 
     public FormatReadContext {
@@ -161,7 +169,9 @@ public record FormatReadContext(
             statsColumnScope,
             informationalWarningSink,
             fileHeaderColumns,
-            breaker
+            breaker,
+            sharedErrorBudget,
+            readCounters
         );
     }
 
@@ -186,7 +196,9 @@ public record FormatReadContext(
             statsColumnScope,
             informationalWarningSink,
             fileHeaderColumns,
-            breaker
+            breaker,
+            sharedErrorBudget,
+            readCounters
         );
     }
 
@@ -211,7 +223,9 @@ public record FormatReadContext(
             statsColumnScope,
             informationalWarningSink,
             fileHeaderColumns,
-            breaker
+            breaker,
+            sharedErrorBudget,
+            readCounters
         );
     }
 
@@ -244,6 +258,10 @@ public record FormatReadContext(
         private Consumer<String> informationalWarningSink = null;
         @Nullable
         private CircuitBreaker breaker = null;
+        @Nullable
+        private SharedErrorBudget sharedErrorBudget = null;
+        @Nullable
+        private FormatReadCounters readCounters = null;
 
         private Builder() {}
 
@@ -359,6 +377,16 @@ public record FormatReadContext(
             return this;
         }
 
+        public Builder sharedErrorBudget(@Nullable SharedErrorBudget sharedErrorBudget) {
+            this.sharedErrorBudget = sharedErrorBudget;
+            return this;
+        }
+
+        public Builder readCounters(@Nullable FormatReadCounters readCounters) {
+            this.readCounters = readCounters;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -380,7 +408,9 @@ public record FormatReadContext(
                 statsColumnScope,
                 informationalWarningSink,
                 fileHeaderColumns,
-                breaker
+                breaker,
+                sharedErrorBudget,
+                readCounters
             );
         }
     }

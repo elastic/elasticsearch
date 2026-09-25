@@ -127,6 +127,35 @@ public abstract class EscfColumn implements SliceableColumn {
     }
 
     /**
+     * Returns {@code true} if any document in this column carries more than one value. Always
+     * {@code false} for scalar columns; {@link EscfArrayColumn} overrides this to scan its
+     * per-row element-range offsets. Used by {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
+     * to enforce {@code multi_value=false} before delegating to the field-specific implementation.
+     */
+    public boolean hasMultiValueDoc() {
+        return false;
+    }
+
+    /**
+     * Returns {@code true} if any document in this column is either absent (field missing from the
+     * source document) or holds an explicit JSON {@code null}. Short-circuits on the first absent
+     * doc (via {@link #isDense()}); otherwise scans type bytes for {@link SourceValueType#NULL}.
+     * Used by {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch} to enforce
+     * {@code nullability=false} before delegating to the field-specific implementation.
+     */
+    public final boolean hasNullOrAbsentDoc() {
+        if (isDense() == false) {
+            return true;
+        }
+        for (int d = 0; d < docCount; d++) {
+            if (isNull(d)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns the {@link SourceValueType} byte for document {@code row}. Returns
      * {@link SourceValueType#ABSENT} when the row is out of bounds or absent.
      */

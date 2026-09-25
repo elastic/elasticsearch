@@ -77,8 +77,8 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
     }
 
     @Before
-    public void checkNestedSubquerySupport() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    public void requirePragma() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
     }
 
     @Before

@@ -1525,7 +1525,12 @@ public class EsqlCapabilities {
         /**
          * Support nested non-correlated subqueries in the FROM command.
          */
-        NESTED_SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+        NESTED_SUBQUERY_IN_FROM_COMMAND,
+
+        /**
+         * Planner fix for nested non-correlated subqueries in the FROM command.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND_PLANNER_FIX,
 
         /**
          * Support IN non-correlated subqueries in WHERE command.
@@ -4062,6 +4067,15 @@ public class EsqlCapabilities {
          * Supersedes {@link #EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED}.
          */
         EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN,
+
+        /**
+         * An external dataset read into {@code integer}, {@code long}, or {@code unsigned_long} accepts only
+         * values that are exactly whole numbers. A non-whole decimal ({@code 1.9}) is a value error under
+         * {@code error_mode} — it is never rounded ({@code ::integer}/{@code ::long}) or truncated
+         * ({@code ::unsigned_long}). Gates csv-spec cases that assert refuse / {@code null_field} for such
+         * values, since a pre-change node still returns the coerced whole number.
+         */
+        EXTERNAL_DATASET_WHOLE_NUMBER_READ_IS_EXACT,
 
         /**
          * When {@code METADATA} names a column that also exists as a physical file column, the

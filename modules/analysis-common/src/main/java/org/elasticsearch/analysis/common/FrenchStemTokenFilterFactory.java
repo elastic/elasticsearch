@@ -24,9 +24,12 @@ public class FrenchStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet exclusions;
 
+    private final Object sharingKey;
+
     FrenchStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(exclusions));
     }
 
     @Override
@@ -34,4 +37,11 @@ public class FrenchStemTokenFilterFactory extends AbstractTokenFilterFactory {
         tokenStream = new SetKeywordMarkerFilter(tokenStream, exclusions);
         return new SnowballFilter(tokenStream, new FrenchStemmer());
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet exclusions) {}
 }

@@ -18,8 +18,10 @@ import org.apache.lucene.analysis.te.TeluguNormalizationFilterFactory;
 import org.apache.lucene.analysis.te.TeluguStemFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
@@ -236,6 +238,216 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("PathHierarchy", tokenizers.get("path_hierarchy"));
 
         return tokenizers;
+    }
+
+    /** Language analyzers keyed on their stop words (including {@code stopwords_case}) and stem exclusions. */
+    private static final List<String> STOPWORD_AND_STEM_EXCLUSION_ANALYZERS = List.of(
+        "arabic",
+        "armenian",
+        "basque",
+        "bengali",
+        "brazilian",
+        "bulgarian",
+        "catalan",
+        "czech",
+        "danish",
+        "dutch",
+        "english",
+        "estonian",
+        "finnish",
+        "french",
+        "galician",
+        "german",
+        "hindi",
+        "hungarian",
+        "indonesian",
+        "irish",
+        "italian",
+        "latvian",
+        "lithuanian",
+        "norwegian",
+        "portuguese",
+        "romanian",
+        "russian",
+        "serbian",
+        "sorani",
+        "spanish",
+        "swedish",
+        "turkish"
+    );
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        Map<String, FactorySettings> analyzers = new HashMap<>();
+        for (String language : STOPWORD_AND_STEM_EXCLUSION_ANALYZERS) {
+            analyzers.put(
+                language,
+                settings().affects("stopwords", List.of("foo")).affects("stopwords_case", "true").affects("stem_exclusion", List.of("foo"))
+            );
+        }
+        for (String stopWordsOnly : List.of("cjk", "greek", "thai")) {
+            analyzers.put(stopWordsOnly, settings().affects("stopwords", List.of("foo")).affects("stopwords_case", "true"));
+        }
+        for (String stateless : List.of("chinese", "keyword", "simple", "whitespace")) {
+            analyzers.put(stateless, alwaysShares());
+        }
+        return analyzers;
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        Map<String, FactorySettings> filters = new HashMap<>();
+        for (String stateless : List.of(
+            "apostrophe",
+            "arabic_normalization",
+            "arabic_stem",
+            "bengali_normalization",
+            "cjk_width",
+            "classic",
+            "czech_stem",
+            "decimal_digit",
+            "flatten_graph",
+            "german_normalization",
+            "hindi_normalization",
+            "indic_normalization",
+            "kstem",
+            "persian_normalization",
+            "persian_stem",
+            "porter_stem",
+            "remove_duplicates",
+            "reverse",
+            "russian_stem",
+            "scandinavian_folding",
+            "scandinavian_normalization",
+            "serbian_normalization",
+            "sorani_normalization",
+            "trim",
+            "uppercase"
+        )) {
+            filters.put(stateless, alwaysShares());
+        }
+        for (String stemmer : List.of("brazilian_stem", "dutch_stem", "french_stem", "german_stem")) {
+            filters.put(stemmer, settings().affects("stem_exclusion", List.of("foo")));
+        }
+        filters.put("asciifolding", settings().affects("preserve_original", "true"));
+        filters.put("cjk_bigram", settings().affects("output_unigrams", "true").affects("ignored_scripts", List.of("han")));
+        // side is also keyed, but setting it emits a deprecation warning the contract run would fail on.
+        filters.put("edge_ngram", settings().affects("min_gram", "2").affects("max_gram", "3").affects("preserve_original", "true"));
+        filters.put("fingerprint", settings().affects("separator", "+").affects("max_output_size", "10"));
+        filters.put(
+            "keep_types",
+            settings(Map.of("types", List.of("<NUM>"))).affects("types", List.of("<ALPHANUM>")).affects("mode", "exclude")
+        );
+        filters.put("length", settings().affects("min", "2").affects("max", "10"));
+        filters.put("limit", settings().affects("max_token_count", "5").affects("consume_all_tokens", "true"));
+        filters.put("lowercase", settings().affects("language", "greek", "irish", "turkish"));
+        filters.put("ngram", settings().affects("min_gram", "2").affects("max_gram", "3").affects("preserve_original", "true"));
+        filters.put(
+            "pattern_capture",
+            settings(Map.of("patterns", List.of("(a)"))).affects("patterns", List.of("(b)")).affects("preserve_original", "false")
+        );
+        filters.put(
+            "pattern_replace",
+            settings(Map.of("pattern", "a")).affects("pattern", "b")
+                .affects("flags", "CASE_INSENSITIVE")
+                .affects("replacement", "x")
+                .affects("all", "false")
+        );
+        filters.put("snowball", settings().affects("language", "German"));
+        filters.put("stemmer", settings().affects("language", "german", "light_german").affects("name", "german"));
+        filters.put("truncate", settings(Map.of("length", "5")).affects("length", "6"));
+        filters.put("unique", settings().affects("only_on_same_position", "true"));
+        return filters;
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenizerSettings() {
+        Map<String, FactorySettings> tokenizers = new HashMap<>();
+        for (String stateless : List.of("letter", "lowercase", "thai")) {
+            tokenizers.put(stateless, alwaysShares());
+        }
+        for (String maxTokenLength : List.of("classic", "uax_url_email", "whitespace")) {
+            tokenizers.put(maxTokenLength, settings().affects("max_token_length", "10"));
+        }
+        for (String ngram : List.of("ngram", "edge_ngram")) {
+            tokenizers.put(
+                ngram,
+                settings().affects("min_gram", "2")
+                    .affects("max_gram", "3")
+                    .affects("token_chars", List.of("letter"), List.of("letter", "digit"))
+                    // switches the key to identity, so it must not share
+                    .affects("custom_token_chars", "-")
+            );
+        }
+        for (String simplePattern : List.of("simple_pattern", "simple_pattern_split")) {
+            tokenizers.put(simplePattern, settings().affects("pattern", "a"));
+        }
+        for (String pathHierarchy : List.of("path_hierarchy", "PathHierarchy")) {
+            tokenizers.put(
+                pathHierarchy,
+                settings().affects("buffer_size", "100")
+                    .affects("delimiter", "-")
+                    .affects("replacement", "-")
+                    .affects("skip", "1")
+                    .affects("reverse", "true")
+            );
+        }
+        tokenizers.put(
+            "char_group",
+            settings(Map.of("tokenize_on_chars", List.of("whitespace"))).affects("tokenize_on_chars", List.of("-"), List.of("digit"))
+                .affects("max_token_length", "10")
+        );
+        tokenizers.put("keyword", settings().affects("buffer_size", "100"));
+        tokenizers.put(
+            "pattern",
+            settings(Map.of("pattern", "(a)")).affects("pattern", "(b)").affects("flags", "CASE_INSENSITIVE").affects("group", "1")
+        );
+        return tokenizers;
+    }
+
+    @Override
+    protected Map<String, FactorySettings> charFilterSettings() {
+        return Map.of(
+            "html_strip",
+            settings().affects("escaped_tags", List.of("b")),
+            "pattern_replace",
+            settings(Map.of("pattern", "a")).affects("pattern", "b").affects("flags", "CASE_INSENSITIVE").affects("replacement", "x")
+        );
+    }
+
+    @Override
+    protected Set<FactoryRef> factorySettingsExemptions() {
+        // The deprecated camel-case ngram names are rejected on indices created on or after 8.0, and the
+        // contract builds current-version indices; the ngram / edge_ngram declarations cover the same factories.
+        return Set.of(tokenFilter("nGram"), tokenFilter("edgeNGram"), tokenizer("nGram"), tokenizer("edgeNGram"));
+    }
+
+    @Override
+    protected Set<FactoryRef> factorySettingsPending() {
+        return Set.of(
+            analyzer("fingerprint"),
+            analyzer("pattern"),
+            analyzer("persian"),
+            analyzer("snowball"),
+            analyzer("stop"),
+            tokenFilter("common_grams"),
+            tokenFilter("condition"),
+            tokenFilter("delimited_payload"),
+            tokenFilter("dictionary_decompounder"),
+            tokenFilter("elision"),
+            tokenFilter("hyphenation_decompounder"),
+            tokenFilter("keep"),
+            tokenFilter("keyword_marker"),
+            tokenFilter("min_hash"),
+            tokenFilter("multiplexer"),
+            tokenFilter("predicate_token_filter"),
+            tokenFilter("stemmer_override"),
+            tokenFilter("synonym"),
+            tokenFilter("synonym_graph"),
+            tokenFilter("word_delimiter"),
+            tokenFilter("word_delimiter_graph"),
+            charFilter("mapping")
+        );
     }
 
     /**

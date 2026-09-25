@@ -30,4 +30,8 @@ public class IndicNormalizationFilterFactory extends AbstractTokenFilterFactory 
         return new IndicNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

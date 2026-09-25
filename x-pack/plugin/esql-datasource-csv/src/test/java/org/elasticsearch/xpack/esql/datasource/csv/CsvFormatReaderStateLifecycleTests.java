@@ -29,13 +29,10 @@ import java.util.TreeSet;
 
 /**
  * The lifecycle gate over {@link CsvFormatReader}'s mutable state — the CSV/TSV twin of
- * {@code NdJsonFormatReaderStateLifecycleTests}; see there for the full rationale. In short: the format registry
- * hands out ONE reader per format for the life of the node, every configured reader is a copy-on-wither
- * descendant, and internally mutable state a wither shares is shared for the life of the node. Sharing above the
- * per-query seam mixes concurrent queries' telemetry; forking at the per-file seam leaves the instance that reads
- * reporting into a copy nobody snapshots. The behavioural pins in {@link CsvFormatReaderStatusSnapshotTests}
- * guard the known withers; this class guards the ENUMERATION, so a new wither or field fails the build until its
- * lifecycle is decided.
+ * {@code NdJsonFormatReaderStateLifecycleTests}. Counters are now passed via {@code FormatReadContext} rather
+ * than carried as reader fields, so all ordinary withers are stateless copies. The behavioural pins in
+ * {@link CsvFormatReaderStatusSnapshotTests} guard each known wither; this class guards the ENUMERATION, so a
+ * new wither or field fails the build until its lifecycle is decided.
  */
 @SuppressForbidden(reason = "reflection over declared fields and withers is the point: an undeclared one must not slip past the gate")
 public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
@@ -62,27 +59,31 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         "readConfig",
         "declaredDateFormats",
         "declaredProvenanceBinding",
-        "directBlockEnabled"
+        "directBlockEnabled",
+        "configWarnings"
     );
 
-    /** Internally mutable fields written during reads. */
-    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of("counters");
+    /** Internally mutable fields written during reads. Counters are now passed via context, not stored as fields. */
+    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of();
 
     private enum WitherLifecycle {
-        PER_QUERY_FORKS,
-        PER_FILE_SHARES,
+        /**
+         * Copies the reader's immutable configuration; all ordinary withers declare this.
+         */
+        SHARES_COUNTERS,
+        /** SPI default that returns {@code this}: no copy, so no counter decision needed. */
         IDENTITY_NO_COPY
     }
 
     private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.ofEntries(
-        Map.entry("withConfig", WitherLifecycle.PER_QUERY_FORKS),
-        Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.PER_QUERY_FORKS),
-        Map.entry("withOptions", WitherLifecycle.PER_QUERY_FORKS),
-        Map.entry("withSchema", WitherLifecycle.PER_QUERY_FORKS),
-        Map.entry("withDeclaredDateFormats", WitherLifecycle.PER_QUERY_FORKS),
-        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.PER_QUERY_FORKS),
-        Map.entry("withDirectBlockEnabled", WitherLifecycle.PER_QUERY_FORKS),
-        Map.entry("withReadConfig", WitherLifecycle.PER_FILE_SHARES),
+        Map.entry("withConfig", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withOptions", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchema", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withDirectBlockEnabled", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDeclaredTypeColumns", WitherLifecycle.IDENTITY_NO_COPY)
     );
@@ -136,9 +137,9 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         assertTrue(
             "wither(s) "
                 + undeclared
-                + " with no declared lifecycle: decide the seam — PER_QUERY_FORKS (copy forks the counters), "
-                + "PER_FILE_SHARES (copy shares its parent's), or IDENTITY_NO_COPY (returns this) — add it to "
-                + "WITHER_LIFECYCLE and to sampleArgsFor(), and add a behavioural pin to the status-snapshot suite",
+                + " with no declared lifecycle: decide how it treats state — SHARES_COUNTERS (all ordinary withers)"
+                + " or IDENTITY_NO_COPY (returns this) — add it to WITHER_LIFECYCLE and to sampleArgsFor(), and"
+                + " add a pin to the status-snapshot suite",
             undeclared.isEmpty()
         );
         Set<String> stale = new TreeSet<>(WITHER_LIFECYCLE.keySet());
@@ -156,41 +157,15 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
                 case IDENTITY_NO_COPY -> assertSame(
                     "wither ["
                         + m.getName()
-                        + "] is declared IDENTITY_NO_COPY but returned a copy: it now has state, so its seam must be "
-                        + "decided — reclassify it PER_QUERY_FORKS or PER_FILE_SHARES",
+                        + "] is declared IDENTITY_NO_COPY but returned a copy: it now has state, so decide its"
+                        + " lifecycle — reclassify it SHARES_COUNTERS",
                     receiver,
                     product
                 );
-                case PER_QUERY_FORKS -> {
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "wither ["
-                                + m.getName()
-                                + "] runs at the per-query seam but its copy SHARES ["
-                                + field
-                                + "] with the registry's node-lifetime reader: concurrent queries would mix",
-                            fieldOf(receiver, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                    Object sibling = invokeForcingACopy(m, receiver, lifecycle);
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "two [" + m.getName() + "] copies share [" + field + "]: sibling queries would mix",
-                            fieldOf(sibling, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                }
-                case PER_FILE_SHARES -> {
+                case SHARES_COUNTERS -> {
                     for (String field : SHARED_MUTABLE_FIELDS) {
                         assertSame(
-                            "wither ["
-                                + m.getName()
-                                + "] runs at the per-file seam, below the reader the status envelope snapshots, but its "
-                                + "copy FORKS ["
-                                + field
-                                + "]: the instance that reads would report into a copy nobody snapshots",
+                            "wither [" + m.getName() + "] must share [" + field + "] with its parent",
                             fieldOf(receiver, field),
                             fieldOf(product, field)
                         );

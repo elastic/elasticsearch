@@ -19,14 +19,18 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Thrown by the coordinator when ES|QL resolves a query to a remote view or dataset under cross-cluster or
- * cross-project search. Views and datasets are non-remotable abstractions and the query must fail.
+ * Thrown by the coordinator when ES|QL resolves a query to a remote view under cross-cluster or cross-project search.
+ * A view is a non-remotable abstraction and the query must fail.
  * <p>
- * The remote nodes report each kind separately via {@link RemoteViewNotSupportedException} and
- * {@link RemoteDatasetNotSupportedException}; the coordinator aggregates them into this single exception so a query
- * that matches both (e.g. a remote view on one cluster and a remote dataset on another) reports both at once rather
- * than surfacing whichever check ran first. The message reuses the per-kind wording verbatim when only one kind is
- * present.
+ * Remote nodes report views via {@link RemoteViewNotSupportedException}; the coordinator aggregates the ones matched
+ * across several clusters into this single exception, so a query reaching a view on more than one of them names all of
+ * them at once rather than surfacing whichever check ran first. The message reuses the per-kind wording verbatim.
+ * <p>
+ * The dataset half is vestigial. It was carried when a dataset on another cluster failed a query too; a dataset is now
+ * invisible across a cluster boundary, so nothing populates the list. The shape stays because changing what is on the
+ * wire is not free and there is nothing to gain by it here. The views half went the same way in #157726, on the
+ * cross-project rail as well as the cross-cluster one. What still reports a view is a cluster asked to resolve them by
+ * a coordinator old enough to ask, so both halves are now about an upgrade rather than about steady state.
  */
 public class RemoteResourceNotSupportedException extends ElasticsearchException {
 

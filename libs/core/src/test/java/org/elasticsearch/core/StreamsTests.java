@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -28,5 +30,33 @@ public class StreamsTests extends ESTestCase {
 
         assertThat(count, equalTo((long) content.length));
         assertThat(Arrays.equals(content, out.toByteArray()), equalTo(true));
+    }
+
+    public void testCopyWithNestedStreamsReadOnSameThread() throws IOException {
+        final byte[] content = randomByteArrayOfLength(randomIntBetween(2, 5) * 8 * 1024);
+        final ByteBuffer readBuffer = ByteBuffer.allocateDirect(8 * 1024);
+        final InputStream in = new InputStream() {
+            private final ByteArrayInputStream delegate = new ByteArrayInputStream(content);
+
+            @Override
+            public int read() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                final int n = delegate.read(b, off, len);
+                if (n > 0) {
+                    readBuffer.clear();
+                    // Will overwrite the copy buffer if copy/read share one ThreadLocal buffer
+                    Streams.read(new ByteArrayInputStream(new byte[readBuffer.remaining()]), readBuffer, readBuffer.remaining());
+                }
+                return n;
+            }
+        };
+
+        final ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
+        assertThat(Streams.copy(in, out, false), equalTo((long) content.length));
+        assertArrayEquals(content, out.toByteArray());
     }
 }

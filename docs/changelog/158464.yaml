@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158464
+summary: Prune listings of ** globs by partition
+type: bug

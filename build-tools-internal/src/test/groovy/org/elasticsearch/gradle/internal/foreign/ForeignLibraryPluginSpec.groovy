@@ -145,6 +145,23 @@ class ForeignLibraryPluginSpec extends AbstractProjectBuilderPluginSpec {
         "processTestFixturesForeignAnnotations" | "generated-foreign-library-classes-testFixtures"
     }
 
+    def "process-annotations tasks depend on their compile task and include its output"() {
+        when:
+        def processAnnotations = (JavaCompile) consumer.tasks.getByName(processTaskName)
+        def compile = (JavaCompile) consumer.tasks.getByName(compileTaskName)
+        def deps = processAnnotations.taskDependencies.getDependencies(processAnnotations).collect { it.name }
+
+        then:
+        compileTaskName in deps
+        compile.destinationDirectory.get().asFile in processAnnotations.classpath.files
+
+        where:
+        processTaskName                           | compileTaskName
+        ForeignLibraryPlugin.PROCESS_ANNOTATIONS_TASK_NAME | JavaPlugin.COMPILE_JAVA_TASK_NAME
+        "processTestForeignAnnotations"           | "compileTestJava"
+        "processTestFixturesForeignAnnotations"   | "compileTestFixturesJava"
+    }
+
     def "test source set outputs include their generated classes dir"() {
         when:
         def sourceSets = consumer.extensions.getByType(SourceSetContainer)

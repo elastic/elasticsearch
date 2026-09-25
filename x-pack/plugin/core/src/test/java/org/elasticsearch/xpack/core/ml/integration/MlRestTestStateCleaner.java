@@ -6,10 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.integration;
 
+import org.apache.http.client.config.RequestConfig;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -17,7 +20,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.rest.ESRestTestCase.performPostFeaturesReset;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -34,7 +36,18 @@ public class MlRestTestStateCleaner {
     public void resetFeatures() throws IOException {
         deletePipelinesWithInferenceProcessors();
         // This resets all features, not just ML, but they should have been getting reset between tests anyway so it shouldn't matter
-        performPostFeaturesReset(adminClient);
+        final Request resetFeaturesRequest = new Request("POST", "/_features/_reset");
+        resetFeaturesRequest.addParameter("master_timeout", "90s");
+        resetFeaturesRequest.addParameter("error_trace", "true");
+        // encryption-at-rest periodic CI can exceed the 30s default master timeout during full-suite ML cleanup
+        resetFeaturesRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(
+                    RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueSeconds(120).millis())).build()
+                )
+                .build()
+        );
+        ESRestTestCase.assertOK(adminClient.performRequest(resetFeaturesRequest));
     }
 
     @SuppressWarnings("unchecked")

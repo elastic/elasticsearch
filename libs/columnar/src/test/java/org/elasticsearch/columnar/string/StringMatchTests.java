@@ -309,9 +309,9 @@ public class StringMatchTests extends ColumnarStringTestCase {
      * A window collected from a column that let values escape has to agree with asking one document at a
      * time, for a term the dictionary holds and for one only an escaped value carries.
      *
-     * <p>An ordinal is enough to decide a value the dictionary named, and a block of them is tested at once.
-     * An escaped value has no ordinal but the marker, which says only that its bytes are elsewhere, so a
-     * column holding any of them cannot be answered from ordinals alone however the documents are asked for.
+     * <p>A term the dictionary holds is answered from the ordinals, however many values escaped, since a
+     * value escapes only when no term names it. A term it does not hold can be carried by an escaped value,
+     * whose bytes are read.
      */
     public void testWindowedCollectionWithEscapes() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(600, 2000)];
@@ -325,6 +325,8 @@ public class StringMatchTests extends ColumnarStringTestCase {
             final List<String> probes = new ArrayList<>(Arrays.asList(TERMS));
             // Carried by an escaped value and by nothing the dictionary names.
             probes.add("escaped-5");
+            // In neither the dictionary nor the escapes, so nothing holds it.
+            probes.add("escaped-6");
             for (String probe : probes) {
                 assertWindowedAgrees("term [" + probe + "]", docValues.length, () -> reader.matchTerm(new BytesRef(probe)));
                 assertWindowedAgrees("contains [" + probe + "]", docValues.length, () -> reader.matchContains(new BytesRef(probe)));

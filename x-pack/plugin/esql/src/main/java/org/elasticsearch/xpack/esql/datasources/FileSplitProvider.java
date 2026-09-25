@@ -415,9 +415,16 @@ public class FileSplitProvider implements SplitProvider {
     private FileList scanFileSet(SplitDiscoveryContext context) throws IOException {
         DatasetDiscovery discovery = DatasetDiscovery.shared(context.fileList());
         if (discovery.schemaListingIsComplete()) {
+            LOGGER.info("SCANSET: schema listing complete with {} files; reusing it", discovery.scanFileSet().fileCount());
             return discovery.scanFileSet();
         }
-        return listForQuery(context);
+        FileList listed = listForQuery(context);
+        LOGGER.info(
+            "SCANSET: schema listing was a prefix of {} files; discovered {} for the query",
+            discovery.schemaListing().fileCount(),
+            listed.fileCount()
+        );
+        return listed;
     }
 
     /**

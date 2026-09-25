@@ -83,10 +83,18 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
     /**
      * A merge that branches the query. A {@link SourceFanInUnionAll} is one resolved {@code FROM},
-     * so it is not a second command under {@code FORK}.
+     * so it is not a second command under {@code FORK}. A {@link ViewUnionAll} that is a source
+     * expansion (datasets plus indices from one {@code FROM}) is the same thing before promotion,
+     * so it is also excluded.
      */
     public static boolean isQueryBranchingFork(LogicalPlan plan) {
-        return plan instanceof MergePlan && plan instanceof SourceFanInUnionAll == false;
+        if (plan instanceof SourceFanInUnionAll) {
+            return false;
+        }
+        if (plan instanceof ViewUnionAll view && SourceFanInUnionAll.isSourceExpansion(view)) {
+            return false;
+        }
+        return plan instanceof MergePlan;
     }
 
     private static void checkFork(LogicalPlan plan, Failures failures) {

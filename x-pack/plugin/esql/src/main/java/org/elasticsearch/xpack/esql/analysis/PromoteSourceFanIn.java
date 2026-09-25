@@ -7,20 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
-
-import static org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll.isSourcePipelineUnary;
-import static org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll.producerCount;
 
 /**
  * Turns a {@link ViewUnionAll} that is only a resolved {@code FROM} into a {@link SourceFanInUnionAll}.
@@ -34,8 +26,20 @@ public final class PromoteSourceFanIn extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
+        return promote(plan);
+    }
+
+    /**
+     * Promotes every source-expansion view union, merges sibling index reads in every fan-in (see
+     * {@link SourceFanInUnionAll#withIndexReadsCollapsed}), and collapses any single-child fan-in that results.
+     */
+    public static LogicalPlan promote(LogicalPlan plan) {
         LogicalPlan promoted = plan.transformUp(ViewUnionAll.class, PromoteSourceFanIn::promoteOne);
-        return promoted.transformDown(SourceFanInUnionAll.class, fanIn -> {
+        return collapseSingleChildFanIns(promoted.transformUp(SourceFanInUnionAll.class, SourceFanInUnionAll::withIndexReadsCollapsed));
+    }
+
+    private static LogicalPlan collapseSingleChildFanIns(LogicalPlan plan) {
+        return plan.transformDown(SourceFanInUnionAll.class, fanIn -> {
             if (fanIn.children().size() == 1) {
                 return fanIn.children().getFirst();
             }
@@ -44,56 +48,9 @@ public final class PromoteSourceFanIn extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     private static LogicalPlan promoteOne(ViewUnionAll view) {
-        if (isSourceExpansion(view) == false || view.anyMatch(p -> p instanceof ExternalRelation) == false) {
+        if (SourceFanInUnionAll.isSourceExpansion(view) == false) {
             return view;
         }
-        int producers = 0;
-        for (LogicalPlan child : view.children()) {
-            producers += producerCount(child);
-        }
-        if (SourceFanInUnionAll.exceedsMaxProducers(producers)) {
-            throw new VerificationException(
-                "FROM ["
-                    + view.sourceText()
-                    + "] resolved to "
-                    + producers
-                    + " sources, exceeding the current limit of "
-                    + SourceFanInUnionAll.MAX_PRODUCERS
-                    + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
-            );
-        }
         return new SourceFanInUnionAll(view.source(), new ArrayList<>(view.children()), view.output());
-    }
-
-    /**
-     * Every child is a bare producer ({@link ExternalRelation}, {@link EsRelation}, a nested fan-in,
-     * or a {@link Project} over one of those) or a unary pipeline whose leaf is a fan-in.
-     */
-    private static boolean isSourceExpansion(ViewUnionAll view) {
-        for (LogicalPlan child : view.children()) {
-            if (isPromotable(child) == false) {
-                return false;
-            }
-        }
-        return view.children().isEmpty() == false;
-    }
-
-    private static boolean isPromotable(LogicalPlan plan) {
-        LogicalPlan current = plan;
-        // A Project may wrap a bare relation. Any other unary is promotable only over a fan-in.
-        boolean sawNonProjectUnary = false;
-        while (isSourcePipelineUnary(current)) {
-            if (current instanceof Project == false) {
-                sawNonProjectUnary = true;
-            }
-            current = ((UnaryPlan) current).child();
-        }
-        if (current instanceof SourceFanInUnionAll) {
-            return true;
-        }
-        if (sawNonProjectUnary) {
-            return false;
-        }
-        return current instanceof ExternalRelation || current instanceof EsRelation;
     }
 }

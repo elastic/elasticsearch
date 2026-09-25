@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.PromoteSourceFanIn;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -53,8 +53,12 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         );
         assertThat(verifyAnalysis(overUnion), containsString("FORK after subquery is not supported"));
 
+        // A dataset view is one FROM, so it is allowed under FORK the same way a source fan-in is.
         Fork overView = new Fork(Source.EMPTY, List.of(viewOf(external("a"), index("idx")), index("other")), List.of());
-        assertThat(verifyAnalysis(overView), containsString("FORK after subquery is not supported"));
+        assertThat(verifyAnalysis(overView), not(containsString("FORK after subquery")));
+
+        Fork overIndexView = new Fork(Source.EMPTY, List.of(viewOf(index("a"), index("b")), index("other")), List.of());
+        assertThat(verifyAnalysis(overIndexView), containsString("FORK after subquery is not supported"));
 
         Fork nested = new Fork(
             Source.EMPTY,
@@ -65,18 +69,18 @@ public class SourceFanInUnionAllTests extends ESTestCase {
     }
 
     public void testPromoteDatasetViewsAndMixedSourceBesideIndex() {
-        LogicalPlan datasets = new PromoteSourceFanIn().apply(viewOf(external("ds1"), external("ds2")));
+        LogicalPlan datasets = PromoteSourceFanIn.promote(viewOf(external("ds1"), external("ds2")));
         assertThat(datasets, instanceOf(SourceFanInUnionAll.class));
         assertThat(datasets.children(), hasSize(2));
 
-        LogicalPlan mixed = new PromoteSourceFanIn().apply(viewOf(external("ds"), index("idx")));
+        LogicalPlan mixed = PromoteSourceFanIn.promote(viewOf(external("ds"), index("idx")));
         assertThat(mixed, instanceOf(SourceFanInUnionAll.class));
         assertThat(mixed.children().get(0), instanceOf(ExternalRelation.class));
         assertThat(mixed.children().get(1), instanceOf(EsRelation.class));
     }
 
     public void testPromoteFlattensNestedFanInAndRejectsNinthProducer() {
-        LogicalPlan flattened = new PromoteSourceFanIn().apply(viewOf(fanIn(external("a"), external("b")), external("c")));
+        LogicalPlan flattened = PromoteSourceFanIn.promote(viewOf(fanIn(external("a"), external("b")), external("c")));
         assertThat(flattened, instanceOf(SourceFanInUnionAll.class));
         assertThat(flattened.children(), hasSize(3));
         assertThat(flattened.children().get(0), instanceOf(ExternalRelation.class));
@@ -85,19 +89,19 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         for (int i = 0; i < 9; i++) {
             nine.add(external("ds" + i));
         }
-        VerificationException tooMany = expectThrows(VerificationException.class, () -> new PromoteSourceFanIn().apply(viewOf(nine)));
-        assertThat(tooMany.getMessage(), containsString("limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
+        LogicalPlan tooMany = PromoteSourceFanIn.promote(viewOf(nine));
+        assertThat(verifyAnalysis(tooMany), containsString("limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
     }
 
     public void testPromoteLeavesIndexOnlyViewUnion() {
         ViewUnionAll indexes = viewOf(index("a"), index("b"));
-        assertThat(new PromoteSourceFanIn().apply(indexes), equalTo(indexes));
+        assertThat(PromoteSourceFanIn.promote(indexes), equalTo(indexes));
     }
 
     public void testPromoteKeepsFilterOnFanInBesideNamesake() {
         SourceFanInUnionAll inner = fanIn(external("ds1"), external("ds2"));
         Filter filter = new Filter(Source.EMPTY, inner, new Literal(Source.EMPTY, true, DataType.BOOLEAN));
-        LogicalPlan promoted = new PromoteSourceFanIn().apply(viewOf(filter, index("namesake")));
+        LogicalPlan promoted = PromoteSourceFanIn.promote(viewOf(filter, index("namesake")));
 
         assertThat(promoted, instanceOf(SourceFanInUnionAll.class));
         assertThat(promoted.children(), hasSize(2));
@@ -113,16 +117,13 @@ public class SourceFanInUnionAllTests extends ESTestCase {
             producers.add(external("ds" + i));
         }
         Filter filter = new Filter(Source.EMPTY, fanIn(producers), new Literal(Source.EMPTY, true, DataType.BOOLEAN));
-        VerificationException tooMany = expectThrows(
-            VerificationException.class,
-            () -> new PromoteSourceFanIn().apply(viewOf(filter, index("namesake")))
-        );
-        assertThat(tooMany.getMessage(), containsString("limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
+        LogicalPlan tooMany = PromoteSourceFanIn.promote(viewOf(filter, index("namesake")));
+        assertThat(verifyAnalysis(tooMany), containsString("limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
     }
 
     public void testViewUnionOfForkBesideNamesakeIsNotPromoted() {
         ViewUnionAll view = viewOf(new Fork(Source.EMPTY, List.of(index("a"), index("b")), List.of()), index("namesake"));
-        LogicalPlan promoted = new PromoteSourceFanIn().apply(view);
+        LogicalPlan promoted = PromoteSourceFanIn.promote(view);
         assertThat(promoted, instanceOf(ViewUnionAll.class));
 
         Failures failures = new Failures();
@@ -137,7 +138,7 @@ public class SourceFanInUnionAllTests extends ESTestCase {
             new Literal(Source.EMPTY, true, DataType.BOOLEAN)
         );
         UnionAll userUnion = new UnionAll(Source.EMPTY, List.of(filter, index("idx")), List.of());
-        LogicalPlan promoted = new PromoteSourceFanIn().apply(userUnion);
+        LogicalPlan promoted = PromoteSourceFanIn.promote(userUnion);
         assertThat(promoted, instanceOf(UnionAll.class));
         assertThat(promoted, not(instanceOf(SourceFanInUnionAll.class)));
     }
@@ -201,11 +202,69 @@ public class SourceFanInUnionAllTests extends ESTestCase {
             children.add(external("ds" + i));
             children.add(index("idx" + i));
         }
-        SourceFanInUnionAll fanIn = fanIn(children);
+        SourceFanInUnionAll fanIn = fanIn(children).withIndexReadsCollapsed();
+        // The 8 index reads merge into one, leaving 8 datasets + 1 merged index = 9 producers.
+        assertThat(fanIn.children(), hasSize(SourceFanInUnionAll.MAX_PRODUCERS + 1));
         Failures failures = new Failures();
         fanIn.postAnalysisPlanVerification().accept(fanIn, failures);
-        assertThat(failures.toString(), containsString("resolved to 16 sources"));
+        assertThat(failures.toString(), containsString("resolved to 9 sources"));
         assertThat(failures.toString(), containsString("limit of " + SourceFanInUnionAll.MAX_PRODUCERS));
+    }
+
+    public void testSevenDatasetsPlusIndexReadsCollapseToEightBranches() {
+        List<LogicalPlan> children = new ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            children.add(external("ds" + i));
+        }
+        children.add(index("idx"));
+        for (int i = 0; i < 7; i++) {
+            children.add(index("shadow" + i));
+        }
+        SourceFanInUnionAll fanIn = fanIn(children).withIndexReadsCollapsed();
+        assertThat(fanIn.children(), hasSize(8));
+        long indexBranches = fanIn.children().stream().filter(c -> c instanceof EsRelation).count();
+        assertThat(indexBranches, equalTo(1L));
+        EsRelation merged = (EsRelation) fanIn.children().get(7);
+        assertThat(merged.indexPattern(), equalTo("idx,shadow0,shadow1,shadow2,shadow3,shadow4,shadow5,shadow6"));
+        Failures failures = new Failures();
+        fanIn.postAnalysisPlanVerification().accept(fanIn, failures);
+        assertThat(failures.toString(), not(containsString("resolved to")));
+    }
+
+    public void testIndexReadsCountAsOneProducer() {
+        List<LogicalPlan> children = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            children.add(external("ds" + i));
+            children.add(index("shadow" + i));
+        }
+        children.add(index("idx"));
+        LogicalPlan promoted = PromoteSourceFanIn.promote(fanIn(children));
+        assertThat(promoted.children(), hasSize(5));
+        assertThat(verifyAnalysis(promoted), not(containsString("resolved to")));
+    }
+
+    public void testConstructorKeepsIndexReads() {
+        SourceFanInUnionAll fanIn = fanIn(external("ds"), index("a"), index("b"));
+        assertThat(fanIn.children(), hasSize(3));
+    }
+
+    public void testIndexReadsWithConflictingTypesStaySeparate() {
+        EsRelation keyword = index("a", field("emp_no", DataType.KEYWORD));
+        EsRelation integer = index("b", field("emp_no", DataType.INTEGER));
+        SourceFanInUnionAll fanIn = fanIn(external("ds"), keyword, integer);
+        assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
+    }
+
+    public void testEmptyMappingMarkerDroppedWhenMerged() {
+        EsRelation empty = new EsRelation(Source.EMPTY, "empty", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), Analyzer.NO_FIELDS);
+        FieldAttribute empNo = field("emp_no");
+        SourceFanInUnionAll fanIn = fanIn(external("ds"), index("idx", empNo), empty).withIndexReadsCollapsed();
+        assertThat(fanIn.children(), hasSize(2));
+        assertThat(fanIn.children().get(1).output(), equalTo(List.of(empNo)));
+
+        EsRelation otherEmpty = new EsRelation(Source.EMPTY, "other", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), Analyzer.NO_FIELDS);
+        SourceFanInUnionAll bothEmpty = fanIn(external("ds"), empty, otherEmpty).withIndexReadsCollapsed();
+        assertThat(bothEmpty.children().get(1).output(), equalTo(Analyzer.NO_FIELDS));
     }
 
     public void testForkBranchesTimesProducersFailQueryWideCap() {
@@ -318,10 +377,10 @@ public class SourceFanInUnionAllTests extends ESTestCase {
     }
 
     private static FieldAttribute field(String name) {
-        return new FieldAttribute(
-            Source.EMPTY,
-            name,
-            new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-        );
+        return field(name, DataType.INTEGER);
+    }
+
+    private static FieldAttribute field(String name, DataType type) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
 }

@@ -322,7 +322,7 @@ public final class FetchPhase {
         final long[] streamingHeldBytes = new long[1];
         // Bytes for document fields are buffered here and only charged when the buffer crosses
         // memAccountingBufferSize(), matching the buffering strategy used for _source.
-        final int[] locallyAccumulatedFieldBytes = new int[1];
+        final long[] locallyAccumulatedFieldBytes = new long[1];
 
         // Inner-hits byte checker: transfers the byte total from a nested fetch onto this context.
         // Inner-hit result bytes are coarse-grained (one charge per inner-hit fetch), so no buffering.
@@ -407,10 +407,9 @@ public final class FetchPhase {
                 : (memoryChecker != null
                     ? (bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes))
                     : bytes -> {
-                        int bytesInt = bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes;
-                        locallyAccumulatedFieldBytes[0] += bytesInt;
+                        locallyAccumulatedFieldBytes[0] += bytes;
                         if (context.checkCircuitBreaker(
-                            locallyAccumulatedFieldBytes[0],
+                            (int) Math.min(locallyAccumulatedFieldBytes[0], Integer.MAX_VALUE),
                             ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[document_fields]"
                         )) {
                             addRequestBreakerBytes(locallyAccumulatedFieldBytes[0]);

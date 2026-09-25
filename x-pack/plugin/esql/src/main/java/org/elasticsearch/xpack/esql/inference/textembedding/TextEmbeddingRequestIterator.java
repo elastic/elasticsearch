@@ -13,6 +13,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -45,8 +46,12 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         if (texts.isEmpty()) {
             return new BulkInferenceRequestItem(null, pvcs);
         }
+        // The rows are documents, and the mode is stated rather than left to the service: given no input type, the Elastic
+        // Inference Service embeds a lone input as a query and two or more as documents, so the vector a row received would
+        // otherwise depend on how many rows shared its batch.
         InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, taskType)
             .setInput(texts)
+            .setInputType(InputType.INTERNAL_INGEST)
             .setContext(new InferenceContext(ESQL_PRODUCT_USE_CASE));
         if (timeout != null) {
             builder.setInferenceTimeout(timeout);

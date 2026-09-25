@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 159672
 pr: 159911
-summary: Version-gate the request DSL filter on the functions it synthesizes
+summary: Make the Query DSL filter pushdown check the transport version of emitted functions
 type: bug

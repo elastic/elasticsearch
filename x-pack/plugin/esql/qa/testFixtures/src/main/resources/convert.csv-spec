@@ -192,12 +192,14 @@ ver:version
 
 mixedNumericTypesInLiterals
 required_capability: mixed_numeric_types_in_coalesce
+required_capability: warn_null_misuse
 from employees
 | where languages.long in (1, 2.0, null)
 | keep emp_no, languages
 | sort emp_no
 | limit 10
 ;
+warning:Line 2:9: NULL in the IN list of [languages.long in (1, 2.0, null)] is ignored, you can move it to [OR languages.long IS NULL].
 
 emp_no:integer | languages:integer
 10001          | 2
@@ -319,10 +321,14 @@ birth_date:datetime  |x:datetime           |y:datetime           |z:datetime    
 
 convertToDatePeriodNull
 required_capability: cast_string_literal_to_temporal_amount
+required_capability: warn_null_misuse
 FROM employees
 | WHERE emp_no == 10001
 | EVAL x = birth_date + null::date_period, y = birth_date - to_dateperiod(null), z = birth_date + to_string(null)::date_period
 | KEEP birth_date, x, y, z;
+warning:Line 3:12: Expression [birth_date + null::date_period] always evaluates to NULL.
+warning:Line 3:48: Expression [birth_date - to_dateperiod(null)] always evaluates to NULL.
+warning:Line 3:86: Expression [birth_date + to_string(null)::date_period] always evaluates to NULL.
 
 birth_date:datetime  |x:datetime           |y:datetime           |z:datetime
 1953-09-02T00:00:00Z |null                 |null                 |null
@@ -330,10 +336,14 @@ birth_date:datetime  |x:datetime           |y:datetime           |z:datetime
 
 convertToTimeDurationNull
 required_capability: cast_string_literal_to_temporal_amount
+required_capability: warn_null_misuse
 FROM employees
 | WHERE emp_no == 10001
 | EVAL x = birth_date + null::time_duration, y = birth_date - to_timeduration(null), z = birth_date + to_string(null)::time_duration
 | KEEP birth_date, x, y, z;
+warning:Line 3:12: Expression [birth_date + null::time_duration] always evaluates to NULL.
+warning:Line 3:50: Expression [birth_date - to_timeduration(null)] always evaluates to NULL.
+warning:Line 3:90: Expression [birth_date + to_string(null)::time_duration] always evaluates to NULL.
 
 birth_date:datetime  |x:datetime           |y:datetime           |z:datetime
 1953-09-02T00:00:00Z |null                 |null                 |null

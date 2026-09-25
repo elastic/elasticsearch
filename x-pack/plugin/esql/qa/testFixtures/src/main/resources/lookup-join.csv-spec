@@ -4920,7 +4920,6 @@ language_code_float:double | language_code_double:double | language_name:keyword
 
 nullifiedJoinKeyToPurgeTheJoin
 required_capability: join_lookup_v12
-required_capability: warn_null_misuse
 
 FROM employees
 | RENAME languages AS language_code
@@ -4931,7 +4930,6 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 ;
 
-warning:Line 5:24: Expression [TO_INTEGER(NULL)] always evaluates to NULL.
 
 emp_no:integer | language_code:integer | language_name:keyword
 10001          |null           |null
@@ -6128,6 +6126,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 nullArithmeticFilterBeforeLookupJoin
 required_capability: join_lookup_v12
+required_capability: warn_null_misuse
 
 FROM employees
 | WHERE 1 + null > 0
@@ -6135,6 +6134,7 @@ FROM employees
 | LOOKUP JOIN languages_lookup ON language_code
 | KEEP emp_no, language_code, language_name
 ;
+warning:Line 2:9: Expression [1 + null] always evaluates to NULL.
 
 emp_no:integer | language_code:integer | language_name:keyword
 ;

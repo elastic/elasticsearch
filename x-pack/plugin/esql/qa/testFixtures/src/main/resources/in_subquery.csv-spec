@@ -2181,12 +2181,14 @@ c:long | gender:keyword
 
 nullInInListPredicate
 required_capability: where_in_subquery_without_view
+required_capability: warn_null_misuse
 
 FROM employees
 | WHERE gender IN ("F", "M", null)
 | STATS c = COUNT(*) BY gender
 | SORT c
 ;
+warning:Line 2:9: NULL in the IN list of [gender IN (\"F\", \"M\", null)] is ignored, you can move it to [OR gender IS NULL].
 
 c:long | gender:keyword
 33     | F
@@ -2219,12 +2221,14 @@ c:long | languages:integer
 
 nullInNotInListPredicate
 required_capability: where_in_subquery_without_view
+required_capability: warn_null_misuse
 
 FROM employees
 | WHERE languages NOT IN (1, 2, 3 , 4, null)
 | STATS c = COUNT(*) BY languages
 | SORT c
 ;
+warning:Line 2:9: NULL in the IN list of [languages NOT IN (1, 2, 3 , 4, null)] is ignored.
 
 c:long | languages:integer
 ;

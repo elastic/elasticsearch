@@ -44,7 +44,9 @@ dependencies {
   implementation project(":libs:lucene-store")
   implementation project(":libs:simdvec")
   implementation project(":libs:simdjson")
-  implementation project(":libs:columnar")
+  // On the api surface rather than implementation: FieldMapper#columnarStringOptions returns one of its
+  // types, so a mapper outside the server has to be able to name it.
+  api project(":libs:columnar")
   implementation project(":libs:entitlement")
 
   // lucene
@@ -76,6 +78,7 @@ dependencies {
 
   // access to native functions
   implementation project(':libs:native')
+  implementation project(':libs:zstd')
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -247,7 +250,6 @@ tasks.named("thirdPartyAudit").configure {
             'org.apache.commons.csv.CSVFormat',
             'org.apache.commons.csv.QuoteMode',
             'org.apache.kafka.clients.producer.Producer',
-            'org.apache.kafka.clients.producer.RecordMetadata',
             'org.apache.kafka.common.serialization.ByteArraySerializer',
             'org.codehaus.stax2.XMLStreamWriter2',
             'org.codehaus.stax2.ri.Stax2WriterAdapter',
@@ -259,7 +261,6 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.BundleEvent',
             'org.osgi.framework.BundleReference',
             'org.osgi.framework.FrameworkUtil',
-            'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
             'org.osgi.framework.wiring.BundleRevision',

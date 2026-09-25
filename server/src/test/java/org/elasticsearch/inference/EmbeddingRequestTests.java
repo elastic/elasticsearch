@@ -9,9 +9,11 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -22,8 +24,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
+import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.randomDataTypeSupportingBase64;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
@@ -228,22 +233,84 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
 
     /**
      * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing audio,
-     * video or pdf content, so we filter those out of the bwc versions to avoid test failures.
-     * The logic is tested directly by {@link #testAudioVideoPdfAreNotBackwardsCompatible}
+     * video or pdf content, and versions before {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} throw an exception when
+     * serializing URL-format inputs, so we filter those out of the bwc versions to avoid test failures.
+     * The backwards-compatibility logic is tested directly by {@link #testAudioVideoPdfAreNotBackwardsCompatible} and
+     * {@link #testUrlFormatIsNotBackwardsCompatible}.
      */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
-        return super.bwcVersions().stream().filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED)).toList();
+        return super.bwcVersions().stream()
+            .filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED))
+            .filter(version -> version.supports(URL_INPUT_FORMAT_SUPPORT_ADDED))
+            .toList();
     }
 
+    /**
+     * Verifies that audio, video and pdf inputs cannot be sent to nodes that do not support
+     * {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED}.
+     * <p>
+     * We use a specific BASE64-format instance rather than a random one to avoid interference from the later
+     * {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} gate: random generation could produce URL-format instances,
+     * which would fail with the URL-format error rather than the audio/video/pdf error and break the assertion.
+     */
     public void testAudioVideoPdfAreNotBackwardsCompatible() throws IOException {
-        testSerializationIsNotBackwardsCompatible(
-            EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED,
-            i -> i.inputs().stream().anyMatch(input -> input.inferenceStrings().stream().anyMatch(InferenceStringTests::isAudioVideoOrPdf)),
-            """
-                Cannot send an inference request with audio, video or pdf inputs to an older node. \
-                Please wait until all nodes are upgraded before using audio, video or pdf inputs"""
+        var audioRequest = new EmbeddingRequest(
+            List.of(new InferenceStringGroup(new InferenceString(DataType.AUDIO, DataFormat.BASE64, TEST_DATA_URI))),
+            InputType.UNSPECIFIED,
+            Map.of()
         );
+        var preAvpVersions = super.bwcVersions().stream()
+            .filter(v -> v.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED) == false)
+            .toList();
+        assertRequestNotBackwardsCompatible(
+            audioRequest,
+            preAvpVersions,
+            "Cannot send an inference request with audio, video or pdf inputs to an older node. "
+                + "Please wait until all nodes are upgraded before using audio, video or pdf inputs"
+        );
+    }
+
+    /**
+     * Verifies that URL-format inputs cannot be sent to nodes that do not support
+     * {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED}.
+     * <p>
+     * We use an {@link DataType#IMAGE} instance since IMAGE pre-dates the audio/video/pdf gate and will not
+     * trigger it, ensuring we always get the URL-specific error on any pre-URL node.
+     */
+    public void testUrlFormatIsNotBackwardsCompatible() throws IOException {
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        var urlRequest = new EmbeddingRequest(
+            List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png"))),
+            InputType.UNSPECIFIED,
+            Map.of()
+        );
+        var preUrlVersions = super.bwcVersions().stream().filter(v -> v.supports(URL_INPUT_FORMAT_SUPPORT_ADDED) == false).toList();
+        assertRequestNotBackwardsCompatible(
+            urlRequest,
+            preUrlVersions,
+            "Cannot send an inference request with URL format inputs to an older node. "
+                + "Please wait until all nodes are upgraded before using URL format inputs"
+        );
+    }
+
+    /**
+     * Asserts that serializing {@code request} to each of the given {@code unsupportedVersions} throws an
+     * {@link ElasticsearchStatusException} with {@link RestStatus#BAD_REQUEST} and the given {@code expectedMessage}.
+     */
+    private void assertRequestNotBackwardsCompatible(
+        EmbeddingRequest request,
+        List<TransportVersion> unsupportedVersions,
+        String expectedMessage
+    ) throws IOException {
+        for (var version : unsupportedVersions) {
+            var ex = assertThrows(
+                ElasticsearchStatusException.class,
+                () -> copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), version)
+            );
+            assertThat(ex.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(ex.getMessage(), is(expectedMessage));
+        }
     }
 
     @Override

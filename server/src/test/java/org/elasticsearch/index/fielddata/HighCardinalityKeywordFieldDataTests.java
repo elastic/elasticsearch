@@ -66,43 +66,43 @@ public class HighCardinalityKeywordFieldDataTests extends AbstractStringFieldDat
     }
 
     @Override
-    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
-        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    protected SortableBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortableBinaryDocValues.ValueMode.SINGLE_VALUED;
     }
 
     @Override
-    protected SortedBinaryDocValues.Sparsity expectedSparsitySingleValueAllSet() {
-        return SortedBinaryDocValues.Sparsity.DENSE;
+    protected SortableBinaryDocValues.Sparsity expectedSparsitySingleValueAllSet() {
+        return SortableBinaryDocValues.Sparsity.DENSE;
     }
 
     @Override
-    protected SortedBinaryDocValues.ValueMode expectedValueModeMultiValueAllSet() {
-        return SortedBinaryDocValues.ValueMode.MULTI_VALUED;
+    protected SortableBinaryDocValues.ValueMode expectedValueModeMultiValueAllSet() {
+        return SortableBinaryDocValues.ValueMode.MULTI_VALUED;
     }
 
     @Override
-    protected SortedBinaryDocValues.Sparsity expectedSparsityMultiValueAllSet() {
-        return SortedBinaryDocValues.Sparsity.DENSE;
+    protected SortableBinaryDocValues.Sparsity expectedSparsityMultiValueAllSet() {
+        return SortableBinaryDocValues.Sparsity.DENSE;
     }
 
     @Override
-    protected SortedBinaryDocValues.ValueMode expectedValueModeMultiValueWithMissing() {
-        return SortedBinaryDocValues.ValueMode.MULTI_VALUED;
+    protected SortableBinaryDocValues.ValueMode expectedValueModeMultiValueWithMissing() {
+        return SortableBinaryDocValues.ValueMode.MULTI_VALUED;
     }
 
     @Override
-    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
-        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    protected SortableBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortableBinaryDocValues.ValueMode.SINGLE_VALUED;
     }
 
     @Override
-    protected SortedBinaryDocValues.Sparsity expectedSparsityMultiValueWithMissing() {
-        return SortedBinaryDocValues.Sparsity.SPARSE;
+    protected SortableBinaryDocValues.Sparsity expectedSparsityMultiValueWithMissing() {
+        return SortableBinaryDocValues.Sparsity.SPARSE;
     }
 
     @Override
-    protected SortedBinaryDocValues.Sparsity expectedSparsitySingleValueWithMissing() {
-        return SortedBinaryDocValues.Sparsity.SPARSE;
+    protected SortableBinaryDocValues.Sparsity expectedSparsitySingleValueWithMissing() {
+        return SortableBinaryDocValues.Sparsity.SPARSE;
     }
 
     // Don't run tests that binary doc values based field data doesn't support:

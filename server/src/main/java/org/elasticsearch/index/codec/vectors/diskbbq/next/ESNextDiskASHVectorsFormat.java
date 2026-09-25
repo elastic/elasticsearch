@@ -49,6 +49,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 1;
     public static final int VERSION_DIRECT_IO = VERSION_START;
+    public static final int VERSION_ON_DISK_MERGE = VERSION_START;
     public static final int VERSION_CURRENT = VERSION_START;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
@@ -88,6 +89,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
+    private final boolean onDiskMerge;
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
@@ -113,10 +115,12 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
+    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
     public ESNextDiskASHVectorsFormat(
         IvfSegmentConfig.AshConfig ashConfig,
         int vectorPerCluster,
@@ -128,7 +132,8 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource ivfFlushConfigSource,
-        IvfMergeConfigResolver ivfMergeConfigResolver
+        IvfMergeConfigResolver ivfMergeConfigResolver,
+        boolean onDiskMerge
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -165,6 +170,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
         };
         this.useDirectIO = useDirectIO;
+        this.onDiskMerge = onDiskMerge;
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
@@ -175,11 +181,13 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
         return new ESNextDiskASHVectorsWriter(
             state,
             rawVectorFormat.getName(),
             useDirectIO,
-            rawVectorFormat.fieldsWriter(state),
+            onDiskMerge,
+            rawVectorFormat.fieldsWriter(state, onDiskMerge),
             vectorPerCluster,
             centroidsPerParentCluster,
             mergeExec,
@@ -194,10 +202,11 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ESNextDiskASHVectorsReader(state, (f, dio) -> {
+        ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
+        return new ESNextDiskASHVectorsReader(state, (f, dio, odm) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state, dio);
+            return format.fieldsReader(state, dio, odm);
         }, ashConfig.queryBitsPerDim());
     }
 

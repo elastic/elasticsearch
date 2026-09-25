@@ -14,6 +14,8 @@ Bitmap values must be non-negative: `0` to `2^31 - 1` for `integer` fields, and 
 
 `bitmap_terms` is the counterpart of the [`terms` query](/reference/query-languages/query-dsl/query-dsl-terms-query.md) for very large sets of numeric values. Rather than listing the values in a JSON array, you build a roaring bitmap on the client, serialize it, and send it as a single compact string.
 
+To create a bitmap from the distinct field values matching a search, use the [`roaring_bitmap` aggregation](/reference/aggregations/search-aggregations-metrics-roaring-bitmap-aggregation.md).
+
 A common use case is filtering by an externally maintained set of identifiers, such as the product or document IDs a given user is entitled to see.
 
 ::::{tip}

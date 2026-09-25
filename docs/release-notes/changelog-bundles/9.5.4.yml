@@ -1,6 +1,6 @@
 version: 9.5.4
-released: false
-generated: 2026-09-11T00:04:29.633078388Z
+released: true
+generated: 2026-09-15T19:04:56.718655843Z
 changelogs:
   - pr: 2841
     summary: Better messaging regarding out of memory process termination

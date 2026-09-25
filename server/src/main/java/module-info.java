@@ -38,6 +38,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.simdjson;
     requires org.elasticsearch.columnar;
     requires org.elasticsearch.entitlement;
+    requires org.elasticsearch.zstd;
 
     requires hppc;
     requires HdrHistogram;
@@ -256,6 +257,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec.lucene84;
     exports org.elasticsearch.index.codec.lucene86;
     exports org.elasticsearch.index.codec.lucene87;
+    exports org.elasticsearch.index.codec.columnar;
     exports org.elasticsearch.index.codec.tsdb;
     exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.codec.storedfields;

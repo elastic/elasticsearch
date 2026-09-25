@@ -59,7 +59,7 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
                     state.segmentSuffix
                 );
 
-                readFields(metaIn, state.fieldInfos, genericReaders, loadReader);
+                readFields(metaIn, versionMeta, state.fieldInfos, genericReaders, loadReader);
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
@@ -78,6 +78,7 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
 
     private static void readFields(
         IndexInput meta,
+        int versionMeta,
         FieldInfos fieldInfos,
         GenericFlatVectorReaders fieldHelper,
         GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
@@ -90,8 +91,11 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
 
-            FieldEntry entry = new FieldEntry(meta.readString(), meta.readByte() == 1);
-            fieldHelper.loadField(fieldNumber, entry, loadReader);
+            String rawVectorFormatName = meta.readString();
+            boolean useDirectIOReads = meta.readByte() == 1;
+            boolean onDiskMerge = versionMeta >= ES93GenericFlatVectorsFormat.VERSION_ON_DISK_MERGE && meta.readByte() == 1;
+            FieldEntry entry = new FieldEntry(rawVectorFormatName, useDirectIOReads);
+            fieldHelper.loadField(fieldNumber, entry, onDiskMerge, loadReader);
         }
     }
 

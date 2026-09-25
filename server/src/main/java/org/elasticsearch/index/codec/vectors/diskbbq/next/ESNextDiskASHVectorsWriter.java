@@ -24,8 +24,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -90,6 +88,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         SegmentWriteState state,
         String rawVectorFormatName,
         boolean useDirectIOReads,
+        boolean onDiskMerge,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -112,7 +111,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             ESNextDiskASHVectorsFormat.CENTROID_EXTENSION,
             ESNextDiskASHVectorsFormat.CLUSTER_EXTENSION,
             true,
-            flatVectorThreshold
+            flatVectorThreshold,
+            onDiskMerge,
+            true
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -122,19 +123,6 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
         this.ashConfig = ashConfig;
-        if (sliceField != null) {
-            Sort sort = state.segmentInfo.getIndexSort();
-            if (sort == null || sort.getSort().length == 0) {
-                throw new IllegalStateException("sliceField requires index sort");
-            }
-            SortField primary = sort.getSort()[0];
-            if (sliceField.equals(primary.getField()) == false) {
-                throw new IllegalStateException("sliceField must be primary index sort");
-            }
-            if (primary.getType() != SortField.Type.STRING) {
-                throw new IllegalStateException("sliceField requires primary index sort");
-            }
-        }
     }
 
     @Override
@@ -275,8 +263,9 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 metaOutput.writeVInt(maxSliceSize);
             }
         }
-        // ASH-specific: bits per dimension
-        metaOutput.writeVInt(ivfSegmentConfig.ashConfig().bitsPerDim());
+        // ASH-specific: bits per dimension — use the writer's own config rather than the segment
+        // config, because the segment config may be IvfSegmentConfig.NONE for unsupported byte fields.
+        metaOutput.writeVInt(ashConfig.bitsPerDim());
     }
 
     @Override

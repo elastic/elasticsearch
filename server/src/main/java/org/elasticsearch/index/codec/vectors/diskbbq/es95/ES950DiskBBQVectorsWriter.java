@@ -94,6 +94,7 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
         SegmentWriteState state,
         String rawVectorFormatName,
         boolean useDirectIOReads,
+        boolean onDiskMerge,
         FlatVectorsWriter rawVectorDelegate,
         QuantEncoding encoding,
         int vectorPerCluster,
@@ -117,7 +118,9 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
             ES950DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES950DiskBBQVectorsFormat.CLUSTER_EXTENSION,
             true,
-            flatVectorThreshold
+            flatVectorThreshold,
+            onDiskMerge,
+            true
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;

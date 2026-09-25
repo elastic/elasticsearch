@@ -115,10 +115,10 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
-        assertThat(e.getMessage(), containsString("expected 2 columns"));
-        assertThat(e.getMessage(), containsString("found 1 columns"));
-        assertThat(e.getMessage(), containsString("f2.parquet"));
-        assertThat(e.getMessage(), containsString("union_by_name"));
+        assertEquals(
+            "[s3://b/f2.parquet] has [1] columns, [s3://b/f1.parquet] has [2]; set [schema_resolution] to [union_by_name] to merge schemas",
+            e.getMessage()
+        );
     }
 
     public void testStrictTypeMismatch() {
@@ -131,9 +131,11 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
-        assertThat(e.getMessage(), containsString("salary"));
-        assertThat(e.getMessage(), containsString("long"));
-        assertThat(e.getMessage(), containsString("integer"));
+        assertEquals(
+            "[s3://b/f2.parquet]: column [salary] is [long], in [s3://b/f1.parquet] it is [integer]; "
+                + "set [schema_resolution] to [union_by_name] to merge schemas",
+            e.getMessage()
+        );
     }
 
     /**
@@ -234,8 +236,11 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "ndjson"), f2, meta(schema2, "ndjson"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
 
-        assertThat(e.getMessage(), containsString("column [level]"));
-        assertThat(e.getMessage(), containsString("is missing"));
+        assertEquals(
+            "[s3://logs/day=2/app.ndjson] has no column [level], which [s3://logs/day=1/app.ndjson] has; "
+                + "set [schema_resolution] to [union_by_name] to merge schemas",
+            e.getMessage()
+        );
     }
 
     public void testStrictNdJsonColumnCountMismatchRejected() {
@@ -247,8 +252,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "ndjson"), f2, meta(schema2, "ndjson"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
 
-        assertThat(e.getMessage(), containsString("expected 2 columns"));
-        assertThat(e.getMessage(), containsString("found 1 columns"));
+        assertThat(e.getMessage(), containsString("[s3://logs/day=2/app.ndjson] has [1] columns, [s3://logs/day=1/app.ndjson] has [2]"));
     }
 
     public void testStrictOrderedFormatRejectsPermutedColumns() {
@@ -260,8 +264,11 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(f1, metadata));
 
-        assertThat(e.getMessage(), containsString("column 0 is [level]"));
-        assertThat(e.getMessage(), containsString("has [id]"));
+        assertEquals(
+            "[s3://logs/day=2/app.csv]: column 0 is [level], in [s3://logs/day=1/app.csv] it is [id]; "
+                + "set [schema_resolution] to [union_by_name] to merge schemas",
+            e.getMessage()
+        );
     }
 
     // === UNION_BY_NAME reconciliation tests ===
@@ -395,9 +402,14 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(m1, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DOUBLE })));
         assertThat(m2, equalTo(new ColumnMapping(new int[] { 0 }, null)));
 
-        assertWarningMentionsAll(warnings, "val", "long", "double", "f1.parquet", "f2.parquet", "widened to double", "2^53");
-        String joined = String.join(" || ", warnings);
-        assertThat(joined, not(containsString("widened to keyword")));
+        assertEquals(
+            List.of(
+                "Columns mixing [long] and [double] across files are read as [double], losing precision above 2^53; "
+                    + "set [schema_resolution] to [strict] to fail instead",
+                "column [val]: s3://b/f1.parquet (long), s3://b/f2.parquet (double); types [long, double]"
+            ),
+            warnings
+        );
     }
 
     public void testUnionByNameWarningSinkReceivesPrecisionLossAndSkipsHeaderWarning() {
@@ -411,8 +423,8 @@ public class SchemaReconciliationTests extends ESTestCase {
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, sunk::add);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertWarningMentionsAll(sunk, "val", "long", "double", "widened to double", "2^53");
-        assertThat(String.join(" || ", sunk), not(containsString("widened to keyword")));
+        assertWarningMentionsAll(sunk, "column [val]", "long", "double", "read as [double]", "2^53");
+        assertThat(String.join(" || ", sunk), not(containsString("read as [keyword]")));
         assertNoResponseWarnings();
     }
 
@@ -434,8 +446,8 @@ public class SchemaReconciliationTests extends ESTestCase {
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, warnings::add);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertWarningMentionsAll(warnings, "val", "long", "double", "widened to double", "2^53");
-        assertThat(String.join(" || ", warnings), not(containsString("widened to keyword")));
+        assertWarningMentionsAll(warnings, "column [val]", "long", "double", "read as [double]", "2^53");
+        assertThat(String.join(" || ", warnings), not(containsString("read as [keyword]")));
     }
 
     public void testUnionByNameLongDoubleKeywordStaysKeyword() {
@@ -456,8 +468,8 @@ public class SchemaReconciliationTests extends ESTestCase {
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, warnings::add);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
-        assertWarningMentionsAll(warnings, "val", "widened to keyword");
-        assertThat(String.join(" || ", warnings), not(containsString("widened to double")));
+        assertWarningMentionsAll(warnings, "column [val]", "read as [keyword]");
+        assertThat(String.join(" || ", warnings), not(containsString("read as [double]")));
         assertThat(String.join(" || ", warnings), not(containsString("2^53")));
     }
 
@@ -603,7 +615,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile), b, meta(objectFile));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(a, metadata));
-        assertThat(e.getMessage(), containsString("Schema mismatch"));
+        assertThat(e.getMessage(), containsString("set [schema_resolution] to [union_by_name] to merge schemas"));
     }
 
     /**
@@ -702,37 +714,53 @@ public class SchemaReconciliationTests extends ESTestCase {
     // === Config parsing tests ===
 
     public void testParseSchemaResolutionNull() {
-        assertThat(ExternalSourceResolver.parseSchemaResolution(null), equalTo(FormatReader.DEFAULT_SCHEMA_RESOLUTION));
+        assertThat(ExternalSourceResolver.effectiveSchemaResolution(null), equalTo(FormatReader.DEFAULT_SCHEMA_RESOLUTION));
     }
 
     public void testParseSchemaResolutionEmpty() {
-        assertThat(ExternalSourceResolver.parseSchemaResolution(Map.of()), equalTo(FormatReader.DEFAULT_SCHEMA_RESOLUTION));
+        assertThat(ExternalSourceResolver.effectiveSchemaResolution(Map.of()), equalTo(FormatReader.DEFAULT_SCHEMA_RESOLUTION));
+    }
+
+    public void testEffectivePersistedSchemaResolutionMissingKeyIsUnionByName() {
+        assertThat(ExternalSourceResolver.effectivePersistedSchemaResolution(null), equalTo(FormatReader.SchemaResolution.UNION_BY_NAME));
+        assertThat(
+            ExternalSourceResolver.effectivePersistedSchemaResolution(Map.of()),
+            equalTo(FormatReader.SchemaResolution.UNION_BY_NAME)
+        );
+        assertThat(
+            ExternalSourceResolver.effectivePersistedSchemaResolution(Map.of("format", "parquet")),
+            equalTo(FormatReader.SchemaResolution.UNION_BY_NAME)
+        );
+        assertThat(
+            ExternalSourceResolver.effectivePersistedSchemaResolution(Map.of("schema_resolution", "first_file_wins")),
+            equalTo(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
     }
 
     public void testParseSchemaResolutionFirstFileWins() {
         assertThat(
-            ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "first_file_wins")),
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "first_file_wins")),
             equalTo(FormatReader.SchemaResolution.FIRST_FILE_WINS)
         );
     }
 
     public void testParseSchemaResolutionStrict() {
         assertThat(
-            ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "strict")),
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "strict")),
             equalTo(FormatReader.SchemaResolution.STRICT)
         );
     }
 
     public void testParseSchemaResolutionUnionByName() {
         assertThat(
-            ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "union_by_name")),
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "union_by_name")),
             equalTo(FormatReader.SchemaResolution.UNION_BY_NAME)
         );
     }
 
     public void testParseSchemaResolutionCaseInsensitive() {
         assertThat(
-            ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "UNION_BY_NAME")),
+            ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "UNION_BY_NAME")),
             equalTo(FormatReader.SchemaResolution.UNION_BY_NAME)
         );
     }
@@ -740,7 +768,7 @@ public class SchemaReconciliationTests extends ESTestCase {
     public void testParseSchemaResolutionInvalid() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ExternalSourceResolver.parseSchemaResolution(Map.of("schema_resolution", "invalid"))
+            () -> ExternalSourceResolver.effectiveSchemaResolution(Map.of("schema_resolution", "invalid"))
         );
         assertThat(e.getMessage(), containsString("Unknown schema_resolution value"));
     }
@@ -821,7 +849,13 @@ public class SchemaReconciliationTests extends ESTestCase {
         );
         assertThat(result.perFileInfo().get(f2).mapping(), equalTo(new ColumnMapping(new int[] { 0 }, null)));
 
-        assertWarningMentionsAll(warnings, "val", "integer", "keyword", "f1.parquet", "f2.parquet");
+        assertEquals(
+            List.of(
+                "Columns whose type differs between files are read as [keyword]; set [schema_resolution] to [strict] to fail instead",
+                "column [val]: s3://b/f1.parquet (integer), s3://b/f2.parquet (keyword); types [integer, keyword]"
+            ),
+            warnings
+        );
     }
 
     // === ColumnMapping tests ===
@@ -1045,7 +1079,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(cast2, nullValue());
 
         // these files disagree on a type, so the widening notice is expected
-        assertThat(warnings, hasItem(containsString("widened columns to keyword")));
+        assertThat(warnings, hasItem(containsString("Columns whose type differs between files are read as [keyword]")));
     }
 
     public void testUnionByNameTextSourceWidenToKeywordPinsReadTypeInsteadOfCasting() {
@@ -1073,7 +1107,7 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         }
         // these files disagree on a type, so the widening notice is expected
-        assertThat(warnings, hasItem(containsString("widened columns to keyword")));
+        assertThat(warnings, hasItem(containsString("Columns whose type differs between files are read as [keyword]")));
     }
 
     public void testUnionByNameTextSourceWidenIntToLongPinsReadTypeInsteadOfCasting() {
@@ -1157,7 +1191,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.perFileInfo().get(f1).inferredTypes(), nullValue());
 
         // these files disagree on a type, so the widening notice is expected
-        assertThat(warnings, hasItem(containsString("widened columns to keyword")));
+        assertThat(warnings, hasItem(containsString("Columns whose type differs between files are read as [keyword]")));
     }
 
     /**
@@ -1304,7 +1338,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, sink::add);
 
         assertEquals(DataType.KEYWORD, result.unifiedSchema().attributes().get(0).dataType());
-        assertThat(sink, hasItem(containsString("widened columns to keyword")));
+        assertThat(sink, hasItem(containsString("Columns whose type differs between files are read as [keyword]")));
         assertThat(sink, hasItem(containsString("col")));
         assertNoResponseWarnings();
     }

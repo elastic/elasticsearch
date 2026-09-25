@@ -286,6 +286,8 @@ public class IndexVersions {
     // ids only the current codec can read off nodes that cannot read them (see IndexVersionAllocationDecider).
     public static final IndexVersion ELASTICSEARCH_STORED_FIELDS_FORMAT = def(9_114_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion MALFORMED_VALUES_IN_ON_FAILURE_COLUMN = def(9_115_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion DENSE_VECTOR_ON_DISK_MERGE = def(9_116_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion IGNORE_ABOVE_NO_OP_IN_COLUMNAR = def(9_117_0_00, Version.LUCENE_10_5_1);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_6_0 = def(9_300_00_0, Version.LUCENE_10_6_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_11_0_0 = def(9_301_00_0, Version.LUCENE_11_0_0);

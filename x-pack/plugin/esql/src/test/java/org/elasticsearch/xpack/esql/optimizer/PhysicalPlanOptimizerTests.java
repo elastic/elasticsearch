@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -113,6 +114,7 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -174,10 +176,12 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -428,6 +432,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     TestDataSource makeTestDataSource(String indexName, String mappingFileName) {
         return makeTestDataSource(indexName, mappingFileName, TEST_SEARCH_STATS);
+    }
+
+    private TestDataSource testDataWithConfig(Configuration cfg) {
+        TestAnalyzer builder = analyzer().configuration(cfg).addIndex(testData.index());
+        builder.minimumTransportVersion(minimumVersion.get());
+        setupEnrichPolicies(builder);
+        builder.addNoFieldsIndex();
+        return new TestDataSource(testData.mapping(), testData.index(), builder.buildAnalyzer(), testData.stats());
     }
 
     private static void setupEnrichPolicies(TestAnalyzer builder) {
@@ -3919,7 +3931,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * LimitExec[1000[INTEGER],8]
      * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
      * seen{r}#5],8]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     |_ExchangeExec[[],false]
      *     | \_ProjectExec[[]]
      *     |   \_EsQueryExec[no_fields_index], ...]
@@ -4452,6 +4464,38 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
             }
         }
+    }
+
+    /**
+     * Verifies the fix for https://github.com/elastic/elasticsearch/issues/141300.
+     * When {@code TO_STRING(location)} is used in an EVAL alongside {@code ST_CENTROID_AGG(location)},
+     * the doc-values extraction optimization must NOT be applied to {@code location}. Without the fix,
+     * {@code SpatialDocValuesExtraction} would mark {@code location} for doc-values extraction (producing
+     * a {@code LongBlock}), while {@code ToStringFromGeoPointEvaluator} expects a {@code BytesRefBlock},
+     * causing a {@code ClassCastException} at runtime.
+     */
+    public void testSpatialToStringPreventsDocValuesExtraction() {
+        // TO_STRING(location) in an EVAL combined with ST_CENTROID_AGG(location) in STATS must not
+        // trigger doc-values extraction for location, even when doc-values are available.
+        var query = """
+            FROM airports
+            | EVAL location_str = SUBSTRING(TO_STRING(location), 1, 5)
+            | STATS centroid = ST_CENTROID_AGG(location) BY location_str""";
+
+        var plan = physicalPlan(query, airports);
+        var optimized = optimizedPlan(plan, airports.stats);
+        var limit = as(optimized, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        // Below the exchange (in data node) the aggregation must also NOT use doc-values,
+        // because the location field is used in TO_STRING(location) which cannot handle LongBlock.
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
+        var evalExec = as(agg.child(), EvalExec.class);
+        // The FieldExtractExec must not extract location from doc-values
+        assertChildIsGeoPointExtract(evalExec, FieldExtractPreference.NONE);
     }
 
     /**
@@ -10297,7 +10341,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(reason, aggField.dataType(), equalTo(fieldType));
     }
 
-    private static AggregateFunction assertAggregation(PhysicalPlan plan, String aliasName, Class<? extends AggregateFunction> aggClass) {
+    private static UnaryAggregateFunction assertAggregation(
+        PhysicalPlan plan,
+        String aliasName,
+        Class<? extends AggregateFunction> aggClass
+    ) {
         var agg = as(plan, AggregateExec.class);
         var aggExp = agg.aggregates().stream().filter(a -> {
             var alias = as(a, Alias.class);
@@ -10305,7 +10353,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }).findFirst().orElseThrow(() -> new AssertionError("Expected aggregation " + aliasName + " not found"));
         var alias = as(aggExp, Alias.class);
         assertThat(alias.name(), is(aliasName));
-        var aggFunc = as(alias.child(), AggregateFunction.class);
+        var aggFunc = as(alias.child(), UnaryAggregateFunction.class);
         assertThat(aggFunc, instanceOf(aggClass));
         return aggFunc;
     }
@@ -10662,6 +10710,62 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Inverted {@code DATE_TRUNC(1 year, hire_date) == ...} pushes a Lucene range on the timestamp field.
+     */
+    public void testPushInvertedDateTruncEquals() {
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_TRUNC(1 year, hire_date) == "1986-01-01T00:00:00Z"
+            """, "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z");
+    }
+
+    public void testPushInvertedDateTruncQuotedIntervalEquals() {
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_TRUNC("1 year", hire_date) == "1986-01-01T00:00:00Z"
+            """, "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z");
+    }
+
+    /**
+     * Inverted {@code DATE_EXTRACT("year", hire_date) == 1986} pushes the same Lucene range.
+     */
+    public void testPushInvertedDateExtractYearEquals() {
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_EXTRACT("year", hire_date) == 1986
+            """, "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z");
+    }
+
+    public void testPushInvertedDateExtractYearEqualsNonUtc() {
+        Configuration ny = new ConfigurationBuilder(config).setting(QuerySettings.TIME_ZONE, ZoneId.of("America/New_York")).build();
+        assertHireDateYearRangePushed("""
+            FROM test
+            | WHERE DATE_EXTRACT("year", hire_date) == 1986
+            """, "1986-01-01T05:00:00.000Z", "1987-01-01T05:00:00.000Z", testDataWithConfig(ny));
+    }
+
+    private void assertHireDateYearRangePushed(String query, String start, String end) {
+        assertHireDateYearRangePushed(query, start, end, testData);
+    }
+
+    private void assertHireDateYearRangePushed(String query, String start, String end, TestDataSource dataSource) {
+        var plan = physicalPlan(query, dataSource);
+        var optimized = optimizedPlan(plan, dataSource);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+
+        var rangeQuery = as(sv(source.query(), "hire_date"), RangeQueryBuilder.class);
+        assertThat(rangeQuery.fieldName(), equalTo("hire_date"));
+        assertThat(rangeQuery.from(), equalTo(start));
+        assertThat(rangeQuery.to(), equalTo(end));
+        assertTrue(rangeQuery.includeLower());
+        assertFalse(rangeQuery.includeUpper());
+    }
+
+    /**
      * {@snippet lang="text":
      * ProjectExec[[c{r}#4, n{r}#6]]
      * \_LimitExec[3[INTEGER],null]
@@ -10795,7 +10899,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * {@snippet lang="text":
      * ProjectExec[[]]
      * \_LimitExec[1000[INTEGER],1]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     \_ProjectExec[[]]
      *       \_LimitExec[1000[INTEGER],1]
      *         \_ExchangeExec[[],false]
@@ -10834,7 +10938,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * {@snippet lang="text":
      * LimitExec[10000[INTEGER],8]
      * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#10],SINGLE,[$$y$count{r}#46, $$y$seen{r}#47],8]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     \_ProjectExec[[]]
      *       \_TopNExec[[Order[x{r}#4,ASC,LAST]],10[INTEGER],4]
      *         \_ExchangeExec[[x{r}#4],false]
@@ -10881,7 +10985,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * {@snippet lang="text":
      * LimitExec[10000[INTEGER],8]
      * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#14],SINGLE,[$$y$count{r}#87, $$y$seen{r}#88],8]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     |_AggregateExec[[first_name{f}#16],[],FINAL,[first_name{f}#16],1]
      *     | \_ExchangeExec[[first_name{f}#16],true]
      *     |   \_AggregateExec[[first_name{f}#16],[first_name{f}#16],INITIAL,[first_name{f}#16],50]

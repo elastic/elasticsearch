@@ -699,6 +699,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
                 true,
                 FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
             ),
+            false,
             false
         );
     }
@@ -724,6 +725,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
                 true,
                 FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
             ),
+            false,
             false
         );
     }

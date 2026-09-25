@@ -14,7 +14,7 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.native-library-build'
-apply plugin: 'elasticsearch.jmh'
+apply plugin: 'elasticsearch.benchmark'
 
 dependencies {
   api project(':libs:foreign-library')
@@ -85,14 +85,15 @@ nativeLibraryBuild {
   modeEnvironmentVariable = 'SIMDJSON_NATIVE_BUILD'
   sourceDir = layout.projectDirectory.dir('native')
   sources = ['src/**', 'Makefile']
-  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:7'
   forwardedEnvironment = ['CLANG_CXX']
 
   dockerCommand = ['make', 'all']
   collect = [
-    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib': 'darwin-aarch64/libsimdjson.dylib',
-    'build/libs/simdjson/shared/aarch64/libsimdjson.so'   : 'linux-aarch64/libsimdjson.so',
-    'build/libs/simdjson/shared/amd64/libsimdjson.so'     : 'linux-x64/libsimdjson.so',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib' : 'darwin-aarch64/libsimdjson.dylib',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.so'    : 'linux-aarch64/libsimdjson.so',
+    'build/libs/simdjson/shared/amd64/libsimdjson.so'      : 'linux-x64/libsimdjson.so',
+    'build/libs/simdjson/shared/windows-x64/simdjson.dll'  : 'windows-x64/simdjson.dll',
   ]
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }

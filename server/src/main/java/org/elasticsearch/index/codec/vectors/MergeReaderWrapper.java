@@ -18,7 +18,9 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
 
@@ -26,14 +28,33 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
+/**
+ * A {@link FlatVectorsReader} that serves searches from one reader and merges from a second,
+ * lazily-created reader, so that the two can use different I/O strategies (such as different
+ * direct I/O buffer sizes) without sharing input state.
+ */
 public class MergeReaderWrapper extends FlatVectorsReader {
 
     private final FlatVectorsReader mainReader;
-    private final FlatVectorsReader mergeReader;
+    private final IOSupplier<FlatVectorsReader> mergeReaderSupplier;
+    private final boolean mainReaderUsesDirectIO;
+    private FlatVectorsReader mergeReader;
+    private boolean closed;
 
-    public MergeReaderWrapper(FlatVectorsReader mainReader, FlatVectorsReader mergeReader) {
+    /**
+     * @param mainReader the reader that serves searches
+     * @param mergeReaderSupplier creates the reader that serves merges, the first time a merge asks
+     * @param mainReaderUsesDirectIO whether {@code mainReader} reads with direct I/O rather than
+     *        memory-mapping, which decides whether it has off-heap bytes to report
+     */
+    public MergeReaderWrapper(
+        FlatVectorsReader mainReader,
+        IOSupplier<FlatVectorsReader> mergeReaderSupplier,
+        boolean mainReaderUsesDirectIO
+    ) {
         this.mainReader = mainReader;
-        this.mergeReader = mergeReader;
+        this.mergeReaderSupplier = mergeReaderSupplier;
+        this.mainReaderUsesDirectIO = mainReaderUsesDirectIO;
     }
 
     @Override
@@ -86,6 +107,10 @@ public class MergeReaderWrapper extends FlatVectorsReader {
         mainReader.search(field, target, knnCollector, acceptDocs);
     }
 
+    // a segment is in at most one merge at a time, and IndexWriter's own synchronization orders successive merges of a
+    // pooled reader, so getMergeInstance() and finishMerge() need none here; close() runs once the merge has released
+    // the reader. The closed check catches a use after close, which would otherwise create a merge reader nothing closes
+
     @Override
     public void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         mainReader.search(field, target, knnCollector, acceptDocs);
@@ -93,12 +118,25 @@ public class MergeReaderWrapper extends FlatVectorsReader {
 
     @Override
     public FlatVectorsReader getMergeInstance() throws IOException {
+        if (closed) {
+            throw new AlreadyClosedException("this MergeReaderWrapper is closed");
+        }
+        // created lazily: most segments are never merged during a reader's lifetime, and the
+        // merge reader holds direct I/O resources
+        if (mergeReader == null) {
+            mergeReader = mergeReaderSupplier.get();
+        }
+        // delegate so the reader can prepare itself for merging, e.g. Lucene99FlatVectorsReader
+        // switches its data input to sequential read advice
         return mergeReader.getMergeInstance();
     }
 
     @Override
     public void finishMerge() throws IOException {
-        mergeReader.finishMerge();
+        // the merge reader exists iff a merge began
+        if (mergeReader != null) {
+            mergeReader.finishMerge();
+        }
     }
 
     @Override
@@ -113,13 +151,22 @@ public class MergeReaderWrapper extends FlatVectorsReader {
 
     @Override
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        // TODO: https://github.com/elastic/elasticsearch/issues/128672
-        // return mainReader.getOffHeapByteSize(fieldInfo);
-        return Map.of(); // no off-heap when using direct IO
+        if (mainReaderUsesDirectIO) {
+            // TODO: https://github.com/elastic/elasticsearch/issues/128672
+            // return mainReader.getOffHeapByteSize(fieldInfo);
+            return Map.of(); // no off-heap when using direct IO
+        }
+        // a memory-mapped search reader has the same off-heap footprint whether or not merges
+        // use direct I/O; the merge reader is not part of what searches hold
+        return mainReader.getOffHeapByteSize(fieldInfo);
     }
 
     @Override
     public void close() throws IOException {
+        if (closed) {
+            return;
+        }
+        closed = true;
         IOUtils.close(mainReader, mergeReader);
     }
 }

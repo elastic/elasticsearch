@@ -12,7 +12,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.ConcurrentMultipartHelper;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,7 +44,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
@@ -102,7 +101,6 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiFunction;
@@ -1258,49 +1256,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
         var sourceShardContainer = getProjectBlobContainer(source);
-
         var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
+
+        record BlobCopyTask(BlobContainer src, BlobContainer dst, BlobMetadata blob) {}
+        final List<BlobCopyTask> tasks = new ArrayList<>();
+        for (var blobContainerWithTerm : blobContainersWithTerms) {
+            var sourceContainerForTerm = blobContainerWithTerm.v2();
+            Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
+            var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
+            for (BlobMetadata blob : blobs.values()) {
+                tasks.add(new BlobCopyTask(sourceContainerForTerm, destinationContainerForTerm, blob));
+            }
+        }
+
         final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
-        try (var listeners = new RefCountingListener(future)) {
-            for (var blobContainerWithTerm : blobContainersWithTerms) {
-                var sourceContainerForTerm = blobContainerWithTerm.v2();
-                Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
-                var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
-                for (BlobMetadata blob : blobs.values()) {
-                    executor.execute(ActionRunnable.run(listeners.acquire(), () -> {
-                        try {
-                            task.ensureNotCancelled();
-                            logger.debug(
-                                "CopyShard copying {} from {} to {}",
-                                blob.name(),
-                                sourceContainerForTerm.path(),
-                                destinationContainerForTerm.path()
-                            );
-                            destinationContainerForTerm.copyBlob(
-                                OperationPurpose.RESHARDING,
-                                sourceContainerForTerm,
-                                blob.name(),
-                                blob.name(),
-                                blob.length(),
-                                null
-                            );
-                        } catch (NoSuchFileException e) {
-                            logger.warn("missing blob during copyShard, assuming benign race [{}]", blob.name());
-                        }
-                    }));
-                }
+        ConcurrentMultipartHelper.runConcurrentTasks(tasks.size(), executor, i -> {
+            var t = tasks.get(i);
+            task.ensureNotCancelled();
+            logger.debug("CopyShard copying {} from {} to {}", t.blob().name(), t.src().path(), t.dst().path());
+            try {
+                t.dst().copyBlob(OperationPurpose.RESHARDING, t.src(), t.blob().name(), t.blob().name(), t.blob().length(), null);
+            } catch (NoSuchFileException e) {
+                logger.warn("missing blob during copyShard, assuming benign race [{}]", t.blob().name());
             }
-        }
-        try {
-            future.actionGet();
-        } catch (UncategorizedExecutionException uee) {
-            // FutureUtils.rethrowExecutionException only directly rethrows RuntimeException causes
-            if (uee.getCause() instanceof ExecutionException ee && ee.getCause() instanceof IOException ioe) {
-                throw ioe;
-            }
-            throw uee;
-        }
+        });
     }
 
     /**

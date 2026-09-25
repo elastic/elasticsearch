@@ -251,12 +251,14 @@ public class InferenceServiceTests extends ESTestCase {
         GetInferenceModelAction.Response response = mock(GetInferenceModelAction.Response.class);
 
         if (request.getInferenceEntityId().equals("rerank-plan")) {
-            when(response.getEndpoints()).thenReturn(List.of(mockModelConfig("rerank-plan", TaskType.RERANK)));
+            ModelConfigurations modelConfig = mockModelConfig("rerank-plan", TaskType.RERANK);
+            when(response.getEndpoints()).thenReturn(List.of(modelConfig));
             return response;
         }
 
         if (request.getInferenceEntityId().equals("completion-plan")) {
-            when(response.getEndpoints()).thenReturn(List.of(mockModelConfig("completion-plan", TaskType.COMPLETION)));
+            ModelConfigurations modelConfig = mockModelConfig("completion-plan", TaskType.COMPLETION);
+            when(response.getEndpoints()).thenReturn(List.of(modelConfig));
             return response;
         }
 

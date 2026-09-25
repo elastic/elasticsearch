@@ -508,8 +508,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
             target = chunkStream;
             try {
+                ToXContent.Params params = channel.request();
                 if (builder == null) {
-                    ToXContent.Params params = channel.request();
                     builder = XContentFactory.jsonBuilder(out);
                     builder.startObject();
                     Iterator<? extends ToXContent> statusChunk = Iterators.single((b, p) -> {
@@ -544,7 +544,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                         : statusChunk;
                 }
                 while (contentIterator.hasNext()) {
-                    contentIterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    contentIterator.next().toXContent(builder, params);
                     builder.flush();
                     if (chunkStream.size() >= sizeHint) {
                         break;

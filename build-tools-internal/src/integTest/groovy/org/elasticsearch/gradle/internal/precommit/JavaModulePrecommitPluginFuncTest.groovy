@@ -95,6 +95,164 @@ class JavaModulePrecommitPluginFuncTest extends AbstractGradleInternalPluginFunc
         result.task(":validateModule").outcome == TaskOutcome.SUCCESS
     }
 
+    def "detects explicit bundled module not reachable from module graph"() {
+        given:
+        // Simulate a plugin project: add a resolveableCompileOnly configuration (normally applied
+        // by BasePluginBuildPlugin via CompileOnlyResolvePlugin) so the plugin wires bundledClasspath.
+        buildFile << """
+        configurations {
+            resolveableCompileOnly {
+                canBeResolved = true
+                canBeConsumed = false
+                extendsFrom configurations.compileOnly
+            }
+        }
+        tasks.named('compileJava') {
+            options.compilerArgs.addAll(['--module-version', '${ES_VERSION}'])
+        }
+        dependencies {
+            // An explicit-module JAR built by the sibling subproject; it is bundled (implementation)
+            // but intentionally omitted from module-info requires to trigger the check.
+            implementation project(':mylib')
+        }
+        """
+        settingsFile << "include ':mylib'"
+        file("mylib/build.gradle").text = "plugins { id 'java' }"
+        file("mylib/src/main/java/module-info.java").text = "module com.example.mylib { }"
+        file("mylib/src/main/java/com/example/mylib/Lib.java").text = """
+        package com.example.mylib;
+        public class Lib {}
+        """
+        file("src/main/java/module-info.java").text = """
+        module org.elasticsearch.testmodule {
+            // intentionally missing: requires com.example.mylib;
+        }
+        """
+        file("src/main/java/org/elasticsearch/testmodule/Dummy.java").text = """
+        package org.elasticsearch.testmodule;
+        public class Dummy {}
+        """
+
+        when:
+        def result = gradleRunner("validateModule").buildAndFail()
+
+        then:
+        result.task(":validateModule").outcome == TaskOutcome.FAILED
+
+        and: "problems report flags the unreachable bundled module"
+        assertProblemsReportContains("unreachable-bundled-module")
+        assertProblemsReportSeverity("unreachable-bundled-module", "ERROR")
+    }
+
+    def "passes when explicit bundled module is declared in requires"() {
+        given:
+        buildFile << """
+        configurations {
+            resolveableCompileOnly {
+                canBeResolved = true
+                canBeConsumed = false
+                extendsFrom configurations.compileOnly
+            }
+        }
+        tasks.named('compileJava') {
+            options.compilerArgs.addAll(['--module-version', '${ES_VERSION}'])
+        }
+        dependencies {
+            implementation project(':mylib')
+        }
+        """
+        settingsFile << "include ':mylib'"
+        file("mylib/build.gradle").text = "plugins { id 'java' }"
+        file("mylib/src/main/java/module-info.java").text = "module com.example.mylib { }"
+        file("mylib/src/main/java/com/example/mylib/Lib.java").text = """
+        package com.example.mylib;
+        public class Lib {}
+        """
+        file("src/main/java/module-info.java").text = """
+        module org.elasticsearch.testmodule {
+            requires com.example.mylib;
+        }
+        """
+        file("src/main/java/org/elasticsearch/testmodule/Dummy.java").text = """
+        package org.elasticsearch.testmodule;
+        public class Dummy {}
+        """
+
+        when:
+        def result = gradleRunner("validateModule").build()
+
+        then:
+        result.task(":validateModule").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "skips resolution check for non-plugin modular projects (no resolveableCompileOnly)"() {
+        given:
+        // No resolveableCompileOnly → bundledClasspath stays null → resolution check is skipped.
+        buildFile << """
+        tasks.named('compileJava') {
+            options.compilerArgs.addAll(['--module-version', '${ES_VERSION}'])
+        }
+        """
+        file("src/main/java/module-info.java").text = """
+        module org.elasticsearch.testmodule {
+        }
+        """
+        file("src/main/java/org/elasticsearch/testmodule/Dummy.java").text = """
+        package org.elasticsearch.testmodule;
+        public class Dummy {}
+        """
+
+        when:
+        def result = gradleRunner("validateModule").build()
+
+        then:
+        result.task(":validateModule").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "allowedUnreachable suppresses the check for a named module"() {
+        given:
+        buildFile << """
+        configurations {
+            resolveableCompileOnly {
+                canBeResolved = true
+                canBeConsumed = false
+                extendsFrom configurations.compileOnly
+            }
+        }
+        tasks.named('compileJava') {
+            options.compilerArgs.addAll(['--module-version', '${ES_VERSION}'])
+        }
+        dependencies {
+            implementation project(':mylib')
+        }
+        tasks.named('validateModule') {
+            allowedUnreachable.add('com.example.mylib')
+        }
+        """
+        settingsFile << "include ':mylib'"
+        file("mylib/build.gradle").text = "plugins { id 'java' }"
+        file("mylib/src/main/java/module-info.java").text = "module com.example.mylib { }"
+        file("mylib/src/main/java/com/example/mylib/Lib.java").text = """
+        package com.example.mylib;
+        public class Lib {}
+        """
+        file("src/main/java/module-info.java").text = """
+        module org.elasticsearch.testmodule {
+            // com.example.mylib intentionally omitted but suppressed via allowedUnreachable
+        }
+        """
+        file("src/main/java/org/elasticsearch/testmodule/Dummy.java").text = """
+        package org.elasticsearch.testmodule;
+        public class Dummy {}
+        """
+
+        when:
+        def result = gradleRunner("validateModule").build()
+
+        then:
+        result.task(":validateModule").outcome == TaskOutcome.SUCCESS
+    }
+
     def "problems have solutions in report"() {
         given:
         buildFile << """

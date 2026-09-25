@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class SubstituteSurrogatePlansFillNullCommandTests extends AbstractLogicalPlanOptimizerTests {
 
-    protected SubstituteSurrogatePlansFillNullCommandTests(VersionMode versionMode) {
+    public SubstituteSurrogatePlansFillNullCommandTests(VersionMode versionMode) {
         super(versionMode);
     }
 

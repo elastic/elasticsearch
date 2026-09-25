@@ -78,6 +78,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_ASYNC_COUNTER;
@@ -136,6 +137,26 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         Queue<HandshakeBlock> handshakeBlockQueue,
         MeterRegistry meterRegistry
     ) {
+        return createServerTransport(
+            threadPool,
+            sharedGroupFactory,
+            maxConcurrentTlsHandshakes,
+            maxDelayedTlsHandshakes,
+            handshakeBlockQueue,
+            meterRegistry,
+            ch -> {}
+        );
+    }
+
+    private Netty4HttpServerTransport createServerTransport(
+        ThreadPool threadPool,
+        SharedGroupFactory sharedGroupFactory,
+        int maxConcurrentTlsHandshakes,
+        int maxDelayedTlsHandshakes,
+        Queue<HandshakeBlock> handshakeBlockQueue,
+        MeterRegistry meterRegistry,
+        Consumer<Channel> extraPipelineSetup
+    ) {
         final var dynamicConfiguration = randomBoolean();
 
         final Settings.Builder builder = Settings.builder();
@@ -188,6 +209,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
                     @Override
                     protected void initChannel(Channel ch) throws Exception {
                         super.initChannel(ch);
+                        extraPipelineSetup.accept(ch);
 
                         final var workerThread = Thread.currentThread();
                         final var handshakeCounter = inflightHandshakesByEventLoop.computeIfAbsent(
@@ -989,4 +1011,92 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
     private static final String CURRENT_DELAYED_METRIC = METRIC_PREFIX + "delayed.current";
     private static final String TOTAL_DELAYED_METRIC = METRIC_PREFIX + "delayed.total";
     private static final String TOTAL_DROPPED_METRIC = METRIC_PREFIX + "dropped.total";
+
+    /**
+     * Inbound handler that splits the first inbound {@link ByteBuf} into a random number of pieces at random offsets and delivers them as
+     * separate {@code channelRead} events, simulating a TLS ClientHello that arrives across multiple TCP segments.
+     */
+    private static class PacketSplitter extends ChannelInboundHandlerAdapter {
+        private boolean fired = false;
+        private boolean splitting = false;
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+            if (fired || !(msg instanceof ByteBuf buf) || buf.readableBytes() < 2) {
+                ctx.fireChannelRead(msg);
+                return;
+            }
+            fired = true;
+            splitting = true;
+            final int pieces = Math.min(ESTestCase.between(2, 8), buf.readableBytes());
+            final ByteBuf[] chunks = new ByteBuf[pieces];
+            for (int i = 0; i < pieces - 1; i++) {
+                chunks[i] = buf.readRetainedSlice(ESTestCase.between(1, buf.readableBytes() - (pieces - 1 - i)));
+            }
+            chunks[pieces - 1] = buf.readRetainedSlice(buf.readableBytes());
+            buf.release();
+            ctx.fireChannelRead(chunks[0]);
+            scheduleChunks(ctx, chunks, 1);
+        }
+
+        private void scheduleChunks(ChannelHandlerContext ctx, ByteBuf[] chunks, int index) {
+            ctx.executor().execute(() -> {
+                ctx.fireChannelRead(chunks[index]);
+                if (index + 1 < chunks.length) {
+                    scheduleChunks(ctx, chunks, index + 1);
+                } else {
+                    splitting = false;
+                    ctx.fireChannelReadComplete();
+                }
+            });
+        }
+
+        @Override
+        public void channelReadComplete(ChannelHandlerContext ctx) {
+            if (splitting == false) {
+                ctx.fireChannelReadComplete();
+            }
+        }
+    }
+
+    /**
+     * Verifies that a TLS ClientHello fragmented across two channelRead calls is handled correctly.
+     * The {@link PacketSplitter} handler splits the first inbound buffer in two and delivers the halves as
+     * separate channelRead events to HandshakeThrottleHandler, simulating a ClientHello that arrives across
+     * two TCP segments.
+     */
+    public void testThrottleWithFragmentedClientHello() {
+        final List<Releasable> releasables = new ArrayList<>();
+        try {
+            final var threadPool = newThreadPool(releasables);
+            final var sharedGroupFactory = new SharedGroupFactory(Settings.builder().put(Netty4Plugin.WORKER_COUNT.getKey(), 1).build());
+            final var handshakeBlockQueue = ConcurrentCollections.<HandshakeBlock>newBlockingQueue();
+            final var meterRegistry = new RecordingMeterRegistry();
+
+            final var serverTransport = createServerTransport(
+                threadPool,
+                sharedGroupFactory,
+                between(1, 5),
+                between(0, 100),
+                handshakeBlockQueue,
+                meterRegistry,
+                ch -> ch.pipeline().addBefore("initial-tls-handshake-throttle", "packet-splitter", new PacketSplitter())
+            );
+            releasables.add(serverTransport);
+
+            final var handshakeCompletePromises = startClientsAndGetHandshakeCompletePromises(
+                1,
+                randomFrom(serverTransport.boundAddress().boundAddresses()),
+                releasables
+            );
+
+            getNextBlock(handshakeBlockQueue).unblock();
+            handshakeCompletePromises.forEach(ESTestCase::safeAwait);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        } finally {
+            Collections.reverse(releasables);
+            Releasables.close(releasables);
+        }
+    }
 }

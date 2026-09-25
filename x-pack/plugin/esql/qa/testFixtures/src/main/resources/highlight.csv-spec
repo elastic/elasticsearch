@@ -2298,7 +2298,7 @@ The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
 ;
 
 
-# Query analyzer whitespace paints the exact token "Ring"; the mapping english analyzer indexes values.
+# Query analyzer whitespace preserves the exact token "ring"; the mapping english analyzer indexes values.
 # Both sides used to be forced to agree; per-field analyzers are allowed now.
 highlightQueryAnalyzerDivergesFromMappingAnalyzer
 required_capability: highlight_mapping_analyzer

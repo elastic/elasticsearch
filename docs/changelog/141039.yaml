@@ -1,0 +1,5 @@
+pr: 141039
+summary: Improve memory allocation when parsing WKT from Json
+area: Geo
+type: enhancement
+issues: []

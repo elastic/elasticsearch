@@ -13,7 +13,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
-import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -27,11 +26,8 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
 
     public void testBasicSerialization() throws IOException, ParseException {
         GeometryValidator validator = GeographyValidator.instance(true);
-        assertEquals("BBOX (10.0, 20.0, 40.0, 30.0)", WellKnownText.toWKT(new Rectangle(10, 20, 40, 30)));
-        assertEquals(new Rectangle(10, 20, 40, 30), WellKnownText.fromWKT(validator, true, "BBOX (10.0, 20.0, 40.0, 30.0)"));
-
-        assertEquals("BBOX EMPTY", WellKnownText.toWKT(Rectangle.EMPTY));
-        assertEquals(Rectangle.EMPTY, WellKnownText.fromWKT(validator, true, "BBOX EMPTY)"));
+        assertSerialization(validator, true, "BBOX (10.0, 20.0, 40.0, 30.0)", new Rectangle(10, 20, 40, 30));
+        assertSerialization(validator, true, "BBOX EMPTY", Rectangle.EMPTY);
     }
 
     public void testInitValidation() {

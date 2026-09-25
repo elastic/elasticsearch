@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 
 import java.time.Instant;
 import java.time.Period;
@@ -427,6 +428,47 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(1, hints.size());
         assertEquals(FileMetadataColumns.SIZE, hints.get(0).columnName());
         assertEquals(Operator.GREATER_THAN, hints.get(0).operator());
+    }
+
+    /**
+     * The parser wraps {@code FROM ... METADATA ...} in {@link UnresolvedMetadata}. That wrapper introduces only the
+     * names from the clause, so a hint collected above it still names the storage column.
+     */
+    public void testHintsCrossUnresolvedMetadata() {
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.SIZE);
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of(), List.of(requested));
+        LogicalPlan sizePlan = new Filter(
+            SRC,
+            new UnresolvedMetadata(SRC, rel, List.of(requested)),
+            new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100))
+        );
+        List<PartitionFilterHint> sizeHints = PartitionFilterHintExtractor.extract(sizePlan).get(PATH);
+        assertNotNull(sizeHints);
+        assertEquals(1, sizeHints.size());
+        assertEquals(FileMetadataColumns.SIZE, sizeHints.get(0).columnName());
+
+        LogicalPlan yearPlan = new Filter(
+            SRC,
+            new UnresolvedMetadata(SRC, externalRelation(PATH), List.of(requested)),
+            new Equals(SRC, unresolved("year"), intLiteral(2024))
+        );
+        List<PartitionFilterHint> yearHints = PartitionFilterHintExtractor.extract(yearPlan).get(PATH);
+        assertNotNull(yearHints);
+        assertEquals(1, yearHints.size());
+        assertEquals("year", yearHints.get(0).columnName());
+    }
+
+    /**
+     * Crossing the wrapper does not bypass the clause gate: a {@code _file.*} predicate is a hint only when the
+     * relation itself requested that field.
+     */
+    public void testUnresolvedMetadataDoesNotHintUnrequestedFileColumn() {
+        LogicalPlan plan = new Filter(
+            SRC,
+            new UnresolvedMetadata(SRC, externalRelation(PATH), List.of(MetadataAttribute.create(SRC, FileMetadataColumns.PATH))),
+            new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100))
+        );
+        assertTrue(PartitionFilterHintExtractor.extract(plan).isEmpty());
     }
 
     /**

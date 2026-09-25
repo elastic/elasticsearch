@@ -294,9 +294,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.RestartIT
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingBucketIncludeEmptyBucketsIT
-  method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
-  issue: https://github.com/elastic/elasticsearch/issues/155663
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testLookupJoinSame {p0=null}
   issue: https://github.com/elastic/elasticsearch/issues/155665
@@ -321,18 +318,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
   issue: https://github.com/elastic/elasticsearch/issues/153406
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationBucketIncludeEmptyBucketsIT
-  method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
-  issue: https://github.com/elastic/elasticsearch/issues/155921
 - class: org.elasticsearch.client.RestClientSingleHostIntegTests
   method: testRequestResetAndAbort
   issue: https://github.com/elastic/elasticsearch/issues/156177
 - class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
   method: testDistributionChange
   issue: https://github.com/elastic/elasticsearch/issues/156294
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecBucketIncludeEmptyBucketsIT
-  method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
-  issue: https://github.com/elastic/elasticsearch/issues/156356
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156415
@@ -584,12 +575,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.HeterogeneousRelationClassIT
   method: testWildcardMatchingBothAnswersPerLeaf
   issue: https://github.com/elastic/elasticsearch/issues/159801
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkBucketIncludeEmptyBucketsIT
-  method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
-  issue: https://github.com/elastic/elasticsearch/issues/158639
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkBucketIncludeEmptyBucketsIT
-  method: test {csv-spec:bucket_include_empty_buckets.No empty buckets}
-  issue: https://github.com/elastic/elasticsearch/issues/159812
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159814
@@ -667,9 +652,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testStopNestedSubquery
   issue: https://github.com/elastic/elasticsearch/issues/160115
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification byte vector type}
-  issue: https://github.com/elastic/elasticsearch/issues/160126
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogramTests
   issue: https://github.com/elastic/elasticsearch/issues/160168
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
@@ -698,6 +680,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/160285
-- class: org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunnerTests
-  method: testInstrumentedThrottledTaskRunnerRecordsQueuingAndRunningCounts
-  issue: https://github.com/elastic/elasticsearch/issues/160332
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/160368

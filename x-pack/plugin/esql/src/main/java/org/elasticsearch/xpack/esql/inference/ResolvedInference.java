@@ -31,7 +31,9 @@ public record ResolvedInference(String inferenceId, TaskType taskType, @Nullable
         this(
             in.readString(),
             TaskType.valueOf(in.readString()),
-            in.getTransportVersion().supports(ESQL_RESOLVED_INFERENCE_CONTAINS_SIMILARITY) ? in.readOptionalEnum(SimilarityMeasure.class) : null
+            in.getTransportVersion().supports(ESQL_RESOLVED_INFERENCE_CONTAINS_SIMILARITY)
+                ? in.readOptionalEnum(SimilarityMeasure.class)
+                : null
         );
     }
 

@@ -4231,14 +4231,12 @@ public class AnalyzerTests extends AnalyzerTestCase {
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT);
 
-        LogicalPlan plan = analyzer.query(
-            """
-                FROM books
-                | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
-                | WHERE KNN(vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"), { "similarity_function": "l2_norm" })
-                | LIMIT 10
-                """
-        );
+        LogicalPlan plan = analyzer.query("""
+            FROM books
+            | DENSE_VECTOR vector = title WITH { "inference_id": "field-endpoint" }
+            | WHERE KNN(vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"), { "similarity_function": "l2_norm" })
+            | LIMIT 10
+            """);
         Knn knn = findKnn(plan);
         MapExpression options = as(knn.options(), MapExpression.class);
         assertThat(options.get(Knn.SIMILARITY_FUNCTION_OPTION), equalTo(string("l2_norm")));
@@ -4271,13 +4269,11 @@ public class AnalyzerTests extends AnalyzerTestCase {
             .addIndex("index", "mapping-dense_vector.json")
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
-        LogicalPlan plan = analyzer.query(
-            """
-                FROM index
-                | WHERE KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
-                | LIMIT 10
-                """
-        );
+        LogicalPlan plan = analyzer.query("""
+            FROM index
+            | WHERE KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "query-endpoint"))
+            | LIMIT 10
+            """);
         Knn knn = findKnn(plan);
         assertThat(knn.options(), nullValue());
     }

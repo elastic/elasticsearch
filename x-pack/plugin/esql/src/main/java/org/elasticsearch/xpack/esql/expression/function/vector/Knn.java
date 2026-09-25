@@ -589,29 +589,11 @@ public class Knn extends SingleFieldFullTextFunction
     }
 
     public Knn replaceOptions(Expression newOptions) {
-        return new Knn(
-            source(),
-            field(),
-            query(),
-            newOptions,
-            implicitK(),
-            queryBuilder(),
-            filterExpressions(),
-            configuration()
-        );
+        return new Knn(source(), field(), query(), newOptions, implicitK(), queryBuilder(), filterExpressions(), configuration());
     }
 
     public Knn replaceQuery(Expression newQuery) {
-        return new Knn(
-            source(),
-            field(),
-            newQuery,
-            options(),
-            implicitK(),
-            queryBuilder(),
-            filterExpressions(),
-            configuration()
-        );
+        return new Knn(source(), field(), newQuery, options(), implicitK(), queryBuilder(), filterExpressions(), configuration());
     }
 
     @Override

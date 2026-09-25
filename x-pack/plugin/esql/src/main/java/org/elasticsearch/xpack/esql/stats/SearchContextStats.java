@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -425,6 +426,20 @@ public class SearchContextStats implements SearchStats {
                     return false;
                 }
             } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+        if (contexts.isEmpty()) {
+            return false;
+        }
+        for (SearchExecutionContext ctx : contexts) {
+            final MappedFieldType type = ctx.getFieldType(name.string());
+            if ((type instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.emptyStringReadsAsNull()) == false) {
                 return false;
             }
         }

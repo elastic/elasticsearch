@@ -85,6 +85,22 @@ public abstract class FieldMapper extends Mapper {
     );
 
     /**
+     * Index-level rule for how a {@code keyword} field reads an empty string. When {@code true}, a field given
+     * {@code ""} is parsed as though the document had given it {@code null}: {@code null_value} applies where the
+     * field configures one, and otherwise the field holds no value there. A search for an empty string then asks
+     * for the documents that hold no value.
+     *
+     * <p>It is final because it governs what is written rather than how what is written is read, so a document
+     * indexed under one setting cannot be reinterpreted under the other.
+     */
+    public static final Setting<Boolean> EMPTY_KEYWORD_STRING_AS_NULL_SETTING = Setting.boolSetting(
+        "index.mapping.empty_keyword_string_as_null",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Index-level default for the {@code doc_values.multi_value} field mapping parameter. When {@code false}, all fields in the index
      * default to single-valued doc values (rejecting documents that supply more than one value), unless a field explicitly sets its own
      * {@code doc_values.multi_value}.

@@ -16,7 +16,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
-import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
+import org.elasticsearch.test.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;

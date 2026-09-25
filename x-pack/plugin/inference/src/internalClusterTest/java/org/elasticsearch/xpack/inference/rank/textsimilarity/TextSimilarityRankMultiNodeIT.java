@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.rank.RankBuilder;
-import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
+import org.elasticsearch.test.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 
 import java.util.Collection;

@@ -14,11 +14,11 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-resource-exhaustion-test'
+apply plugin: 'elasticsearch.internal-heap-pressure-test'
 
 dependencies {
-    resourceExhaustionTestImplementation project(':test:framework')
-    resourceExhaustionTestImplementation project(':test:test-clusters')
+    heapPressureTestImplementation project(':test:framework')
+    heapPressureTestImplementation project(':test:test-clusters')
 }
 
 esplugin {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkShardBatch;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -192,6 +193,27 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
             var fieldInferenceMetadata = bulkShardRequest.consumeInferenceFieldMap();
             if (fieldInferenceMetadata != null && fieldInferenceMetadata.isEmpty() == false) {
+                // TODO: remove this block once the inference filter is made columnar-aware
+                //
+                // When batch indexing is enabled the coordinator encodes item sources into a columnar ESCF batch and
+                // replaces each IndexSource's bytes with an empty placeholder. This filter runs before
+                // TransportShardBulkAction and reads each item's source to generate embeddings; with the batch
+                // attached, sourceAsMap() parses empty bytes and returns an empty map. The filter then writes a
+                // corrupted "enriched" source (semantic field text: null) back via indexRequest.source(), which
+                // clears rowIndex and detaches the item from the batch. The batch path later falls back to the
+                // sequential path, which parses the corrupted source and throws DocumentParsingException.
+                //
+                // Until the inference filter is made columnar-aware (reading field values directly from ESCF columns
+                // and writing results back into the batch), materialize every item to inline JSON up front. This makes
+                // the filter's source reads correct and causes the primary to use the sequential path with the
+                // correctly-enriched source. ensureInlineSources is a no-op when no batch is attached, so there is no
+                // overhead for non-batch requests.
+                try {
+                    BulkShardBatch.ensureInlineSources(bulkShardRequest);
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                    return;
+                }
                 // Maintain coordinating indexing pressure from inference until the indexing operations are complete
                 IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.createCoordinatingOperation(false);
                 Runnable onInferenceCompletion = () -> chain.proceed(

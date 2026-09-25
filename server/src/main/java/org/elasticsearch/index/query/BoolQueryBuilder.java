@@ -388,6 +388,14 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        int n = mustClauses.size() + mustNotClauses.size() + filterClauses.size() + shouldClauses.size();
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + n * 8L;
+        if (minimumShouldMatch != null) estimate += minimumShouldMatch.length() * 2L + 64L;
+        return estimate;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(adjustPureNegative, minimumShouldMatch, mustClauses, shouldClauses, mustNotClauses, filterClauses);
     }

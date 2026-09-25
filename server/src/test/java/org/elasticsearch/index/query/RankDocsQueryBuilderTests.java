@@ -252,6 +252,12 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
         // no-op since RankDocsQueryBuilder is an internal only API
     }
 
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // RankDocsQueryBuilder is an internal-only API with no XContent parser
+        return false;
+    }
+
     public void shouldThrowForNegativeScores() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(new Document());

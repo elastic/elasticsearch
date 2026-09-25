@@ -50,4 +50,10 @@ public class ToChildBlockJoinQueryBuilderTests extends AbstractQueryTestCase<ToC
         // Test isn't relevant, since query is never parsed from xContent
     }
 
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // ToChildBlockJoinQueryBuilder is never parsed from xContent
+        return false;
+    }
+
 }

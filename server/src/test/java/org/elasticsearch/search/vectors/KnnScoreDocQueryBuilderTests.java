@@ -338,4 +338,10 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
             }
         }
     }
+
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // KnnScoreDocQueryBuilder is an internal-only query with no XContent parser
+        return false;
+    }
 }

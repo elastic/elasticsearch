@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
@@ -831,9 +832,21 @@ public class SearchModule {
     }
 
     private void registerRescorers(List<SearchPlugin> plugins) {
-        registerRescorer(new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+        // QueryRescorerBuilder registered directly so the namedObject context (query-parsing reservation) is threaded through.
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                RescorerBuilder.class,
+                new ParseField(QueryRescorerBuilder.NAME),
+                (p, c) -> QueryRescorerBuilder.fromXContent(p, castToReservation(c))
+            )
+        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new));
         registerRescorer(new RescorerSpec<>(ScriptRescorerBuilder.NAME, ScriptRescorerBuilder::new, ScriptRescorerBuilder::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getRescorers, this::registerRescorer);
+    }
+
+    private static QueryParsingReservation castToReservation(Object context) {
+        return context instanceof QueryParsingReservation r ? r : null;
     }
 
     private void registerRescorer(RescorerSpec<?> spec) {

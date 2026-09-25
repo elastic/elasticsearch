@@ -341,6 +341,15 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L + estimateValue(value);
+        if (analyzer != null) estimate += analyzer.length() * 2L + 64L;
+        if (minimumShouldMatch != null) estimate += minimumShouldMatch.length() * 2L + 64L;
+        if (fuzzyRewrite != null) estimate += fuzzyRewrite.length() * 2L + 64L;
+        return estimate;
+    }
+
+    @Override
     protected boolean doEquals(MatchBoolPrefixQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(value, other.value)

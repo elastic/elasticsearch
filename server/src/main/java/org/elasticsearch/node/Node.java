@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -57,7 +58,9 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
@@ -597,6 +600,9 @@ public class Node implements Closeable {
         // Don't call shutdownNow here, it might break ongoing operations on Lucene indices.
         // See https://issues.apache.org/jira/browse/LUCENE-7248. We call shutdownNow in
         // awaitClose if the node doesn't finish closing within the specified time.
+
+        final CircuitBreaker requestBreaker = injector.getInstance(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST);
+        toClose.add(() -> AbstractQueryBuilder.clearQueryParsingBreaker(requestBreaker));
 
         toClose.add(() -> stopWatch.stop().start("gateway_meta_state"));
         toClose.add(injector.getInstance(GatewayMetaState.class));

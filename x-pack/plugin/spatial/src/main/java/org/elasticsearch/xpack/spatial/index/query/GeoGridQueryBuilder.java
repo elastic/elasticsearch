@@ -392,6 +392,13 @@ public class GeoGridQueryBuilder extends LeafQueryBuilder<GeoGridQueryBuilder> {
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
+        if (gridId != null) estimate += gridId.length() * 2L + 64L;
+        return estimate;
+    }
+
+    @Override
     protected boolean doEquals(GeoGridQueryBuilder other) {
         return Objects.equals(grid, other.grid)
             && Objects.equals(gridId, other.gridId)

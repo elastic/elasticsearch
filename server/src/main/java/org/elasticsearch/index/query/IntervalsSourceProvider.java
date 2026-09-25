@@ -61,6 +61,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
     public abstract void extractFields(Set<String> fields);
 
+    /** Returns an estimate of the heap cost of this source's own string/byte payload in bytes. */
+    public abstract long estimateBytes();
+
     @Override
     public abstract int hashCode();
 
@@ -311,6 +314,15 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         String getUseField() {
             return useField;
         }
+
+        @Override
+        public long estimateBytes() {
+            long cost = query.length() * 2L + 64L;
+            if (analyzer != null) cost += analyzer.length() * 2L + 64L;
+            if (useField != null) cost += useField.length() * 2L + 64L;
+            if (filter != null) cost += filter.estimateBytes();
+            return cost;
+        }
     }
 
     public static class Disjunction extends IntervalsSourceProvider {
@@ -415,6 +427,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         IntervalFilter getFilter() {
             return filter;
+        }
+
+        @Override
+        public long estimateBytes() {
+            long cost = 32L + subSources.size() * 8L;
+            for (IntervalsSourceProvider s : subSources) {
+                cost += s.estimateBytes();
+            }
+            if (filter != null) cost += filter.estimateBytes();
+            return cost;
         }
     }
 
@@ -546,6 +568,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         IntervalFilter getFilter() {
             return filter;
         }
+
+        @Override
+        public long estimateBytes() {
+            long cost = 32L + subSources.size() * 8L;
+            for (IntervalsSourceProvider s : subSources) {
+                cost += s.estimateBytes();
+            }
+            if (filter != null) cost += filter.estimateBytes();
+            return cost;
+        }
     }
 
     public static class Prefix extends IntervalsSourceProvider {
@@ -662,6 +694,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         String getUseField() {
             return useField;
+        }
+
+        @Override
+        public long estimateBytes() {
+            long cost = prefix.length() * 2L + 64L;
+            if (analyzer != null) cost += analyzer.length() * 2L + 64L;
+            if (useField != null) cost += useField.length() * 2L + 64L;
+            return cost;
         }
     }
 
@@ -781,6 +821,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         String getUseField() {
             return useField;
+        }
+
+        @Override
+        public long estimateBytes() {
+            long cost = pattern.length() * 2L + 64L;
+            if (analyzer != null) cost += analyzer.length() * 2L + 64L;
+            if (useField != null) cost += useField.length() * 2L + 64L;
+            return cost;
         }
     }
 
@@ -915,6 +963,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         String getUseField() {
             return useField;
+        }
+
+        @Override
+        public long estimateBytes() {
+            long cost = pattern.length() * 2L + 64L;
+            if (analyzer != null) cost += analyzer.length() * 2L + 64L;
+            if (useField != null) cost += useField.length() * 2L + 64L;
+            return cost;
         }
     }
 
@@ -1075,6 +1131,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         String getUseField() {
             return useField;
+        }
+
+        @Override
+        public long estimateBytes() {
+            long cost = term.length() * 2L + 64L;
+            if (analyzer != null) cost += analyzer.length() * 2L + 64L;
+            if (useField != null) cost += useField.length() * 2L + 64L;
+            return cost;
         }
     }
 
@@ -1259,6 +1323,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         String getUseField() {
             return useField;
         }
+
+        @Override
+        public long estimateBytes() {
+            long cost = lowerTerm.length() * 2L + 64L + upperTerm.length() * 2L + 64L;
+            if (analyzer != null) cost += analyzer.length() * 2L + 64L;
+            if (useField != null) cost += useField.length() * 2L + 64L;
+            return cost;
+        }
     }
 
     static class ScriptFilterSource extends FilteredIntervalsSource {
@@ -1406,6 +1478,20 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         Script getScript() {
             return script;
+        }
+
+        long estimateBytes() {
+            long cost = type.length() * 2L + 64L;
+            if (filter != null) cost += filter.estimateBytes();
+            if (script != null) {
+                cost += script.getIdOrCode().length() * 2L + 64L;
+                cost += AbstractQueryBuilder.estimateValue(script.getParams());
+                if (script.getLang() != null) cost += script.getLang().length() * 2L + 64L;
+                if (script.getOptions() != null && script.getOptions().isEmpty() == false) cost += AbstractQueryBuilder.estimateValue(
+                    script.getOptions()
+                );
+            }
+            return cost;
         }
     }
 

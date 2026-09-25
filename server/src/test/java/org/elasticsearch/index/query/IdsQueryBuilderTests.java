@@ -129,6 +129,17 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         assertThat(parsed.ids(), contains("1", "100", "4"));
     }
 
+    public void testPayloadBreakerTripsOnLargeIdsList() throws IOException {
+        // Root query is charged its full parseTimeBreakerEstimate(). One id fits; two do not.
+        // CircuitBreakingException propagates directly — no ObjectParser wrapping at root level.
+        String id = "abc";
+        long perEntry = id.length() * 2L + 64L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + perEntry;
+        IdsQueryBuilder ok = new IdsQueryBuilder().addIds(id);
+        IdsQueryBuilder big = new IdsQueryBuilder().addIds(id, id + "2");
+        assertParseTimeBreaker(limit, ok, big);
+    }
+
     @Override
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);

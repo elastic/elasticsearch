@@ -121,4 +121,18 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(), equalTo("span_or [clauses] as a nested span clause can't have non-default boost value [2.0]"));
     }
+
+    public void testClausesBreakerEstimate() throws IOException {
+        // BASELINE + clauses.size()*8. SpanTerm children are charged via namedObject before the parent.
+        // SpanTermQueryBuilder("field","value"): 256 + (5*2+64) + (5+64) = 399.
+        // limit = 2*childCost + BASELINE = 1054.
+        // Without the override the parent charges exactly 256 (= limit, strict > → no trip).
+        // With the override the parent charges 256 + 2*8 = 272 → total 1070 > 1054 → trips on
+        // the collection overhead term.
+        // small = 1 clause: 399 (child) + 264 (own) = 663 ≤ 1054 → passes.
+        SpanTermQueryBuilder term = new SpanTermQueryBuilder("field", "value");
+        long childCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + ("field".length() * 2L + 64L) + ("value".length() + 64L);
+        long limit = 2 * childCost + AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        assertParseTimeBreaker(limit, new SpanOrQueryBuilder(term), new SpanOrQueryBuilder(term).addClause(term));
+    }
 }

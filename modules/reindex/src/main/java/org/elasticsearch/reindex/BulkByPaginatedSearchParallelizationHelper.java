@@ -74,14 +74,23 @@ class BulkByPaginatedSearchParallelizationHelper {
         ActionListener<BulkByPaginatedSearchResponse> listener,
         Client client,
         DiscoveryNode node,
-        Runnable workerAction
+        Consumer<ActionListener<BulkByPaginatedSearchResponse>> workerAction
     ) {
+        // Install source cleanup before initTaskState so that failures during auto-slice shard
+        // lookup (e.g. missing index) release parse-time breaker charges. sendSubRequests also
+        // wraps its listener; double-close is safe because SearchSourceBuilder.close() is idempotent.
+        // workerAction receives the wrapped listener (l) rather than the original so that cancellation
+        // before the first TransportSearchAction call still releases charges via the completion path.
+        final SearchSourceBuilder originalSource = request.getSearchRequest().source();
+        final ActionListener<BulkByPaginatedSearchResponse> closingListener = originalSource != null
+            ? ActionListener.runAfter(listener, originalSource::close)
+            : listener;
         initTaskState(
             task,
             request,
             client,
-            listener.delegateFailure(
-                (l, v) -> executeSlicedAction(task, request, action, l, client, node, null, version -> workerAction.run())
+            closingListener.delegateFailure(
+                (l, v) -> executeSlicedAction(task, request, action, l, client, node, null, version -> workerAction.accept(l))
             )
         );
     }
@@ -197,15 +206,24 @@ class BulkByPaginatedSearchParallelizationHelper {
         }
 
         SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), totalSlices);
+        // The sliced sources are shallow copies with no queryParsingReleasables; TransportSearchAction
+        // only ever sees those copies, so the original source's parse-time breaker charges would
+        // never be released. Wrap the top-level listener to close the original source once the entire
+        // sliced operation finishes (success or failure). Closing early — before dispatch — would
+        // release charges while all slices still reference the same QueryBuilder objects.
+        final SearchSourceBuilder originalSource = request.getSearchRequest().source();
+        final ActionListener<BulkByPaginatedSearchResponse> closingListener = originalSource != null
+            ? ActionListener.runAfter(listener, originalSource::close)
+            : listener;
         for (int sliceId = 0; sliceId < searchRequests.length; sliceId++) {
             // If a resumed slice was already completed, skip sending the request and directly record the result
             Optional<ResumeInfo> resumeInfo = request.getResumeInfo();
             if (resumeInfo.isPresent() && resumeInfo.get().isSliceCompleted(sliceId)) {
                 WorkerResult sliceResult = resumeInfo.get().getSlice(sliceId).get().result();
                 if (sliceResult.getResponse().isPresent()) {
-                    leader.onSliceResponse(listener, sliceId, sliceResult.getResponse().get());
+                    leader.onSliceResponse(closingListener, sliceId, sliceResult.getResponse().get());
                 } else if (sliceResult.getFailure().isPresent()) {
-                    leader.onSliceFailure(listener, sliceId, sliceResult.getFailure().get());
+                    leader.onSliceFailure(closingListener, sliceId, sliceResult.getFailure().get());
                 }
                 continue;
             }
@@ -214,8 +232,8 @@ class BulkByPaginatedSearchParallelizationHelper {
             SearchRequest searchRequest = searchRequests[sliceId];
             Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices, activeSlices);
             ActionListener<BulkByPaginatedSearchResponse> sliceListener = ActionListener.wrap(
-                r -> leader.onSliceResponse(listener, searchRequest.source().slice().getId(), r),
-                e -> leader.onSliceFailure(listener, searchRequest.source().slice().getId(), e)
+                r -> leader.onSliceResponse(closingListener, searchRequest.source().slice().getId(), r),
+                e -> leader.onSliceFailure(closingListener, searchRequest.source().slice().getId(), e)
             );
             client.execute(action, requestForSlice, sliceListener);
         }

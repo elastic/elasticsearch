@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -559,6 +560,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 assertThat(e.getMessage(), containsString("One or more nodes does not support semantic query cross-cluster search"));
             }
         }
+    }
+
+    public void testQueryBreakerEstimate() throws IOException {
+        // cost = BASELINE + fieldName + query.length()*2+64
+        // fieldName "f" (1 char = 66) + "hi" (2 chars = 68): 256+66+68 = 390
+        String smallQuery = "hi";
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + "f".length() * 2L + 64L + smallQuery.length() * 2L + 64L;
+        assertParseTimeBreaker(limit, new SemanticQueryBuilder("f", smallQuery), new SemanticQueryBuilder("f", "x".repeat(500)));
     }
 
     public void testToXContent() throws IOException {

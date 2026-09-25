@@ -456,7 +456,16 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
 
     public static ReindexRequest fromXContent(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature) throws IOException {
         ReindexRequest reindexRequest = new ReindexRequest();
-        PARSER.parse(parser, reindexRequest, clusterSupportsFeature);
+        try {
+            PARSER.parse(parser, reindexRequest, clusterSupportsFeature);
+        } catch (Exception e) {
+            // If the parser charged the breaker before throwing (e.g. "source" parsed but "dest" missing),
+            // release the charges. SearchSourceBuilder.close() is idempotent.
+            if (reindexRequest.getSearchRequest().source() != null) {
+                reindexRequest.getSearchRequest().source().close();
+            }
+            throw e;
+        }
         return reindexRequest;
     }
 

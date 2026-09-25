@@ -348,6 +348,11 @@ public class GeoDistanceQueryBuilder extends LeafQueryBuilder<GeoDistanceQueryBu
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(center, geoDistance, distance, validationMethod, ignoreUnmapped);
     }

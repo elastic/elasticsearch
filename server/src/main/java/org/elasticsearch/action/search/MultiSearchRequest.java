@@ -127,6 +127,14 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             }
         }
 
+        if (validationException != null) {
+            // Close all sub-request sources since the whole _msearch is rejected.
+            for (SearchRequest request : requests) {
+                if (request.source() != null) {
+                    request.source().close();
+                }
+            }
+        }
         return validationException;
     }
 

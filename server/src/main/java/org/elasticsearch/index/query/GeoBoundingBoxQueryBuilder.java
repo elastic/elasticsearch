@@ -357,6 +357,11 @@ public class GeoBoundingBoxQueryBuilder extends LeafQueryBuilder<GeoBoundingBoxQ
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
+    }
+
+    @Override
     protected boolean doEquals(GeoBoundingBoxQueryBuilder other) {
         return Objects.equals(geoBoundingBox, other.geoBoundingBox)
             && Objects.equals(validationMethod, other.validationMethod)

@@ -77,7 +77,9 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
                 client.execute(
                     TransportSearchAction.TYPE,
                     searchRequest,
-                    listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
+                    ActionListener.runAfter(listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse)), () -> {
+                        if (searchRequest.source() != null) searchRequest.source().close();
+                    })
                 );
             } catch (Exception e) {
                 l.onFailure(e);

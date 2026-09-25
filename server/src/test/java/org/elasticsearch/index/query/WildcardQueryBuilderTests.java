@@ -227,4 +227,34 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
             return boolQuery;
         });
     }
+
+    public void testRewriteBreakerEstimate() throws IOException {
+        // Setting rewrite increases the estimate by exactly rewrite.length()*2+64.
+        // A breaker sized for the estimate without rewrite trips when rewrite is present.
+        WildcardQueryBuilder base = new WildcardQueryBuilder(TEXT_FIELD_NAME, "fo*");
+        long noRewriteEstimate = base.parseTimeBreakerEstimate();
+        String rewriteMethod = "constant_score";
+        assertEquals(noRewriteEstimate + rewriteMethod.length() * 2L + 64L, base.rewrite(rewriteMethod).parseTimeBreakerEstimate());
+        long limit = noRewriteEstimate;
+        assertParseTimeBreaker(
+            limit,
+            new WildcardQueryBuilder(TEXT_FIELD_NAME, "fo*"),
+            new WildcardQueryBuilder(TEXT_FIELD_NAME, "fo*").rewrite(rewriteMethod)
+        );
+    }
+
+    public void testFieldValueBreakerEstimate() throws IOException {
+        // WildcardQueryBuilder stores value as String: estimateValue = s.length()*2 + 64.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): fieldName cost = 13*2+64 = 90.
+        // "hi" → estimateValue = 2*2+64 = 68. Small cost = BASELINE + 90 + 68 = 414.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        String shortValue = "hi";
+        long smallCost = baseline + 13 * 2L + 64L + shortValue.length() * 2L + 64L;
+        long limit = smallCost;
+        assertParseTimeBreaker(
+            limit,
+            new WildcardQueryBuilder(TEXT_FIELD_NAME, shortValue),
+            new WildcardQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500))
+        );
+    }
 }

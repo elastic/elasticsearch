@@ -15,6 +15,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -84,6 +85,15 @@ public final class ExceptionsHelper {
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof XContentParseException) {
+                // Walk the cause chain: ObjectParser wraps CircuitBreakingException in XContentParseException,
+                // and outer parsers (highlight, rescorer, retriever) may add further layers. Preserve 429.
+                Throwable cause = t.getCause();
+                while (cause instanceof XContentParseException) {
+                    cause = cause.getCause();
+                }
+                if (cause instanceof CircuitBreakingException) {
+                    return RestStatus.TOO_MANY_REQUESTS;
+                }
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof EsRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;

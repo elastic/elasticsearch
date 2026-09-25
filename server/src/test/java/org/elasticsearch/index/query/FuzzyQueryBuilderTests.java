@@ -585,6 +585,20 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertFieldTypeFuzzyDoesNotChargeDirectly(MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE);
     }
 
+    public void testValueBreakerEstimate() throws IOException {
+        // FuzzyQueryBuilder stores value as BytesRef via maybeConvertToBytesRef.
+        // ASCII "hi" → 2-byte BytesRef → estimateValue(BytesRef) = 2+64 = 66.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): 13*2+64 = 90.
+        // Small cost = BASELINE + 90 + 66 = 412.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        String shortValue = "hi";
+        long smallCost = baseline + 13 * 2L + 64L + shortValue.length() + 64L;
+        long limit = smallCost; // equal to limit does not trip (LimitedBreaker uses strict >)
+        FuzzyQueryBuilder small = new FuzzyQueryBuilder(TEXT_FIELD_NAME, shortValue);
+        FuzzyQueryBuilder big = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500));
+        assertParseTimeBreaker(limit, small, big);
+    }
+
     private long costEstimateFor(String value, Fuzziness fuzziness, int prefixLength) throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);

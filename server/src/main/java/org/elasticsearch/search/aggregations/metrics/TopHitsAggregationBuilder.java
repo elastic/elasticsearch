@@ -720,7 +720,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     }
                     factory.scriptFields(scriptFields);
                 } else if (SearchSourceBuilder.HIGHLIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    factory.highlighter(HighlightBuilder.fromXContent(parser));
+                    factory.highlighter(HighlightBuilder.fromXContent(parser, null));
                 } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);
                     factory.sorts(sorts);

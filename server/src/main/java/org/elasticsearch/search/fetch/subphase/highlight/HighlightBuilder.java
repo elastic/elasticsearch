@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParsingReservation;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -35,7 +36,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xcontent.ObjectParser.fromList;
 
@@ -205,20 +205,24 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         return builder;
     }
 
-    private static final BiFunction<XContentParser, HighlightBuilder, HighlightBuilder> PARSER;
+    private static final ObjectParser<HighlightBuilder, QueryParsingReservation> PARSER;
     static {
-        ObjectParser<HighlightBuilder, Void> parser = new ObjectParser<>("highlight");
+        ObjectParser<HighlightBuilder, QueryParsingReservation> parser = new ObjectParser<>("highlight");
         parser.declareNamedObjects(
             HighlightBuilder::fields,
             Field.PARSER,
             (HighlightBuilder hb) -> hb.useExplicitFieldOrder(true),
             FIELDS_FIELD
         );
-        PARSER = setupParser(parser);
+        setupParser(parser);
+        PARSER = parser;
     }
 
-    public static HighlightBuilder fromXContent(XContentParser p) {
-        return PARSER.apply(p, new HighlightBuilder());
+    public static HighlightBuilder fromXContent(XContentParser p, QueryParsingReservation releasables) throws IOException {
+        HighlightBuilder hb = new HighlightBuilder();
+        PARSER.parse(p, hb, releasables);
+        validatePrePostTags(hb, p);
+        return hb;
     }
 
     public SearchHighlightContext build(SearchExecutionContext context) throws IOException {
@@ -391,13 +395,18 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     }
 
     public static final class Field extends AbstractHighlighterBuilder<Field> {
-        static final NamedObjectParser<Field, Void> PARSER;
+        static final NamedObjectParser<Field, QueryParsingReservation> PARSER;
         static {
-            ObjectParser<Field, Void> parser = new ObjectParser<>("highlight_field");
+            ObjectParser<Field, QueryParsingReservation> parser = new ObjectParser<>("highlight_field");
             parser.declareInt(Field::fragmentOffset, FRAGMENT_OFFSET_FIELD);
             parser.declareStringArray(fromList(String.class, Field::matchedFields), MATCHED_FIELDS_FIELD);
-            BiFunction<XContentParser, Field, Field> decoratedParser = setupParser(parser);
-            PARSER = (XContentParser p, Void c, String name) -> decoratedParser.apply(p, new Field(name));
+            setupParser(parser);
+            PARSER = (XContentParser p, QueryParsingReservation c, String name) -> {
+                Field field = new Field(name);
+                parser.parse(p, field, c);
+                validatePrePostTags(field, p);
+                return field;
+            };
         }
 
         private final String name;

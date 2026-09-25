@@ -318,8 +318,12 @@ public class MultiSearchIT extends ESIntegTestCase {
                 """;
 
             MultiSearchRequest mreq = parseRequest(body, Map.of());
-            for (SearchRequest req : mreq.requests()) {
-                assertTrue(req.isCcsMinimizeRoundtrips());
+            try {
+                for (SearchRequest req : mreq.requests()) {
+                    assertTrue(req.isCcsMinimizeRoundtrips());
+                }
+            } finally {
+                closeMultiSearchSources(mreq);
             }
         }
 
@@ -333,8 +337,12 @@ public class MultiSearchIT extends ESIntegTestCase {
                 """;
 
             MultiSearchRequest mreq = parseRequest(body, Map.of("ccs_minimize_roundtrips", "false"));
-            for (SearchRequest req : mreq.requests()) {
-                assertFalse(req.isCcsMinimizeRoundtrips());
+            try {
+                for (SearchRequest req : mreq.requests()) {
+                    assertFalse(req.isCcsMinimizeRoundtrips());
+                }
+            } finally {
+                closeMultiSearchSources(mreq);
             }
         }
 
@@ -348,8 +356,12 @@ public class MultiSearchIT extends ESIntegTestCase {
                 """;
 
             MultiSearchRequest mreq = parseRequest(body, Map.of());
-            for (SearchRequest req : mreq.requests()) {
-                assertFalse(req.isCcsMinimizeRoundtrips());
+            try {
+                for (SearchRequest req : mreq.requests()) {
+                    assertFalse(req.isCcsMinimizeRoundtrips());
+                }
+            } finally {
+                closeMultiSearchSources(mreq);
             }
         }
 
@@ -366,10 +378,13 @@ public class MultiSearchIT extends ESIntegTestCase {
                 """;
 
             MultiSearchRequest mreq = parseRequest(body, Map.of("ccs_minimize_roundtrips", "false"));
-
-            assertThat(mreq.requests().size(), Matchers.is(2));
-            assertTrue(mreq.requests().getFirst().isCcsMinimizeRoundtrips());
-            assertFalse(mreq.requests().getLast().isCcsMinimizeRoundtrips());
+            try {
+                assertThat(mreq.requests().size(), Matchers.is(2));
+                assertTrue(mreq.requests().getFirst().isCcsMinimizeRoundtrips());
+                assertFalse(mreq.requests().getLast().isCcsMinimizeRoundtrips());
+            } finally {
+                closeMultiSearchSources(mreq);
+            }
         }
     }
 
@@ -382,8 +397,12 @@ public class MultiSearchIT extends ESIntegTestCase {
             """;
 
         MultiSearchRequest mreq = parseCpsRequest(body, Map.of());
-        for (SearchRequest req : mreq.requests()) {
-            assertFalse(req.isCcsMinimizeRoundtrips());
+        try {
+            for (SearchRequest req : mreq.requests()) {
+                assertFalse(req.isCcsMinimizeRoundtrips());
+            }
+        } finally {
+            closeMultiSearchSources(mreq);
         }
     }
 
@@ -396,8 +415,12 @@ public class MultiSearchIT extends ESIntegTestCase {
             """;
 
         MultiSearchRequest mreq = parseCpsRequest(body, Map.of("ccs_minimize_roundtrips", "true"));
-        for (SearchRequest req : mreq.requests()) {
-            assertFalse(req.isCcsMinimizeRoundtrips());
+        try {
+            for (SearchRequest req : mreq.requests()) {
+                assertFalse(req.isCcsMinimizeRoundtrips());
+            }
+        } finally {
+            closeMultiSearchSources(mreq);
         }
     }
 
@@ -410,11 +433,15 @@ public class MultiSearchIT extends ESIntegTestCase {
             {"query" : {"match_all" : {}}}
             """;
         MultiSearchRequest mreq = parseRequest(body, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
-        assertThat(mreq.requests().size(), Matchers.is(2));
-        for (SearchRequest req : mreq.requests()) {
-            assertEquals("s1,s2", req.routing());
-            assertTrue(req.isRoutingFromSlice());
-            assertEquals("s1,s2", req.searchSlice());
+        try {
+            assertThat(mreq.requests().size(), Matchers.is(2));
+            for (SearchRequest req : mreq.requests()) {
+                assertEquals("s1,s2", req.routing());
+                assertTrue(req.isRoutingFromSlice());
+                assertEquals("s1,s2", req.searchSlice());
+            }
+        } finally {
+            closeMultiSearchSources(mreq);
         }
     }
 
@@ -480,31 +507,43 @@ public class MultiSearchIT extends ESIntegTestCase {
             {"query":{"term":{"field.keyword":"slice-s2"}}}
             """;
         MultiSearchRequest request = parseRequest(body, Map.of());
-        assertThat(request.requests().size(), equalTo(4));
-        assertEquals("r1", request.requests().get(0).routing());
-        assertFalse(request.requests().get(0).isRoutingFromSlice());
-        assertNull(request.requests().get(0).searchSlice());
-        assertEquals("s1", request.requests().get(1).routing());
-        assertTrue(request.requests().get(1).isRoutingFromSlice());
-        assertEquals("s1", request.requests().get(1).searchSlice());
-        assertEquals("r2", request.requests().get(2).routing());
-        assertFalse(request.requests().get(2).isRoutingFromSlice());
-        assertNull(request.requests().get(2).searchSlice());
-        assertEquals("s2", request.requests().get(3).routing());
-        assertTrue(request.requests().get(3).isRoutingFromSlice());
-        assertEquals("s2", request.requests().get(3).searchSlice());
+        try {
+            assertThat(request.requests().size(), equalTo(4));
+            assertEquals("r1", request.requests().get(0).routing());
+            assertFalse(request.requests().get(0).isRoutingFromSlice());
+            assertNull(request.requests().get(0).searchSlice());
+            assertEquals("s1", request.requests().get(1).routing());
+            assertTrue(request.requests().get(1).isRoutingFromSlice());
+            assertEquals("s1", request.requests().get(1).searchSlice());
+            assertEquals("r2", request.requests().get(2).routing());
+            assertFalse(request.requests().get(2).isRoutingFromSlice());
+            assertNull(request.requests().get(2).searchSlice());
+            assertEquals("s2", request.requests().get(3).routing());
+            assertTrue(request.requests().get(3).isRoutingFromSlice());
+            assertEquals("s2", request.requests().get(3).searchSlice());
 
-        assertResponse(client().multiSearch(request), response -> {
-            assertThat(response.getResponses().length, equalTo(4));
-            for (Item item : response) {
-                assertNoFailures(item.getResponse());
-                assertHitCount(item.getResponse(), 1L);
+            assertResponse(client().multiSearch(request), response -> {
+                assertThat(response.getResponses().length, equalTo(4));
+                for (Item item : response) {
+                    assertNoFailures(item.getResponse());
+                    assertHitCount(item.getResponse(), 1L);
+                }
+                assertFirstHit(response.getResponses()[0].getResponse(), hasId("r1-doc"));
+                assertFirstHit(response.getResponses()[1].getResponse(), hasId("s1-doc"));
+                assertFirstHit(response.getResponses()[2].getResponse(), hasId("r2-doc"));
+                assertFirstHit(response.getResponses()[3].getResponse(), hasId("s2-doc"));
+            });
+        } finally {
+            closeMultiSearchSources(request);
+        }
+    }
+
+    private static void closeMultiSearchSources(MultiSearchRequest mreq) {
+        for (SearchRequest sr : mreq.requests()) {
+            if (sr.source() != null) {
+                sr.source().close();
             }
-            assertFirstHit(response.getResponses()[0].getResponse(), hasId("r1-doc"));
-            assertFirstHit(response.getResponses()[1].getResponse(), hasId("s1-doc"));
-            assertFirstHit(response.getResponses()[2].getResponse(), hasId("r2-doc"));
-            assertFirstHit(response.getResponses()[3].getResponse(), hasId("s2-doc"));
-        });
+        }
     }
 
     private RestRequest mkRequest(String body, Map<String, String> params) {

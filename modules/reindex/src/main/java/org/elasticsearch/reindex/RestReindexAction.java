@@ -21,6 +21,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -76,26 +77,36 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         try (XContentParser parser = request.contentParser()) {
             internal = ReindexRequest.fromXContent(parser, clusterSupportsFeature);
         }
-        if (internal.getRemoteInfo() == null && crossProjectModeDecider.crossProjectEnabled()) {
-            SearchRequest searchRequest = internal.getSearchRequest();
-            searchRequest.indicesOptions(
-                IndicesOptions.builder(searchRequest.indicesOptions())
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                    .build()
-            );
-        }
+        // Guard: if any post-parse setter throws, release the parse-time breaker charges.
+        boolean postParseOk = false;
+        try {
+            if (internal.getRemoteInfo() == null && crossProjectModeDecider.crossProjectEnabled()) {
+                SearchRequest searchRequest = internal.getSearchRequest();
+                searchRequest.indicesOptions(
+                    IndicesOptions.builder(searchRequest.indicesOptions())
+                        .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                        .build()
+                );
+            }
 
-        if (request.hasParam("scroll")) {
-            internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
-        }
-        if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
-            internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
-        }
-        if (clusterSupportsFeature.test(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE)
-            && request.paramAsBoolean("wait_for_completion", true) == false) {
-            // On shutdown, we can try to relocate an asynchronous reindex task to another node. We cannot do this for synchronous ones,
-            // where a client is waiting for a response from this node (but they should not be long-lived anyway).
-            internal.setEligibleForRelocationOnShutdown(true);
+            if (request.hasParam("scroll")) {
+                internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
+            }
+            if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
+                internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
+            }
+            if (clusterSupportsFeature.test(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE)
+                && request.paramAsBoolean("wait_for_completion", true) == false) {
+                // On shutdown, we can try to relocate an asynchronous reindex task to another node. We cannot do this for synchronous ones,
+                // where a client is waiting for a response from this node (but they should not be long-lived anyway).
+                internal.setEligibleForRelocationOnShutdown(true);
+            }
+            postParseOk = true;
+        } finally {
+            if (postParseOk == false) {
+                SearchSourceBuilder ssb = internal.getSearchRequest().source();
+                if (ssb != null) ssb.close();
+            }
         }
 
         return internal;

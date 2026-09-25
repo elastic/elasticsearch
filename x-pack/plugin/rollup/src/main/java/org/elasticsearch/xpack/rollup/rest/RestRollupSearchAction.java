@@ -6,13 +6,16 @@
  */
 package org.elasticsearch.xpack.rollup.rest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 
 import java.io.IOException;
@@ -56,11 +59,29 @@ public class RestRollupSearchAction extends BaseRestHandler {
             )
         );
         RestSearchAction.validateSearchRequest(restRequest, searchRequest);
-        return channel -> client.execute(
-            RollupSearchAction.INSTANCE,
-            searchRequest,
-            new RestRefCountedChunkedToXContentListener<>(channel)
-        );
+        final SearchSourceBuilder source = searchRequest.source();
+        return new RestChannelConsumer() {
+            private boolean dispatched = false;
+
+            @Override
+            public void accept(RestChannel channel) throws Exception {
+                dispatched = true;
+                client.execute(
+                    RollupSearchAction.INSTANCE,
+                    searchRequest,
+                    ActionListener.runAfter(new RestRefCountedChunkedToXContentListener<>(channel), () -> {
+                        if (source != null) source.close();
+                    })
+                );
+            }
+
+            @Override
+            public void close() {
+                if (dispatched == false && source != null) {
+                    source.close();
+                }
+            }
+        };
     }
 
     @Override

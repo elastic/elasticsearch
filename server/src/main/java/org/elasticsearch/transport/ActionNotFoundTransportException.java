@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * An exception indicating that a transport action was not found.
@@ -22,24 +23,42 @@ import java.io.IOException;
 public class ActionNotFoundTransportException extends TransportException {
 
     private final String action;
+    private final List<String> availableActions;
 
     public ActionNotFoundTransportException(StreamInput in) throws IOException {
         super(in);
         action = in.readOptionalString();
+        availableActions = (List<String>) in.readOptionalStreamable();
     }
 
     public ActionNotFoundTransportException(String action) {
         super("No handler for action [" + action + "]");
         this.action = action;
+        this.availableActions = availableActions;
     }
 
     @Override
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         super.writeTo(out, nestedExceptionsWriter);
         out.writeOptionalString(action);
+        out.writeOptionalStreamable(availableActions);
     }
 
     public String action() {
         return this.action;
     }
+
+    public List<String> getAvailableActions() {
+        return this.availableActions;
+    }
+
+    @Override
+    public String getMessage() {
+        String baseMessage = super.getMessage();
+        if (availableActions != null && !availableActions.isEmpty()) {
+            return baseMessage + "\nValid actions are: " + String.join(", ", availableActions);
+        } else {
+            return baseMessage;
+        }
+    }   
 }

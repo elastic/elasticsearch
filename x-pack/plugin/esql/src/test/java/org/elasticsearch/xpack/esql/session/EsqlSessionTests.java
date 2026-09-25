@@ -224,6 +224,141 @@ public class EsqlSessionTests extends ESTestCase {
         }
     }
 
+    public void testPinnedColumnsMergedWithUnionsColumnsAndDropRowCount() {
+        EsqlSession.PinnedColumns merged = new EsqlSession.PinnedColumns(Set.of("x"), false).mergedWith(
+            new EsqlSession.PinnedColumns(Set.of("z"), true)
+        );
+        assertEquals(Set.of("x", "z"), merged.columns());
+        assertTrue(merged.dropRowCount());
+    }
+
+    public void testEmptyPinnedReadsLeavesCapturedContributionsUnchanged() {
+        Map<String, List<Map<String, Object>>> captured = Map.of("s3://bucket/a.parquet", List.of(pinnedValContribution()));
+        assertSame(captured, EsqlSession.stripPinnedContributions(captured, Map.of()));
+    }
+
+    public void testPinnedHarvestsStrippedAfterExecution() throws Exception {
+        // Reconcile must strip after collect: empty pins would pass the harvest through and
+        // overwrite native cache stats. Matches the post-run collect-then-reconcile order.
+        String path = "s3://bucket/a.parquet";
+        Map<String, Object> config = Map.of("schema_resolution", "union_by_name");
+        Map<String, Object> contribution = pinnedValContribution();
+        Map<String, List<Map<String, Object>>> captured = Map.of(path, List.of(contribution));
+
+        Map<String, EsqlSession.PinnedColumns> pinnedReads = new HashMap<>();
+        assertSame(
+            "reconcile before collect would commit the pinned harvest into the cache",
+            captured,
+            EsqlSession.stripPinnedContributions(captured, pinnedReads)
+        );
+
+        EsqlSession.collectPinnedReads(unionByNamePinnedRelation(path), false, pinnedReads);
+        assertEquals(Map.of(path, new EsqlSession.PinnedColumns(Set.of("val"), false)), pinnedReads);
+
+        Map<String, List<Map<String, Object>>> stripped = EsqlSession.stripPinnedContributions(captured, pinnedReads);
+        Map<String, Object> strippedContribution = stripped.get(path).getFirst();
+        assertFalse(strippedContribution.containsKey(SourceStatisticsSerializer.columnValueCountKey("val")));
+        assertFalse(strippedContribution.containsKey(SourceStatisticsSerializer.columnNullCountKey("val")));
+        assertFalse(strippedContribution.containsKey(SourceStatisticsSerializer.columnMinKey("val")));
+        assertFalse(strippedContribution.containsKey(SourceStatisticsSerializer.columnMaxKey("val")));
+        assertEquals(2L, strippedContribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
+            SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", config);
+            Map<String, Object> nativeStats = Map.of(
+                SourceStatisticsSerializer.columnValueCountKey("val"),
+                2L,
+                SourceStatisticsSerializer.columnNullCountKey("val"),
+                0L,
+                SourceStatisticsSerializer.columnMinKey("val"),
+                3L,
+                SourceStatisticsSerializer.columnMaxKey("val"),
+                4L
+            );
+            cache.putSchema(
+                key,
+                SchemaCacheEntry.from(List.of(new ReferenceAttribute(EMPTY, "val", DataType.LONG)), "parquet", path, nativeStats, config)
+            );
+            cache.reconcileSourceStatsFromContributions(stripped);
+
+            SchemaCacheEntry cached = cache.getSchemaIfPresent(key);
+            assertNotNull(cached);
+            Map<String, Object> metadata = cached.safeMetadata();
+            nativeStats.forEach((stat, value) -> assertEquals(stat, value, metadata.get(stat)));
+            // Unpinned row_count from a dropRowCount=false pin must land, proving overlay ran.
+            assertEquals(2L, metadata.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    public void testPinnedReadsFromSeparatePlansMergeBeforeReconcile() {
+        // IN / inline-join: each executed plan collects into the same map after that run,
+        // then one strip sees every pinned file.
+        String subplanPath = "s3://bucket/sub.parquet";
+        String mainPath = "s3://bucket/main.parquet";
+        Map<String, EsqlSession.PinnedColumns> pinnedReads = new HashMap<>();
+        EsqlSession.collectPinnedReads(unionByNamePinnedRelation(subplanPath), false, pinnedReads);
+        EsqlSession.collectPinnedReads(unionByNamePinnedRelation(mainPath), true, pinnedReads);
+        assertEquals(
+            Map.of(
+                subplanPath,
+                new EsqlSession.PinnedColumns(Set.of("val"), false),
+                mainPath,
+                new EsqlSession.PinnedColumns(Set.of("val"), true)
+            ),
+            pinnedReads
+        );
+
+        Map<String, Object> contribution = pinnedValContribution();
+        Map<String, List<Map<String, Object>>> captured = Map.of(subplanPath, List.of(contribution), mainPath, List.of(contribution));
+        Map<String, List<Map<String, Object>>> stripped = EsqlSession.stripPinnedContributions(captured, pinnedReads);
+        Map<String, Object> strippedSub = stripped.get(subplanPath).getFirst();
+        Map<String, Object> strippedMain = stripped.get(mainPath).getFirst();
+        assertFalse(strippedSub.containsKey(SourceStatisticsSerializer.columnValueCountKey("val")));
+        assertEquals(2L, strippedSub.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertFalse(strippedMain.containsKey(SourceStatisticsSerializer.columnValueCountKey("val")));
+        assertFalse(strippedMain.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    public void testPinnedReadsSameFileMergesDropRowCount() {
+        String path = "s3://bucket/shared.parquet";
+        ExternalRelation relation = unionByNamePinnedRelation(path);
+        Map<String, EsqlSession.PinnedColumns> pinnedReads = new HashMap<>();
+        EsqlSession.collectPinnedReads(relation, true, pinnedReads);
+        EsqlSession.collectPinnedReads(relation, false, pinnedReads);
+        assertEquals(Map.of(path, new EsqlSession.PinnedColumns(Set.of("val"), true)), pinnedReads);
+    }
+
+    private static ExternalRelation unionByNamePinnedRelation(String path) {
+        List<Attribute> schema = List.of(new ReferenceAttribute(EMPTY, "val", DataType.DOUBLE));
+        ExternalSchema readSchema = new ExternalSchema(schema);
+        Map<String, Object> config = Map.of("schema_resolution", "union_by_name");
+        return new ExternalRelation(
+            EMPTY,
+            path,
+            new SimpleSourceMetadata(schema, "parquet", path, null, null, Map.of(), config),
+            schema,
+            GlobExpander.fileListOf(List.of(new StorageEntry(StoragePath.of(path), 100, Instant.EPOCH)), path),
+            Map.of(StoragePath.of(path), new SchemaReconciliation.FileSchemaInfo(readSchema, null, null, Map.of("val", DataType.LONG)))
+        );
+    }
+
+    private static Map<String, Object> pinnedValContribution() {
+        return Map.of(
+            ExternalStats.MTIME_MILLIS_KEY,
+            0L,
+            SourceStatisticsSerializer.STATS_ROW_COUNT,
+            2L,
+            SourceStatisticsSerializer.columnValueCountKey("val"),
+            2L,
+            SourceStatisticsSerializer.columnNullCountKey("val"),
+            0L,
+            SourceStatisticsSerializer.columnMinKey("val"),
+            1L,
+            SourceStatisticsSerializer.columnMaxKey("val"),
+            2L
+        );
+    }
+
     public void testShouldRetryConcreteTimeSeriesResolution() {
         assertTrue(
             EsqlSession.shouldRetryConcreteTimeSeriesResolution(
@@ -863,6 +998,34 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
+     * Wiring test: a zero {@code LIMIT} over an external relation forwards that relation's path as reading no
+     * rows, which is what lets the resolver stop listing once it has a schema.
+     */
+    public void testPreAnalyzeExternalSourcesForwardsPathReadingNoRows() {
+        String path = "s3://bucket/data/*.parquet";
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 0, DataType.INTEGER), relation);
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+        assertEquals(Set.of(path), captured.pathsReadingNoRows());
+        assertTrue("a path reading no rows cannot also require eager stats", captured.pathsRequiringStats().isEmpty());
+    }
+
+    /**
+     * Wiring test: a query that reads rows forwards an empty set, so every path resolves against the whole glob
+     * exactly as it did before the bound existed.
+     */
+    public void testPreAnalyzeExternalSourcesForwardsNoPathsReadingNoRowsForPositiveLimit() {
+        String path = "s3://bucket/data/*.parquet";
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+        assertNotNull("wiring must forward a non-null set", captured.pathsReadingNoRows());
+        assertTrue("a query that reads rows bounds nothing", captured.pathsReadingNoRows().isEmpty());
+    }
+
+    /**
      * Drives {@code EsqlSession#preAnalyzeExternalSources} with a capturing {@link ExternalSourceResolver}
      * and returns the {@code pathsRequiringStats} argument it forwarded to {@code resolve(...)}.
      */
@@ -876,13 +1039,17 @@ public class EsqlSessionTests extends ESTestCase {
 
     private record CapturedExternalResolve(
         Set<String> pathsRequiringStats,
+        Set<String> pathsReadingNoRows,
         Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints
     ) {}
 
     private static CapturedExternalResolve captureExternalResolve(LogicalPlan plan, String path) {
         AtomicReference<Set<String>> capturedStats = new AtomicReference<>();
+        AtomicReference<Set<String>> capturedNoRows = new AtomicReference<>();
         AtomicReference<Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints = new AtomicReference<>();
         AtomicBoolean resolveCalled = new AtomicBoolean();
+        // The arity the session calls. Overriding a narrower overload would capture nothing and silently run the
+        // real resolver instead, which is how this fake first went blind.
         ExternalSourceResolver capturingResolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, null) {
             @Override
             public void resolve(
@@ -891,10 +1058,12 @@ public class EsqlSessionTests extends ESTestCase {
                 Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
                 Map<String, org.elasticsearch.cluster.metadata.DatasetMapping> declaredMappings,
                 Set<String> pathsRequiringStats,
+                Set<String> pathsReadingNoRows,
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);
                 capturedStats.set(pathsRequiringStats);
+                capturedNoRows.set(pathsReadingNoRows);
                 capturedHints.set(filterHints);
                 listener.onResponse(ExternalSourceResolution.EMPTY);
             }
@@ -917,7 +1086,7 @@ public class EsqlSessionTests extends ESTestCase {
         EsqlSession.preAnalyzeExternalSources(capturingResolver, plan, preAnalysis, result, future, TEST_CFG, new EsqlFunctionRegistry());
         future.actionGet();
         assertTrue("resolve must be invoked when icebergPaths is non-empty", resolveCalled.get());
-        return new CapturedExternalResolve(capturedStats.get(), capturedHints.get());
+        return new CapturedExternalResolve(capturedStats.get(), capturedNoRows.get(), capturedHints.get());
     }
 
     private static IndexResolution resolvedIndex(String indexName) {

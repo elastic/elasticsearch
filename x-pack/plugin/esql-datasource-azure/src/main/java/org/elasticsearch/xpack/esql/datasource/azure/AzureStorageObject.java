@@ -19,6 +19,9 @@ import com.azure.storage.blob.specialized.BlobInputStream;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -32,8 +35,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -142,6 +147,9 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
      * async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof CancellationException || cause instanceof TaskCancelledException) {
+            return new TaskCancelledException("read cancelled");
+        }
         if (ExceptionsHelper.unwrap(cause, ExternalObjectChangedException.class) instanceof ExternalObjectChangedException changed) {
             return changed;
         }
@@ -390,22 +398,35 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (blobAsyncClient == null) {
+            // Must call super.readBytesAsync, not super.startReadBytesAsync: this class's
+            // readBytesAsync delegates here, so the default start would recurse.
             super.readBytesAsync(position, length, factory, executor, listener);
-            return;
+            return () -> {};
         }
 
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
-            return;
+            return () -> {};
         }
         if (length <= 0) {
             listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
-            return;
+            return () -> {};
         }
         if (length > Integer.MAX_VALUE) {
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
-            return;
+            return () -> {};
         }
 
         int len = Math.toIntExact(length);
@@ -414,17 +435,21 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             drb = factory.allocateWritableWindow(len);
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
+            return () -> {};
         }
 
         BlobRange range = new BlobRange(position, length);
         long startNanos = System.nanoTime();
+        AsyncReadHandle handle = new AsyncReadHandle(listener, startNanos, drb);
         final CompletableFuture<Void> future;
         try {
             future = blobAsyncClient.downloadWithResponse(range, null, requestConditions(), false)
                 .doOnNext(this::observeDownloadResponse)
                 .flatMapMany(response -> response.getValue())
                 .reduce(drb.buffer(), (acc, chunk) -> {
+                    if (handle.isCancelled()) {
+                        throw new CancellationException("read cancelled");
+                    }
                     if (chunk.remaining() > acc.remaining()) {
                         throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
                     }
@@ -440,20 +465,105 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             // so counters are not updated.
             drb.close();
             listener.onFailure(mapReadFailure("Failed to read bytes from", e));
-            return;
+            return () -> {};
         }
+        handle.register(future);
         onReadComplete(future, (ignored, error) -> {
+            if (handle.isCancelled()) {
+                // Do not close here: MonoToCompletableFuture.cancel runs whenComplete before
+                // disposing the reduce. cancel() closes after FutureUtils.cancel returns.
+                handle.notifyCancelled();
+                return;
+            }
             if (error != null) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                // Release eagerly on the failure path so the breaker charge does not outlive
-                // the failed request.
-                drb.close();
-                Throwable cause = error.getCause() != null ? error.getCause() : error;
-                listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
-            } else {
+                handle.closeBuffer();
+                if (handle.tryFail()) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    Throwable cause = error.getCause() != null ? error.getCause() : error;
+                    listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
+                }
+            } else if (handle.tryDeliver()) {
                 deliverRead(listener, drb, startNanos);
+            } else {
+                handle.closeBuffer();
             }
         });
+        return handle::cancel;
+    }
+
+    /**
+     * Cancellation handle for one Reactor download. {@link #cancel} claims the listener immediately,
+     * then disposes the {@code toFuture()} CF, then closes the pre-allocated buffer so close happens
+     * after upstream dispose — not from the nested {@code whenComplete} that Reactor runs first.
+     */
+    private final class AsyncReadHandle {
+        private enum Completion {
+            OPEN,
+            DELIVERED,
+            FAILED
+        }
+
+        private volatile boolean cancelled;
+        private final AtomicReference<Completion> completion = new AtomicReference<>(Completion.OPEN);
+        private final AtomicBoolean bufferClosed = new AtomicBoolean();
+        private final AtomicReference<CompletableFuture<?>> inFlight = new AtomicReference<>();
+        private final ActionListener<DirectReadBuffer> listener;
+        private final long startNanos;
+        private final DirectReadBuffer buffer;
+
+        AsyncReadHandle(ActionListener<DirectReadBuffer> listener, long startNanos, DirectReadBuffer buffer) {
+            this.listener = listener;
+            this.startNanos = startNanos;
+            this.buffer = buffer;
+        }
+
+        void register(CompletableFuture<?> future) {
+            inFlight.set(future);
+            if (cancelled) {
+                FutureUtils.cancel(future);
+            }
+        }
+
+        boolean tryDeliver() {
+            return completion.compareAndSet(Completion.OPEN, Completion.DELIVERED);
+        }
+
+        boolean tryFail() {
+            return completion.compareAndSet(Completion.OPEN, Completion.FAILED);
+        }
+
+        void closeBuffer() {
+            if (bufferClosed.compareAndSet(false, true)) {
+                try {
+                    buffer.close();
+                } catch (RuntimeException ignored) {
+                    // Listener already completed; a close fault must not hide the delivered failure.
+                }
+            }
+        }
+
+        void notifyCancelled() {
+            if (tryFail()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(new TaskCancelledException("read cancelled"));
+            }
+        }
+
+        void cancel() {
+            cancelled = true;
+            try {
+                notifyCancelled();
+            } finally {
+                FutureUtils.cancel(inFlight.get());
+                if (completion.get() == Completion.FAILED) {
+                    closeBuffer();
+                }
+            }
+        }
+
+        boolean isCancelled() {
+            return cancelled;
+        }
     }
 
     @Override

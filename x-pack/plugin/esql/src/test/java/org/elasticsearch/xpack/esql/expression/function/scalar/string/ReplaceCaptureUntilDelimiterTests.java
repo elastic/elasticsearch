@@ -61,33 +61,53 @@ public class ReplaceCaptureUntilDelimiterTests extends ComputeTestCase {
     private static List<CommonPatternCase> commonPatternCases() {
         // tag::noformat
         return List.of(
-            new CommonPatternCase(URL_REGEX,                        "$1",     "http://example.com/a",        "example.com",    "URL host, http(s) + optional www."),
-            new CommonPatternCase(URL_REGEX,                        "$1",     "https://www.example.com/x/y", "example.com",    "URL host, with www. prefix present"),
-            new CommonPatternCase(URL_REGEX,                        "$1",     "https://wwwexample.com/x/y",  "wwwexample.com", "URL hostname with www prefix"),
-            new CommonPatternCase(URL_REGEX,                        "$1",     "https://example.com/",        "example.com",    "URL host, bare trailing slash"),
-            new CommonPatternCase(URL_OPTIONAL_SCHEME_REGEX,        "$1",     "https://www.example.com/x",   "example.com",    "URL host, scheme and www. both present"),
-            new CommonPatternCase(URL_OPTIONAL_SCHEME_REGEX,        "$1",     "example.com/x",               "example.com",    "URL host, scheme and www. both omitted"),
-            new CommonPatternCase("^([^@]+)@.*$",                   "$1",     "alice@example.com",           "alice",          "email username"),
-            new CommonPatternCase("^([^=]+)=.*$",                   "$1",     "retries=3",                   "retries",        "key from a key=value pair"),
-            new CommonPatternCase("^([^,]+),.*$",                   "$1",     "a,b,c",                       "a",              "first CSV field"),
-            new CommonPatternCase("^([^\\.]+)\\..*$",               "$1.bak", "archive.tar.gz",              "archive.bak",    "base filename, literal suffix"),
-            new CommonPatternCase("^JSESSIONID=([^;]+);.*$",        "sid=$1!", "JSESSIONID=abc123; Path=/",  "sid=abc123!",    "cookie value with literal prefix and suffix"),
-            new CommonPatternCase("^/api/v1/(?:beta/)?([^/]+)/.*$", "$1",     "/api/v1/beta/svc/x",          "svc",            "path segment, skips optional version prefix"),
+            new CommonPatternCase(URL_REGEX,                        "$1",     "http://example.com/a",        "example.com",
+                "URL host, http(s) + optional www."),
+            new CommonPatternCase(URL_REGEX,                        "$1",     "https://www.example.com/x/y", "example.com",
+                "URL host, with www. prefix present"),
+            new CommonPatternCase(URL_REGEX,                        "$1",     "https://wwwexample.com/x/y",  "wwwexample.com",
+                "URL hostname with www prefix"),
+            new CommonPatternCase(URL_REGEX,                        "$1",     "https://example.com/",        "example.com",
+                "URL host, bare trailing slash"),
+            new CommonPatternCase(URL_OPTIONAL_SCHEME_REGEX,        "$1",     "https://www.example.com/x",   "example.com",
+                "URL host, scheme and www. both present"),
+            new CommonPatternCase(URL_OPTIONAL_SCHEME_REGEX,        "$1",     "example.com/x",               "example.com",
+                "URL host, scheme and www. both omitted"),
+            new CommonPatternCase("^([^@]+)@.*$",                   "$1",     "alice@example.com",           "alice",
+                "email username"),
+            new CommonPatternCase("^([^=]+)=.*$",                   "$1",     "retries=3",                   "retries",
+                "key from a key=value pair"),
+            new CommonPatternCase("^([^,]+),.*$",                   "$1",     "a,b,c",                       "a",
+                "first CSV field"),
+            new CommonPatternCase("^([^\\.]+)\\..*$",               "$1.bak", "archive.tar.gz",              "archive.bak",
+                "base filename, literal suffix"),
+            new CommonPatternCase("^JSESSIONID=([^;]+);.*$",        "sid=$1!", "JSESSIONID=abc123; Path=/",  "sid=abc123!",
+                "cookie value with literal prefix and suffix"),
+            new CommonPatternCase("^/api/v1/(?:beta/)?([^/]+)/.*$", "$1",     "/api/v1/beta/svc/x",          "svc",
+                "path segment, skips optional version prefix"),
             // Scheme required, but written as a non-capturing group instead of a plain literal.
-            new CommonPatternCase("^(?:https://)([^/]+)/.*$",       "$1",     "https://example.com/x",       "example.com",    "required (non-optional) (?:...) prefix segment"),
-            new CommonPatternCase("^Mozilla/5\\.0 \\(([^;]+);.*$",  "$1",     "Mozilla/5.0 (X11; Linux)",    "X11",            "user-agent token inside parens"),
+            new CommonPatternCase("^(?:https://)([^/]+)/.*$",       "$1",     "https://example.com/x",       "example.com",
+                "required (non-optional) (?:...) prefix segment"),
+            new CommonPatternCase("^Mozilla/5\\.0 \\(([^;]+);.*$",  "$1",     "Mozilla/5.0 (X11; Linux)",    "X11",
+                "user-agent token inside parens"),
             // Same pattern, anchored with \A instead of ^.
-            new CommonPatternCase("\\A([^/]+)/.*$",                 "$1",     "host/path-tail",              "host",           "\\A start anchor instead of ^"),
+            new CommonPatternCase("\\A([^/]+)/.*$",                 "$1",     "host/path-tail",              "host",
+                "\\A start anchor instead of ^"),
             // A literal prefix containing dots, quoted instead of individually escaped.
-            new CommonPatternCase("^\\Qapi.v1.\\E([^/]+)/.*$",      "$1",     "api.v1.svc/tail",             "svc",            "\\Q...\\E quoted literal prefix"),
+            new CommonPatternCase("^\\Qapi.v1.\\E([^/]+)/.*$",      "$1",     "api.v1.svc/tail",             "svc",
+                "\\Q...\\E quoted literal prefix"),
             // An empty quoted section, equivalent to having no prefix at all.
-            new CommonPatternCase("^\\Q\\E([^/]+)/.*$",             "$1",     "host/tail",                   "host",           "empty \\Q\\E section"),
+            new CommonPatternCase("^\\Q\\E([^/]+)/.*$",             "$1",     "host/tail",                   "host",
+                "empty \\Q\\E section"),
             // A literal prefix character outside the ASCII range.
-            new CommonPatternCase("^\uD83D\uDE00([^/]+)/.*$",       "$1",     "\uD83D\uDE00host/tail",       "host",           "supplementary-plane literal (surrogate pair) prefix char"),
+            new CommonPatternCase("^\uD83D\uDE00([^/]+)/.*$",       "$1",     "\uD83D\uDE00host/tail",       "host",
+                "supplementary-plane literal (surrogate pair) prefix char"),
             // A non-greedy quantifier on the capture group itself; it still has only one valid split point.
-            new CommonPatternCase("^([^/]+?)/.*$",                  "$1",     "hostname/tail",               "hostname",       "lazy quantifier on the capture group"),
+            new CommonPatternCase("^([^/]+?)/.*$",                  "$1",     "hostname/tail",               "hostname",
+                "lazy quantifier on the capture group"),
             // Exactly MAX_OPTIONAL_PREFIX_PARTS independent optional segments, all present.
-            new CommonPatternCase("^a?b?c?d?([^/]+)/.*$",           "$1",     "abcdhost/tail",               "host",           "four independent optional prefix segments")
+            new CommonPatternCase("^a?b?c?d?([^/]+)/.*$",           "$1",     "abcdhost/tail",               "host",
+                "four independent optional prefix segments")
         );
         // end::noformat
     }

@@ -42,9 +42,15 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -607,28 +613,77 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     /**
-     * Regression test for the double-close race between the AnalysisRegistry.close() safety net and
-     * a concurrent (or late) IndexAnalyzers.close(). The race window: AnalysisRegistry.close()
-     * iterates the live cache and collects evictable analyzers into a toClose list, then a
-     * releaseFromCache() call (from an IndexAnalyzers.close() running concurrently) closes the same
-     * evictable before the registry's IOUtils.close(toClose) fires — causing a second close that
-     * NPEs inside CloseableThreadLocal because storedValue was already nulled by the first close.
-     * The fix uses ConcurrentHashMap.remove(key, entry) in the registry close path so that exactly
-     * one caller atomically claims ownership of the evictable close.
+     * Index cleanup can finish after its last shard store releases the reference that keeps the
+     * registry alive. Pause registry shutdown after it collects its analyzers, then release the
+     * index references to verify that only one path closes each underlying analyzer.
      */
-    public void testNoDoubleCloseWhenRegistryClosedBeforeIndexAnalyzers() throws IOException {
+    public void testNoDoubleCloseWhenRegistryAndIndexAnalyzersCloseConcurrently() throws Exception {
         assumeAnalyzerSharingEnabled();
+        CountDownLatch closeStarted = new CountDownLatch(1);
+        CountDownLatch continueClose = new CountDownLatch(1);
+        AtomicBoolean firstClose = new AtomicBoolean(true);
+        Map<String, AtomicInteger> closeCounts = new HashMap<>();
+        Map<String, AnalyzerProvider<?>> providers = new HashMap<>();
+
+        // Create 2 analyzers, the test will pause the close registry thread
+        // as the first analyzer is closed
+        for (String name : List.of("default", "other")) {
+            AtomicInteger closeCount = new AtomicInteger();
+            closeCounts.put(name, closeCount);
+
+            Analyzer analyzer = new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents(String fieldName) {
+                    return new TokenStreamComponents(new StandardTokenizer());
+                }
+
+                @Override
+                public void close() {
+                    closeCount.incrementAndGet();
+                    if (firstClose.compareAndSet(true, false)) {
+                        closeStarted.countDown();  // pause the registry.close() thread
+                        safeAwait(continueClose);
+                    }
+                    super.close();
+                }
+            };
+            providers.put(name, new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, analyzer));
+        }
+
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         AnalysisRegistry registry = emptyAnalysisRegistry(settings);
-        IndexAnalyzers indexAnalyzers = registry.build(
-            IndexCreationContext.CREATE_INDEX,
-            indexSettingsOfCurrentVersion(Settings.builder())
-        );
-        // Simulate the race: registry closes first (safety-net path), then the IndexAnalyzers
-        // releases its reference (late-release path). Without the fix this second close would
-        // NPE inside CloseableThreadLocal.
-        registry.close();
-        indexAnalyzers.close(); // must not throw
+        try (
+            IndexAnalyzers indexAnalyzers = registry.build(
+                IndexCreationContext.CREATE_INDEX,
+                indexSettingsOfCurrentVersion(Settings.builder()),
+                providers,
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of()
+            )
+        ) {
+            FutureTask<Void> closeRegistry = new FutureTask<>(() -> {
+                registry.close();
+                return null;
+            });
+            Thread closeThread = new Thread(closeRegistry, "close-analysis-registry");
+            closeThread.start();
+            try {
+                safeAwait(closeStarted);
+                // Both entries have been collected and removed from the map before IOUtils.
+                // The first analzyer has been closed, now trigger the second hitting the
+                // releaseFromCache path
+                indexAnalyzers.close();
+            } finally {
+                continueClose.countDown();
+                closeThread.join(TimeUnit.SECONDS.toMillis(10));
+            }
+            assertFalse("registry close thread did not finish", closeThread.isAlive());
+            closeRegistry.get(10, TimeUnit.SECONDS);
+            closeCounts.forEach((name, count) -> assertEquals(name, 1, count.get()));
+            registry.assertNoCachedEntries();
+        }
     }
 
     public void testEnsureCloseInvocationProperlyDelegated() throws IOException {

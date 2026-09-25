@@ -1193,11 +1193,12 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     /**
-     * Decrement an entry's reference count under the cache bin lock. On reaching zero the entry is
-     * removed and its evictable analyzer is closed — but only when this entry is still the current
-     * value for {@code key}. If it is not, {@link #close()} atomically claimed ownership of the
-     * evictable via {@code cache.remove(key, entry)} during concurrent shutdown and will close it;
-     * we skip here to avoid a double-close.
+     * Decrement an entry's reference count under the cache bin lock. On reaching zero the analyzer
+     * is closed and, if the entry is still the current value for {@code key}, removed from the
+     * cache. If a different entry now occupies {@code key} — a concurrent release retired this one
+     * and a fresh build re-interned the same recipe — we still close this (now superseded) entry
+     * but leave the current mapping untouched.
+     * If the current value is null it has already been removed from the map by and closed by {@link #close()}
      */
     private static void releaseFromCache(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
         cache.compute(key, (k, current) -> {
@@ -1205,18 +1206,20 @@ public final class AnalysisRegistry implements Closeable {
             if (after > 0) {
                 return current;
             }
+
+            // Only close if current != null. A null value indicates AnalysisRegistry.close()
+            // atomically removed this entry during concurrent shutdown and has claimed
+            // ownership of the evictable close. Closing here too creates a race that can throw
+            // an NPE in NamedAnalyzer.close()
+            if (current == null) {
+                return null;
+            }
+
             // The future MUST be complete-with-value here: a refcount can only reach zero through
             // releases of materialize()-returned handles, which only exist after a successful
             // join(). Close the original-scoped wrapper (CacheEntry#evictable) so the underlying
             // analyzer — and its CloseableThreadLocal / SynonymMap — is actually released, rather
             // than the GLOBAL-retagged wrapper we handed out (whose close() would not cascade).
-            // Only close when current == entry (we still own the cache slot). If current != entry,
-            // AnalysisRegistry.close() atomically removed this entry via cache.remove() during
-            // concurrent shutdown and has claimed ownership of the evictable close. Closing here
-            // too would double-close the same NamedAnalyzer and NPE in CloseableThreadLocal.
-            if (current != entry) {
-                return current;
-            }
             try {
                 entry.evictable.close();
             } catch (Exception e) {
@@ -1225,7 +1228,7 @@ public final class AnalysisRegistry implements Closeable {
                 // log at debug rather than failing the release.
                 logger.debug(() -> "failed to close evicted analyzer [" + key + "]", e);
             }
-            return null;
+            return current == entry ? null : current;
         });
     }
 

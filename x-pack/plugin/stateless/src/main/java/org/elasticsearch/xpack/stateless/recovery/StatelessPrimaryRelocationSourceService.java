@@ -556,15 +556,17 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             final ActionListener<Void> relocationResultListener = listener0.<Void>map(
                 unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())
             ).delegateResponse((l, e) -> {
-                handoffCompleteListener.onFailure(e);
-                l.onFailure(e);
+                try {
+                    handoffCompleteListener.onFailure(e);
+                } finally {
+                    l.onFailure(e);
+                }
             });
-            try {
-                indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), handoffConsumer, relocationResultListener);
-            } catch (Exception e) {
-                handoffCompleteListener.onFailure(e);
-                throw e;
-            }
+
+            ActionListener.run(
+                relocationResultListener,
+                l -> indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), handoffConsumer, l)
+            );
         }), recoveryExecutor, threadContext);
     }
 

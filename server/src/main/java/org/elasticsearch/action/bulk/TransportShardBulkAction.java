@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.BytesSource;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -549,12 +550,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
-                request.source(),
-                request.getContentType(),
+                new BytesSource(request.source(), request.getContentType(), request.getIncludeSourceOnError()),
                 request.routing(),
                 request.getDynamicTemplates(),
                 request.getDynamicTemplateParams(),
-                request.getIncludeSourceOnError(),
                 meteringParserDecorator,
                 request.tsid()
             );
@@ -934,12 +933,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     static SourceToParse replicaSourceToParse(IndexRequest indexRequest) {
         return new SourceToParse(
             indexRequest.id(),
-            indexRequest.source(),
-            indexRequest.getContentType(),
+            new BytesSource(indexRequest.source(), indexRequest.getContentType(), true),
             indexRequest.routing(),
             Map.of(),
             Map.of(),
-            true,
             XContentMeteringParserDecorator.NOOP,
             indexRequest.tsid()
         );

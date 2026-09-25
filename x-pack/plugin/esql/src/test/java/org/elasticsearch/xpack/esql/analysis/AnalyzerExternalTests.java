@@ -664,14 +664,32 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     public void testShadowWarningOmitsMappingAdviceWhenDatasetIsNull() {
         String warning = Analyzer.shadowedExternalColumnsWarning(null, List.of(FileMetadataColumns.SIZE));
-        assertThat(warning, containsString("this source"));
-        assertThat(warning, not(containsString("dataset mapping")));
+        assertEquals(
+            "Column [" + FileMetadataColumns.SIZE + "] in this source is shadowed by METADATA; the METADATA value is used",
+            warning
+        );
     }
 
     public void testShadowWarningIncludesMappingAdviceForDataset() {
         String warning = Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id"));
-        assertThat(warning, containsString("dataset [" + DATASET_NAME + "]"));
-        assertThat(warning, containsString("dataset mapping"));
+        assertEquals(
+            "Column [_id] in dataset ["
+                + DATASET_NAME
+                + "] is shadowed by METADATA; the METADATA value is used; rename it in the dataset mapping to read both",
+            warning
+        );
+    }
+
+    public void testShadowWarningPluralisesSeveralColumns() {
+        String warning = Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id", FileMetadataColumns.PATH));
+        assertEquals(
+            "Columns [_id], ["
+                + FileMetadataColumns.PATH
+                + "] in dataset ["
+                + DATASET_NAME
+                + "] are shadowed by METADATA; the METADATA value is used; rename them in the dataset mapping to read both",
+            warning
+        );
     }
 
     /**

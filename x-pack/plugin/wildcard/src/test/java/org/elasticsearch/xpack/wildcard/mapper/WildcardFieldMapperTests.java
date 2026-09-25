@@ -1370,8 +1370,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> docValuesValues = new ArrayList<>();
             List<String> ignoredValues = new ArrayList<>();
+            boolean ignoreAboveIsNoOp = isColumnar;
             values.stream().map(Tuple::v2).forEach(v -> {
-                if (ignoreAbove != null && v.length() > ignoreAbove) {
+                if (ignoreAboveIsNoOp == false && ignoreAbove != null && v.length() > ignoreAbove) {
                     ignoredValues.add(v);
                 } else {
                     docValuesValues.add(v);

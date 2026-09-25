@@ -193,8 +193,8 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             warnings
         );
@@ -224,8 +224,8 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_tier] surfaced as [_partition._tier]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_tier] is named [_partition._tier]"
             ),
             warnings
         );
@@ -584,8 +584,8 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
         assertEquals(
             List.of(
-                "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
-                "partition column [_index] surfaced as [_partition._index]"
+                "Partition keys named like a metadata column are renamed to [_partition.<key>]",
+                "partition key [_index] is named [_partition._index]"
             ),
             sink
         );

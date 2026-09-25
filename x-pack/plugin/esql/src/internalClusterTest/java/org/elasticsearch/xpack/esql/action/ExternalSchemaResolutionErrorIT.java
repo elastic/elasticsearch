@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -90,6 +89,6 @@ public class ExternalSchemaResolutionErrorIT extends AbstractExternalDataSourceI
                 // should not reach here
             }
         });
-        assertThat(ex.getMessage(), allOf(containsString("Schema mismatch"), containsString("union_by_name")));
+        assertThat(ex.getMessage(), containsString("set [schema_resolution] to [union_by_name] to merge schemas"));
     }
 }

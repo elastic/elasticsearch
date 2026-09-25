@@ -207,7 +207,8 @@ public final class AsyncExternalSourceBuffer {
         if (count < MAX_INFORMATIONAL_WARNINGS) {
             pendingWarnings.add(warning);
         } else if (count == MAX_INFORMATIONAL_WARNINGS) {
-            pendingWarnings.add("... further reader warnings suppressed (more than " + (MAX_INFORMATIONAL_WARNINGS - 1) + " recorded)");
+            // The standard overflow line: the client learns that warnings were suppressed, not a second count.
+            pendingWarnings.add(SkipWarnings.overflowMessage());
         }
     }
 

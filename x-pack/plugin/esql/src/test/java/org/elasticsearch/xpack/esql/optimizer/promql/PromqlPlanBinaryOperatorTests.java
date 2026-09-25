@@ -1192,6 +1192,20 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         }
     }
 
+    /**
+     * A binary operator between two closed aggregates names every label of its result, so a {@code without} over it is a
+     * regroup over known columns: the result exposes those labels minus the dropped ones, never a packed identity the plan
+     * does not produce.
+     */
+    public void testWithoutOverAClosedBinaryOperatorKeepsTheRemainingLabels() {
+        assertThat(
+            outputNames("sum without (pod) (sum by (pod, cluster) (requests) / sum by (pod, cluster) (errors))"),
+            equalTo(List.of("result", "step", "cluster"))
+        );
+        assertThat(outputNames("sum without (pod) (sum by (pod) (requests) / sum by (pod) (errors))"), equalTo(List.of("result", "step")));
+        assertThat(outputNames("count without (cluster) (sum(requests) + sum(errors))"), equalTo(List.of("result", "step")));
+    }
+
     /** Plans against a remote-write shaped index: `__name__` is a dimension, every metric its own field. */
     private LogicalPlan planMetricNameIndex(String promql) {
         var index = new EsIndex(

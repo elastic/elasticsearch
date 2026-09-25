@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -114,23 +115,24 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     /**
-     * {@code WITHOUT} over a non-enumerable child (a selector / full series identity) uses a dynamic
+     * {@code WITHOUT} over a child with a packed identity (a selector, a function over one) uses a dynamic
      * {@code _timeseries} output, because the concrete retained labels are not known until lowering time.
-     * {@code WITHOUT} over a concrete-output child (a {@code BY}/{@code NONE} aggregate) instead exposes that child's
-     * concrete labels minus the excluded ones - the {@code WITHOUT} is a plain re-grouping over known columns, so it
-     * must NOT claim a {@code _timeseries} the plan never produces. {@code BY} and {@code NONE} export concrete labels
-     * or nothing.
+     * {@code WITHOUT} over a child that names every label it exposes (a {@code BY}/{@code NONE} aggregate, a binary
+     * operator between two of them) instead exposes those labels minus the excluded ones - the {@code WITHOUT} is a plain
+     * re-grouping over known columns, so it must NOT claim a {@code _timeseries} the plan never produces. {@code BY} and
+     * {@code NONE} export concrete labels or nothing.
      */
     @Override
     public List<Attribute> output() {
         // Output `_timeseries` if grouping is not constant, e.g. `without(...)`
         if (grouping == Grouping.WITHOUT) {
-            if (child() instanceof AcrossSeriesAggregate childAggregate && childAggregate.grouping() != Grouping.WITHOUT) {
+            List<Attribute> childOutput = child().output();
+            if (childOutput.stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()))) {
                 Set<String> excluded = new HashSet<>();
                 for (Attribute label : groupings) {
                     excluded.add(labelKey(label));
                 }
-                return childAggregate.output().stream().filter(a -> excluded.contains(labelKey(a)) == false).toList();
+                return childOutput.stream().filter(a -> excluded.contains(labelKey(a)) == false).toList();
             }
             return List.of(timeseriesAttribute);
         }

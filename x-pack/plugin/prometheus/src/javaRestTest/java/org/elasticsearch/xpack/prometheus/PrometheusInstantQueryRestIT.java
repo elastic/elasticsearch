@@ -655,4 +655,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("clamp(tx, 60, 40)");
         assertBinopInstantValues("clamp(tx, 20, 25)", 20, 25, 20);
     }
+
+    /**
+     * {@code without} over a binary operator between two closed aggregates regroups its named labels: the per-host ratios
+     * (a: 5, b: 10, c: 3) sum without host into {@code {cluster="prod"} 15} and {@code {cluster="qa"} 3}.
+     */
+    public void testInstantWithoutOverAClosedBinaryOperator() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups(
+            "sum without (host) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))",
+            "cluster",
+            Map.of("prod", 15.0, "qa", 3.0)
+        );
+        assertBinopInstantValues("sum without (host, cluster) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))", 18);
+        assertBinopInstantValues("count without (host) (sum by (host) (tx) / sum by (host) (rx))", 3);
+    }
 }

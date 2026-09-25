@@ -137,20 +137,7 @@ public final class Expressions {
      * </pre>
      */
     public static Nullability nullable(List<? extends Expression> exps) {
-        Nullability value = Nullability.FALSE;
-        for (Expression exp : exps) {
-            switch (exp.nullable()) {
-                case UNKNOWN:
-                    return Nullability.UNKNOWN;
-                case TRUE:
-                    value = Nullability.TRUE;
-                    break;
-                default:
-                    // not nullable
-                    break;
-            }
-        }
-        return value;
+        return exps.stream().anyMatch(e -> e.nullable() == Nullability.TRUE) ? Nullability.TRUE : Nullability.FALSE;
     }
 
     public static List<Expression> canonicalize(List<? extends Expression> exps) {

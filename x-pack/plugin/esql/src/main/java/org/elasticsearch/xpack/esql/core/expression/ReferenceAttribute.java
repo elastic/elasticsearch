@@ -130,7 +130,7 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
         if (in.getTransportVersion().supports(ESQL_QUALIFIERS_IN_ATTRIBUTES) == false) {
             in.readOptionalString();
         }
-        Nullability nullability = in.readEnum(Nullability.class);
+        Nullability nullability = Nullability.readFrom(in);
         NameId id = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
         String valuesAnalyzer = in.getTransportVersion().supports(ESQL_TO_TEXT_VALUES_ANALYZER) ? in.readOptionalString() : null;

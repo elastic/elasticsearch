@@ -125,7 +125,7 @@ public final class MetadataAttribute extends TypedAttribute {
             String name = stream.readString();
             DataType dataType = DataType.readFrom(stream);
             String qualifier = stream.readOptionalString(); // qualifier, no longer used
-            Nullability nullability = stream.readEnum(Nullability.class);
+            Nullability nullability = Nullability.readFrom(stream);
             NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
             boolean searchable = stream.readBoolean();

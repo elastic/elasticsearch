@@ -246,9 +246,6 @@ public class MvUnion extends MvSetOperationFunction {
 
     @Override
     public Nullability nullable() {
-        // Return UNKNOWN to prevent the optimizer from replacing the entire
-        // expression with null when one argument is null. MV_UNION treats
-        // null as an empty set - only returns null if BOTH arguments are null.
-        return Nullability.UNKNOWN;
+        return Nullability.TRUE;
     }
 }

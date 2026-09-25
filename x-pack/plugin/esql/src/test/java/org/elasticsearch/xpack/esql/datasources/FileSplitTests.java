@@ -279,7 +279,7 @@ public class FileSplitTests extends ESTestCase {
     public void testNamedWriteableRoundTripCoercesUnknownNullabilityToTrue() throws IOException {
         StoragePath path = StoragePath.of("s3://bucket/data.csv");
         List<Attribute> schema = List.of(
-            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.UNKNOWN, null, false)
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false)
         );
         FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
 

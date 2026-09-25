@@ -207,7 +207,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
          * an optimizer rule would replace this with null if any of our children
          * fold to null. We don’t want that at all.
          */
-        return Nullability.UNKNOWN;
+        return Nullability.TRUE;
     }
 
     @Override

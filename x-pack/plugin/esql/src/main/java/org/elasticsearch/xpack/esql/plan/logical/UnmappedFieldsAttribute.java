@@ -105,7 +105,7 @@ public final class UnmappedFieldsAttribute extends TypedAttribute {
             stream.readString(); // attribute name, always ATTRIBUTE_NAME
             DataType dataType = DataType.readFrom(stream);
             stream.readOptionalString(); // qualifier, no longer used
-            Nullability nullability = stream.readEnum(Nullability.class);
+            Nullability nullability = Nullability.readFrom(stream);
             NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
             UnmappedFieldsPattern pattern = stream.readNamedWriteable(UnmappedFieldsPattern.class);

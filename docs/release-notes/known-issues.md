@@ -215,5 +215,5 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
   
   A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled.
   This issue is fixed in {{es}} 8.17.5 and later, 8.18.1 and later, and 9.0.2 and later.
-  It does not affect 8.19.
+  It does not affect {{es}} 8.19.
   For more information, refer to [elasticsearch#124499](https://github.com/elastic/elasticsearch/issues/124499).

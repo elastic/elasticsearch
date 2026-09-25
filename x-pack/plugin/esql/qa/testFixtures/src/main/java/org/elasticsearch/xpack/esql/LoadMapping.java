@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -114,7 +115,9 @@ public class LoadMapping {
             }
             final EsField field;
             if (esDataType == TEXT) {
-                String analyzer = textSetting(content.get("analyzer"), null);
+                // Like field caps, which reports the index's [default] analyzer for a mapping that sets none. A null
+                // name would also reset an explicit position_increment_gap.
+                String analyzer = textSetting(content.get("analyzer"), AnalysisRegistry.DEFAULT_ANALYZER_NAME);
                 int positionIncrementGap = intSetting(content.get("position_increment_gap"), TextEsField.DEFAULT_POSITION_INCREMENT_GAP);
                 field = new TextEsField(
                     name,

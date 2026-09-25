@@ -2243,6 +2243,10 @@ public class EsqlCapabilities {
          * V3 fixes a bug on how we handle single-value time buckets for INCREASE with the sole value falling onto the bucket boundary.
          */
         RATE_WITH_INTERPOLATION_V3,
+        /**
+         * Rate and increase interpolate across empty time buckets within a bounded lookback.
+         */
+        RATE_WITH_INTERPOLATION_V4,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -4115,6 +4119,17 @@ public class EsqlCapabilities {
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING(Build.current().isSnapshot()),
+
+        /**
+         * The external-dataset warning and error texts were rewritten; csv-spec tests that assert them require this so an
+         * older coordinator's texts are not asserted.
+         */
+        EXTERNAL_DATASET_MESSAGES,
+
+        /**
+         * Adds a pre-filter below a limited aggregation grouped by a long and other fields.
+         */
+        TOPN_PREFILTER_LONG,
 
         /**
          * Warning, emitted before optimization, when an explicit NULL literal is misused: either the

@@ -663,11 +663,11 @@ Rename stats group key
 required_capability: approximation_v7
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers | RENAME sv AS key | STATS count = COUNT(key) BY key | SORT key DESC | LIMIT 2
 ;
 
-documents_found: 8000..12000
+documents_found: 16000..24000
 approximation_applied: true
 
 count:long | key:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
@@ -1037,7 +1037,7 @@ required_capability: approximation_v7
 required_capability: approximation_inline_stats_v2
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers
 | KEEP sv
 | INLINE STATS COUNT(), AVG(sv) BY sv
@@ -1045,9 +1045,9 @@ FROM many_numbers
 | LIMIT 3
 ;
 
-// 8000..12000 for stats, plus all (~245000) for results
+// 16000..24000 for stats, plus all (~245000) for results
 // note: processing all docs here might be an inefficiency of INLINE STATS
-documents_found: 253000..257000
+documents_found: 261000..269000
 approximation_applied: true
 
 COUNT():long | AVG(sv):double         | sv:integer |_approximation_confidence_interval(COUNT()):long | _approximation_certified(COUNT()):boolean | _approximation_confidence_interval(AVG(sv)):double | _approximation_certified(AVG(sv)):boolean
@@ -1063,7 +1063,7 @@ required_capability: approximation_inline_stats_v2
 required_capability: approximation_lookup_join_v2
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers
 | KEEP sv
 | WHERE sv < 700
@@ -1074,9 +1074,9 @@ FROM many_numbers
 | LIMIT 2
 ;
 
-// 8000..12000 for stats, plus all (~245000) for results
+// 16000..24000 for stats, plus all (~245000) for results
 // note: processing all docs here might be an inefficiency of INLINE STATS
-documents_found: 253000..257000
+documents_found: 261000..269000
 approximation_applied: true
 
 SUM(sv):long   | sv:integer | language_code:integer | language_name:keyword | _approximation_confidence_interval(SUM(sv)):long | _approximation_certified(SUM(sv)):boolean
@@ -1113,7 +1113,7 @@ required_capability: approximation_v7
 required_capability: approximation_inline_stats_v2
 request_stored: skip
 
-SET approximation={"rows": 10000}\;
+SET approximation={"rows": 20000}\;
 FROM many_numbers
     | KEEP mv
     | EVAL key = MV_SLICE(mv, 5, 7)
@@ -1123,8 +1123,8 @@ FROM many_numbers
     | LIMIT 3
 ;
 
-// 8000..12000 for stats, plus all (~245000) for sorted docs
-documents_found: 253000..257000
+// 16000..12000 for stats, plus all (~245000) for sorted docs
+documents_found: 261000..269000
 approximation_applied: true
 
 sum:long                                                  | key:integer        | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
@@ -1422,7 +1422,7 @@ required_capability: approximation_fork
 required_capability: approximation_inline_stats_v2
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers
 | KEEP sv
 | FORK (STATS total_count = COUNT())
@@ -1431,9 +1431,9 @@ FROM many_numbers
 | LIMIT 4
 ;
 
-// almost nothing for stats, 8000..12000 for inline stats, plus all (~245000) for results
+// almost nothing for stats, 16000..24000 for inline stats, plus all (~245000) for results
 // note: processing all docs here might be an inefficiency of INLINE STATS
-documents_found: 253000..257000
+documents_found: 261000..269000
 approximation_applied: true
 
 total_count:long | _fork:keyword | count:long | sv:integer | _approximation_confidence_interval(total_count):long | _approximation_certified(total_count):boolean | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean

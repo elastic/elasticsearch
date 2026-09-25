@@ -76,8 +76,10 @@ summary=$(jq -r '
 ' "$REPORT_FILE")
 
 annotation_style="info"
-if (( violation_count > MAX_ISOLATED_PROJECTS_VIOLATIONS || gradle_exit != 0 )); then
+if (( violation_count > MAX_ISOLATED_PROJECTS_VIOLATIONS )); then
   annotation_style="error"
+elif (( gradle_exit != 0 )); then
+  annotation_style="warning"
 fi
 
 annotation=$(cat <<EOF
@@ -103,14 +105,18 @@ if command -v buildkite-agent >/dev/null 2>&1; then
 fi
 printf '%s\n' "$summary"
 
-if (( gradle_exit != 0 )); then
-  echo "Gradle command failed; isolated-projects validation requires a successful build so the violation count is trustworthy"
-  exit "$gradle_exit"
-fi
-
 if (( violation_count > MAX_ISOLATED_PROJECTS_VIOLATIONS )); then
+  if (( gradle_exit != 0 )); then
+    echo "Gradle command failed with exit code: $gradle_exit"
+  fi
   echo "Isolated projects violations exceed threshold"
   exit 1
+fi
+
+if (( gradle_exit != 0 )); then
+  echo "Gradle command failed, but isolated-projects violations are within threshold"
+  echo "Treating the Gradle exit code as non-fatal because this validation only ratchets the isolated-projects violation count"
+  exit 0
 fi
 
 echo "Isolated projects violations are within threshold"

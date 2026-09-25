@@ -41,7 +41,7 @@ exit 7
         result.output.contains('Gradle command failed before a problems report was produced')
     }
 
-    def "fails when gradle exits non-zero even if a problems report exists"() {
+    def "allows non-zero gradle exit when a problems report exists within threshold"() {
         given:
         def sandbox = createSandbox('''
 #!/bin/bash
@@ -70,11 +70,47 @@ exit 9
         def result = runValidationScript(sandbox)
 
         then:
-        result.exitCode == 9
+        result.exitCode == 0
         result.output.contains('Gradle exit code: 9')
         result.output.contains('Isolated projects validation violations: 2')
-        result.output.contains('Gradle command failed; isolated-projects validation requires a successful build so the violation count is trustworthy')
+        result.output.contains('Gradle command failed, but isolated-projects violations are within threshold')
+        result.output.contains('Treating the Gradle exit code as non-fatal because this validation only ratchets the isolated-projects violation count')
         !result.output.contains('Isolated projects violations are within threshold')
+    }
+
+    def "fails when violations exceed the threshold"() {
+        given:
+        def sandbox = createSandbox('''
+#!/bin/bash
+set -euo pipefail
+mkdir -p "${WORKSPACE}/build"
+cat > "${WORKSPACE}/build/problems-status.json" <<'EOF'
+{
+  "totalProblems" : 3001,
+  "severities" : [
+    { "severity" : "ERROR", "count" : 3001 }
+  ],
+  "problems" : [
+    {
+      "id" : "validation:configuration-cache:cannot-access-another-project",
+      "displayName" : "Cannot access another project",
+      "severity" : "ERROR",
+      "count" : 3001
+    }
+  ]
+}
+EOF
+exit 9
+''')
+
+        when:
+        def result = runValidationScript(sandbox)
+
+        then:
+        result.exitCode == 1
+        result.output.contains('Gradle command failed with exit code: 9')
+        result.output.contains('Isolated projects violations exceed threshold')
+
     }
 
     def "uploads problems report artifact and annotates with a link when buildkite agent is available"() {

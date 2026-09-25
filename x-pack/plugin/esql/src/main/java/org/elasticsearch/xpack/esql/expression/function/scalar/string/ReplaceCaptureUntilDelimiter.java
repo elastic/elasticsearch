@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.ArrayList;
@@ -26,11 +24,12 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * (extract URL host) is a common pattern of this shape.
  * <p>
  * {@link #extract} detects the shape at plan time (when {@code regex} and {@code newStr} are both
- * constant) and compiles it into an {@link Idiom}; {@link Replace#toEvaluator} substitutes the
- * generated {@code ReplaceCaptureUntilDelimiterEvaluator} (built from {@link #process} below) in place
- * of the regex-engine-based evaluators when detection succeeds. {@link #process} then executes the
- * idiom with a hand-written byte scan that never converts to {@link String} or invokes the regex engine
- * on the common path -- see that method for why this matters.
+ * constant) and compiles it into an {@link Idiom}; {@link Replace#toEvaluator} passes it to
+ * {@link ReplaceConstantOrdinalEvaluator}, which calls {@link #process} in place of the regex engine
+ * when detection succeeds -- once per row, or once per dictionary entry for ordinal-encoded input.
+ * {@link #process} executes the idiom with a hand-written byte scan that never converts to
+ * {@link String} or invokes the regex engine on the common path -- see that method for why this
+ * matters.
  */
 final class ReplaceCaptureUntilDelimiter {
     private ReplaceCaptureUntilDelimiter() {}
@@ -431,8 +430,7 @@ final class ReplaceCaptureUntilDelimiter {
      * rare hit, this defers to the real regex engine via {@code idiom.originalPattern()}/
      * {@code idiom.originalNewStr()} rather than risk an incorrect result.
      */
-    @Evaluator(warnExceptions = IllegalArgumentException.class)
-    static BytesRef process(BytesRef str, @Fixed(includeInToString = false) Idiom idiom) {
+    static BytesRef process(BytesRef str, Idiom idiom) {
         if (str == null) {
             return null;
         }

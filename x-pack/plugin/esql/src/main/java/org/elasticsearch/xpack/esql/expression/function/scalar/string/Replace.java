@@ -468,18 +468,18 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
                         // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
                         BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
                         if (constantNewStr != null) {
+                            // Shape detected: the dictionary-aware evaluator replaces the regex engine with a
+                            // hand-written byte scan (no UTF-8 decode, no codepoint counting) for every entry it
+                            // processes -- see ReplaceCaptureUntilDelimiter. idiom is null when the shape doesn't
+                            // match, in which case the evaluator falls back to the real regex engine.
                             var idiom = ReplaceCaptureUntilDelimiter.extract(regexPattern, constantNewStr);
-                            if (idiom != null) {
-                                // Shape detected: replace the regex engine entirely with a hand-written byte
-                                // scan (no UTF-8 decode, no codepoint counting) -- see ReplaceCaptureUntilDelimiter.
-                                return new ReplaceCaptureUntilDelimiterEvaluator.Factory(source(), strEval, idiom);
-                            }
                             return new ReplaceConstantOrdinalEvaluator.Factory(
                                 source(),
                                 strEval,
                                 regexPattern,
                                 literalPrefix,
-                                constantNewStr
+                                constantNewStr,
+                                idiom
                             );
                         }
                     }

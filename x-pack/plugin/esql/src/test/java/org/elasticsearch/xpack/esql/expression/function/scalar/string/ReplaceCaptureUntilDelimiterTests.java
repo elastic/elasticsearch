@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end and white-box tests for {@link ReplaceCaptureUntilDelimiter}, the idiom-detected byte-scan
@@ -334,10 +333,10 @@ public class ReplaceCaptureUntilDelimiterTests extends ComputeTestCase {
     }
 
     public void testCaptureUntilDelimiterEvaluatorNotUsedWhenIdiomDoesNotMatch() {
-        // 0 or multiple capturing groups -- must fall back to the existing evaluator.
-        assertEvaluatorToStringContains("^abc/.*$", "$0", "ReplaceConstantOrdinalEvaluator");
-        assertEvaluatorToStringContains("^(a)([^/]+)/.*$", "$2", "ReplaceConstantOrdinalEvaluator");
-        assertEvaluatorToStringContains("^(a)(b)([^/]+)/.*$", "$3", "ReplaceConstantOrdinalEvaluator");
+        // 0 or multiple capturing groups -- must fall back to the real regex engine.
+        assertEvaluatorToStringContains("^abc/.*$", "$0", "idiom=false");
+        assertEvaluatorToStringContains("^(a)([^/]+)/.*$", "$2", "idiom=false");
+        assertEvaluatorToStringContains("^(a)(b)([^/]+)/.*$", "$3", "idiom=false");
     }
 
     public void testEmptyRegex() {
@@ -670,7 +669,7 @@ public class ReplaceCaptureUntilDelimiterTests extends ComputeTestCase {
             var eval = constantRegexAndNewStrEvaluator(regex, newStr).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(text))))
         ) {
-            assertThat(regex + " / " + newStr, eval.toString(), containsString("ReplaceCaptureUntilDelimiterEvaluator"));
+            assertThat(regex + " / " + newStr, eval.toString(), containsString("idiom=true"));
             result = block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();
         }
         BytesRef groundTruth = Replace.safeReplace(new BytesRef(text), Pattern.compile(regex), new BytesRef(newStr));
@@ -690,7 +689,7 @@ public class ReplaceCaptureUntilDelimiterTests extends ComputeTestCase {
             var eval = constantRegexAndNewStrEvaluator(regex, newStr).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(text))))
         ) {
-            assertThat(regex + " / " + newStr, eval.toString(), not(containsString("ReplaceCaptureUntilDelimiterEvaluator")));
+            assertThat(regex + " / " + newStr, eval.toString(), containsString("idiom=false"));
             result = block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();
         }
         BytesRef groundTruth = Replace.safeReplace(new BytesRef(text), Pattern.compile(regex), new BytesRef(newStr));

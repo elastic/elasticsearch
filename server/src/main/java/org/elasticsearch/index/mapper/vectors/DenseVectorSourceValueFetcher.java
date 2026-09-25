@@ -138,7 +138,7 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
 
     /**
      * Decodes source values to a list of numbers. Used for {@code format: "array"}.
-     * Returns {@code Integer} components for byte and bit fields, {@code Float} otherwise.
+     * Returns {@code Byte} components for byte and bit fields, {@code Float} otherwise.
      */
     private List<Object> arrayValues(Object sourceValue) {
         switch (sourceValue) {
@@ -146,7 +146,7 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
                 List<Object> values = new ArrayList<>(v.size());
                 for (Object o : v) {
                     values.add(switch (elementType) {
-                        case BYTE, BIT -> NumberFieldMapper.NumberType.BYTE.parse(o, false).intValue();
+                        case BYTE, BIT -> NumberFieldMapper.NumberType.BYTE.parse(o, false).byteValue();
                         case FLOAT, BFLOAT16 -> NumberFieldMapper.NumberType.FLOAT.parse(o, false);
                     });
                 }

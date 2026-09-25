@@ -1,0 +1,7 @@
+area: Machine Learning
+issues: []
+pr: 159052
+summary: |-
+  Implement optional sandboxing for PyTorch models controlled by the `xpack.ml.trained_models.sandbox_enabled` setting (default `false` in 9.6).
+  Starting a trained model deployment with a `deployment_id` (or a `model_id` used as the default `deployment_id`) that is not safe as a single filesystem path component now emits a deprecation warning and usage telemetry; such values remain accepted until a future release.
+type: enhancement

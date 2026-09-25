@@ -443,13 +443,14 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
             broken.add("[CONTROL bare INT32] the identity cell stopped pruning: returned " + identityRows.size() + " of 1000 rows");
         }
 
-        // DECIMAL(9,2) declared integer: raw 100..1099 decode to 1.00..10.99 and round to 1..11. A bound of 11 is the
-        // largest decoded value, so nothing is dominated and every row must come back.
-        byte[] decimal = writeIntParquet(decimalInt32(2, 9), 1L, 2 * 1024 * 1024, 1_000, i -> 100 + i);
-        List<Integer> decimalRows = readDeclaredIntegerIdsWithThreshold(decimal, intThreshold(11L, true, false));
+        // DECIMAL(9,2) declared integer: raw (i+1)*100 decode to exact wholes 1.00..1000.00 → integers 1..1000.
+        // A bound of 1000 is the largest decoded value, so nothing is dominated and every row must come back.
+        // (Non-whole decimals would be refused by the exact whole-number read; this cell uses wholes only.)
+        byte[] decimal = writeIntParquet(decimalInt32(2, 9), 1L, 2 * 1024 * 1024, 1_000, i -> (i + 1) * 100);
+        List<Integer> decimalRows = readDeclaredIntegerIdsWithThreshold(decimal, intThreshold(1000L, true, false));
         if (decimalRows.size() != 1_000) {
             broken.add(
-                "[DECIMAL(9,2) declared integer, ASC] raw stats were compared against a decoded bound of 11: returned "
+                "[DECIMAL(9,2) declared integer, ASC] raw stats were compared against a decoded bound of 1000: returned "
                     + decimalRows.size()
                     + " of 1000 rows"
             );

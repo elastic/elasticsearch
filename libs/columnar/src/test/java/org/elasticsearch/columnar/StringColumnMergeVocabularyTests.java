@@ -43,7 +43,6 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
-import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class StringColumnMergeVocabularyTests extends ESTestCase {
@@ -120,6 +119,37 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             flushSegments(dir, segments, StringColumnOptions.DEFAULT_DICTIONARY, StringColumnOptions.DEFAULT_SUMMARY);
             forceMerge(dir, StringColumnOptions.DEFAULT_DICTIONARY, StringColumnOptions.DEFAULT_SUMMARY);
             assertEquals("the head and the term two segments held, and neither tail", List.of("head", "shared"), summaryTerms(dir));
+        }
+    }
+
+    // NOTE: a null is named by an ordinal of its own in every layout, so it is not a value a dictionary has
+    // to name. Counting slots instead would give the merge a denominator its inputs never used, and a column
+    // that kept a dictionary at flush could lose it on merging without anything about it having changed.
+    public void testNullSlotsAreNotCountedAgainstAMergedDictionary() throws IOException {
+        final List<List<String>> segments = new ArrayList<>(2);
+        for (int segment = 0; segment < 2; segment++) {
+            final List<String> values = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                values.add(SHORT_HEAD_TERM);
+                values.add(null);
+            }
+            values.add(identifier(segment));
+            segments.add(values);
+        }
+        try (Directory dir = newDirectory()) {
+            flushSegments(dir, segments, StringColumnOptions.DEFAULT_DICTIONARY, StringColumnOptions.DEFAULT_SUMMARY);
+            try (DirectoryReader flushed = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : flushed.leaves()) {
+                    assertTrue("each flush named its head term", stringColumn(leaf.reader()).hasDictionary());
+                }
+            }
+            forceMerge(dir, StringColumnOptions.DEFAULT_DICTIONARY, StringColumnOptions.DEFAULT_SUMMARY);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final StringColumnReader column = stringColumn(reader.leaves().get(0).reader());
+                assertTrue("and the merge kept one", column.hasDictionary());
+                assertEquals("the values a dictionary has to name, the twenty nulls aside", 22, column.summaryValues());
+                assertEquals("the two identifiers no segment repeats", 2, column.escapeCount());
+            }
         }
     }
 
@@ -425,7 +455,7 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             for (List<String> values : segments) {
                 for (String value : values) {
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, stringPayload(value), columnarBinaryFieldType()));
+                    doc.add(new Field(FIELD, payload(value), columnarBinaryFieldType()));
                     writer.addDocument(doc);
                 }
                 writer.commit();
@@ -462,6 +492,13 @@ public class StringColumnMergeVocabularyTests extends ESTestCase {
             summaryPolicy
         );
         return new IndexWriterConfig().setCodec(columnarCodec(format)).setUseCompoundFile(false).setMergePolicy(mergePolicy);
+    }
+
+    /** A slot holding {@code value}, or a null slot where it is null, which a dictionary never has to name. */
+    private static BytesRef payload(String value) {
+        final List<BytesRef> slots = new ArrayList<>(1);
+        slots.add(value == null ? null : new BytesRef(value));
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(slots));
     }
 
     private static StringColumnReader stringColumn(LeafReader leaf) throws IOException {

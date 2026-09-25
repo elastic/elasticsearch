@@ -157,6 +157,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -634,12 +635,12 @@ public class LocalExecutionPlanner {
         // The request shape follows the endpoint's task type: a text_embedding endpoint takes a text embedding request; an
         // embedding endpoint takes an embedding request carrying the typed input. Both warn, null the row, and continue on a
         // per-row inference failure.
-        // A single batch size applies to every per-field operator this command builds. A built-in default endpoint has a batch
-        // size of its own, so the configured size is clamped to that one when such an endpoint serves the query.
-        int batchSize = Math.min(
-            inferenceService.inferenceSettings().denseVectorBatchSize(),
-            DenseVector.builtInEndpointBatchCap(inferenceId)
-        );
+        // A single batch size applies to every per-field operator this command builds. A configured setting is used as given; an
+        // unconfigured one resolves per endpoint, since the accepted size varies by endpoint.
+        InferenceSettings inferenceSettings = inferenceService.inferenceSettings();
+        int batchSize = inferenceSettings.denseVectorBatchSizeExplicit()
+            ? inferenceSettings.denseVectorBatchSize()
+            : DenseVector.defaultBatchSizeFor(inferenceId);
         PhysicalOperation operation = source;
         for (int i = 0; i < fields.size(); i++) {
             ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(

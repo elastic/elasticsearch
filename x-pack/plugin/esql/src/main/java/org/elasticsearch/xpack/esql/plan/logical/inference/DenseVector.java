@@ -137,20 +137,26 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     public static final int DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE = 10;
 
     /**
-     * The batch size a built-in default endpoint is held to, or {@link Integer#MAX_VALUE} for any other endpoint. The command
-     * embeds rows in batches and sends one inference request per batch. Nothing downstream splits an over-sized request — the
-     * inputs go to the endpoint as they are — so a batch beyond what the endpoint accepts fails. An endpoint named by the query
-     * carries no size known here and is left unbounded.
+     * Batch size for an endpoint not named above. Elastic Inference Service dense endpoints reject a request carrying twenty
+     * inputs, so an endpoint of unknown capacity is held to a size they accept.
      */
-    public static int builtInEndpointBatchCap(String inferenceId) {
+    public static final int UNNAMED_ENDPOINT_BATCH_SIZE = 16;
+
+    /**
+     * Batch size for {@code inferenceId} when {@code esql.command.dense_vector.batch_size} is unset. One inference request carries
+     * one batch and nothing downstream splits an over-sized request, so a batch beyond what the endpoint accepts fails the query.
+     * A configured setting takes precedence over this value.
+     */
+    public static int defaultBatchSizeFor(String inferenceId) {
         if (EIS_JINA_V5_INFERENCE_ID.equals(inferenceId)) {
             return EIS_JINA_V5_MAX_BATCH_SIZE;
         }
         if (DEFAULT_INFERENCE_ID.equals(inferenceId)) {
             return DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE;
         }
-        return Integer.MAX_VALUE;
+        return UNNAMED_ENDPOINT_BATCH_SIZE;
     }
+
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,

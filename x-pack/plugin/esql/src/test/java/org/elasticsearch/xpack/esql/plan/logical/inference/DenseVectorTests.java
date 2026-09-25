@@ -11,18 +11,19 @@ import org.elasticsearch.test.ESTestCase;
 
 public class DenseVectorTests extends ESTestCase {
 
-    public void testBuiltInEndpointBatchCapForJinaEis() {
-        assertEquals(DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE, DenseVector.builtInEndpointBatchCap(DenseVector.EIS_JINA_V5_INFERENCE_ID));
+    public void testDefaultBatchSizeForJinaEis() {
+        assertEquals(DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE, DenseVector.defaultBatchSizeFor(DenseVector.EIS_JINA_V5_INFERENCE_ID));
     }
 
-    public void testBuiltInEndpointBatchCapForE5() {
-        assertEquals(
-            DenseVector.DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE,
-            DenseVector.builtInEndpointBatchCap(DenseVector.DEFAULT_INFERENCE_ID)
-        );
+    public void testDefaultBatchSizeForE5() {
+        assertEquals(DenseVector.DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE, DenseVector.defaultBatchSizeFor(DenseVector.DEFAULT_INFERENCE_ID));
     }
 
-    public void testBuiltInEndpointBatchCapForUserEndpointIsUnbounded() {
-        assertEquals(Integer.MAX_VALUE, DenseVector.builtInEndpointBatchCap("my-own-embedding-endpoint"));
+    public void testDefaultBatchSizeForUnnamedEndpoint() {
+        assertEquals(DenseVector.UNNAMED_ENDPOINT_BATCH_SIZE, DenseVector.defaultBatchSizeFor("my-own-embedding-endpoint"));
+    }
+
+    public void testUnnamedEndpointBatchSizeIsBelowTheServiceLimit() {
+        assertTrue(DenseVector.UNNAMED_ENDPOINT_BATCH_SIZE < 20);
     }
 }

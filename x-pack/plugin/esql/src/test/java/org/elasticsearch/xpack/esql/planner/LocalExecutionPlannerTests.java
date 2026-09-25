@@ -1262,28 +1262,39 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(rows, equalTo(expectedRows));
     }
 
-    public void testDenseVectorBatchSizeIsClampedForEisJina() throws IOException {
-        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, 20, DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE);
+    public void testUnsetDenseVectorBatchSizeResolvesToTheEndpointSizeForEisJina() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, null, DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE);
     }
 
-    public void testDenseVectorBatchSizeIsClampedForTheDefaultEndpoint() throws IOException {
-        assertDenseVectorBatchSize(DenseVector.DEFAULT_INFERENCE_ID, 20, DenseVector.DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE);
+    public void testUnsetDenseVectorBatchSizeResolvesToTheEndpointSizeForTheDefaultEndpoint() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.DEFAULT_INFERENCE_ID, null, DenseVector.DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE);
     }
 
-    public void testDenseVectorBatchSizeBelowTheCapIsKept() throws IOException {
-        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, 4, 4);
+    public void testUnsetDenseVectorBatchSizeResolvesToTheUnnamedSizeForAUserEndpoint() throws IOException {
+        assertDenseVectorBatchSize("my-own-embedding-endpoint", null, DenseVector.UNNAMED_ENDPOINT_BATCH_SIZE);
     }
 
-    public void testDenseVectorBatchSizeIsUnboundedForAUserEndpoint() throws IOException {
+    public void testConfiguredDenseVectorBatchSizeIsUsedForAUserEndpoint() throws IOException {
         int configured = between(1, InferenceSettings.DENSE_VECTOR_MAX_BATCH_SIZE);
         assertDenseVectorBatchSize("my-own-embedding-endpoint", configured, configured);
     }
 
+    /** A configured size is used even where it exceeds what {@link DenseVector#defaultBatchSizeFor} would have chosen. */
+    public void testConfiguredDenseVectorBatchSizeOverridesTheEndpointSize() throws IOException {
+        int configured = DenseVector.EIS_JINA_V5_MAX_BATCH_SIZE + between(1, 100);
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, configured, configured);
+    }
+
+    public void testConfiguredDenseVectorBatchSizeBelowTheEndpointSizeIsUsed() throws IOException {
+        assertDenseVectorBatchSize(DenseVector.EIS_JINA_V5_INFERENCE_ID, 4, 4);
+    }
+
     /**
-     * Plans a DENSE_VECTOR over a single keyword column and asserts the batch size the embedding operator is built with,
-     * so the clamp the planner applies is read off the operator rather than recomputed here.
+     * Plans a DENSE_VECTOR over a single keyword column and asserts the batch size the embedding operator is built with, reading
+     * it off the operator rather than recomputing it here. A null {@code configuredBatchSize} leaves the setting unset.
      */
-    private void assertDenseVectorBatchSize(String inferenceId, int configuredBatchSize, int expectedBatchSize) throws IOException {
+    private void assertDenseVectorBatchSize(String inferenceId, Integer configuredBatchSize, int expectedBatchSize)
+        throws IOException {
         ReferenceAttribute input = new ReferenceAttribute(Source.EMPTY, "input", DataType.KEYWORD);
         ReferenceAttribute generated = new ReferenceAttribute(Source.EMPTY, "input_dense_vector", DataType.DENSE_VECTOR);
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
@@ -1326,14 +1337,17 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * An {@link InferenceService} carrying the given configured dense vector batch size. {@link Client} and {@link ClusterService}
-     * are mocked because planning reads nothing from them beyond {@link InferenceService#inferenceSettings()}; standing either up
-     * for real would pull in a transport and a cluster state this test never touches.
+     * An {@link InferenceService} carrying the given dense vector batch size, or none when {@code denseVectorBatchSize} is null.
+     * {@link Client} and {@link ClusterService} are mocked because planning reads nothing from them beyond
+     * {@link InferenceService#inferenceSettings()}; standing either up for real would pull in a transport and a cluster state this
+     * test never touches.
      */
-    private InferenceService inferenceService(int denseVectorBatchSize) {
-        Settings inferenceSettings = Settings.builder()
-            .put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), denseVectorBatchSize)
-            .build();
+    private InferenceService inferenceService(Integer denseVectorBatchSize) {
+        Settings.Builder builder = Settings.builder();
+        if (denseVectorBatchSize != null) {
+            builder.put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), denseVectorBatchSize);
+        }
+        Settings inferenceSettings = builder.build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(inferenceSettings);
         when(clusterService.getClusterSettings()).thenReturn(

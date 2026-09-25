@@ -62,14 +62,32 @@ redirects:
   # Indexing pressure documents node setting indexing_pressure.memory.limit, not index-level settings
   'reference/elasticsearch/index-settings/pressure.md': 'reference/elasticsearch/configuration-reference/indexing-pressure-settings.md'
 
+  # TODO(docs-content#7959): every docs-content:// target in the plugin redirects below points
+  # at the pre-#7959 path. Redirect targets are validated against docs-content's published
+  # links.json, and the "Plugins and configuration files" section is not on docs-content main
+  # yet, so the new paths fail the build. When
+  # https://github.com/elastic/docs-content/pull/7959 merges, repoint them:
+  #   deploy/elastic-cloud/manage-plugins-extensions-through-api.md
+  #     -> plugins-and-configuration-files/elastic-cloud/manage-plugins-extensions-through-api.md
+  #   deploy/elastic-cloud/upload-custom-plugins-bundles.md
+  #     -> plugins-and-configuration-files/elastic-cloud/upload-custom-plugins-bundles.md
+  #   deploy/elastic-cloud/add-plugins-extensions.md
+  #     -> plugins-and-configuration-files/elastic-cloud/add-plugins-extensions.md
+  #   deploy/cloud-enterprise/add-plugins.md
+  #     -> plugins-and-configuration-files/cloud-enterprise/add-plugins.md
+  #   deploy/cloud-on-k8s/custom-configuration-files-plugins.md
+  #     -> plugins-and-configuration-files/cloud-on-k8s/manage-plugins.md
+  #   deploy/self-managed/plugins.md
+  #     -> plugins-and-configuration-files/self-managed/manage-plugins.md
+
   # Manage plugins and extensions API guide moved to docs-content
-  'reference/elasticsearch-plugins/cloud/ec-plugins-guide.md': 'docs-content://deploy-manage/plugins-and-configuration-files/elastic-cloud/manage-plugins-extensions-through-api.md'
+  'reference/elasticsearch-plugins/cloud/ec-plugins-guide.md': 'docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md'
 
   # Related to https://github.com/elastic/elasticsearch/pull/130716/
   'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
 
   # Custom plugins and bundles moved to docs-content (narrative ECH deployment docs)
-  'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/plugins-and-configuration-files/elastic-cloud/upload-custom-plugins-bundles.md'
+  'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md'
 
   # ECE and ECH plugin management procedures moved to docs-content (see elastic/docs-content#7101)
   # The page itself is kept as a landing surface, but its per-deployment sections are gone:
@@ -82,13 +100,13 @@ redirects:
     # procedures rather than on the summary that replaced them.
     anchors: {'!'}
     many:
-      - to: 'docs-content://deploy-manage/plugins-and-configuration-files/elastic-cloud/add-plugins-extensions.md'
+      - to: 'docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-extensions.md'
         anchors: {'managing-plugins-for-ech', 'ec-adding-plugins', 'ec-adding-elastic-plugins', 'ec_before_you_begin_6'}
-      - to: 'docs-content://deploy-manage/plugins-and-configuration-files/cloud-enterprise/add-plugins.md'
+      - to: 'docs-content://deploy-manage/deploy/cloud-enterprise/add-plugins.md'
         anchors: {'managing-plugins-for-ece', 'ece-adding-plugins'}
-      - to: 'docs-content://deploy-manage/plugins-and-configuration-files/cloud-on-k8s/manage-plugins.md'
+      - to: 'docs-content://deploy-manage/deploy/cloud-on-k8s/custom-configuration-files-plugins.md'
         anchors: {'managing-plugins-for-eck'}
-      - to: 'docs-content://deploy-manage/plugins-and-configuration-files/self-managed/manage-plugins.md'
+      - to: 'docs-content://deploy-manage/deploy/self-managed/plugins.md'
         anchors: {'managing-plugins-for-self-managed'}
       - to: 'reference/elasticsearch/command-line-tools/elasticsearch-plugin.md'
         anchors: {'manage-plugins-with-package-and-archive-installs'}

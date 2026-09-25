@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -218,6 +220,30 @@ public class DefinitionVersionTests extends ESTestCase {
             "a value that embeds a separator must not encode as two settings",
             DefinitionVersion.of(dataset("s3://b/*.csv", twoSettings), src),
             DefinitionVersion.of(dataset("s3://b/*.csv", oneForgedSetting), src)
+        );
+    }
+
+    /**
+     * A mapping decides how bytes become rows, not which bytes a query can reach, so it is not part of
+     * this identity. A dataset declaring exactly what inference already produces describes the same read
+     * and must keep sharing the entries of its undeclared twin — otherwise every mapped dataset pays a
+     * cold scan for declaring nothing. The isolation that two genuinely different reads need is the read
+     * configuration's job, not this value's.
+     */
+    public void testADeclaredMappingDoesNotChangeTheVersion() {
+        DataSource src = source(Map.of("endpoint", "https://s3.example"));
+        Map<String, Object> settings = Map.of("format", "csv");
+        DatasetMapping declared = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("age", new DatasetFieldMapping("keyword", null)))
+        );
+
+        Dataset undeclared = new Dataset("parts", new DataSourceReference("src"), "s3://b/*.csv", null, settings);
+        Dataset redeclared = new Dataset("parts", new DataSourceReference("src"), "s3://b/*.csv", null, settings, declared);
+
+        assertEquals(
+            "a declaration describes a read, not a different set of bytes",
+            DefinitionVersion.of(undeclared, src),
+            DefinitionVersion.of(redeclared, src)
         );
     }
 }

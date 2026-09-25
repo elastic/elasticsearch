@@ -23,6 +23,13 @@ import java.util.TreeMap;
  * A version of the stored definitions a query reads a dataset under: the dataset's own definition and
  * that of the data source it references, folded into one opaque value.
  * <p>
+ * <b>Which bytes, not how they are read.</b> This covers what a query can reach — the resource, the
+ * storage settings, the credentials — and deliberately not the declared mapping. A mapping decides how
+ * bytes become rows, which is what {@link org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint}
+ * addresses; folding it here would encode the procedure that reached a read rather than the read itself,
+ * so a dataset declaring exactly what inference already produced would stop sharing the entries of its
+ * undeclared twin and pay a cold scan for declaring nothing.
+ * <p>
  * Everything cached about a file is derived from those definitions, so everything cached about it is
  * addressed by this. An edit to either — a setting, the resource pattern, an endpoint, a credential —
  * yields a different version, so entries derived under the old one are no longer reachable and age out.
@@ -60,10 +67,6 @@ public final class DefinitionVersion {
         StringBuilder encoded = new StringBuilder();
         append(encoded, "res", dataset.resource());
         encodeSettings(encoded, dataset.settings());
-        // The declared mapping decides which columns are read and at what types, so two datasets over
-        // one resource that differ only in their mapping must not share a version.
-        append(encoded, "map", dataset.mapping() == null ? null : dataset.mapping().toString());
-
         append(encoded, "type", parent.type());
         encodeDataSourceSettings(encoded, parent);
 

@@ -396,12 +396,25 @@ tasks.register("integTest", Test) {
   // The nested Gradle TestKit runners require an absolute path, so a relative value is not an option here.
   // A CommandLineArgumentProvider keeps that absolute path out of the task inputs so it stays cache relocatable.
   def tempDir = temporaryDir
-  // Pin the TestKit Gradle user home instead of letting TestKit derive it from java.io.tmpdir, so that
-  // AbstractGradleFuncTest knows exactly where to seed its cache-cleanup init script.
+  // Pin the TestKit root instead of letting TestKit derive it from java.io.tmpdir, so that
+  // AbstractGradleFuncTest can lay out one Gradle user home per worker below it.
   def testKitDir = new File(temporaryDir, ".gradle-test-kit")
   jvmArgumentProviders.add({
     ["-Djava.io.tmpdir=${tempDir}", "-Dorg.gradle.testkit.dir=${testKitDir}"] as List<String>
   } as CommandLineArgumentProvider)
+  // Worker ids come from a counter in the Gradle daemon, so every run lays out new worker homes. Delete the
+  // ones left over from earlier runs so they do not pile up, but keep the download caches they share.
+  // Symbolic links to those caches are deleted rather than followed.
+  def injected = project.objects.newInstance(Injected)
+  doFirst {
+    injected.fs.delete {
+      delete(testKitDir.listFiles({ File f -> f.name.startsWith("worker-") } as FileFilter) ?: [])
+    }
+  }
+}
+
+interface Injected {
+  @Inject FileSystemOperations getFs()
 }
 
 tasks.named("check").configure { dependsOn("integTest", "archunitTest") }

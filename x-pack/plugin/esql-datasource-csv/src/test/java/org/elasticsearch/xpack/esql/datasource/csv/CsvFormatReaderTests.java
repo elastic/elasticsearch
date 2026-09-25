@@ -6834,7 +6834,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertTrue("expected sampling error message, got: " + e.getMessage(), e.getMessage().startsWith("schema sampling failed at row ["));
+        assertTrue("expected sampling error message, got: " + e.getMessage(), e.getMessage().contains("schema sampling failed at row ["));
         assertTrue("expected row index, got: " + e.getMessage(), e.getMessage().contains("row [1]"));
         assertTrue(
             "expected skip_row hint, got: " + e.getMessage(),
@@ -6869,7 +6869,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
         assertTrue(
             "expected budget message, got: " + e.getMessage(),
-            e.getMessage().startsWith("schema sampling: [") && e.getMessage().contains("over [max_errors] of [5]; first errors: ")
+            e.getMessage().contains("schema sampling: [") && e.getMessage().contains("over [max_errors] of [5]; first errors: ")
         );
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
     }

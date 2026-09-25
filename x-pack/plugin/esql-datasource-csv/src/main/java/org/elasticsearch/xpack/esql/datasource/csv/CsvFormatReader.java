@@ -1307,7 +1307,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
-        String sourceLocation = object.path().objectName();
+        String objectName = object.path().objectName();
+        String sourceLocation = objectName.isEmpty() ? object.path().toString() : objectName;
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -2183,7 +2184,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectiveSchema,
             declaredBinding,
             effective,
-            object.path().objectName(),
+            object.path().toString(),
             object.path(),
             cacheable ? object : null,
             cacheable ? stream : null,
@@ -2348,12 +2349,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
         }
         if (readSchema.size() > fields.length) {
+            String objectName = object.path().objectName();
+            String loc = objectName.isEmpty() ? object.path().toString() : objectName;
             throw new IllegalArgumentException(
-                "pinned schema has "
-                    + readSchema.size()
-                    + " columns but ["
-                    + object.path().objectName()
-                    + "] has only "
+                "["
+                    + loc
+                    + "] has ["
                     + fields.length
                     + "] columns, the schema has ["
                     + readSchema.size()
@@ -3721,7 +3722,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
-            this.messageLocation = objectPath.objectName();
+            String objectName = objectPath.objectName();
+            this.messageLocation = objectName.isEmpty() ? objectPath.toString() : objectName;
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;

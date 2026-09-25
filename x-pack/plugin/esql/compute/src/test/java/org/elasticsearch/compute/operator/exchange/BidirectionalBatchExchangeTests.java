@@ -70,7 +70,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
-import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.mock;
 
 @TestLogging(

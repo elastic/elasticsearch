@@ -21,7 +21,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryB
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;

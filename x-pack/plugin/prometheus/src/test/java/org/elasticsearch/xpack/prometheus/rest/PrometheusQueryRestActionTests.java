@@ -27,7 +27,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertSame;
 
 public class PrometheusQueryRestActionTests extends ESTestCase {
 

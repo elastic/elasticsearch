@@ -92,6 +92,9 @@ dependencies {
   // spotless-plugin-gradle and is therefore not exposed on our compile classpath.
   // We need it explicitly so FormattingPrecommitPlugin can reference LineEnding directly.
   compileOnly buildLibs.spotless.lib
+  implementation(buildLibs.javaparser) {
+    because("Parse Java sources when stripping redundant imports in Spotless")
+  }
 }
 
 project.getPlugins().withType(JavaBasePlugin.class) {

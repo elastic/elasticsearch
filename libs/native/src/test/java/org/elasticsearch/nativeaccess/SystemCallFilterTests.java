@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;
-import static org.junit.Assert.fail;
 
 /** Simple tests system call filter is working. */
 public class SystemCallFilterTests extends ESTestCase {

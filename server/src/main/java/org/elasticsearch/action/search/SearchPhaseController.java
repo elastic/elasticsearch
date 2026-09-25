@@ -147,8 +147,14 @@ public final class SearchPhaseController {
         if (topDocsList.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = topDocsList.getFirst();
         final int numShards = topDocsList.size();
+        // empty results contribute no docs and may not agree on the concrete type, so they must not pick the merge strategy
+        final List<TopDocs> nonEmpty = topDocsList.stream().filter(td -> td.scoreDocs.length > 0).toList();
+        if (nonEmpty.isEmpty()) {
+            return topDocsList.getFirst();
+        }
+        topDocsList = nonEmpty;
+        final TopDocs topDocs = topDocsList.getFirst();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
         }
@@ -446,8 +452,10 @@ public final class SearchPhaseController {
             from = result.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
             size = Math.max(result.size(), size);
-            if (result.sortValueFormats() != null) {
-                sortValueFormats = result.sortValueFormats();
+            // a result with no formats must not override the ones of the shards that collected hits
+            DocValueFormat[] resultFormats = result.sortValueFormats();
+            if (resultFormats != null && resultFormats.length > 0) {
+                sortValueFormats = resultFormats;
             }
 
             if (result.getTimeRangeFilterFromMillis() != null) {
@@ -531,7 +539,7 @@ public final class SearchPhaseController {
         boolean firstResult = true;
         for (SearchPhaseResult entry : queryResults) {
             DocValueFormat[] formats = entry.queryResult().sortValueFormats();
-            if (formats == null) return;
+            if (formats == null || formats.length == 0) continue;
             if (firstResult) {
                 firstResult = false;
                 ulFormats = new boolean[formats.length];

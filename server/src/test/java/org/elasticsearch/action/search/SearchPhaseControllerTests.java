@@ -1507,6 +1507,80 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
+    public void testReduceSortedResultsWithTimedOutShard() {
+        // a node older than the fix reports a timed out sorted search as a plain TopDocs with zero sort value formats; the reduce
+        // must survive that in either position, since a rolling upgrade or a CCS request can mix it with well shaped results
+        SortField[] sortFields = new SortField[] { new SortField("timestamp", SortField.Type.LONG, true) };
+        DocValueFormat[] formats = new DocValueFormat[] { DocValueFormat.RAW };
+        for (int timedOutShard = 0; timedOutShard < 2; timedOutShard++) {
+            AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(2);
+            for (int shardIndex = 0; shardIndex < 2; shardIndex++) {
+                SearchShardTarget target = new SearchShardTarget("", new ShardId("", "", shardIndex), null);
+                QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId("", shardIndex), target, null);
+                boolean timedOut = shardIndex == timedOutShard;
+                if (timedOut) {
+                    result.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+                } else {
+                    TopFieldDocs topFieldDocs = new TopFieldDocs(
+                        new TotalHits(1, Relation.EQUAL_TO),
+                        new FieldDoc[] { new FieldDoc(0, Float.NaN, new Object[] { 42L }) },
+                        sortFields
+                    );
+                    result.topDocs(new TopDocsAndMaxScore(topFieldDocs, Float.NaN), formats);
+                }
+                result.searchTimedOut(timedOut);
+                result.size(10);
+                result.setShardIndex(shardIndex);
+                queryResults.set(shardIndex, result);
+            }
+
+            try {
+                TopDocsStats topDocsStats = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+                List<TopDocs> bufferedTopDocs = new ArrayList<>();
+                for (SearchPhaseResult result : queryResults.asList()) {
+                    QuerySearchResult queryResult = result.queryResult();
+                    TopDocsAndMaxScore topDocs = queryResult.consumeTopDocs();
+                    topDocsStats.add(topDocs, queryResult.searchTimedOut(), queryResult.terminatedEarly());
+                    SearchPhaseController.setShardIndex(topDocs.topDocs, queryResult.getShardIndex());
+                    bufferedTopDocs.add(topDocs.topDocs);
+                }
+                SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
+                    queryResults.asList(),
+                    InternalAggregations.EMPTY,
+                    bufferedTopDocs,
+                    topDocsStats,
+                    0,
+                    false,
+                    null,
+                    null
+                );
+                assertTrue(reducedQueryPhase.timedOut());
+                assertArrayEquals(formats, reducedQueryPhase.sortValueFormats());
+                ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
+                assertEquals(1, scoreDocs.length);
+
+                int hitShard = scoreDocs[0].shardIndex;
+                AtomicArray<SearchPhaseResult> fetchResults = new AtomicArray<>(2);
+                SearchShardTarget target = new SearchShardTarget("", new ShardId("", "", hitShard), null);
+                FetchSearchResult fetchResult = new FetchSearchResult(new ShardSearchContextId("", hitShard), target);
+                fetchResult.shardResult(
+                    new SearchHits(new SearchHit[] { new SearchHit(0, "") }, new TotalHits(1, Relation.EQUAL_TO), Float.NaN),
+                    null
+                );
+                fetchResults.set(hitShard, fetchResult);
+                try (SearchResponseSections merged = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults)) {
+                    SearchHit[] hits = merged.hits().getHits();
+                    assertEquals(1, hits.length);
+                    assertArrayEquals(new Object[] { 42L }, hits[0].getRawSortValues());
+                } finally {
+                    fetchResults.asList().forEach(RefCounted::decRef);
+                }
+            } finally {
+                queryResults.asList().forEach(RefCounted::decRef);
+            }
+        }
+    }
+
     public void testMergeOmitsCompletionOptionsWithoutFetchResults() {
         boolean includeRegularHit = randomBoolean();
         AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(2);

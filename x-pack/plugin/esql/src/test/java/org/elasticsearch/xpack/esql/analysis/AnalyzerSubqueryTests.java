@@ -1749,6 +1749,23 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertThat(e.getMessage(), containsString("Cannot use field [date_and_date_nanos_and_long] due to ambiguities"));
     }
 
+    public void testNestedUnionAllWithConflictingTypesInInnerUnion() {
+        analyzer().addDefaultIndex().addDefaultIncompatible().error("""
+            FROM test,
+                 (FROM (FROM test | KEEP emp_no),
+                       (FROM test_mixed_types | KEEP emp_no)
+                  | WHERE emp_no > 10000)
+            | KEEP emp_no
+            """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
+    }
+
+    public void testForkAfterNineSubqueryBranches() {
+        analyzer().addDefaultIndex().error("""
+            FROM test, (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test), (FROM test)
+            | FORK (WHERE true) (WHERE true)
+            """, containsString("FORK after subquery is not supported"));
+    }
+
     /**
      * Analyzes a subquery query over two external datasets ({@code salaries_int}/{@code salaries_long}) that share
      * {@code emp_no}/{@code name} but type {@code salary} differently ({@code integer} vs {@code long}). Mirrors the

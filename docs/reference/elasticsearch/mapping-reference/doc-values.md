@@ -198,6 +198,10 @@ The document is accepted. The behavior depends on which constraint was violated:
 - **`multi_value: false`**: The first value is stored in the field's doc values. Each additional value is moved to a hidden per-field `<field>._on_failure` column. The field name is recorded in [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md).
 - **`nullability: false`**: The missing field is recorded in `_ignored`. There is no value to redirect.
 
+::::{note}
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` In columnar indices, [`ignore_malformed: true`](/reference/elasticsearch/mapping-reference/ignore-malformed.md) writes malformed values to the same `<field>._on_failure` column, and records the field name in `_ignored`. This is not an `on_failure` constraint: it happens regardless of the field's `on_failure` setting, and even when neither `multi_value: false` nor `nullability: false` is configured. Before 9.6, these values used a separate `._ignore_malformed` column.
+::::
+
 ::::{warning}
 Redirected values are visible in [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) only. The failure column is **not** searchable, not returned by the `fields` API, and not visible to aggregations or ES|QL — the field continues to present itself as single-valued to all of those paths. Only the first value per document participates in search, aggregation, and ES|QL queries.
 ::::

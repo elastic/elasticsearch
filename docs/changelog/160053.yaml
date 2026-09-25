@@ -1,6 +1,6 @@
-pr: 160053
-summary: "ESQL: Make `LOAD_ALL` cancellable during the unmapped-fields expansion phase"
 area: ES|QL
-type: enhancement
 issues:
  - 159914
+pr: 160053
+summary: "ESQL: Make `LOAD_ALL` cancellable during the unmapped-fields expansion phase"
+type: bug

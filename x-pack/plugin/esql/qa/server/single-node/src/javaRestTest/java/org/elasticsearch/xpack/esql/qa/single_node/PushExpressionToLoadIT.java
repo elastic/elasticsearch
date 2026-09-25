@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
@@ -310,9 +311,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MIN(test)",
             matchesList().item(min),
-            // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MIN pushes down into the matching
-            // array-order reader, which skips inline nulls and computes the minimum over the non-null values.
-            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1)
+            // MV_MIN pushes down into the reader of whichever binary layout the index writes; both skip null slots and take the
+            // minimum over what is left.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:MinFromColumnarPayload", 1)
         );
     }
 
@@ -338,6 +340,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(min),
             // Like keyword, high-cardinality ip stores values as ArrayOrderInlineNull binary doc values, so MV_MIN must push down into
             // the array-order reader. Reading these with the SeparateCount reader misparses the [valueLen+1] slot prefixes.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            // The in-order column is what an ip field is written in whichever doc-values format the index uses.
             matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1)
         );
     }
@@ -446,9 +450,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
-            // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MAX pushes down into the matching
-            // array-order reader, which skips inline nulls and computes the maximum over the non-null values.
-            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1)
+            // MV_MAX pushes down into the reader of whichever binary layout the index writes; both skip null slots and take the
+            // maximum over what is left.
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromColumnarPayload", 1)
         );
     }
 
@@ -461,7 +466,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(value).nullValue().endArray(),
             "| EVAL test = LENGTH(test)",
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull", 1)
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryColumnarPayload", 1)
         );
     }
 
@@ -472,7 +478,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(value).nullValue().endArray(),
             "| EVAL test = BYTE_LENGTH(test)",
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull", 1)
+            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull", 1),
+            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryColumnarPayload", 1)
         );
     }
 
@@ -496,6 +503,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1),
+            // The in-order column is what an ip field is written in whichever doc-values format the index uses.
             matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1)
         );
     }
@@ -1441,19 +1450,24 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
-     * Runs a function-pushdown test against a strict-columnar index so the keyword field gets HIGH-cardinality binary doc values
-     * (the {@code ArrayOrderInlineNull} format), exercising the array-order binary block loaders instead of the SortedSet ordinal loaders.
+     * Runs a function-pushdown test against a strict-columnar index, where the field gets HIGH-cardinality binary doc values and the
+     * pushdown lands on a binary loader rather than a SortedSet ordinal one.
+     *
+     * <p>Which binary layout the index writes follows {@code index.columnar_codec.enabled} — the in-order column with its companion
+     * count, or the ColumNAR codec's payload — and each has its own loader, so the expected one is read off the index rather than
+     * assumed. A field whose loader is the same either way passes the same matcher twice.
      */
     private void testHighCardinality(
         CheckedConsumer<XContentBuilder, IOException> mapping,
         CheckedConsumer<XContentBuilder, IOException> doc,
         String eval,
         Matcher<?> expectedValue,
-        MapMatcher expectedLoaders
+        MapMatcher expectedInlineLoaders,
+        MapMatcher expectedPayloadLoaders
     ) throws IOException {
-        test(
-            mapping,
-            doc,
+        indexValue(mapping, doc, IndexMode.COLUMNAR.getName());
+        final MapMatcher expectedLoaders = usesColumnarCodec("test") ? expectedPayloadLoaders : expectedInlineLoaders;
+        assertPushdown(
             """
                 FROM test
                 """ + eval + """
@@ -1470,9 +1484,29 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
             ),
-            null,
-            IndexMode.COLUMNAR.getName()
+            null
         );
+    }
+
+    /**
+     * Whether {@code index} writes its doc values with the ColumNAR codec. Read off the index: the setting's default has moved, and
+     * it is not registered at all on a build where the feature flag is off.
+     */
+    private static boolean usesColumnarCodec(String index) throws IOException {
+        Request request = new Request("GET", "/" + index + "/_settings/index.columnar_codec.enabled");
+        request.addParameter("flat_settings", "true");
+        request.addParameter("include_defaults", "true");
+        Map<String, Object> response = entityToMap(client().performRequest(request).getEntity(), XContentType.JSON);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> forIndex = (Map<String, Object>) response.get(index);
+        for (String section : new String[] { "settings", "defaults" }) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> settings = (Map<String, Object>) forIndex.get(section);
+            if (settings != null && settings.get("index.columnar_codec.enabled") != null) {
+                return Booleans.parseBoolean(settings.get("index.columnar_codec.enabled").toString());
+            }
+        }
+        return false;
     }
 
     private void test(
@@ -1526,6 +1560,20 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         AssertWarnings assertWarnings
     ) throws IOException {
         indexValue(mapping, doc, indexMode);
+        assertPushdown(query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, pragmas);
+    }
+
+    /**
+     * Runs {@code query} against the index just indexed into and asserts what it read and which loaders it built.
+     */
+    private void assertPushdown(
+        String query,
+        Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas
+    ) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
         if (pragmas != null) {
             builder.pragmasOk().pragmas(pragmas);

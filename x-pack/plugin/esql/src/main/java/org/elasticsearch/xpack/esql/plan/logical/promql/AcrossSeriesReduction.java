@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
@@ -138,13 +139,9 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             }
         }
         var order = (Order) buildEsqlFunction(table.value(), promqlContext);
-        return new TopNBy(
-            source(),
-            table.plan(),
-            order != null ? List.of(order) : List.of(),
-            new ToInteger(source(), parameters().getFirst()),
-            partitionKeys
-        );
+        // Prometheus converts k with an integer cast: `topk(1.5, v)` keeps one series, and a k below one keeps none.
+        Expression k = new ToInteger(source(), new Floor(source(), parameters().getFirst()));
+        return new TopNBy(source(), table.plan(), order != null ? List.of(order) : List.of(), k, partitionKeys);
     }
 
     @Override

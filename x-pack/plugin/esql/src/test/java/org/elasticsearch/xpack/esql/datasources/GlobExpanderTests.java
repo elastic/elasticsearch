@@ -1417,6 +1417,37 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(paths.contains("s3://bucket/data/file14.parquet"));
     }
 
+    public void testExpandGlobFileModifiedHintPrunesAtListingWalk() throws IOException {
+        Instant old = Instant.parse("2020-01-01T00:00:00Z");
+        Instant mid = Instant.parse("2023-06-15T00:00:00Z");
+        Instant newer = Instant.parse("2025-03-01T00:00:00Z");
+        List<StorageEntry> listing = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/data/old.parquet"), 100, old),
+            new StorageEntry(StoragePath.of("s3://bucket/data/mid.parquet"), 100, mid),
+            new StorageEntry(StoragePath.of("s3://bucket/data/new.parquet"), 100, newer)
+        );
+        StubProvider provider = new StubProvider(listing);
+        var hints = List.of(hint(FileMetadataColumns.MODIFIED, PartitionFilterHintExtractor.Operator.GREATER_THAN, "2022-01-01T00:00:00Z"));
+
+        FileList result = GlobExpander.expandGlob(
+            "s3://bucket/data/*.parquet",
+            provider,
+            hints,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+
+        assertEquals(2, result.fileCount());
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            paths.add(result.path(i).toString());
+        }
+        assertFalse(paths.contains("s3://bucket/data/old.parquet"));
+        assertTrue(paths.contains("s3://bucket/data/mid.parquet"));
+        assertTrue(paths.contains("s3://bucket/data/new.parquet"));
+    }
+
     public void testExpandGlobExceedsMaxDiscoveredFilesThrowsWithoutFileHints() {
         List<StorageEntry> listing = new ArrayList<>();
         for (int i = 0; i < 15; i++) {

@@ -284,4 +284,36 @@ public class EscfDocumentHandlerTests extends ESTestCase {
         encodeItemsArrayViaSimdWalk("""
             {"items":[{"tags":["a","b"],"n":1}]}""", inner);
     }
+
+    /**
+     * Regression test for the kv-inline-array nesting bug: when an object element of an outer array
+     * contains an array field whose elements themselves contain array fields, the inner
+     * {@link EscfDocumentHandler#writeKvStartArray} call fired while {@code kvInlineArrayBuild} was
+     * already {@code true}, overwriting {@code kvInlineArrayDepth}. The subsequent
+     * {@link EscfDocumentHandler#writeKvEndArray} for the innermost array reset
+     * {@code kvInlineArrayBuild=false}, so the middle array's {@code endArray} fell through to
+     * {@code finishArrayAccumulation()} and was added as a raw element of the outer accumulator
+     * instead of being nested inside the object's KV bytes.
+     *
+     * <p>This test drives the handler directly (without simdjson) to isolate the event-dispatch logic.
+     */
+    public void testDoubleNestedArrayInsideObjectInArrayKvMatchesHandler() throws IOException {
+        // items: [ { inner: [ { leaf: ["x"] } ], n: 1 } ]
+        // "inner" triggers writeKvStartArray once; "leaf" triggers it again while still active.
+        String inner = """
+            {"inner":[{"leaf":["x"]}],"n":1}""";
+        assertArrayEquals(expectedObjectKv(inner), encodeItemsArrayViaHandler(inner));
+    }
+
+    /**
+     * Same regression as {@link #testDoubleNestedArrayInsideObjectInArrayKvMatchesHandler} but
+     * exercised through the simdjson path.
+     */
+    public void testSimdWalkDoubleNestedArrayMatchesHelper() throws IOException {
+        assumeTrue("simdjson ESCF encoding required", EscfEncoder.isSimdEnabled());
+        String inner = """
+            {"inner":[{"leaf":["x"]}],"n":1}""";
+        encodeItemsArrayViaSimdWalk("""
+            {"items":[{"inner":[{"leaf":["x"]}],"n":1}]}""", inner);
+    }
 }

@@ -1499,8 +1499,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             /// Publishes the bound, which may only be done once. The caller completes this listener.
             void pin(long generation) {
+                assert this != UNBOUNDED : "cannot pin unbounded static instance";
                 assert isDone() == false : "An upload bound cannot be pinned after completion";
                 assert generation != Long.MAX_VALUE : "Unbounded uploads should use the UNBOUNDED instance";
+
                 final boolean pinned = maxGeneration.compareAndSet(Long.MAX_VALUE, generation);
                 assert pinned : "RelocationUploadBound#pin cannot be called twice, current value " + maxGeneration.get();
             }

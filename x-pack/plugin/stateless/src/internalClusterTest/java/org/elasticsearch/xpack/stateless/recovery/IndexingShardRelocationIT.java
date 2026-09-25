@@ -492,14 +492,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         ensureStableCluster(3);
 
         final String indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                // Cancelling the relocation below makes the master retry it. Retries that arrive while the source still holds
-                // PRE_RELOCATING are rejected, so allow enough of them that one lands after the source has unwound.
-                .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 5)
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
 
         int docCount = randomIntBetween(10, 100);
@@ -572,7 +565,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         indexDocs(indexName, afterRelocationFailedDocs);
         docCount += afterRelocationFailedDocs;
 
-        // And new relocation succeeds from the restored shard.
+        // A new relocation succeeds from the restored shard.
         logger.info("--> relocating {} to {} now that the source has been restored", shardId, newIndexNode);
         updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));

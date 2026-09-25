@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -669,15 +671,23 @@ public class ViewResolver {
                 // the single entry is properly tracked in viewBranchKeys and wrapped in a
                 // ViewUnionAll for ViewRequestFilterRewriter to find.
                 //
-                // The exception is a view whose body already branches (a subquery in its definition, which the parser
-                // turns into a UnionAll — note that a multi-pattern `FROM a, b` is a single relation, not a branch).
-                // Adding a wrapper around it would nest one MergePlan inside another, and the runtime cannot execute
-                // that: the coordinator has no exchange source for the inner merge, so it fails post-optimization
-                // verification ("Nested subqueries are not supported") or, if that check is bypassed, at execution with
-                // "ExchangeSourceHandler wasn't provided". Such a view keeps the pre-filter behaviour — no boundary
-                // marker, so its filter takes the index pushdown path. See ViewRequestFilterIT for the shape.
-                if (subqueries.size() == 1 && (preserveViewBoundaries == false || containsBranchPoint(subqueries.getFirst().plan()))) {
-                    return subqueries.getFirst().plan();
+                // A view whose body already branches (a subquery in its definition, which the parser turns into a
+                // UnionAll — note that a multi-pattern `FROM a, b` is a single relation, not a branch) gets a wrapper
+                // too: since nested non-correlated subqueries in FROM are supported, a plain UnionAll nested under the
+                // ViewUnionAll boundary verifies and executes like any other nested subquery, and the wrapper is what
+                // lets the request filter apply to the view's *output* while the boundary marking blocks the raw DSL
+                // from the leaves inside. Only when that capability is off (release builds, currently) does such a view
+                // keep the pre-filter behaviour — no boundary, filter pushed into the source scans — and because that
+                // is wrong for fields the view computes or renames, it warns. See ViewRequestFilterIT for both shapes.
+                if (subqueries.size() == 1) {
+                    ViewPlan sole = subqueries.getFirst();
+                    if (preserveViewBoundaries == false) {
+                        return sole.plan();
+                    }
+                    if (containsBranchPoint(sole.plan()) && EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled() == false) {
+                        warnFilterPushedIntoBranchingViewSources(sole.name());
+                        return sole.plan();
+                    }
                 }
                 return buildPlanFromBranches(unresolvedRelation, subqueries, depth, preserveViewBoundaries);
             }).addListener(listener);
@@ -685,11 +695,26 @@ public class ViewResolver {
     }
 
     /**
-     * Whether {@code plan} already contains a branch point ({@code Fork}/{@code UnionAll}/{@link ViewUnionAll}), which
-     * makes it unsafe to wrap in another one — the runtime cannot execute nested {@link MergePlan}s.
+     * Whether {@code plan} already contains a branch point ({@code Fork}/{@code UnionAll}/{@link ViewUnionAll}). Without
+     * {@link EsqlCapabilities.Cap#NESTED_SUBQUERY_IN_FROM_COMMAND} it is unsafe to wrap such a plan in another merge —
+     * the runtime cannot execute nested {@link MergePlan}s there.
      */
     private static boolean containsBranchPoint(LogicalPlan plan) {
         return plan.anyMatch(MergePlan.class::isInstance);
+    }
+
+    /**
+     * Warns, via a response header, that the request filter will be pushed into the source indices of {@code viewName}
+     * rather than applied to its output. Mirrors the wording of the version-gate warning in
+     * {@code ViewRequestFilterRewriter}: both describe the same degradation, reached for a different reason.
+     */
+    private static void warnFilterPushedIntoBranchingViewSources(String viewName) {
+        HeaderWarning.addWarning(
+            "The request filter was applied to the source indices of view [{}] rather than to its output because the view's "
+                + "body contains a subquery, which this version cannot filter at the view boundary; a filter on a field the "
+                + "view computes or renames may therefore be wrong. Use a WHERE clause to filter rows from views instead",
+            viewName
+        );
     }
 
     /**

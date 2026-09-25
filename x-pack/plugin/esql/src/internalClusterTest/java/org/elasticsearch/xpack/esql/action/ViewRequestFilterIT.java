@@ -480,22 +480,95 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     // ─── Views whose body already branches ───────────────────────────────────────
 
     /**
-     * A view whose body contains a subquery already branches, so it must not be given a boundary wrapper: nesting one
-     * {@code MergePlan} inside another is unexecutable. Before this was handled, adding a request filter to such a view
-     * turned a working query into a 400 ("Nested subqueries are not supported"), and bypassing that check only moved
-     * the failure to execution ("ExchangeSourceHandler wasn't provided").
+     * A view whose body contains a subquery branches internally, so preserving its boundary nests a plain
+     * {@code UnionAll} under the {@code ViewUnionAll} wrapper. With nested subqueries in FROM supported, that shape
+     * verifies and executes like any other nested subquery; without them (release builds, currently) the resolver falls
+     * back to the pre-filter behaviour — the filter takes the index pushdown path — and warns. This test filters on a
+     * <em>mapped</em> pass-through field, where both paths select the same rows, so it holds in either build.
      *
      * <p>Note {@code FROM a, b} is a single multi-pattern relation, not a branch point — only a subquery in the body
      * creates one, which is why the two shapes behave differently here.
-     *
-     * <p>Such a view falls back to the pre-filter behaviour: the filter takes the index pushdown path. That is why the
-     * assertion below is on a <em>mapped</em> field, where pushdown and view-output filtering agree. A filter on a
-     * field the view computes still returns nothing for this shape — a known limitation, not covered here because it
-     * is the open question of whether to fail loudly instead.
      */
     public void testRequestFilterOnViewWhoseBodyContainsSubqueryDoesNotFail() {
-        String a = "vrf_branch_a";
-        String b = "vrf_branch_b";
+        createBranchIndexes("vrf_branch_a", "vrf_branch_b");
+        // A trailing operator after the union is what forces the branch point to stay nested under any wrapper.
+        String view = "vrf_branching_view";
+        createView(view, "FROM vrf_branch_a, (FROM vrf_branch_b) | EVAL tag = region");
+
+        assertThat(ids(view, QueryBuilders.termQuery("region", "eu")), containsInAnyOrder(1, 3));
+    }
+
+    /**
+     * The same branching-body view, filtered on the field its trailing {@code EVAL} computes. {@code tag} does not exist
+     * in either source index, so this only returns the right rows if the filter is applied to the view's <em>output</em> —
+     * a Lucene push into the source scans matches nothing and silently returns zero rows.
+     */
+    public void testRequestFilterOnComputedFieldOfViewWhoseBodyContainsSubquery() {
+        assumeTrue(
+            "boundary preservation for branching view bodies needs nested subqueries in FROM",
+            EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()
+        );
+        createBranchIndexes("vrf_cbranch_a", "vrf_cbranch_b");
+        String view = "vrf_cbranching_view";
+        createView(view, "FROM vrf_cbranch_a, (FROM vrf_cbranch_b) | EVAL tag = region");
+
+        assertThat(ids(view, QueryBuilders.termQuery("tag", "eu")), containsInAnyOrder(1, 3));
+    }
+
+    /**
+     * A view whose body is a <em>bare</em> union — no trailing operator — flattens: compaction lifts each body piece
+     * into its own branch of the outer {@code ViewUnionAll}. Each lifted piece is still part of the view, so the filter
+     * must apply to its output, not its source scan. Here only the subquery piece computes {@code tag}, so the filter
+     * selects its {@code eu} row and binds {@code tag} to NULL on the other piece, matching nothing there — while a
+     * pushdown would have matched nothing anywhere.
+     */
+    public void testRequestFilterOnComputedFieldOfViewWhoseBodyIsBareUnion() {
+        assumeTrue(
+            "boundary preservation for branching view bodies needs nested subqueries in FROM",
+            EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()
+        );
+        createBranchIndexes("vrf_ubranch_a", "vrf_ubranch_b");
+        String view = "vrf_ubranching_view";
+        createView(view, "FROM vrf_ubranch_a, (FROM vrf_ubranch_b | EVAL tag = region)");
+
+        assertThat(ids(view, QueryBuilders.termQuery("tag", "eu")), containsInAnyOrder(3));
+    }
+
+    /**
+     * Without nested-subquery support the resolver cannot preserve a branching view's boundary; the filter falls back to
+     * the source-scan pushdown, and that degradation must be visible: a {@code Warning} header names the view and the
+     * reason. Goes through REST because the header is what a caller actually sees. Release-build counterpart of
+     * {@link #testRequestFilterOnComputedFieldOfViewWhoseBodyContainsSubquery}.
+     */
+    public void testRequestFilterOnBranchingViewWarnsWhenBoundaryCannotBePreserved() throws IOException {
+        assumeFalse(
+            "the fallback only exists while nested subqueries in FROM are unsupported",
+            EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()
+        );
+        createBranchIndexes("vrf_wbranch_a", "vrf_wbranch_b");
+        String view = "vrf_wbranching_view";
+        createView(view, "FROM vrf_wbranch_a, (FROM vrf_wbranch_b) | EVAL tag = region");
+
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | KEEP id | SORT id ASC",
+              "filter": { "term": { "region": "eu" } }
+            }
+            """, view));
+        Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        // The mapped-field filter still selects the right rows via pushdown; the warning is about what it cannot promise.
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"values\":[[1],[3]]"));
+        List<String> warnings = response.getWarnings();
+        assertTrue(
+            "expected a warning that the filter was pushed into the view's sources; got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("source indices of view [" + view + "]") && w.contains("contains a subquery"))
+        );
+    }
+
+    /** Creates two single-shard indices with the shared (id, region) rows 1/2 in {@code a} and 3/4 in {@code b}. */
+    private static void createBranchIndexes(String a, String b) {
         for (String index : List.of(a, b)) {
             assertAcked(
                 client().admin()
@@ -511,12 +584,6 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
             new IndexRequest(b).source("id", 3, "region", "eu"),
             new IndexRequest(b).source("id", 4, "region", "us")
         );
-
-        // A trailing operator after the union is what forces the branch point to stay nested under any wrapper.
-        String view = "vrf_branching_view";
-        createView(view, "FROM " + a + ", (FROM " + b + ") | EVAL tag = region");
-
-        assertThat(ids(view, QueryBuilders.termQuery("region", "eu")), containsInAnyOrder(1, 3));
     }
 
     // ─── Views vs user-written subqueries ────────────────────────────────────────

@@ -223,10 +223,12 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
     private LongArray sortedRowPointers;
 
     // Walk state, over the sorted row pointers.
-    private int nextRow;              // the next real input row to emit
-    private int currentGroup = -1;    // representative row of the active group, used to copy grouping values (-1 if none)
-    private Page currentGroupPage;    // page of the representative row of the active group
-    private int currentGroupPosition; // position of the representative row of the active group
+    private int nextRow;                   // the next real input row to emit
+    private final Object[] nextRowValues;  // the next real input row's bucket values (indexed by cursor index; cached for efficiency)
+
+    private int currentGroup = -1;     // representative row of the active group, used to copy grouping values (-1 if none)
+    private Page currentGroupPage;     // page of the representative row of the active group
+    private int currentGroupPosition;  // position of the representative row of the active group
     private boolean bucketCursorExhausted;
     private boolean inEmptyInputGroup;
 
@@ -256,6 +258,8 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
         defaultValues.forEach((channel, defaultValue) -> this.defaultValuesByChannel[channel] = defaultValue);
         this.cursors = bucketCursors.values().toArray(new BucketCursor[0]);
         this.cursorChannels = bucketCursors.keySet().stream().mapToInt(Integer::intValue).toArray();
+
+        this.nextRowValues = new Object[channelCount];
 
         this.groupKeyComparator = new GroupKeyComparator(groupChannels);
         List<Integer> sortChannels = new ArrayList<>(groupChannels);
@@ -447,7 +451,8 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
             if (nextRow < sortedRowPointers.size() && compareGroupKeys(nextRow, currentGroup) == 0) {
                 // The next input row is in the current group; insert either the next input bucket or the next cursor
                 // bucket, depending on which should go first.
-                int cmp = compareBucketCursorToRow(nextRow);
+                cacheNextRowValues();
+                int cmp = compareBucketCursorToNextRow();
                 if (cmp < 0) {
                     // The next cursor bucket is smaller than the next input bucket: insert empty buckets up to it.
                     int rows = 0;
@@ -455,7 +460,7 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
                         appendEmptyBucket(builders);
                         advanceBucketCursor();
                         rows++;
-                        cmp = compareBucketCursorToRow(nextRow);
+                        cmp = compareBucketCursorToNextRow();
                     } while (cmp < 0 && rows < maxRows);
                     return rows;
                 } else {
@@ -528,27 +533,41 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
         return groupKeyComparator.compare(page(a), position(a), page(b), position(b));
     }
 
-    private int compareBucketCursorToRow(int row) {
+    private void cacheNextRowValues() {
+        long pointer = sortedRowPointers.get(nextRow);
+        Page page = page(pointer);
+        int pos = position(pointer);
+        for (int i = 0; i < cursors.length; i++) {
+            Block block = page.getBlock(cursorChannels[i]);
+            int valueIndex = block.getFirstValueIndex(pos);
+            if (block.isNull(valueIndex)) {
+                nextRowValues[i] = null;
+            } else {
+                nextRowValues[i] = switch (block.elementType()) {
+                    case LONG -> ((LongBlock) block).getLong(valueIndex);
+                    case DOUBLE -> ((DoubleBlock) block).getDouble(valueIndex);
+                    default -> throw new IllegalArgumentException("unexpected element type [" + block.elementType() + "]");
+                };
+            }
+        }
+    }
+
+    private int compareBucketCursorToNextRow() {
         if (bucketCursorExhausted) {
             // If the cursor is exhausted, report that the next cursor bucket is larger,
             // so the input bucket gets added instead of the (non-existing) cursor bucket.
             return 1;
         }
-        long pointer = sortedRowPointers.get(row);
-        Page page = page(pointer);
-        int pos = position(pointer);
         for (int i = 0; i < cursors.length; i++) {
             BucketCursor cursor = cursors[i];
-            Block block = page.getBlock(cursorChannels[i]);
-            int valueIndex = block.getFirstValueIndex(pos);
-            if (block.isNull(valueIndex)) {
+            if (nextRowValues[i] == null) {
                 // If the input bucket is null, report that the cursor bucket is larger,
                 // so that the cursor bucket gets added and the null comes at the end.
                 return -1;
             }
             int cmp = switch (cursor) {
-                case DateCursor dateCursor -> Long.compare(dateCursor.currentLong(), ((LongBlock) block).getLong(valueIndex));
-                case NumericCursor numCursor -> Double.compare(numCursor.currentDouble(), ((DoubleBlock) block).getDouble(valueIndex));
+                case DateCursor dateCursor -> Long.compare(dateCursor.currentLong(), (Long) nextRowValues[i]);
+                case NumericCursor numCursor -> Double.compare(numCursor.currentDouble(), (Double) nextRowValues[i]);
                 default -> throw new IllegalArgumentException("unexpected bucket cursor [" + cursor.getClass() + "]");
             };
             if (cmp != 0) {

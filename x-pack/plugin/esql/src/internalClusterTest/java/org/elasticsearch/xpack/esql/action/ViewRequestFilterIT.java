@@ -244,14 +244,34 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      * A filter on {@code region} on top of the pre-filtered view (which only emits status=200 rows) should select
      * only the eu status=200 row (id 0), not all eu rows (0, 2, 4).
      */
+    public void testRequestFilterOnPreFilteredViewIsComposedCorrectly() {
+        assertThat(ids(PREFILTERED_VIEW, QueryBuilders.termQuery("region", "eu")), equalTo(List.of(0)));
+    }
+
     /**
      * A filter over a view's output is evaluated in ES|QL, so every field it names has to survive column pruning into
      * the view branch's output. An {@code exists} naming an object path resolves through {@code user.*}, and that is the
      * request pre-analysis must make: ask field-caps for {@code user} alone and {@code user.name} never reaches the
-     * branch, the filter binds to NULL and the view returns nothing. Pinned on a view whose boundary survives
-     * ({@code WHERE} keeps a {@code ViewUnionAll}) — a passthrough view compacts to a plain index relation and takes the
-     * Lucene path, where the translation is not involved at all.
+     * branch, the filter binds to NULL and the view returns nothing. Written over the pre-filtered view because only a
+     * surviving view boundary puts the filter on a view's output at all — see
+     * {@link #testTheObjectPathCasesNeedASurvivingViewBoundary}.
      */
+    /**
+     * Why the two cases above are written over the pre-filtered view. A request filter reaches a view's <em>output</em>
+     * only where a view boundary survives optimization: over the pre-filtered view the translated predicate sits inside
+     * the branch, bound to a real attribute, under a {@code ViewUnionAll}. Over the passthrough view no boundary is left
+     * and the logical plan carries no filter at all — it went to the index scan, which this translation never touches,
+     * so the same case there would pass whatever the translator did.
+     */
+    public void testTheObjectPathCasesNeedASurvivingViewBoundary() {
+        String prefiltered = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + " | KEEP id", QueryBuilders.existsQuery("user"));
+        assertThat(prefiltered, containsString("ViewUnionAll"));
+        assertThat(prefiltered, containsString("ISNOTNULL(user.name"));
+        String passthrough = optimizedLogicalPlan("FROM " + PASSTHROUGH_VIEW + " | KEEP id", QueryBuilders.existsQuery("user"));
+        assertThat(passthrough, not(containsString("ViewUnionAll")));
+        assertThat(passthrough, not(containsString("ISNOTNULL")));
+    }
+
     public void testExistsOnObjectPathAppliesToViewOutput() {
         assertThat(ids(PREFILTERED_VIEW, QueryBuilders.existsQuery("user")), equalTo(List.of(0)));
         assertThat(ids(PASSTHROUGH_VIEW, QueryBuilders.existsQuery("user")), equalTo(List.of(0, 2, 4)));
@@ -262,10 +282,6 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         QueryBuilder negated = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("user"));
         assertThat(ids(PREFILTERED_VIEW, negated), equalTo(List.of(3)));
         assertThat(ids(PASSTHROUGH_VIEW, negated), equalTo(List.of(1, 3, 5)));
-    }
-
-    public void testRequestFilterOnPreFilteredViewIsComposedCorrectly() {
-        assertThat(ids(PREFILTERED_VIEW, QueryBuilders.termQuery("region", "eu")), equalTo(List.of(0)));
     }
 
     // ─── Stats view: filter on computed field must work ─────────────────────────

@@ -16,7 +16,7 @@ import org.apache.lucene.store.IndexOutput;
 import java.io.IOException;
 
 /**
- * Writes a field's column-iterator structure to the data file and returns its {@link ColumnIteratorMetadata}.
+ * Writes a field's column-iterator structure to the addressing file and returns its {@link ColumnIteratorMetadata}.
  * The empty and fully-dense fields write nothing — their shape is captured entirely in metadata.
  */
 public final class ColumnIteratorWriter {

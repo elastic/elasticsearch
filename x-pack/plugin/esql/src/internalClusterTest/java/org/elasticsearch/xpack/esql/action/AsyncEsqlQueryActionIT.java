@@ -231,7 +231,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
      * the last nested leaf waits. It then issues an async stop while the leaves are paused and expects a partial, non-running result.
      */
     public void testStopNestedSubquery() throws Exception {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         scriptPermits.drainPermits();
         scriptWaits.drainPermits();
         var pragmas = new QueryPragmas(
@@ -292,7 +291,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
      * result afterwards must throw {@link TaskCancelledException}.
      */
     public void testCancelNestedSubquery() throws Exception {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         scriptPermits.drainPermits();
         scriptWaits.drainPermits();
         var request = asyncEsqlQueryRequest("""
@@ -340,7 +338,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
      * removed so a later get throws {@link ResourceNotFoundException}.
      */
     public void testDeleteNestedSubquery() throws Exception {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         scriptPermits.drainPermits();
         scriptWaits.drainPermits();
         var request = asyncEsqlQueryRequest("""
@@ -384,7 +381,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
      * and a subsequent get of the result must fail with "keep_alive expired".
      */
     public void testKeepAliveExpiryNestedSubqueryWithBranchParallelDegreeOne() throws Exception {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         scriptPermits.drainPermits();
         scriptWaits.drainPermits();
         var request = asyncEsqlQueryRequest("""

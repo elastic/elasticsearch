@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 159672
+pr: 159911
+summary: Make the Query DSL filter pushdown check the transport version of emitted functions
+type: bug

@@ -219,22 +219,16 @@ public class VersionStringFieldMapper extends FieldMapper {
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
                             BytesRef decoded = VersionEncoder.decodeVersion(term);
-                            if (compiled.runAutomaton == null) {
-                                return switch (compiled.type) {
-                                    case SINGLE -> decoded.equals(compiled.term) ? AcceptStatus.YES : AcceptStatus.NO;
-                                    case ALL -> AcceptStatus.YES;
-                                    case NONE -> AcceptStatus.NO;
-                                    default -> {
-                                        assert false : "Unexpected automaton type: " + compiled.type;
-                                        yield AcceptStatus.NO;
-                                    }
-                                };
-                            }
-                            boolean accepted = compiled.runAutomaton.run(decoded.bytes, decoded.offset, decoded.length);
-                            if (accepted) {
-                                return AcceptStatus.YES;
-                            }
-                            return AcceptStatus.NO;
+                            // Lucene 11 no longer pre-determinizes RegexpQuery. NORMAL automata may
+                            // be NFAs (runAutomaton == null); getByteRunnable() is the DFA or NFA runner.
+                            return switch (compiled.type) {
+                                case SINGLE -> decoded.equals(compiled.term) ? AcceptStatus.YES : AcceptStatus.NO;
+                                case ALL -> AcceptStatus.YES;
+                                case NONE -> AcceptStatus.NO;
+                                case NORMAL -> compiled.getByteRunnable().run(decoded.bytes, decoded.offset, decoded.length)
+                                    ? AcceptStatus.YES
+                                    : AcceptStatus.NO;
+                            };
                         }
                     };
                 }

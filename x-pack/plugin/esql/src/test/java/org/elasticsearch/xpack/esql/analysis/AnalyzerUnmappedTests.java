@@ -1471,6 +1471,114 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    public void testLoadModeRejectsRowSource() {
+        for (String query : List.of(
+            "ROW a = 1",
+            "ROW a = 1 | KEEP a",
+            "ROW a = 1 | STATS c = COUNT(*)",
+            "ROW a = 1 | INLINE STATS c = COUNT(*)",
+            "ROW a = 1 | FORK (WHERE true) (WHERE a == 1)"
+        )) {
+            assertUnmappedLoadError(test(), query, allOf(containsString("Found 1 problem"), containsString(rowLoadError(29, "load"))));
+        }
+    }
+
+    public void testLoadModeRejectsRowOnlySubqueriesAndViews() {
+        assumeTrue("Requires ROW as a subquery source command", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        for (String query : List.of("FROM (ROW a = 1)", "FROM (ROW a = 1), (ROW a = 2)")) {
+            assertUnmappedLoadError(test(), query, allOf(containsString("Found 1 problem"), containsString(rowLoadError(35, "load"))));
+        }
+        // The position is left unpinned: production tags the view body's Source, so the real message reads "line 1:1 (in view [...])".
+        test().addView("row_view", "ROW a = 1")
+            .statementError(
+                setUnmappedLoad("FROM row_view"),
+                allOf(containsString("Found 1 problem"), containsString(rowLoadError("load")))
+            );
+    }
+
+    public void testLoadModeRejectsRowSourceAlongsideTheUnknownColumnItCouldNotLoad() {
+        assertUnmappedLoadError(
+            test(),
+            "ROW a = 1 | EVAL b = unmapped_field",
+            allOf(
+                containsString("Found 2 problems"),
+                containsString(rowLoadError(29, "load")),
+                containsString("Unknown column [unmapped_field]")
+            )
+        );
+    }
+
+    /**
+     * The LOAD_ALL command allow-list would also reject a ROW, but its "not supported yet" misstates a source that can never load.
+     */
+    public void testLoadAllModeRejectsRowSource() {
+        test().statementError(
+            setUnmappedLoadAll("ROW a = 1"),
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(rowLoadError(33, "load_all")),
+                not(containsString("is not supported yet"))
+            )
+        );
+    }
+
+    /**
+     * A lookup index and an enrich policy index are indices the query names, so they keep it out of the check - see the issue's note
+     * that a ROW query is not clear cut when other tables are in play.
+     */
+    public void testLoadModeAllowsRowJoinedWithALookupIndexOrEnrichPolicy() {
+        assertTrue(
+            analyzer().addLanguagesLookup()
+                .statement(setUnmappedLoad("ROW language_code = 1 | LOOKUP JOIN languages_lookup ON language_code"))
+                .resolved()
+        );
+        assertTrue(
+            analyzer().addAnalysisTestsEnrichResolution()
+                .statement(setUnmappedLoad("ROW language_code = 1 | ENRICH languages ON language_code"))
+                .resolved()
+        );
+    }
+
+    /**
+     * Neither index is ever loaded into, so those queries still cannot resolve an unmapped field - they just fail on the reference.
+     */
+    public void testLoadModeStillCannotLoadIntoARowJoinedWithALookupIndexOrEnrichPolicy() {
+        assertUnmappedLoadError(
+            analyzer().addLanguagesLookup(),
+            "ROW language_code = 1 | LOOKUP JOIN languages_lookup ON language_code | EVAL x = unmapped_field",
+            containsString("Unknown column [unmapped_field]")
+        );
+        assertUnmappedLoadError(
+            analyzer().addAnalysisTestsEnrichResolution(),
+            "ROW language_code = 1 | ENRICH languages ON language_code | EVAL x = unmapped_field",
+            containsString("Unknown column [unmapped_field]")
+        );
+    }
+
+    public void testLoadModeAllowsRowAlongsideAnIndex() {
+        assumeTrue("Requires ROW as a subquery source command", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        LogicalPlan unioned = test().statement(setUnmappedLoad("FROM test, (ROW emp_no = 99999) | KEEP emp_no, unmapped_field"));
+        assertThat(Expressions.names(unioned.output()), equalTo(List.of("emp_no", "unmapped_field")));
+        assertTrue(test().statement(setUnmappedLoad("FROM test | WHERE emp_no IN (ROW x = 10001)")).resolved());
+    }
+
+    /**
+     * Only the loading modes need an index; nullify and the default mode keep working over a ROW.
+     */
+    public void testRowSourceUnaffectedInNonLoadingModes() {
+        assertTrue(test().statement(setUnmappedNullify("ROW a = 1 | EVAL b = unmapped_field")).resolved());
+        assertTrue(test().statement("ROW a = 1 | KEEP a").resolved());
+        test().statementError("ROW a = 1 | EVAL b = unmapped_field", containsString("Unknown column [unmapped_field]"));
+    }
+
+    private static String rowLoadError(String settingValue) {
+        return "unmapped_fields=\"" + settingValue + "\" requires an index to load from; this query's only source is a ROW";
+    }
+
+    private static String rowLoadError(int column, String settingValue) {
+        return "line 1:" + column + ": " + rowLoadError(settingValue);
+    }
+
     /**
      * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */

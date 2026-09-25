@@ -4145,6 +4145,12 @@ public class EsqlCapabilities {
          */
         TOPN_PREFILTER_LONG,
 
+        /**
+         * Reject {@code unmapped_fields="load"} and {@code "load_all"} when the query has no index to load from, i.e. when a
+         * {@code ROW} is its only source. See https://github.com/elastic/elasticsearch/issues/156538.
+         */
+        OPTIONAL_FIELDS_REJECT_LOAD_WITH_ROW_SOURCE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

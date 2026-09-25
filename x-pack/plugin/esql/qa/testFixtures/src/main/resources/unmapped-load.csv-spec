@@ -3545,9 +3545,10 @@ c:long | missing:long
 ;
 
 //
-// Baseline: branching (country/language unions), ROW-backed and TS views under unmapped_fields="load".
+// Baseline: branching (country/language unions) and TS views under unmapped_fields="load".
 // These carry no unmapped-but-indexed fields; they assert that enabling load mode does not change normal
-// view resolution or results (see views.csv-spec for the non-load counterparts).
+// view resolution or results (see views.csv-spec for the non-load counterparts). A view whose body is only
+// a ROW has no _source, so a loading mode rejects it (#156538) - covered by AnalyzerUnmappedTests.
 //
 loadViewBranchingCountryViewsLoadMode
 required_capability: optional_fields_load_with_fork_subqueries_and_views
@@ -3630,38 +3631,6 @@ count:long | country:keyword
 13         | Germany
 12         | France
 12         | Indonesia
-;
-
-loadViewRowConstantsLoadMode
-required_capability: optional_fields_load_with_fork_subqueries_and_views
-required_capability: views_with_no_branching
-required_capability: views_crud_as_index_actions
-required_capability: subquery_in_from_command
-required_capability: subquery_with_row
-
-SET unmapped_fields="load"\;
-FROM view_row_constants
-| SORT seed, label
-;
-
-seed:integer | label:keyword
-1            | row_view_constants
-;
-
-loadViewRowEvalLoadMode
-required_capability: optional_fields_load_with_fork_subqueries_and_views
-required_capability: views_with_no_branching
-required_capability: views_crud_as_index_actions
-required_capability: subquery_in_from_command
-required_capability: subquery_with_row
-
-SET unmapped_fields="load"\;
-FROM view_row_eval
-| SORT multiplier
-;
-
-multiplier:integer | triple:integer
-3                  | 9
 ;
 
 loadViewTsMaxBytesLoadMode

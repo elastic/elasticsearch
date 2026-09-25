@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +26,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 
 import java.util.concurrent.CountDownLatch;
@@ -285,5 +288,47 @@ public class SplitSourceServiceTests extends ESTestCase {
                 logger.warn("acquiring failed", e);
             }
         };
+    }
+
+    public void testHandoffThrottle() {
+        try (
+            var threadPool = new TestThreadPool(getTestName());
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool)
+        ) {
+            var projectId = randomProjectIdOrDefault();
+            var numShards = randomIntBetween(2, 6);
+            var initialIndexMetadata = IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), numShards, 0))
+                .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(numShards, 2))
+                .build();
+            var index = initialIndexMetadata.getIndex();
+            var targetShard1 = new ShardId(index, numShards);
+            var targetShard2 = new ShardId(index, numShards + 1);
+            var reshardingMetadata = initialIndexMetadata.getReshardingMetadata()
+                .transitionSplitTargetToNewState(targetShard1, IndexReshardingState.Split.TargetShardState.HANDOFF);
+            var indexMetadata = IndexMetadata.builder(initialIndexMetadata).reshardingMetadata(reshardingMetadata).build();
+            var project = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
+            ClusterServiceUtils.setState(clusterService, ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build());
+
+            var service = new SplitSourceService(null, clusterService, null, null, null, null, null, Settings.EMPTY);
+            var slotFuture = new PlainActionFuture<Void>();
+            service.awaitHandoffSlot(slotFuture, targetShard2);
+            assertFalse("listener should be blocked while the HANDOFF slot is full", slotFuture.isDone());
+
+            // Advance handoffShard to SPLIT, freeing its HANDOFF slot.
+            var updatedReshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(
+                targetShard1,
+                IndexReshardingState.Split.TargetShardState.SPLIT
+            );
+            var updatedIndexMetadata = IndexMetadata.builder(indexMetadata).reshardingMetadata(updatedReshardingMetadata).build();
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(ClusterName.DEFAULT)
+                    .putProjectMetadata(ProjectMetadata.builder(projectId).put(updatedIndexMetadata, true).build())
+                    .build()
+            );
+
+            slotFuture.actionGet(SAFE_AWAIT_TIMEOUT);
+        }
     }
 }

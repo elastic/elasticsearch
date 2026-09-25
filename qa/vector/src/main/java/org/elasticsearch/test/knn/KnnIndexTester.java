@@ -42,6 +42,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
@@ -222,7 +223,7 @@ public class KnnIndexTester {
         return config;
     }
 
-    private static String formatIndexPath(TestConfiguration args, DirectoryTypeConfig dirConfig) {
+    static String formatIndexPath(TestConfiguration args, DirectoryTypeConfig dirConfig) {
         List<String> suffix = new ArrayList<>();
         switch (args.indexType()) {
             case FLAT -> suffix.add("flat");
@@ -262,6 +263,10 @@ public class KnnIndexTester {
                 }
             }
         }
+        if (args.usesSlicedIvf()) {
+            // Keep cached indices built with the old raw-partition layout separate from the hash-prefixed slice-key layout.
+            suffix.add("slice-key-v1");
+        }
         if (dirConfig.requiresFreshIndex()) {
             // These types rebuild the index on every run and wipe the index path doing so, so they must not share it with the
             // types that can reuse an index built by "default".
@@ -286,7 +291,7 @@ public class KnnIndexTester {
                         ? ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
                         : ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER)
                     : args.secondaryClusterSize();
-                String sliceField = args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null;
+                String sliceField = args.usesSlicedIvf() ? SliceIndexing.SLICE_KEY_FIELD_NAME : null;
 
                 if (isAsh) {
                     int bitsPerDim = Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM);

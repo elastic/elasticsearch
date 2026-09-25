@@ -88,6 +88,11 @@ public record TestConfiguration(
     String quantizationType
 ) {
 
+    /** Whether this configuration uses the sliced IVF on-disk layout and query path. */
+    public boolean usesSlicedIvf() {
+        return indexType == KnnIndexTester.IndexType.IVF && datasetConfig.isSliced();
+    }
+
     static final ParseField DATASET_FIELD = new ParseField("dataset");
     static final ParseField DATA_DIR_FIELD = new ParseField("data_dir");
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");

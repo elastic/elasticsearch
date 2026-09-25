@@ -188,6 +188,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testEvalWhere
   issue: https://github.com/elastic/elasticsearch/issues/160180
+- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
+  method: testAutoFollowing {clusterName=LEADER leaderNodesUpgraded=3 followerNodesUpgraded=3}
+  issue: https://github.com/elastic/elasticsearch/issues/160284
 
 # Examples:
 #

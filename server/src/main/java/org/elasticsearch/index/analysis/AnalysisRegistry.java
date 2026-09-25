@@ -389,10 +389,12 @@ public final class AnalysisRegistry implements Closeable {
                     // Atomically claim this entry by removing it from the cache. If the remove
                     // succeeds we own the close; if releaseFromCache already removed it (refcount
                     // reached 0 concurrently), the remove returns false and we skip — the evictable
-                    // was already closed by that path. This exploits ConcurrentHashMap's per-key
-                    // atomicity: remove() and compute() on the same key are mutually exclusive, so
-                    // exactly one path wins ownership and closes the evictable.
+                    // was already closed by that path.
                     if (cache.remove(mapEntry.getKey(), entry)) {
+                        // Use the eagerly-stored evictable rather than join()ing the future, to avoid
+                        // blocking on an in-flight build during shutdown — if a builder is mid-flight
+                        // here something is misbehaving and we'd rather not wedge the shutdown. A slot
+                        // reserved but not yet built has a null evictable and is GC-collectible anyway.
                         NamedAnalyzer a = entry.evictable;
                         if (a != null) {
                             toClose.add(a);

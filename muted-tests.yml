@@ -701,3 +701,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/160285
+- class: org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunnerTests
+  method: testInstrumentedThrottledTaskRunnerRecordsQueuingAndRunningCounts
+  issue: https://github.com/elastic/elasticsearch/issues/160332

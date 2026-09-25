@@ -193,13 +193,10 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     public void testSetAddChargedAsMapEntry() {
-        // A set is a map underneath, so an add costs more than a list slot.
-        long setAdd = AllocationEstimators.collectionAddBytes(new HashSet<>(), null);
-        assertThat(setAdd, greaterThan(ADD));
-        assertEquals(
-            AllocationEstimators.hashSetShellBytes() + setAdd,
-            allocatedBytes("Set s = new HashSet(); s.add(\"a\"); return \"x\";")
-        );
+        // A set is a map underneath, so an add costs a put, more than a list slot.
+        assertEquals(PUT, AllocationEstimators.collectionAddBytes(new HashSet<>(), null));
+        assertThat(PUT, greaterThan(ADD));
+        assertEquals(AllocationEstimators.hashSetShellBytes() + PUT, allocatedBytes("Set s = new HashSet(); s.add(\"a\"); return \"x\";"));
     }
 
     public void testAddAllChargesOneAddPerSourceElement() {

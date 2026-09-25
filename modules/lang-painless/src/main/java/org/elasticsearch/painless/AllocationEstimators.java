@@ -794,14 +794,25 @@ public final class AllocationEstimators {
     // ---- Members that grow an existing collection or builder. A collection add costs a fixed amount per element. A
     // ---- builder is charged its new array only when it must grow. A latin1 builder switching to UTF16 is not charged.
 
-    /** One element added to a list or deque: a slot plus growth, or a linked node. */
+    /**
+     * One element added to a list or deque. An {@code ArrayList} slot is 8 bytes and the arrays it grows out of add about
+     * twice that over time, so about 24. A {@code LinkedList} node is a header plus three references, 40. The larger wins.
+     */
     private static final long LIST_ADD_BYTES = 40;
 
-    /** One entry put into a map or set: a linked entry plus table growth. */
+    /**
+     * One entry put into a map or set. A {@code LinkedHashMap.Entry} is 56 bytes. The table doubles at three quarters full,
+     * so the tables it grows out of add about 21 bytes per entry over time. 77, rounded up.
+     */
     private static final long MAP_PUT_BYTES = 80;
 
-    /** A {@code StringJoiner} with no elements. */
-    private static final long STRING_JOINER_SHELL_BYTES = 48;
+    /** A {@code StringJoiner} with no elements: prefix, delimiter, suffix, element array and empty value, plus two ints. */
+    private static final long STRING_JOINER_SHELL_BYTES = AllocSizes.pad8(
+        AllocSizes.OBJECT_HEADER + 5L * AllocSizes.REFERENCE_SIZE + 2L * Integer.BYTES
+    );
+
+    /** One slot in a {@code StringJoiner}'s element array, which doubles when full: the slot plus as much again in copies. */
+    private static final long STRING_JOINER_SLOT_BYTES = 2L * AllocSizes.REFERENCE_SIZE;
 
     /** One add to {@code receiver}. A set is a map underneath. */
     private static long addBytes(Collection<?> receiver) {
@@ -908,12 +919,12 @@ public final class AllocationEstimators {
 
     /** {@code StringJoiner.add(element)}: a String copy plus a slot. */
     public static long stringJoinerAddBytes(StringJoiner receiver, CharSequence element) {
-        return AllocSizes.addSat(newStringBytes(element == null ? 4 : element.length()), LIST_ADD_BYTES);
+        return AllocSizes.addSat(newStringBytes(element == null ? 4 : element.length()), STRING_JOINER_SLOT_BYTES);
     }
 
     /** {@code StringJoiner.merge(other)}: the other joiner as one String, plus a slot. */
     public static long stringJoinerMergeBytes(StringJoiner receiver, StringJoiner other) {
-        return AllocSizes.addSat(newStringBytes(other == null ? 0 : other.length()), LIST_ADD_BYTES);
+        return AllocSizes.addSat(newStringBytes(other == null ? 0 : other.length()), STRING_JOINER_SLOT_BYTES);
     }
 
     /** {@code StringJoiner.setEmptyValue(value)}: a String copy of the value. */

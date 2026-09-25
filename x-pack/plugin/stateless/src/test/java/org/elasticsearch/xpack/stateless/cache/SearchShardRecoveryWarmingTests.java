@@ -952,7 +952,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         }
     }
 
-    public void testWarmVolumeShareReshardingUsesEqualShare() {
+    public void testWarmVolumeShareAppliesDuringResharding() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -986,20 +986,22 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 sourceNodeId,
                 new ShardWarmVolumes.Entry(
                     startedAtMillis,
-                    Map.of(new ShardId(index, 0), 100L, new ShardId(index, 1), 300L, new ShardId(index, 2), 600L)
+                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
                 )
             );
-            var withVolumes = newWarmingServiceWithCacheSize(threadPool, settings, 1000L, volumes);
-            var withoutVolumes = newWarmingServiceWithCacheSize(threadPool, settings, 1000L);
+            var service = newWarmingServiceWithCacheSize(threadPool, settings, 1000L, volumes);
             final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
                 .shardRoutingTable(new ShardId(index, 0))
                 .shardsWithState(RELOCATING)
                 .get(0)
                 .getTargetRelocatingShard();
-            var expected = withoutVolumes.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
-            var actual = withVolumes.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
-            assertThat(actual.timeout(), equalTo(expected.timeout()));
-            assertThat(actual.timeoutContext(), equalTo(expected.timeoutContext()));
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(plan.awaitWarming(), is(true));
+            assertThat(plan.timeout().millis(), equalTo(4800L));
+            assertThat(
+                plan.timeoutContext(),
+                equalTo("relocation source shutting down (warm volume share of remaining time to capped grace deadline)")
+            );
         }
     }
 

@@ -1280,8 +1280,8 @@ public class SharedBlobCacheWarmingService {
      *   <li><em>Equal-share</em>: {@code factor * remaining / shardsOnSource}.</li>
      *   <li><em>Data-volume-proportional</em> (contributes only when {@code totalBytesToWarm} is greater than zero):
      *   {@code (totalBytesToWarm / (cacheSize * cacheRatio)) * remaining}.</li>
-     *   <li><em>Warm-volume share</em> (when a completed {@link ShardWarmVolumes.Entry} exists and this shard's index is
-     *   not resharding): {@code (w_i / S) * remaining} over searchable shards still on the source that are in the map.
+     *   <li><em>Warm-volume share</em> (when a completed {@link ShardWarmVolumes.Entry} exists):
+     *   {@code (w_i / S) * remaining} over searchable shards still on the source that are in the map.
      *   Missing this shard uses the mean of that set.</li>
      * </ol>
      * with {@code deadline = start + min(metadata grace, cap)} and {@code remaining = deadline - now}.
@@ -1319,6 +1319,7 @@ public class SharedBlobCacheWarmingService {
         // Instead, this uses the same fixed baseline (which itself is of dubious inspiration).
         // But it's hard to do the accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
         final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
+        // Warm-volume shares are source current-commit prefixes; they can differ from this target's WarmTarget plan.
         final double warmVolumeMs = warmVolumeShareMs(state, sourceNodeId, shardId, remaining);
         int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
         // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
@@ -1358,7 +1359,7 @@ public class SharedBlobCacheWarmingService {
      * Per-shard warm-volume share of {@code remaining}, or {@code 0} when the map cannot be used for this shard.
      */
     private double warmVolumeShareMs(ClusterState state, String sourceNodeId, ShardId shardId, long remaining) {
-        if (state.nodes().get(sourceNodeId) == null || isResharding(state, shardId)) {
+        if (state.nodes().get(sourceNodeId) == null) {
             return 0;
         }
         var entry = shardWarmVolumes.get(state, sourceNodeId);
@@ -1373,7 +1374,7 @@ public class SharedBlobCacheWarmingService {
         int shardsWithVolumeOnSource = 0;
         boolean sourceHasThisShard = false;
         for (ShardRouting routing : sourceNode) {
-            if (routing.isSearchable() == false || isResharding(state, routing.shardId())) {
+            if (routing.isSearchable() == false) {
                 continue;
             }
             Long volume = entry.volumes().get(routing.shardId());
@@ -1393,10 +1394,6 @@ public class SharedBlobCacheWarmingService {
             ? entry.volumes().get(shardId)
             : sourceWarmVolumeSum / (double) shardsWithVolumeOnSource;
         return (shardVolume / (double) sourceWarmVolumeSum) * remaining;
-    }
-
-    private static boolean isResharding(ClusterState state, ShardId shardId) {
-        return state.metadata().findIndex(shardId.getIndex()).map(imd -> imd.getReshardingMetadata() != null).orElse(false);
     }
 
     /**

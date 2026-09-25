@@ -285,6 +285,23 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         }, 10, TimeUnit.SECONDS);
     }
 
+    public void testWantVolumesDroppedWhenResponderIsNotClaimedNode() {
+        var request = new TransportFetchSearchShardInformationAction.Request("missing_source", shardId, true);
+        ShardRouting resolved = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
+        var child = TransportFetchSearchShardInformationAction.requestForResolvedShard(request, resolved);
+        assertFalse(child.wantVolumes());
+        assertThat(child.getNodeId(), equalTo("missing_source"));
+        assertThat(child.getShardId(), equalTo(shardId));
+    }
+
+    public void testWantVolumesKeptWhenResponderIsClaimedNode() {
+        var request = new TransportFetchSearchShardInformationAction.Request("search_node_1", shardId, true);
+        ShardRouting resolved = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
+        var child = TransportFetchSearchShardInformationAction.requestForResolvedShard(request, resolved);
+        assertTrue(child.wantVolumes());
+        assertThat(child.getNodeId(), equalTo("search_node_1"));
+    }
+
     public void testNodeIdFromRequestHasPrecedence() {
         ShardRouting primaryShard = newUnassignedPrimaryIndexOnly.initialize("index_node", null, randomNonNegativeLong()).moveToStarted(1);
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index)

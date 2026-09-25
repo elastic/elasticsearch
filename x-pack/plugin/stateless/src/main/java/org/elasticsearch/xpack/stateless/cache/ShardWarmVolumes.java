@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,6 +40,8 @@ public class ShardWarmVolumes implements ClusterStateListener {
     @Nullable
     private final LongCounter fetchTotalMetric;
     // Maps from source node ID to the warm-volume snapshot for a specific shutdown generation.
+    // Entries are added only while that source has a shutdown record, and dropped when the node leaves
+    // or its shutdown is cancelled / replaced with a new generation.
     private final ConcurrentMap<String, Entry> memo = ConcurrentCollections.newConcurrentMap();
     // Tracks source node IDs for which a fetch is in progress, to avoid duplicate fetches.
     private final Set<String> inFlight = ConcurrentCollections.newConcurrentSet();
@@ -134,12 +137,6 @@ public class ShardWarmVolumes implements ClusterStateListener {
         Map<ShardId, Long> volumes
     ) {
         putIfCurrentGeneration(state, respondingNodeId, volumesGeneration, volumes);
-        if (claimedId.equals(respondingNodeId) == false) {
-            var shutdown = state.metadata().nodeShutdowns().get(claimedId);
-            if (shutdown != null) {
-                putIfCurrentGeneration(state, claimedId, shutdown.getStartedAtMillis(), Map.of());
-            }
-        }
         inFlight.remove(claimedId);
         recordFetchOutcome("success");
     }
@@ -171,12 +168,22 @@ public class ShardWarmVolumes implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.nodesChanged() == false
+            && event.changedCustomClusterMetadataSet().contains(NodesShutdownMetadata.TYPE) == false) {
+            return;
+        }
         if (event.nodesChanged()) {
             for (DiscoveryNode node : event.nodesDelta().removedNodes()) {
                 memo.remove(node.getId());
                 inFlight.remove(node.getId());
             }
         }
+        var shutdowns = event.state().metadata().nodeShutdowns();
+        memo.entrySet().removeIf(e -> {
+            var shutdown = shutdowns.get(e.getKey());
+            return shutdown == null || shutdown.getStartedAtMillis() != e.getValue().generationStartedAtMillis();
+        });
+        inFlight.removeIf(id -> shutdowns.get(id) == null);
     }
 
     // visible for testing

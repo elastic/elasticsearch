@@ -169,11 +169,19 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         transportService.sendChildRequest(
             node,
             shardActionName,
-            request,
+            requestForResolvedShard(request, shardRouting),
             task,
             TransportRequestOptions.timeout(TimeValue.THIRTY_SECONDS),
             new ActionListenerResponseHandler<>(listener, TransportFetchSearchShardInformationAction.Response::new, genericExecutor)
         );
+    }
+
+    // visible for testing
+    static Request requestForResolvedShard(Request request, ShardRouting resolved) {
+        if (request.wantVolumes() && resolved.currentNodeId().equals(request.getNodeId()) == false) {
+            return new Request(request.getNodeId(), request.getShardId(), false);
+        }
+        return request;
     }
 
     // visible for testing

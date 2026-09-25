@@ -443,7 +443,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertThat(measurements.get(0).getLong(), equalTo(1L));
     }
 
-    public void testWrongResponderDoesNotLoop() {
+    public void testWrongResponderLeavesClaimedIdFreeToRetry() {
         long sourceGen = 10L;
         long otherGen = 20L;
         ClusterState state = drainStateTwoSources(index, "source", sourceGen, "other", otherGen, "target");
@@ -458,7 +458,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         assertThat(volumes.get(state, "other").volumes(), equalTo(Map.of(shardId, 3L)));
         assertThat(volumes.get(state, "source"), nullValue());
-        assertFalse(volumes.claimFetch(state, "source"));
+        assertTrue(volumes.claimFetch(state, "source"));
     }
 
     public void testDidNotCollectClearsClaimForRetry() {

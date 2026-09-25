@@ -149,6 +149,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(path.evaluate("data.result"), equalTo(List.of(1767225900.0, "3.14")));
     }
 
+    /** Prometheus: a duration literal is a float literal in seconds - {@code 1h30m} is the scalar {@code 5400}. */
+    public void testInstantQueryDurationLiteralIsSeconds() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "1h30m"),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+        assertThat(Double.parseDouble(path.evaluate("data.result.1")), equalTo(5400.0));
+    }
+
     public void testInstantQueryDropsSeriesOutsideDefaultLookback() throws Exception {
         ingestTestData("test_gauge_iq");
 

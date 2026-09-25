@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
-import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -65,7 +64,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ASTERISK;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.CARET;
@@ -207,7 +205,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         return switch (result) {
             case LogicalPlan plan -> plan;
             case Literal literal -> new LiteralSelector(source, literal);
-            case Duration duration -> new LiteralSelector(source, Literal.timeDuration(source, duration));
+            // Prometheus: a duration in an expression is another spelling of a float literal, its number of seconds
+            // (`2m` is `120`, `1ms` is `0.001`); a range or offset written this way turns it back into a duration.
+            case Duration duration -> new LiteralSelector(source, Literal.fromDouble(source, duration.toNanos() / 1_000_000_000.0));
             case Expression expr -> throw new ParsingException(
                 source,
                 "Expected a plan or literal, got expression [{}]",
@@ -539,16 +539,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         String name = ctx.IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
         var paramsCtx = ctx.functionParams();
-        List<Node> params = paramsCtx != null ? visitList(this, paramsCtx.expression(), Node.class) : emptyList();
-
-        List<LogicalPlan> rawParams = new ArrayList<>(params.size());
-        for (Node node : params) {
-            rawParams.add(switch (node) {
-                case LogicalPlan plan -> plan;
-                case Literal literal -> new LiteralSelector(source, literal);
-                default -> throw new IllegalStateException("Unexpected param: " + node);
-            });
-        }
+        // every argument is a plan: a literal (a duration one included) wraps into its selector
+        List<LogicalPlan> rawParams = paramsCtx != null ? paramsCtx.expression().stream().map(this::wrapLiteral).toList() : emptyList();
 
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
         AcrossSeriesAggregate.Grouping grouping = null;

@@ -87,6 +87,12 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         );
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantQueryDurationLiteralIsSeconds}. */
+    public void testQueryRangeDurationLiteralIsSeconds() throws Exception {
+        assertBinopRangeValues("1h30m", 5400);
+        assertBinopRangeValues("2m + 30s", 150);
+    }
+
     public void testQueryRangeWithIngestedData() throws Exception {
         ingestTestData("test_gauge_qr");
 

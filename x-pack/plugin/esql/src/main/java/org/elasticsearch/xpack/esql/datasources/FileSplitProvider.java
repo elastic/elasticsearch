@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -496,12 +497,20 @@ public class FileSplitProvider implements SplitProvider {
             splitDiscoveryCpuNanos.set(0L);
             List<PlanResult> planResults;
             int survivorCount = batch.size();
+            // A file is planned only while the rows already covered fall short of what the query asked for; see
+            // RowBudget for the three ways that arithmetic fails closed.
+            RowBudget budget = RowBudget.of(context, resolveConfiguredReader(fileList.path(0), config));
             try {
                 if (executor != null && survivorCount > 1) {
                     planResults = BoundedParallelGather.gather(slotList(survivorCount), slot -> {
                         long cpuStart = ThreadCpuTimer.currentNanos();
                         try {
-                            return planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled);
+                            if (budget.satisfied()) {
+                                return new PlanResult.Splits(List.of());
+                            }
+                            PlanResult planned = planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled);
+                            budget.account(planned);
+                            return planned;
                         } finally {
                             if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
                         }
@@ -509,7 +518,13 @@ public class FileSplitProvider implements SplitProvider {
                 } else {
                     planResults = new ArrayList<>(survivorCount);
                     for (int slot = 0; slot < survivorCount; slot++) {
-                        planResults.add(planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled));
+                        if (budget.satisfied()) {
+                            planResults.add(new PlanResult.Splits(List.of()));
+                            continue;
+                        }
+                        PlanResult planned = planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled);
+                        budget.account(planned);
+                        planResults.add(planned);
                     }
                 }
             } catch (Exception e) {
@@ -1189,6 +1204,13 @@ public class FileSplitProvider implements SplitProvider {
                     }
                 }
             });
+            // Cached ranges cost nothing to plan, so they count towards the demand before any file is opened.
+            RowBudget budget = RowBudget.of(batch.context(), null);
+            for (int i = 0; i < n; i++) {
+                if (slots[i] != null) {
+                    budget.account(slots[i]);
+                }
+            }
             int misses = missCount[0];
             if (misses == 0) {
                 listener.onResponse(List.of(slots));
@@ -1200,6 +1222,13 @@ public class FileSplitProvider implements SplitProvider {
             gatherAsync(slotList(misses), (Integer ordinal, ActionListener<PlanResult> itemListener) -> {
                 if (isCancelled.getAsBoolean()) {
                     itemListener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
+                    return;
+                }
+                // The rows already planned cover what the query asked for, so this file is not opened and produces
+                // no splits. Work already in flight finishes, which is why the overshoot is one gather window rather
+                // than the rest of the dataset.
+                if (budget.satisfied()) {
+                    itemListener.onResponse(new PlanResult.Splits(List.of()));
                     return;
                 }
                 FileTask task = openFileTask(batch, missed[ordinal]);
@@ -1217,6 +1246,7 @@ public class FileSplitProvider implements SplitProvider {
 
                     @Override
                     public void onResponse(PlanResult result) {
+                        budget.account(result);
                         finish(() -> itemListener.onResponse(result));
                     }
 
@@ -1826,6 +1856,70 @@ public class FileSplitProvider implements SplitProvider {
          * a quoted file that under-split is reported alongside the strided ones that did.
          */
         record Walked(DeferredNewlineSplits deferred, List<Long> starts, boolean stoppedBeforeEndOfFile) implements PlanResult {}
+    }
+
+    /**
+     * How many rows are still wanted, and whether the count can be trusted.
+     * <p>
+     * A file's planned units say how many records they hold, so producing splits in listing order can stop once the
+     * rows already covered reach what the query asked for: every file past that point is one nobody has to open.
+     * The arithmetic only holds while three things are true, and each of them fails the budget closed rather than
+     * narrowing it — an unusable budget produces every split, exactly as before a limit reached here.
+     * <ul>
+     *   <li>Nothing between the limit and the relation changes how many rows come out. The walk that recovered the
+     *       demand carries it only through commands that promise that, so a filtered or sorted limit never arrives.</li>
+     *   <li>The dataset's error policy does not drop rows: under it a unit's record count is what will be decoded,
+     *       not what will be emitted.</li>
+     *   <li>Every unit planned so far said how many records it holds. One that does not makes the running total a
+     *       floor rather than a count, so the budget gives up.</li>
+     * </ul>
+     */
+    private static final class RowBudget {
+        private static final RowBudget UNUSABLE = new RowBudget(FormatReader.NO_LIMIT);
+
+        private final long demand;
+        private long covered;
+        private boolean usable;
+
+        private RowBudget(int demand) {
+            this.demand = demand;
+            this.usable = demand != FormatReader.NO_LIMIT;
+        }
+
+        static RowBudget of(SplitDiscoveryContext context, @Nullable FormatReader reader) {
+            if (context.rowLimit() == FormatReader.NO_LIMIT) {
+                return UNUSABLE;
+            }
+            if (ErrorPolicy.forReader(context.config(), reader).mode() != ErrorPolicy.Mode.FAIL_FAST) {
+                return UNUSABLE;
+            }
+            return new RowBudget(context.rowLimit());
+        }
+
+        synchronized boolean satisfied() {
+            return usable && covered >= demand;
+        }
+
+        /** Folds one planned file in, and gives up if it could not say how many records it holds. */
+        synchronized void account(PlanResult result) {
+            if (usable == false) {
+                return;
+            }
+            if (result instanceof PlanResult.Splits planned) {
+                for (ExternalSplit split : planned.splits()) {
+                    org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
+                    long rows = stats == null ? -1 : stats.rowCount();
+                    if (rows < 0) {
+                        usable = false;
+                        return;
+                    }
+                    covered += rows;
+                }
+            } else {
+                // A file whose splits are settled later cannot be counted now.
+                usable = false;
+            }
+        }
     }
 
     /** One stride offset to probe, tied back to the file whose boundaries it contributes to. */

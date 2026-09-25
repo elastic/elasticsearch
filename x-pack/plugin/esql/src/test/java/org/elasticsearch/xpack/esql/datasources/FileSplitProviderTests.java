@@ -5472,6 +5472,125 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("Total row count across splits should be sum of all files", 1000L, totalRowCount);
     }
 
+    /**
+     * A file's units say how many records they hold, so producing splits in listing order can stop at the file that
+     * covers what the query asked for. Every file past that one is one nobody opens.
+     */
+    public void testSplitProductionStopsOnceTheRowDemandIsCovered() throws Exception {
+        AtomicInteger opened = new AtomicInteger();
+        RangeAwareFormatReader reader = countingRowCountReader(opened, 10);
+        FileSplitProvider provider = rangeAwareProvider(reader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        SplitDiscoveryResult result = provider.discoverSplits(contextWithRowLimit(64, 25));
+
+        assertThat("three ten-row files cover a demand of twenty-five", opened.get(), lessThanOrEqualTo(4));
+        assertThat("and the rows produced actually cover it", totalRows(result), greaterThanOrEqualTo(25L));
+    }
+
+    /** No demand, so nothing to stop for: every file is planned, as it always was. */
+    public void testEveryFileIsPlannedWithoutARowDemand() throws Exception {
+        AtomicInteger opened = new AtomicInteger();
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(opened, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        provider.discoverSplits(contextWithRowLimit(8, FormatReader.NO_LIMIT));
+
+        assertEquals("every file is opened when nothing bounds the demand", 8, opened.get());
+    }
+
+    /**
+     * A unit that cannot say how many records it holds makes the running total a floor rather than a count, so the
+     * budget gives up and every file is planned. The reader here reports ranges without statistics, which is what
+     * every format that is not row-group or stripe based does.
+     */
+    public void testADemandIsIgnoredWhenUnitsCannotReportTheirRecordCount() throws Exception {
+        AtomicInteger opened = new AtomicInteger();
+        RangeAwareFormatReader reader = countingRowCountReader(opened, -1);
+        FileSplitProvider provider = rangeAwareProvider(reader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        provider.discoverSplits(contextWithRowLimit(8, 5));
+
+        assertEquals("a demand nobody can count against plans everything", 8, opened.get());
+    }
+
+    /**
+     * Under a row-dropping error policy a unit's record count is what will be decoded, not what will be emitted, so
+     * counting towards the demand would plan too few files and return fewer rows than were asked for.
+     */
+    public void testADemandIsIgnoredWhenTheErrorPolicyDropsRows() throws Exception {
+        AtomicInteger opened = new AtomicInteger();
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(opened, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        SplitDiscoveryContext base = contextWithRowLimit(8, 5);
+        Map<String, Object> config = new HashMap<>(base.config());
+        config.put("error_mode", "skip_row");
+        provider.discoverSplits(withConfig(base, config));
+
+        assertEquals("a policy that drops rows plans everything", 8, opened.get());
+    }
+
+    /**
+     * A range reader that counts the files it opens and reports {@code rowsPerUnit} records for each range it
+     * emits, or no statistics at all when that is negative — the shape of a format that cannot count records.
+     */
+    private static RangeAwareFormatReader countingRowCountReader(AtomicInteger opened, long rowsPerUnit) {
+        List<SplitRange> ranges = rowsPerUnit < 0
+            ? List.of(new SplitRange(0, 2000))
+            : List.of(new SplitRange(0, 2000, Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowsPerUnit)));
+        AtomicInteger discoverCalls = new AtomicInteger();
+        return createMockRangeReader(ranges, opened::incrementAndGet, discoverCalls);
+    }
+
+    /** {@code fileCount} single-range files, and the row demand a query carried down to split discovery. */
+    private static SplitDiscoveryContext contextWithRowLimit(int fileCount, int rowLimit) {
+        SplitDiscoveryContext base = rangeAwareContext(fileCount);
+        return new SplitDiscoveryContext(
+            base.metadata(),
+            base.fileList(),
+            base.schemaMap(),
+            base.config(),
+            base.partitionInfo(),
+            base.filterHints(),
+            base.querySchema(),
+            base.unifiedSchema(),
+            base.maxRecordBytes(),
+            base.isCancelled(),
+            base.declaredReadSpec(),
+            base.metadataColumnNames(),
+            base.retainedPartitionKeys(),
+            rowLimit
+        );
+    }
+
+    private static SplitDiscoveryContext withConfig(SplitDiscoveryContext base, Map<String, Object> config) {
+        return new SplitDiscoveryContext(
+            base.metadata(),
+            base.fileList(),
+            base.schemaMap(),
+            config,
+            base.partitionInfo(),
+            base.filterHints(),
+            base.querySchema(),
+            base.unifiedSchema(),
+            base.maxRecordBytes(),
+            base.isCancelled(),
+            base.declaredReadSpec(),
+            base.metadataColumnNames(),
+            base.retainedPartitionKeys(),
+            base.rowLimit()
+        );
+    }
+
+    private static long totalRows(SplitDiscoveryResult result) {
+        long rows = 0;
+        for (ExternalSplit split : result.splits()) {
+            org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
+            if (stats != null && stats.rowCount() >= 0) {
+                rows += stats.rowCount();
+            }
+        }
+        return rows;
+    }
+
     private static FileSplitProvider rangeAwareProvider(RangeAwareFormatReader reader, @Nullable Executor executor) {
         return rangeAwareProvider(reader, executor, Settings.EMPTY);
     }

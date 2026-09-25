@@ -41,10 +41,12 @@ Driver: `entrypoints/manual.ts` invoked from `.buildkite/pipelines/flakiness-det
 Use when you want to reproduce a flakiness signal on your laptop.
 
 ```bash
-node .buildkite/scripts/flakiness-detection/entrypoints/local.ts \
+.buildkite/scripts/flakiness-detection/entrypoints/local.sh \
     [--iters N] \
     <Class>[ <Class>...]
 ```
+
+The only prerequisite is Node.js, at least the major version in `.buildkite/.nvmrc`.
 
 Arguments become `explicit` refs (same specs as `FLAKINESS_CLASSES`); `local.ts` writes `flakiness-refs.json`, runs `./gradlew -Pflakiness.resolve flakinessResolveProject` (unqualified, so every project runs it and self-selects), compiles every test source set unqualified (a compile failure prints `buildFailed` and exits 1), runs `./gradlew -Pflakiness.resolve flakinessScan` to produce the plan, then substitutes `__GRADLE__` → `./gradlew` in each of the plan's batch commands and executes them sequentially (directly, not via the BK-agent wrapper). After the runner finishes, the analyzer scans freshly-written JUnit XML and prints a markdown summary to stdout.
 
@@ -271,6 +273,7 @@ flakiness-detection/
   entrypoints/
     pr.ts                bootstrap: collect changed-file + unmute refs → refs.json → upload resolve pipeline
     manual.ts            bootstrap: FLAKINESS_CLASSES → explicit refs → refs.json → upload resolve pipeline
+    local.sh             developer entrypoint: Node version check + locked npm install → local.ts
     local.ts             argv driven: refs → flakinessResolveProject → compile tasks → flakinessScan → planCommandsToRunnable → runLocally
     generate.ts          reads flakiness-plan.json → planCommandsToRunnable + upload batches/analyze; folds skip/buildFailed
     analyze.ts           final BK step — classifies each job, uploads outcomes artifact + report annotation

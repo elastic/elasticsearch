@@ -28,7 +28,7 @@ export async function run(): Promise<void> {
   }
   const specs = args.filter((a) => a.trim() !== "");
   if (specs.length === 0) {
-    console.error("Usage: node .buildkite/scripts/flakiness-detection/entrypoints/local.ts [--iters N] <Class>[ <Class>...]");
+    console.error("Usage: .buildkite/scripts/flakiness-detection/entrypoints/local.sh [--iters N] <Class>[ <Class>...]");
     process.exit(2);
   }
 

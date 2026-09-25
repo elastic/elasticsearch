@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -77,7 +78,10 @@ public class InferenceServiceTests extends ESTestCase {
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
             assertNotNull(inferenceResolution);
-            assertThat(inferenceResolution.resolvedInferences(), contains(new ResolvedInference("rerank-plan", TaskType.RERANK)));
+            assertThat(
+                inferenceResolution.resolvedInferences(),
+                contains(new ResolvedInference("rerank-plan", TaskType.RERANK, SimilarityMeasure.DOT_PRODUCT))
+            );
             assertThat(inferenceResolution.hasError(), equalTo(false));
         });
     }
@@ -99,8 +103,8 @@ public class InferenceServiceTests extends ESTestCase {
             assertThat(
                 inferenceResolution.resolvedInferences(),
                 contains(
-                    new ResolvedInference("rerank-plan", TaskType.RERANK),
-                    new ResolvedInference("completion-plan", TaskType.COMPLETION)
+                    new ResolvedInference("rerank-plan", TaskType.RERANK, SimilarityMeasure.DOT_PRODUCT),
+                    new ResolvedInference("completion-plan", TaskType.COMPLETION, SimilarityMeasure.DOT_PRODUCT)
                 )
             );
             assertThat(inferenceResolution.hasError(), equalTo(false));
@@ -279,6 +283,8 @@ public class InferenceServiceTests extends ESTestCase {
     }
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {
-        return new ModelConfigurations(inferenceId, taskType, randomIdentifier(), mock(ServiceSettings.class));
+        ServiceSettings serviceSettings = mock(ServiceSettings.class);
+        when(serviceSettings.similarity()).thenReturn(SimilarityMeasure.DOT_PRODUCT);
+        return new ModelConfigurations(inferenceId, taskType, randomIdentifier(), serviceSettings);
     }
 }

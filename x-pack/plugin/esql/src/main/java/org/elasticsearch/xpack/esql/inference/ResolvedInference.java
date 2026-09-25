@@ -7,22 +7,40 @@
 
 package org.elasticsearch.xpack.esql.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
 
-public record ResolvedInference(String inferenceId, TaskType taskType) implements Writeable {
+public record ResolvedInference(String inferenceId, TaskType taskType, @Nullable SimilarityMeasure similarity) implements Writeable {
+
+    public static final TransportVersion ESQL_RESOLVED_INFERENCE_CONTAINS_SIMILARITY = TransportVersion.fromName(
+        "esql_resolved_inference_contains_similarity"
+    );
+
+    public ResolvedInference(String inferenceId, TaskType taskType) {
+        this(inferenceId, taskType, null);
+    }
 
     public ResolvedInference(StreamInput in) throws IOException {
-        this(in.readString(), TaskType.valueOf(in.readString()));
+        this(
+            in.readString(),
+            TaskType.valueOf(in.readString()),
+            in.getTransportVersion().supports(ESQL_RESOLVED_INFERENCE_CONTAINS_SIMILARITY) ? in.readOptionalEnum(SimilarityMeasure.class) : null
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(inferenceId);
         out.writeString(taskType.name());
+        if (out.getTransportVersion().supports(ESQL_RESOLVED_INFERENCE_CONTAINS_SIMILARITY)) {
+            out.writeOptionalEnum(similarity);
+        }
     }
 }

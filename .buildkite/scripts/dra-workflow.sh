@@ -115,19 +115,43 @@ DRA_WORKFLOW="$WORKFLOW" \
 echo --- Consolidating distribution artifacts for DRA staging
 mkdir -p artifacts
 
-# Binary distributions (tarballs, packages, Windows zip, Docker images/contexts)
-# are always under distribution/. Official plugins (analysis-icu, discovery-ec2,
-# etc.) live under plugins/. Searching the full workspace would also pick up
-# internal module/x-pack ZIPs from their subproject build/distributions/ dirs,
-# which must not appear in the DRA manifest.
-find "$WORKSPACE/distribution" "$WORKSPACE/plugins" -type f -path "*/build/distributions/*" \
-  \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.deb" -o -name "*.rpm" -o -name "*.msi" \) \
-  -exec cp {} artifacts/ \;
+# Each cp block below mirrors a non-maven entry in the release-manager project
+# config at elastic/infra/cd/release/release-manager/project-configs/master/elasticsearch.gradle.
+# Keep this in sync with that file when artifact types or paths change.
+# Maven artifacts (org.elasticsearch.*) are published to S3 via dra-maven-snapshots-publish.sh
+# and are intentionally excluded here.
 
-# Root-level build/distributions/ holds: CSV dependency report and TACO file.
-find "$WORKSPACE/build/distributions" -maxdepth 1 -type f \
-  \( -name "*.csv" -o -name "*.taco" \) \
-  -exec cp {} artifacts/ \;
+# Binary distributions
+cp distribution/archives/windows-zip/build/distributions/*.zip                artifacts/
+cp distribution/archives/linux-tar/build/distributions/*.tar.gz               artifacts/
+cp distribution/archives/linux-aarch64-tar/build/distributions/*.tar.gz       artifacts/
+cp distribution/archives/darwin-aarch64-tar/build/distributions/*.tar.gz      artifacts/
+cp distribution/packages/deb/build/distributions/*.deb                        artifacts/
+cp distribution/packages/aarch64-deb/build/distributions/*.deb                artifacts/
+cp distribution/packages/rpm/build/distributions/*.rpm                        artifacts/
+cp distribution/packages/aarch64-rpm/build/distributions/*.rpm                artifacts/
+
+# Generic ZIPs and TACO
+# elasticsearch-maven-aggregation is excluded: handled by dra-maven-snapshots-publish.sh (S3).
+cp x-pack/rest-resources-zip/build/distributions/*.zip                        artifacts/
+cp build/distributions/rolling-upgrade-compatible-*.zip                        artifacts/
+cp build/distributions/elasticsearch-jdbc-*.taco                               artifacts/
+
+# Official plugins (plugins/ and x-pack/extras/plugins/)
+for plugin in \
+  analysis-icu analysis-kuromoji analysis-nori analysis-phonetic analysis-smartcn \
+  analysis-stempel analysis-ukrainian discovery-azure-classic discovery-ec2 \
+  discovery-gce mapper-annotated-text mapper-murmur3 mapper-size repository-hdfs store-smb
+do
+  cp "plugins/$plugin/build/distributions/"*.zip                               artifacts/
+done
+cp x-pack/extras/plugins/microsoft-graph-authz/build/distributions/*.zip      artifacts/
+
+# Docker images and build contexts
+cp distribution/docker/build/distributions/*.tar.gz                            artifacts/
+
+# CSV dependency report
+cp "build/distributions/dependencies-${ES_VERSION}${VERSION_SUFFIX}.csv"      artifacts/
 
 echo "Artifacts to be staged:"
 ls -1 artifacts/

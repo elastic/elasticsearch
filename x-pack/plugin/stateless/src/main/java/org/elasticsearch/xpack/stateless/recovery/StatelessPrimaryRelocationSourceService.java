@@ -275,7 +275,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Client parentClient,
         StatelessPrimaryRelocationAction.Request request,
         IndexShard indexShard,
-        ActionListener<StartRelocationResponse> listener
+        ActionListener<StartRelocationResponse> relocationResponseListener
     ) {
         logger.debug(
             "[{}]: starting unsearchable primary relocation to [{}] with allocation ID [{}]",
@@ -289,7 +289,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         try {
             preFlushEngine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
         } catch (Exception e) {
-            listener.onFailure(e);
+            relocationResponseListener.onFailure(e);
             return;
         }
 
@@ -326,17 +326,17 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
-        preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {
+        preFlushStep.addListener(relocationResponseListener.delegateFailureAndWrap((responseListener, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
             if (indexShard.getEngineOrNull() == null) {
-                listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
+                responseListener.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
                 return;
             }
-            final var shardId = indexShard.shardId();
+            final ShardId shardId = indexShard.shardId();
             final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
 
-            final ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocationStarting(shardId);
+            final ActionListener<Void> relocationOutcomeListener = statelessCommitService.markRelocationStarting(shardId);
             final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> handoffConsumer = (
                 primaryContext,
                 handoffResultListener) -> {
@@ -483,7 +483,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         }
 
                         try {
-                            handoffCompleteListener.onResponse(null);
+                            relocationOutcomeListener.onResponse(null);
                         } finally {
                             handoffResultListener.onResponse(null);
                         }
@@ -492,7 +492,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     @Override
                     public void onFailure(Exception e) {
                         try {
-                            handoffCompleteListener.onFailure(e);
+                            relocationOutcomeListener.onFailure(e);
                         } finally {
                             handoffResultListener.onFailure(e);
                         }
@@ -553,18 +553,18 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 }), recoveryExecutor, threadContext);
             };
 
-            final ActionListener<Void> relocationResultListener = listener0.<Void>map(
+            final ActionListener<Void> wrappedListener = responseListener.<Void>map(
                 unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())
             ).delegateResponse((l, e) -> {
                 try {
-                    handoffCompleteListener.onFailure(e);
+                    relocationOutcomeListener.onFailure(e);
                 } finally {
                     l.onFailure(e);
                 }
             });
 
             ActionListener.run(
-                relocationResultListener,
+                wrappedListener,
                 l -> indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), handoffConsumer, l)
             );
         }), recoveryExecutor, threadContext);

@@ -2899,8 +2899,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitService.addRelocationUploadBoundListener(shardId, boundFuture);
             assertFalse(boundFuture.isDone());
 
-            // Handoff owns resolvong .
+            // Handoff listener owns unwinding the bound
             commitService.closeShard(shardId);
+            assertFalse(boundFuture.isDone());
+
+            expectThrows(
+                AlreadyClosedException.class,
+                () -> commitService.markRelocating(shardId, commit.getGeneration(), new PlainActionFuture<>())
+            );
             assertFalse(boundFuture.isDone());
 
             handoffListener.onFailure(new RuntimeException("relocation aborted on a shard closed mid-handoff"));

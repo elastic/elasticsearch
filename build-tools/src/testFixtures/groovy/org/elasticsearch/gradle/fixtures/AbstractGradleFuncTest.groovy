@@ -10,8 +10,6 @@
 package org.elasticsearch.gradle.fixtures
 
 import spock.lang.Specification
-import spock.lang.TempDir
-import com.github.tomakehurst.wiremock.WireMockServer
 
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.IOUtils
@@ -21,7 +19,6 @@ import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
-import org.junit.After
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 
@@ -36,18 +33,10 @@ import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
-import static com.github.tomakehurst.wiremock.client.WireMock.*
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 abstract class AbstractGradleFuncTest extends Specification {
 
-    /**
-     * Directories below the TestKit root that hold downloaded artifacts rather than build outputs:
-     * provisioned JDK toolchains and Gradle wrapper distributions. They dominate the size of a
-     * populated Gradle user home (about 1.1G of 1.4G after a full {@code integTest} run), they are
-     * written once and read many times, and Gradle guards them with their own lock files, so
-     * worker homes link to one copy rather than each downloading their own.
-     */
     private static final List<String> SHARED_DOWNLOAD_DIRS = ["jdks", "wrapper"]
 
     @Rule
@@ -176,42 +165,20 @@ abstract class AbstractGradleFuncTest extends Specification {
      * Override to supply a custom Gradle user home directory for the TestKit runner.
      * TestKit will set {@code GRADLE_USER_HOME} to this directory for every forked
      * Gradle process, including any {@code ./gradlew} subprocesses spawned by build
-     * logic.  Returns {@code null} by default, in which case the per worker directory below the
-     * root declared by the owning {@code integTest} task via {@code org.gradle.testkit.dir} is
-     * used, if present (see {@link #testKitDir()}).
+     * logic.  Returns {@code null} by default, in which case the Gradle user home of the current
+     * worker is used, if present (see {@link #testKitDir()}).
      */
     protected File customGradleUserHome() {
         return null
     }
 
-    /**
-     * Root of the TestKit directories, as declared by the owning {@code integTest} task via
-     * {@code org.gradle.testkit.dir}. Holds the download caches shared by all workers, see
-     * {@link #SHARED_DOWNLOAD_DIRS}, plus one Gradle user home per worker.
-     * <p>
-     * Null when the property is absent, which is the case for ad-hoc runs from an IDE that does
-     * not delegate test execution to Gradle. Such runs execute a single test at a time and are
-     * therefore not exposed to any of the cross process races the per worker layout avoids, so
-     * {@link #gradleRunner} lets {@link GradleRunner} derive its own directory instead.
-     */
     protected static File testKitRootDir() {
         String testKitDir = System.getProperty("org.gradle.testkit.dir")
         return testKitDir == null ? null : new File(testKitDir)
     }
 
     /**
-     * The Gradle user home for the current test worker.
-     * <p>
-     * Our func test tasks run with {@code maxParallelForks} set to the number of physical cores.
-     * When those workers share one Gradle user home, two of their nested Gradle processes can
-     * populate the same immutable workspace at the same time, typically a compiled init or
-     * settings script under {@code caches/<version>/groovy-dsl} or an instrumented classpath entry
-     * under {@code caches/<version>/transforms}. Gradle snapshots such a workspace before it takes
-     * the workspace file lock (see {@code AssignImmutableWorkspaceStep#loadImmutableWorkspaceIfExists})
-     * and populates it in place while holding that lock, so the reader can walk a directory the
-     * writer is emptying and fail the nested build with a {@code NoSuchFileException}.
-     * <p>
-     * One home per worker means no two concurrent processes ever populate the same workspace.
+     * The Gradle user home of the current worker.
      */
     private static File testKitDir() {
         File testKitRoot = testKitRootDir()
@@ -227,11 +194,6 @@ abstract class AbstractGradleFuncTest extends Specification {
         return workerHome
     }
 
-    /**
-     * Links {@code <worker home>/<name>} to {@code <testkit root>/<name>} so that all workers share
-     * one copy of a download cache. Falls back to leaving the worker home to populate its own copy
-     * where symbolic links are unavailable, which costs time and disk but keeps the isolation.
-     */
     private static void linkSharedDownloadDir(File testKitRoot, File workerHome, String name) {
         File link = new File(workerHome, name)
         if (Files.exists(link.toPath(), LinkOption.NOFOLLOW_LINKS)) {
@@ -243,23 +205,24 @@ abstract class AbstractGradleFuncTest extends Specification {
         try {
             Files.createSymbolicLink(link.toPath(), shared.toPath())
         } catch (IOException | UnsupportedOperationException e) {
-            // Where symbolic links are unavailable the worker populates its own copy of the
-            // download cache instead, which costs time and disk but keeps the isolation.
+            System.err.println("Could not link ${name} of ${workerHome} to ${shared}, "
+                + "this worker will populate its own copy: ${e}")
         }
     }
 
     /**
      * Disables Gradle user home cache cleanup for the given TestKit dir.
      *
-     * A worker home is still shared between the nested daemon and any {@code ./gradlew}
-     * subprocess that daemon spawns, and those subprocesses inherit {@code GRADLE_USER_HOME}.
-     * Cleanup triggered by one of them races with the other reading or creating entries under
-     * {@code caches/<version>/groovy-dsl/**}{@code /instrumented}, which surfaces as a
-     * {@code NoSuchFileException} while a script is being compiled
-     * (see https://github.com/gradle/gradle/issues/6354).
+     * Our func test tasks run with {@code maxParallelForks} set to the number of physical cores,
+     * and every worker used to share a single TestKit Gradle user home. Cleanup triggered by one
+     * nested daemon then raced with another worker's daemon reading or creating entries under
+     * {@code caches/<version>/groovy-dsl/**}{@code /instrumented}, which surfaced as a
+     * {@code NoSuchFileException} while the settings script was being compiled
+     * (see https://github.com/gradle/gradle/issues/6354). Every worker now has its own home, which
+     * rules that race out, so cleanup stays disabled only because it has no value here:
      *
-     * Cleanup has no value for this directory anyway: it lives under {@code build/} locally and on
-     * an ephemeral CI agent otherwise, so it never survives long enough to need pruning.
+     * It lives under {@code build/} locally and on an ephemeral CI agent otherwise, so it never
+     * survives long enough to need pruning.
      *
      * Cache cleanup can only be configured from an init script in the Gradle user home, not from a
      * settings script, so the setting is seeded into {@code init.d}. Writing it there (rather than
@@ -290,7 +253,8 @@ abstract class AbstractGradleFuncTest extends Specification {
         try {
             Files.move(tmpScript.toPath(), initScript.toPath(), StandardCopyOption.ATOMIC_MOVE)
         } catch (FileAlreadyExistsException e) {
-            // Someone else won the race; their script is equivalent so there is nothing left to do.
+            // Another process using this home won the race; its script is equivalent so there is
+            // nothing left to do.
             tmpScript.delete()
         }
     }

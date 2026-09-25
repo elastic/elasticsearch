@@ -78,11 +78,6 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPlug
         return workingRemoteGit;
     }
 
-    /**
-     * Seeds the wrapper distribution below the TestKit root rather than below the Gradle user home
-     * of the current worker: worker homes link their {@code wrapper} directory to that one copy,
-     * so seeding it once serves every worker.
-     */
     private static void seedTestKitWrapperCache() {
         File testKitRoot = testKitRootDir()
         if (testKitRoot == null) {

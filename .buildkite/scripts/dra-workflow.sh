@@ -114,9 +114,19 @@ DRA_WORKFLOW="$WORKFLOW" \
 
 echo --- Consolidating distribution artifacts for DRA staging
 mkdir -p artifacts
-find "$WORKSPACE" -type f -path "*/build/distributions/*" \
-  \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.deb" -o -name "*.rpm" \
-     -o -name "*.msi" -o -name "*.taco" -o -name "*.csv" \) \
+
+# Binary distributions (tarballs, packages, Windows zip, Docker images/contexts)
+# are always under the distribution/ subtree. Searching the full workspace with
+# *.zip would also pick up plugin ZIPs from subproject build/distributions/
+# directories (e.g. modules/analysis-common/build/distributions/), which must
+# not appear in the DRA manifest.
+find "$WORKSPACE/distribution" -type f -path "*/build/distributions/*" \
+  \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.deb" -o -name "*.rpm" -o -name "*.msi" \) \
+  -exec cp {} artifacts/ \;
+
+# Root-level build/distributions/ holds: CSV dependency report and TACO file.
+find "$WORKSPACE/build/distributions" -maxdepth 1 -type f \
+  \( -name "*.csv" -o -name "*.taco" \) \
   -exec cp {} artifacts/ \;
 
 echo "Artifacts to be staged:"

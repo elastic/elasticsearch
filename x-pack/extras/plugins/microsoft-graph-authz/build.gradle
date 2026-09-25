@@ -166,7 +166,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.micrometer.core.instrument.Counter$Builder',
     'io.micrometer.core.instrument.DistributionSummary',
     'io.micrometer.core.instrument.DistributionSummary$Builder',
-    'io.micrometer.core.instrument.Meter',
     'io.micrometer.core.instrument.MeterRegistry',
     'io.micrometer.core.instrument.Metrics',
     'io.micrometer.core.instrument.Tag',

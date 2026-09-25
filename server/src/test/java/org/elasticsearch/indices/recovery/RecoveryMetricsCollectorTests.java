@@ -10,12 +10,16 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.BlockedState;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC;
@@ -26,9 +30,13 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class RecoveryMetricsCollectorTests extends ESTestCase {
 
-    public void testRecordsRecoveryGateMetrics() {
+    public void testRecoveryGateEventMetrics() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
-        final RecoveryMetricsCollector collector = new RecoveryMetricsCollector(telemetryPlugin.getTelemetryProvider(Settings.EMPTY));
+        final RecoveryMetricsCollector collector = new RecoveryMetricsCollector(
+            telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
+            () -> null,
+            () -> 0L
+        );
         final String gateName = randomIdentifier();
         final String secondGateName = randomValueOtherThan(gateName, ESTestCase::randomIdentifier);
         final long blockedTimeMillis = randomLongBetween(0, 60_000);
@@ -36,16 +44,11 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
 
         assertThat(telemetryPlugin.getLongCounterMeasurement(RECOVERY_GATE_BLOCKED_TOTAL_METRIC), empty());
         assertThat(telemetryPlugin.getLongHistogramMeasurement(RECOVERY_GATE_BLOCKED_DURATION_METRIC), empty());
-        assertBlockedCurrentMetric(telemetryPlugin, 0L);
 
         collector.onRecoveriesBlocked(gateName);
-        assertBlockedCurrentMetric(telemetryPlugin, 1L);
         collector.onRecoveriesUnblocked(blockedTimeMillis);
-        assertBlockedCurrentMetric(telemetryPlugin, 0L);
         collector.onRecoveriesBlocked(secondGateName);
-        assertBlockedCurrentMetric(telemetryPlugin, 1L);
         collector.onRecoveriesUnblocked(secondBlockedTimeMillis);
-        assertBlockedCurrentMetric(telemetryPlugin, 0L);
 
         final var blockedMeasurements = telemetryPlugin.getLongCounterMeasurement(RECOVERY_GATE_BLOCKED_TOTAL_METRIC);
         assertThat(blockedMeasurements, hasSize(2));
@@ -59,10 +62,52 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
 
         collector.close();
         assertFalse(telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE).contains(RECOVERY_GATE_BLOCKED_CURRENT_METRIC));
+        assertFalse(
+            telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE).contains(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC)
+        );
     }
 
-    private static void assertBlockedCurrentMetric(TestTelemetryPlugin telemetryPlugin, long expected) {
+    public void testCurrentRecoveryGateMetrics() {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final var blockedState = new AtomicReference<BlockedState>();
+        final var relativeTimeMillis = new AtomicLong(randomLongBetween(-60_000, 60_000));
+        try (
+            var ignored = new RecoveryMetricsCollector(
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
+                blockedState::get,
+                relativeTimeMillis::get
+            )
+        ) {
+            int blocks = between(2, 10);
+            for (int i = 0; i < blocks; i++) {
+                assertCurrentGateMetrics(telemetryPlugin, 0L, 0L);
+                // Gauges observe the authoritative state without needing scheduling callbacks.
+                blockedState.set(new BlockedState(randomIdentifier(), relativeTimeMillis.get()));
+                assertCurrentGateMetrics(telemetryPlugin, 1L, 0L);
+
+                final long elapsed = randomLongBetween(1, 60_000);
+                relativeTimeMillis.addAndGet(elapsed);
+                assertCurrentGateMetrics(telemetryPlugin, 1L, elapsed);
+                relativeTimeMillis.addAndGet(elapsed);
+                assertCurrentGateMetrics(telemetryPlugin, 1L, 2 * elapsed);
+
+                blockedState.set(null);
+                // Time spent unblocked must not contribute to the next block's duration.
+                relativeTimeMillis.addAndGet(randomLongBetween(1, 60_000));
+            }
+            assertCurrentGateMetrics(telemetryPlugin, 0L, 0L);
+        }
+    }
+
+    private static void assertCurrentGateMetrics(TestTelemetryPlugin telemetryPlugin, long expectedBlocked, long expectedDuration) {
         telemetryPlugin.collect();
-        assertThat(telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(), equalTo(expected));
+        assertThat(
+            telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(),
+            equalTo(expectedBlocked)
+        );
+        assertThat(
+            telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC).getLast().getLong(),
+            equalTo(expectedDuration)
+        );
     }
 }

@@ -42,6 +42,7 @@ public class AdaptiveAllocationsScaler {
     private int neededNumberOfAllocations;
     private Integer minNumberOfAllocations;
     private Integer maxNumberOfAllocations;
+    private Integer maxNumberOfAllocationsByMemory;
     private boolean dynamicsChanged;
 
     private Double lastMeasuredRequestRate;
@@ -66,6 +67,7 @@ public class AdaptiveAllocationsScaler {
         neededNumberOfAllocations = numberOfAllocations;
         minNumberOfAllocations = null;
         maxNumberOfAllocations = null;
+        maxNumberOfAllocationsByMemory = null;
         dynamicsChanged = false;
 
         lastMeasuredRequestRate = null;
@@ -76,6 +78,16 @@ public class AdaptiveAllocationsScaler {
     void setMinMaxNumberOfAllocations(Integer minNumberOfAllocations, Integer maxNumberOfAllocations) {
         this.minNumberOfAllocations = minNumberOfAllocations;
         this.maxNumberOfAllocations = maxNumberOfAllocations;
+    }
+
+    /**
+     * Sets an upper bound on the number of allocations derived from the memory actually available on the ML nodes and
+     * the observed per-allocation memory. This is a reactive, defense-in-depth cap: it prevents the scaler from
+     * demanding more allocations than can fit in memory even if the planner has not yet caught up. Pass {@code null}
+     * to disable the cap (e.g. before any runtime memory has been observed, so the first scale-up is unaffected).
+     */
+    void setMaxAllocationsByMemory(Integer maxNumberOfAllocationsByMemory) {
+        this.maxNumberOfAllocationsByMemory = maxNumberOfAllocationsByMemory;
     }
 
     void process(AdaptiveAllocationsScalerService.Stats stats, double timeIntervalSeconds, int numberOfAllocations) {
@@ -174,6 +186,15 @@ public class AdaptiveAllocationsScaler {
             numberOfAllocations = Math.min(numberOfAllocations, maxNumberOfAllocations);
         }
 
+        // Applied after user-configured bounds: a hard OOM safety guard that must not be overridden by
+        // min_number_of_allocations when memory is genuinely exhausted. Floored at 1 so this cap can never
+        // itself scale a deployment to zero (that is reserved for the no-requests path below).
+        // neededNumberOfAllocations retains the raw demand for telemetry, visible as the gap between needed
+        // and the applied count.
+        if (maxNumberOfAllocationsByMemory != null) {
+            numberOfAllocations = Math.min(numberOfAllocations, Math.max(1, maxNumberOfAllocationsByMemory));
+        }
+
         if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)
             && timeWithoutRequestsSeconds > scaleToZeroAfterNoRequestsSeconds.get()) {
 
@@ -246,5 +267,9 @@ public class AdaptiveAllocationsScaler {
 
     public Integer getMaxNumberOfAllocations() {
         return maxNumberOfAllocations;
+    }
+
+    public Integer getMaxNumberOfAllocationsByMemory() {
+        return maxNumberOfAllocationsByMemory;
     }
 }

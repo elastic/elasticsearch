@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.merge.MergeStats;
@@ -72,6 +73,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     protected final Logger logger;
     private final MergeTracking mergeTracking;
     private final MergeMetrics mergeMetrics;
+    private final IndexMode indexMode;
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
         16,
@@ -116,6 +118,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.mergeMetrics = mergeMetrics;
+        this.indexMode = indexSettings.getMode();
         this.mergeTracking = new MergeTracking(
             logger,
             () -> this.config.isAutoThrottle()
@@ -490,12 +493,19 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         } catch (Throwable t) {
             // OK to ignore MergeAbortedException. This is what Lucene's ConcurrentMergeScheduler does.
             if (t instanceof MergePolicy.MergeAbortedException == false) {
+                mergeMetrics.onFailure(indexMode, t);
                 // A merge thread that thrown a tragic exception that closed the IndexWriter causes other merge threads to be aborted, but
                 // it is not itself aborted: instead the current merge is just completed and the thrown exception is set in the package
                 // private OneMerge#error field. Here we set such merge as aborted too so that it is not considered as successful later.
                 oneMerge.setAborted();
                 handleMergeException(t);
+                // engine subclasses swallow the exception and return here, so do not count the abort set above as a second failure
+                return;
             }
+        }
+        if (oneMerge.isAborted()) {
+            // IndexWriter swallows its MergeAbortedException, so an aborted merge returns normally with isAborted() set.
+            mergeMetrics.onFailure(indexMode, new MergePolicy.MergeAbortedException("merge aborted"));
         }
     }
 
@@ -628,7 +638,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         long tookMS = TimeValue.nsecToMSec(System.nanoTime() - mergeStartTimeNS.get());
                         if (success) {
                             long newSegmentSize = getNewSegmentSize(onGoingMerge.getMerge());
-                            mergeMetrics.markMergeMetrics(onGoingMerge.getMerge(), newSegmentSize, tookMS);
+                            mergeMetrics.markMergeMetrics(onGoingMerge.getMerge(), newSegmentSize, tookMS, indexMode);
                         }
                         mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
                     }

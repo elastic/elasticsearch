@@ -222,7 +222,8 @@ public final class ViewRequestFilterRewriter {
                     if (unsupported.reason() == null) {
                         skipped.add(where);
                     } else {
-                        gated.add(where);
+                        // The clause's own reason, not a constant, so a second reason cannot be misreported.
+                        gated.add(where + " because " + unsupported.reason());
                     }
                 }
                 Expression condition = result.applied();
@@ -271,10 +272,7 @@ public final class ViewRequestFilterRewriter {
             message.append("; the following Query DSL constructs are not supported and were skipped: ").append(String.join("; ", skipped));
         }
         if (gated.isEmpty() == false) {
-            message.append("; the following were not applied because ")
-                .append(QueryDslTranslator.VERSION_REASON)
-                .append(": ")
-                .append(String.join("; ", gated));
+            message.append("; the following were not applied, ").append(String.join("; ", gated));
         }
         message.append(". Use a WHERE clause to filter rows from views instead");
         HeaderWarning.addWarning(message.toString());

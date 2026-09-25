@@ -722,14 +722,11 @@ public class QueryDslTranslatorTests extends ESTestCase {
                 QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery(field).gt("m")),
                 QueryBuilders.boolQuery().should(QueryBuilders.rangeQuery(field).lt(1)).minimumShouldMatch(1)
             )) {
-                Expression applied = translateResult(q, BELOW_MV_COMPARE).applied();
-                if (applied != null) {
-                    assertThat(
-                        "below the pin, [" + field + "] must not carry a gated function: " + q,
-                        applied.anyMatch(MvCompare.class::isInstance),
-                        equalTo(false)
-                    );
-                }
+                assertThat(
+                    "below the pin, [" + field + "] must not carry a gated function: " + q,
+                    translateResult(q, BELOW_MV_COMPARE).applied().anyMatch(MvCompare.class::isInstance),
+                    equalTo(false)
+                );
             }
         }
     }
@@ -745,10 +742,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * Only a version gate carries a reason. A degradation with a permanent or input-driven cause must not claim one,
-     * or the operator is sent looking for a capability the cluster already has. An earlier revision of this change
-     * stamped the version wording onto seven unrelated construct strings and the whole suite stayed green, because
-     * nothing asserted any of them. This is that assertion.
+     * Only a version gate carries a reason. A degradation with a permanent or input-driven cause must not claim one, or
+     * the operator is sent looking for a capability the cluster already has.
      */
     public void testOnlyVersionGatesCarryAReason() {
         for (var q : List.of(
@@ -769,6 +764,17 @@ public class QueryDslTranslatorTests extends ESTestCase {
      * so an unparseable date must still be reported as an unparseable date. Reporting it as a version failure sends
      * the operator to upgrade a cluster where the clause would drop just the same afterwards.
      */
+    /**
+     * Below the pin, a leaf untranslatable for its own reason keeps that reason. {@code gated} builds and discards the
+     * leaf so this holds; without that step an order comparison on an analyzed {@code text} field reports a node being
+     * too old instead.
+     */
+    public void testBelowThePinAConstructKeepsItsOwnReason() {
+        QueryDslTranslator.TranslationResult below = translateResult(QueryBuilders.rangeQuery("body").gt("m"), BELOW_MV_COMPARE);
+        assertThat(below.unsupported(), hasSize(1));
+        assertNull("an order comparison on analyzed text is not a version problem", below.unsupported().get(0).reason());
+    }
+
     public void testAMalformedBoundBelowThePinIsNotAVersionFailure() {
         for (String field : List.of("@timestamp", "ts_nanos")) {
             QueryDslTranslator.TranslationResult below = translateResult(

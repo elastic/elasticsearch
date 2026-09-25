@@ -67,7 +67,9 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
 
     /**
      * Available on any node that clears the rewrite's own gate ({@code esql_request_filter_on_dataset}), so emitting
-     * one needs no check. Adding a class here is a claim that it predates that gate.
+     * one needs no check. Adding a class here is a claim that it predates that gate, and nothing verifies it: a
+     * post-gate function declared here leaves the build green and ships the defect. Establishing the date needs git
+     * ancestry, which does not belong in a unit test, so the claim is the author's to get right.
      */
     private static final Set<String> PREDATES_REWRITE_GATE = Set.of(
         "And",
@@ -185,17 +187,26 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         Map<String, String> pinPerConstructedClass = new TreeMap<>();
         for (String call : gatedCalls(source)) {
             Matcher constant = PIN_ARGUMENT.matcher(call);
-            Matcher built = CONSTRUCTION.matcher(call);
             assertTrue("a gated() call names no pin: " + call, constant.find());
-            assertTrue("a gated() call builds nothing: " + call, built.find());
-            // Per CALL, not per class: keying a map by the constructed class lets a mispaired earlier site be
-            // overwritten by a correct later one, which is how two of the four sites went unchecked.
-            assertEquals(
-                "this gated() call builds " + built.group(1) + " but consults " + constant.group(1),
-                GATED.get(built.group(1)),
-                constant.group(1)
-            );
-            pinPerConstructedClass.put(built.group(1), constant.group(1));
+
+            // EVERY construction in the call, not just the first: one call can build two gated classes — a ternary
+            // choosing between them is the natural way to write it — and the second would otherwise sit under
+            // whatever pin the first named.
+            Matcher built = CONSTRUCTION.matcher(call);
+            boolean any = false;
+            while (built.find()) {
+                if (GATED.containsKey(built.group(1)) == false) {
+                    continue;
+                }
+                any = true;
+                assertEquals(
+                    "this gated() call builds " + built.group(1) + " but consults " + constant.group(1),
+                    GATED.get(built.group(1)),
+                    constant.group(1)
+                );
+                pinPerConstructedClass.put(built.group(1), constant.group(1));
+            }
+            assertTrue("a gated() call builds no gated function: " + call, any);
         }
 
         Map<String, String> expected = new TreeMap<>(GATED);
@@ -209,7 +220,8 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
     /**
      * Every construction of a gated function must sit inside a {@code gated(...)} call. Per SITE, not per class: a
      * second emit site added beside a correct one is the case that ships, and a class-level check cannot see it.
-     * Measured — an ungated type-specific branch added to {@code range} passes every other test in this suite.
+     * A behavioural test cannot stand in for this: an ungated type-specific branch produces a correct plan for every
+     * shape such a test builds.
      */
     public void testEveryGatedConstructionSitsInsideAGatedCall() throws IOException {
         String source = packageSource();
@@ -225,8 +237,9 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             assertTrue(
                 "a "
                     + m.group(1)
-                    + " is built outside gated(), so nothing checks its pin. Route every emit site through gated() "
-                    + "with that class's own constant.",
+                    + " is built outside any gated(...) call. Construct it inside the gated lambda rather than in a "
+                    + "helper the lambda calls — this check is lexical, so it cannot follow a call, and a helper is "
+                    + "indistinguishable here from a genuinely ungated site.",
                 inside
             );
         }
@@ -234,8 +247,8 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
 
     /**
      * Whether a {@code gated(...)} match is the method's own declaration. A parameter list names types; a call site
-     * passes values. Keying on that survives a change to the return type or an added annotation, which a lookbehind
-     * on {@code Expression } did not — and matching only {@code return gated(} missed an assigned call.
+     * passes values. Keying on that holds whatever the return type is written as, and matches an assigned call as
+     * well as a returned one.
      */
     private static boolean isDeclaration(String insideParens) {
         return insideParens.contains("TransportVersion ") || insideParens.contains("Supplier<");
@@ -266,22 +279,8 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
     /** The text of every {@code gated(...)} call in the source, each from the name to its matching close paren. */
     private static List<String> gatedCalls(String source) {
         List<String> calls = new ArrayList<>();
-        Matcher m = Pattern.compile("\\bgated\\s*\\(").matcher(source);
-        while (m.find()) {
-            int depth = 1;
-            int i = m.end();
-            while (depth > 0 && i < source.length()) {
-                char c = source.charAt(i++);
-                if (c == '(') {
-                    depth++;
-                } else if (c == ')') {
-                    depth--;
-                }
-            }
-            String body = source.substring(m.end(), i);
-            if (isDeclaration(body) == false) {
-                calls.add(body);
-            }
+        for (int[] span : gatedCallSpans(source)) {
+            calls.add(source.substring(span[0], span[1]));
         }
         return calls;
     }
@@ -353,7 +352,18 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
             }
             """;
 
-        for (String source : List.of(withTextBlock, withCharLiteral, withApostropheInString)) {
+        // An ESCAPED TRIPLE QUOTE inside a block is what makes escape handling load-bearing: without it the scanner
+        // sees the escaped "\u0022\u0022\u0022" as the block's terminator, ends early, and desynchronises from there.
+        // Concatenated rather than written as a text block, because the sequence cannot be spelled inside one without
+        // the escaping under test.
+        String withEscapedTripleQuote = "class T {\n"
+            + "    static final String D = \"\"\"\n"
+            + "        shows \\\"\"\" verbatim\n"
+            + "        \"\"\";\n"
+            + "    Expression f() { return checkedLeaf(field, new MvSomethingNew(source, field)); }\n"
+            + "}\n";
+
+        for (String source : List.of(withTextBlock, withCharLiteral, withApostropheInString, withEscapedTripleQuote)) {
             assertThat(
                 "a literal must not hide the construction after it: " + source,
                 codeOnly(source),

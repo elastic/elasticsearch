@@ -127,9 +127,10 @@ public final class RequestFilterRewriter {
         Set<String> gated = new LinkedHashSet<>();
         for (FilterRewriter.NodeFailure nf : failures) {
             String where = "[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]";
-            // A clause skipped for a version reason is not an unsupported construct; it gets its own sentence.
+            // A clause skipped for a version reason is not an unsupported construct; it gets its own sentence, and
+            // carries the clause's own reason rather than a constant, which would misreport a second reason.
             if (nf.clause().reason() != null) {
-                gated.add(where);
+                gated.add(where + " because " + nf.clause().reason());
             } else {
                 skipped.add(where);
             }
@@ -140,12 +141,9 @@ public final class RequestFilterRewriter {
             message.append("; unsupported: ").append(String.join(", ", skipped));
         }
         if (gated.isEmpty() == false) {
-            // Name the cause in the header: two "skipped" lists side by side leave the operator unable to tell a
-            // transient version constraint from a permanent limitation.
-            message.append("; not applied because ")
-                .append(QueryDslTranslator.VERSION_REASON)
-                .append(": ")
-                .append(String.join(", ", gated));
+            // Distinguished from the unsupported list above, so the operator can tell a transient version constraint
+            // from a permanent limitation.
+            message.append("; not applied, ").append(String.join(", ", gated));
         }
         HeaderWarning.addWarning(message.append("; use WHERE instead").toString());
     }

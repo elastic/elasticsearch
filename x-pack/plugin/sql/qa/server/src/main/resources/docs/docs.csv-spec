@@ -99,9 +99,9 @@ SHOW TABLES;
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
-javaRestTest      |library        |TABLE     |INDEX
+test-cluster   |emp            |TABLE     |INDEX
+test-cluster   |employees      |VIEW      |ALIAS
+test-cluster   |library        |TABLE     |INDEX
 
 // end::showTables
 ;
@@ -112,7 +112,7 @@ SHOW TABLES LIKE 'emp';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
+test-cluster   |emp            |TABLE     |INDEX
 
 // end::showTablesLikeExact
 ;
@@ -123,8 +123,8 @@ SHOW TABLES LIKE 'emp%';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
+test-cluster   |emp            |TABLE     |INDEX
+test-cluster   |employees      |VIEW      |ALIAS
 
 // end::showTablesLikeWildcard
 ;
@@ -136,7 +136,7 @@ SHOW TABLES LIKE 'em_';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
+test-cluster   |emp            |TABLE     |INDEX
 
 // end::showTablesLikeOneChar
 ;
@@ -147,7 +147,7 @@ SHOW TABLES LIKE '%em_';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
+test-cluster   |emp            |TABLE     |INDEX
 
 // end::showTablesLikeMixed
 ;
@@ -170,8 +170,8 @@ SHOW TABLES "*,-l*";
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
+test-cluster   |emp            |TABLE     |INDEX
+test-cluster   |employees      |VIEW      |ALIAS
 
 // end::showTablesEsMultiIndex
 ;

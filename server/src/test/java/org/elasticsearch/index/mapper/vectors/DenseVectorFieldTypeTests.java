@@ -15,7 +15,6 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -265,8 +264,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             () -> null,
             Set::of,
             () -> false,
-            MappedFieldType.FielddataOperation.SCRIPT,
-            Predicates.always()
+            MappedFieldType.FielddataOperation.SCRIPT
         );
         assertNotNull(fft.fielddataBuilder(fdc));
 
@@ -277,8 +275,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             () -> null,
             Set::of,
             () -> false,
-            MappedFieldType.FielddataOperation.SCRIPT,
-            Predicates.always()
+            MappedFieldType.FielddataOperation.SCRIPT
         );
         assertNotNull(bft.fielddataBuilder(bdc));
     }

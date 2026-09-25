@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.mockito.Mockito;
@@ -360,17 +359,6 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
     }
 
-    public void testPotentiallyUnmappedFieldUsesLocalMapping() throws IOException {
-        var result = mappedKeywordLoader(true);
-        assertThat(result.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));
-    }
-
-    public void testFieldHiddenByFlsIsTreatedAsUnmapped() throws IOException {
-        var result = mappedKeywordLoader(false);
-
-        assertThat(result.loader(), instanceOf(UnmappedKeywordBlockLoader.class));
-    }
-
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
@@ -390,45 +378,6 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
         var fieldInfo = provider.extractFields(fieldExtractExec).getFirst();
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
-        return fieldInfo.buildLoader().build(driverContext, 0);
-    }
-
-    private ValuesSourceReaderOperator.LoaderAndConverter mappedKeywordLoader(boolean fieldVisible) throws IOException {
-        SearchExecutionContext context = createSearchExecutionContext(
-            createMapperService(mapping(b -> b.startObject("hidden").field("type", "keyword").endObject())),
-            null
-        );
-        context.setFieldVisibilityPredicate(field -> field.equals("hidden") == false || fieldVisible);
-
-        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), context, AliasFilter.EMPTY);
-        var provider = new EsPhysicalOperationProviders(
-            FoldContext.small(),
-            new IndexedByShardIdFromSingleton<>(shardContext),
-            null,
-            PlannerSettings.DEFAULTS,
-            () -> 0L,
-            QueryWarnings.EMIT
-        );
-
-        var query = new EsQueryExec(
-            Source.EMPTY,
-            "test",
-            IndexMode.STANDARD,
-            List.of(),
-            null,
-            null,
-            10,
-            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-        );
-        var extract = new FieldExtractExec(
-            Source.EMPTY,
-            query,
-            List.of(new FieldAttribute(Source.EMPTY, "hidden", new PotentiallyUnmappedKeywordEsField("hidden"))),
-            MappedFieldType.FieldExtractPreference.NONE
-        );
-
-        var fieldInfo = provider.extractFields(extract).getFirst();
-        var driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
         return fieldInfo.buildLoader().build(driverContext, 0);
     }
 

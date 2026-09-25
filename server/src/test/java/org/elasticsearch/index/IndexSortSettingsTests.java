@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -544,15 +543,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             lookup::get,
             (ft, s) -> indexFieldDataService.getForField(
                 ft,
-                new FieldDataContext(
-                    "test",
-                    indexSettings,
-                    s,
-                    Set::of,
-                    () -> false,
-                    MappedFieldType.FielddataOperation.SEARCH,
-                    Predicates.always()
-                )
+                new FieldDataContext("test", indexSettings, s, Set::of, () -> false, MappedFieldType.FielddataOperation.SEARCH)
             )
         );
     }

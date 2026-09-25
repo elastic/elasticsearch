@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
@@ -186,6 +187,39 @@ public class QueryRewriteContextTests extends ESTestCase {
         assertTrue(context.isFieldVisible("request_runtime"));
     }
 
+    public void testGetFieldTypeAppliesVisibilityToConstantFields() {
+        var visibleTarget = new TestConstantFieldType("visible_target");
+        var hiddenTarget = new TestConstantFieldType("hidden_target");
+
+        var visibleAliasToHiddenTarget = new FieldAliasMapper(
+            "visible_alias_hidden_target",
+            "visible_alias_hidden_target",
+            "hidden_target"
+        );
+
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.root(false, false));
+
+        Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], Map.of());
+
+        MappingLookup mappingLookup = MappingLookup.fromMappers(
+            mapping,
+            List.of(new MockFieldMapper(visibleTarget), new MockFieldMapper(hiddenTarget)),
+            List.of(),
+            List.of(visibleAliasToHiddenTarget),
+            List.of(),
+            IndexMode.STANDARD
+        );
+
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test-index", Settings.EMPTY), Settings.EMPTY);
+
+        QueryRewriteContext context = newQueryRewriteContext(indexSettings, mappingLookup, Map.of());
+        context.setFieldVisibilityPredicate("visible_target"::equals);
+
+        assertTrue(((TestConstantFieldType) context.getFieldType("visible_target")).visible);
+        assertFalse(((TestConstantFieldType) context.getFieldType("hidden_target")).visible);
+        assertFalse(((TestConstantFieldType) context.getFieldType("visible_alias_hidden_target")).visible);
+    }
+
     private QueryRewriteContext newQueryRewriteContext(
         IndexSettings indexSettings,
         MappingLookup mappingLookup,
@@ -216,73 +250,42 @@ public class QueryRewriteContextTests extends ESTestCase {
         );
     }
 
-    public void testGetVisibleFieldType() {
-        TestRuntimeField mappedRuntimeField = new TestRuntimeField("mapped_runtime", "keyword");
+    private static class TestConstantFieldType extends ConstantFieldType {
+        private final boolean visible;
 
-        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("_doc");
-        rootBuilder.addRuntimeFields(Map.of(mappedRuntimeField.name(), mappedRuntimeField));
+        private TestConstantFieldType(String name) {
+            this(name, true);
+        }
 
-        Mapping mapping = new Mapping(rootBuilder.build(MapperBuilderContext.root(false, false)), new MetadataFieldMapper[0], Map.of());
+        private TestConstantFieldType(String name, boolean visible) {
+            super(name, Map.of());
+            this.visible = visible;
+        }
 
-        MockFieldMapper visible = new MockFieldMapper("visible");
-        MockFieldMapper hidden = new MockFieldMapper("hidden");
-        MockFieldMapper visibleTarget = new MockFieldMapper("visible_target");
-        MockFieldMapper hiddenTarget = new MockFieldMapper("hidden_target");
+        @Override
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
+            return false;
+        }
 
-        FieldAliasMapper visibleAliasToHiddenTarget = new FieldAliasMapper(
-            "visible_alias_hidden_target",
-            "visible_alias_hidden_target",
-            "hidden_target"
-        );
-        FieldAliasMapper hiddenAliasToVisibleTarget = new FieldAliasMapper(
-            "hidden_alias_visible_target",
-            "hidden_alias_visible_target",
-            "visible_target"
-        );
-        FieldAliasMapper visibleAliasToVisibleTarget = new FieldAliasMapper(
-            "visible_alias_visible_target",
-            "visible_alias_visible_target",
-            "visible_target"
-        );
+        @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return visible ? "value" : null;
+        }
 
-        MappingLookup mappingLookup = MappingLookup.fromMappers(
-            mapping,
-            List.of(visible, hidden, visibleTarget, hiddenTarget),
-            List.of(),
-            List.of(visibleAliasToHiddenTarget, hiddenAliasToVisibleTarget, visibleAliasToVisibleTarget),
-            List.of(),
-            IndexMode.STANDARD
-        );
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return ValueFetcher.EMPTY;
+        }
 
-        MappedFieldType requestRuntimeField = new TestRuntimeField.TestRuntimeFieldType("request_runtime", "keyword");
+        @Override
+        public String typeName() {
+            return "test_constant";
+        }
 
-        var settings = new IndexSettings(newIndexMeta("test-index", Settings.EMPTY), Settings.EMPTY);
-        QueryRewriteContext context = newQueryRewriteContext(settings, mappingLookup, Map.of("request_runtime", requestRuntimeField));
-
-        Set<String> visibleFields = Set.of("visible", "visible_target", "visible_alias_hidden_target", "visible_alias_visible_target");
-        context.setFieldVisibilityPredicate(visibleFields::contains);
-
-        assertSame(visible.fieldType(), context.getVisibleFieldType("visible"));
-
-        // The mapping exists, but it is hidden.
-        assertSame(hidden.fieldType(), context.getFieldType("hidden"));
-        assertNull(context.getVisibleFieldType("hidden"));
-        assertNull(context.getVisibleFieldType("missing"));
-
-        // The requested alias is visible, but its resolved target is hidden.
-        assertSame(hiddenTarget.fieldType(), context.getFieldType("visible_alias_hidden_target"));
-        assertNull(context.getVisibleFieldType("visible_alias_hidden_target"));
-
-        // The target is visible, but the requested alias is hidden.
-        assertSame(visibleTarget.fieldType(), context.getFieldType("hidden_alias_visible_target"));
-        assertNull(context.getVisibleFieldType("hidden_alias_visible_target"));
-
-        // Both requested and resolved names are visible.
-        assertSame(visibleTarget.fieldType(), context.getVisibleFieldType("visible_alias_visible_target"));
-
-        // Runtime fields are exempt from the mapping-field predicate.
-        assertSame(mappingLookup.getFieldType("mapped_runtime"), context.getVisibleFieldType("mapped_runtime"));
-        assertSame(requestRuntimeField, context.getVisibleFieldType("request_runtime"));
+        @Override
+        public ConstantFieldType applyFieldVisibility(boolean visible) {
+            return new TestConstantFieldType(name(), visible);
+        }
     }
 
     /**

@@ -188,9 +188,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            var fieldDataValue = fieldDataContext.isFieldVisible(name()) ? value : null;
             return new ConstantIndexFieldData.Builder(
-                fieldDataValue,
+                value,
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new ConstantKeywordDocValuesField(FieldData.toString(dv), n)
@@ -203,7 +202,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return value == null || context.isFieldVisible(name()) == false ? ValueFetcher.EMPTY : ValueFetcher.singleton(value);
+            return value == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(value);
         }
 
         @Override
@@ -237,7 +236,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
-            if (value == null || context.isFieldVisible(name()) == false) {
+            if (value == null) {
                 return false;
             }
             return Regex.simpleMatch(pattern, value, caseInsensitive);
@@ -250,7 +249,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             // to an automaton and run it in-memory against the single constant value, mirroring the
             // ConstantFieldType#automatonQuery pattern. AutomatonQueries.toWildcardAutomaton tracks
             // determinization heap with the SearchExecutionContext circuit breaker when one is available.
-            if (value == null || context.isFieldVisible(name()) == false) {
+            if (value == null) {
                 return Queries.NO_DOCS_INSTANCE;
             }
             String matchTarget = caseInsensitive ? value.toLowerCase(Locale.ROOT) : value;
@@ -275,7 +274,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return value != null && context.isFieldVisible(name()) ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
+            return value != null ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
@@ -289,7 +288,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             DateMathParser parser,
             SearchExecutionContext context
         ) {
-            if (this.value == null || context.isFieldVisible(name()) == false) {
+            if (this.value == null) {
                 return Queries.NO_DOCS_INSTANCE;
             }
 
@@ -313,7 +312,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            if (this.value == null || context.isFieldVisible(name()) == false) {
+            if (this.value == null) {
                 return Queries.NO_DOCS_INSTANCE;
             }
 
@@ -349,7 +348,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            if (this.value == null || context.isFieldVisible(name()) == false) {
+            if (this.value == null) {
                 return Queries.NO_DOCS_INSTANCE;
             }
 
@@ -365,6 +364,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
         }
 
+        @Override
+        public ConstantFieldType applyFieldVisibility(boolean visible) {
+            if (visible || value == null) {
+                return this;
+            } else {
+                return new ConstantKeywordFieldType(name(), null, meta());
+            }
+        }
     }
 
     ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {

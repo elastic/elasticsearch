@@ -18,7 +18,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -192,8 +191,7 @@ public final class DocumentParser {
                     lookup,
                     context.mappingLookup()::sourcePaths,
                     () -> false,
-                    fto,
-                    Predicates.always()
+                    fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().originalBytes()),

@@ -912,7 +912,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
-            return ctx.getVisibleFieldType(name);
+            return ctx.getFieldType(name);
         }
 
         @Override

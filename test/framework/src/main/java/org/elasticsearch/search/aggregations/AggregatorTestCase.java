@@ -71,7 +71,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
@@ -404,8 +403,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     context.lookupSupplier(),
                     context.sourcePathsLookup(),
                     () -> false,
-                    context.fielddataOperation(),
-                    Predicates.always()
+                    context.fielddataOperation()
                 )
             ).build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);

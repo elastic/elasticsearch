@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -345,15 +344,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             SearchLookup searchLookup = new SearchLookup(
                 mapperService::fieldType,
                 (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                    new FieldDataContext(
-                        "test",
-                        null,
-                        lookupSupplier,
-                        mapperService.mappingLookup()::sourcePaths,
-                        () -> false,
-                        fdo,
-                        Predicates.always()
-                    )
+                    new FieldDataContext("test", null, lookupSupplier, mapperService.mappingLookup()::sourcePaths, () -> false, fdo)
                 ).build(null, null),
                 SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics(), null)
             );

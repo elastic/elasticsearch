@@ -27,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -393,20 +394,6 @@ public class QueryRewriteContext {
         return failIfFieldMappingNotFound(name, fieldType(name));
     }
 
-    @Nullable
-    public MappedFieldType getVisibleFieldType(String name) {
-        if (isFieldVisible(name) == false) {
-            return null;
-        }
-
-        var fieldType = getFieldType(name);
-        if (fieldType == null || isFieldVisible(fieldType.name()) == false) {
-            return null;
-        }
-
-        return fieldType;
-    }
-
     protected MappedFieldType fieldType(String name) {
         // If the field is not allowed, behave as if it is not mapped
         if (allowedFields != null && false == allowedFields.test(name)) {
@@ -414,7 +401,14 @@ public class QueryRewriteContext {
         }
         final String fieldName = resolveSliceAlias(name);
         MappedFieldType fieldType = runtimeMappings.get(fieldName);
-        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+        if (fieldType == null) {
+            fieldType = mappingLookup.getFieldType(fieldName);
+        }
+
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
+            return constantFieldType.applyFieldVisibility(isFieldVisible(fieldType.name()));
+        }
+        return fieldType;
     }
 
     private String resolveSliceAlias(String fieldName) {

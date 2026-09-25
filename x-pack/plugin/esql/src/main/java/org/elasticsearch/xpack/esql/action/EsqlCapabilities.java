@@ -4126,6 +4126,17 @@ public class EsqlCapabilities {
          */
         STREAMING(Build.current().isSnapshot()),
 
+        /**
+         * The external-dataset warning and error texts were rewritten; csv-spec tests that assert them require this so an
+         * older coordinator's texts are not asserted.
+         */
+        EXTERNAL_DATASET_MESSAGES,
+
+        /**
+         * Adds a pre-filter below a limited aggregation grouped by a long and other fields.
+         */
+        TOPN_PREFILTER_LONG,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

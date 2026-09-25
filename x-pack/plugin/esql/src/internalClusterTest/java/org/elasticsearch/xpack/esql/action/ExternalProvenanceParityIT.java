@@ -285,7 +285,7 @@ public class ExternalProvenanceParityIT extends AbstractExternalDataSourceIT {
         declaredColumns.put("id", new DatasetFieldMapping("integer", "col0"));
         declaredColumns.put("name", new DatasetFieldMapping("keyword", "col1"));
         declaredColumns.put("city", new DatasetFieldMapping("keyword", "col2"));
-        String widthMessage = "CSV row has [4] columns but schema defines [3] columns";
+        String widthMessage = "[4] columns, the schema has [3]";
         for (String errorMode : List.of("fail_fast", "skip_row")) {
             Map<String, Object> settings = Map.of("format", "csv", "header_row", false, "error_mode", errorMode);
             String inferred = registerLocalFileDataset("headerless_ragged_inferred_" + errorMode, uri, settings);
@@ -293,7 +293,7 @@ public class ExternalProvenanceParityIT extends AbstractExternalDataSourceIT {
 
             Answer inferredAnswer = runCapturingWarnings("FROM " + inferred + " | SORT col0 | KEEP col0");
             assertThat(inferred, inferredAnswer.values(), equalTo(List.of(List.of(1), List.of(2))));
-            assertThat(inferred + " got " + inferredAnswer.warnings(), containing(inferredAnswer.warnings(), "CSV row has ["), empty());
+            assertThat(inferred + " got " + inferredAnswer.warnings(), containing(inferredAnswer.warnings(), "] columns, the "), empty());
 
             String query = "FROM " + declared + " | SORT id | KEEP id";
             if (errorMode.equals("fail_fast")) {

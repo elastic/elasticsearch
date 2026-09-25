@@ -201,7 +201,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         assertEquals("exactly the ragged row is dropped", rows - 1L, seenRows);
         assertTrue(
             "expected a header-width warning naming the file's 3 columns, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("CSV row has [4] columns but the file's header defines [3] columns"))
+            warnings.stream().anyMatch(w -> w.contains("[4] columns, the header has [3]"))
         );
     }
 

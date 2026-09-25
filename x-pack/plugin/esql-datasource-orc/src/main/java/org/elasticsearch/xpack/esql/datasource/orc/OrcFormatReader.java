@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
@@ -596,7 +597,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+            ExternalFailures.redactHttpUrl(object.path().toString()),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -747,7 +749,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+            ExternalFailures.redactHttpUrl(object.path().toString()),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -1555,30 +1558,25 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 if (compatible == false) {
                     if (skipWarnings == null) {
                         skipWarnings = new SkipWarnings(
-                            "ORC file ["
-                                + fileLocation
-                                + "] has columns whose on-disk type is incompatible with planner type; "
-                                + "they are returned as null",
+                            "Some columns in [" + fileLocation + "] have a type the query cannot read; returning null",
                             warningSink
                         );
                     }
                     skipWarnings.add(
-                        "Column ["
+                        "column ["
                             + attr.name()
-                            + "] in file ["
-                            + fileLocation
-                            + "] has type ["
-                            + actualInFile
-                            + "] incompatible with planner type ["
-                            + planner
-                            + "]; returning nulls for this column"
+                            + "]: ["
+                            + actualInFile.typeName()
+                            + "] in the file, ["
+                            + planner.typeName()
+                            + "] in the query"
                     );
                     LOGGER.warn(
-                        "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}]; " + "returning nulls for this column",
+                        "Column [{}] in [{}] is [{}] in the file, [{}] in the query; returning null",
                         attr.name(),
                         fileLocation,
-                        actualInFile,
-                        planner
+                        actualInFile.typeName(),
+                        planner.typeName()
                     );
                     fieldNameToPath.remove(attr.name());
                     leafTypes[col] = null;
@@ -1690,7 +1688,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (rowDropHelper != null) {
                 rowDropHelper.addToTotals(batch.size, rowDropHelper.failedCount());
                 try {
-                    rowDropHelper.checkBudget(coercionWarnings());
+                    rowDropHelper.checkBudget();
                 } catch (Exception e) {
                     page.releaseBlocks();
                     throw e;
@@ -1877,11 +1875,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return null;
             }
             if (coercionWarnings == null) {
-                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                    ? "their entire row is dropped"
-                    : "they are returned as null";
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW ? "skipping their rows" : "returning null";
                 coercionWarnings = new SkipWarnings(
-                    "ORC file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                    "Some values in [" + fileLocation + "] cannot be read as their declared type; " + outcome,
                     warningSink
                 );
             }
@@ -2272,8 +2268,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings(),
-                                    skipRow
+                                    coercionWarnings()
                                 );
                                 failed = true;
                             }
@@ -2535,8 +2530,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings(),
-                                    skipRow
+                                    coercionWarnings()
                                 );
                                 if (skipRow) failedPositionSink.accept(i);
                                 builder.appendNull();

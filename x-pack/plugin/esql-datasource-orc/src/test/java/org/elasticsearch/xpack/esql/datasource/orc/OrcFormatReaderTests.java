@@ -1943,7 +1943,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertFalse("inferred incompatibility must emit a structured warning", warnings.isEmpty());
         assertTrue(
             "warning must name the incompatibility, got: " + warnings,
-            warnings.toString().contains("incompatible with planner type")
+            warnings.toString().contains("column [n]: [long] in the file, [integer] in the query")
         );
         assertTrue("the supplied sink must replace ambient response headers", drainWarnings().isEmpty());
     }
@@ -2125,7 +2125,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertTrue("the supplied sink must replace ambient response headers", drainWarnings().isEmpty());
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
-        assertTrue("Summary should mention coercion, got: " + warnings.get(0), warnings.get(0).contains("coerced"));
+        assertTrue("Summary should mention coercion, got: " + warnings.get(0), warnings.get(0).contains("cannot be read as"));
         assertTrue("Detail should name the column, got: " + warnings.get(1), warnings.get(1).contains("[n]"));
         assertTrue("Detail should name the declared type, got: " + warnings.get(1), warnings.get(1).contains("[long]"));
     }
@@ -2189,8 +2189,8 @@ public class OrcFormatReaderTests extends ESTestCase {
         // to agree with each other AND with what the page actually shows, or the user reads "returning null" next
         // to a row that is gone. Pinned in both readers (ParquetFormatReaderTests.testSkipRowDropsBadRow).
         List<String> warnings = drainWarnings();
-        assertThat(warnings, hasItem(containsString("their entire row is dropped")));
-        assertThat(warnings, hasItem(allOf(containsString("[n]"), containsString("; row will be dropped"))));
+        assertThat(warnings, hasItem(containsString("skipping their rows")));
+        assertThat(warnings, hasItem(allOf(containsString("column [n]"), containsString("cannot read ["))));
         assertThat("no null-fill wording under skip_row", warnings, everyItem(not(containsString("returning null"))));
     }
 
@@ -2291,10 +2291,13 @@ public class OrcFormatReaderTests extends ESTestCase {
             });
             // The thrown message is the one the client actually sees, so it must name the counts and the file.
             assertThat(e.getMessage(), containsString("dropped rows"));
-            assertThat(e.getMessage(), containsString("maximum allowed is [1] errors"));
+            assertThat(e.getMessage(), containsString("over [max_errors] of [1]"));
         }
-        // checkBudget also records the trip into the same collector, ahead of the throw.
-        assertThat(drainWarnings(), hasItem(containsString("Columnar error budget exceeded")));
+        // The trip is not also added as a warning: driver warnings reach the client only when the query succeeds.
+        // The per-cell details prove the list non-empty, so the negative assertion cannot pass vacuously.
+        List<String> warnings = drainWarnings();
+        assertThat(warnings, hasItem(allOf(containsString("column [n]"), containsString("cannot read ["))));
+        assertThat(warnings, everyItem(not(containsString("max_errors"))));
     }
 
     /**
@@ -2405,7 +2408,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 it.next().releaseBlocks();
             }
         }
-        long coercionDetails = sink.stream().filter(w -> w.contains("cannot coerce value")).count();
+        long coercionDetails = sink.stream().filter(w -> w.contains("cannot read [")).count();
         assertThat("per-value coercion warnings must reach the supplied sink", coercionDetails, greaterThan(0L));
         assertThat(
             "each reader instance caps its per-value coercion details at MAX_ADDED_WARNINGS",
@@ -2415,7 +2418,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         List<String> leaked = drainWarnings();
         assertTrue(
             "no coercion warning may leak to this thread's HeaderWarning context when a sink is supplied, got: " + leaked,
-            leaked.stream().noneMatch(w -> w.contains("cannot coerce value"))
+            leaked.stream().noneMatch(w -> w.contains("cannot read ["))
         );
     }
 

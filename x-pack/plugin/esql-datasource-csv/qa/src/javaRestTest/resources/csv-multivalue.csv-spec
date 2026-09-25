@@ -28,14 +28,15 @@ id:integer | tags:keyword         | cnt:integer
 
 csvNoneOnMultiValueDataFailsColumnMismatch
 required_capability: dataset_in_from_command
+required_capability: external_dataset_messages
 dataset: mv_sample_none: "{{mv_sample}}" WITH {"multi_value_syntax": "none", "error_mode": "skip_row"}
 
 FROM mv_sample_none
 | KEEP id, tags
 | SORT id
 ;
-warningRegex:CSV read from \[.+\] encountered parse errors handled per policy.*
-warningRegex:Row \[\d+\] error: CSV row has \[5\] columns but (schema|the file's header) defines \[3\] columns.*
+warningRegex:Some rows in \[.+\] cannot be read; skipping them
+warningRegex:row \[\d+\]: \[5\] columns, the (schema|header) has \[3\]
 
 id:integer | tags:keyword
 2          | solo

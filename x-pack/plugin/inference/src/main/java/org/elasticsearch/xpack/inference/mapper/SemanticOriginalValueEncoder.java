@@ -189,10 +189,7 @@ final class SemanticOriginalValueEncoder {
         final Map<String, Object> object = new LinkedHashMap<>();
         object.put(InferenceString.TYPE_FIELD, dataType.toString());
         object.put(InferenceString.FORMAT_FIELD, dataFormat.toString());
-        object.put(
-            InferenceString.VALUE_FIELD,
-            new String(encoded.bytes, encoded.offset + 3, encoded.length - 3, StandardCharsets.UTF_8)
-        );
+        object.put(InferenceString.VALUE_FIELD, new String(encoded.bytes, encoded.offset + 3, encoded.length - 3, StandardCharsets.UTF_8));
         return object;
     }
 

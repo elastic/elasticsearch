@@ -32,6 +32,7 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitRamUsageEstimator;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -97,9 +99,11 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSearchPhaseTests extends ESTestCase {
@@ -897,6 +901,118 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
+    public void testFetchPhaseAccountsDocumentFieldsBatched() throws IOException {
+        // Odd, so the hits are not a whole number of buffer flushes and a residual is left for the final flush
+        final int numDocs = 21;
+        final String fieldName = "retained";
+        final String value = randomAlphaOfLength(300_000);
+
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        for (int i = 0; i < numDocs; i++) {
+            Document document = new Document();
+            document.add(new StringField("id", Integer.toString(i), Field.Store.YES));
+            w.addDocument(document);
+        }
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        AtomicInteger breakerCalledCount = new AtomicInteger(0);
+        AtomicLong charged = new AtomicLong(0);
+        NoopCircuitBreaker countingBreaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                breakerCalledCount.incrementAndGet();
+                charged.addAndGet(bytes);
+            }
+        };
+
+        SearchHit probe = SearchHit.unpooled(0, "0");
+        probe.setDocumentField(new DocumentField(fieldName, List.of(value)));
+        long perHitBytes = SearchHitRamUsageEstimator.estimateDocumentFields(probe);
+
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true, countingBreaker)) {
+            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext readerContext) {}
+
+                @Override
+                public void process(FetchSubPhase.HitContext hitContext) {
+                    hitContext.hit().setDocumentField(new DocumentField(fieldName, List.of(value)));
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                }
+            }));
+            fetchPhase.execute(searchContext, IntStream.range(0, numDocs).toArray(), null);
+
+            // Mirrors the production accumulator, to prove the fixture really leaves something for the flush
+            long residual = 0;
+            for (int i = 0; i < numDocs; i++) {
+                residual += perHitBytes;
+                if (residual >= searchContext.memAccountingBufferSize()) {
+                    residual = 0;
+                }
+            }
+            assertThat("fixture must leave a residual, else the flush is not exercised", residual, greaterThan(0L));
+
+            // The hits retain no source, so fetch[fields] is the only contributor. Exact equality holds only
+            // because the trailing residual is flushed.
+            assertEquals("every retained byte must be charged", perHitBytes * numDocs, charged.get());
+            assertThat("charges must be batched, not one per hit", breakerCalledCount.get(), lessThan(numDocs));
+        } finally {
+            r.close();
+            dir.close();
+        }
+    }
+
+    public void testFetchPhaseReleasesHitsWhenResidualFlushTrips() throws IOException {
+        final int numDocs = 3;
+        final String fieldName = "retained";
+        final String value = randomAlphaOfLength(100_000);
+
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        for (int i = 0; i < numDocs; i++) {
+            Document document = new Document();
+            document.add(new StringField("id", Integer.toString(i), Field.Store.YES));
+            w.addDocument(document);
+        }
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        // Under the 1MB buffer, so these bytes only reach the breaker via the end-of-iteration flush.
+        LowLimitCircuitBreaker breaker = new LowLimitCircuitBreaker(1_000L);
+
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true, breaker)) {
+            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext readerContext) {}
+
+                @Override
+                public void process(FetchSubPhase.HitContext hitContext) {
+                    hitContext.hit().setDocumentField(new DocumentField(fieldName, List.of(value)));
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                }
+            }));
+            expectThrows(Exception.class, () -> fetchPhase.execute(searchContext, IntStream.range(0, numDocs).toArray(), null));
+        } finally {
+            r.close();
+            dir.close();
+        }
+        // The hits were built before the flush tripped; IterateResult#close does not release them, so a
+        // missing releaseHits would surface here as the framework's leaked-resource assertion.
+        assertThat("bytes rejected by the flush must not stay charged", breaker.getUsed(), is(0L));
+    }
+
     public void testStreamingFetchAccountsAndReleasesSourceBytes() throws IOException {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
@@ -982,7 +1098,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public void process(FetchSubPhase.HitContext hitContext) {
-                    fetchContext.chargeScriptFieldsBytes(innerHitsLikeBytes);
+                    fetchContext.chargeDocumentFieldsBytes(innerHitsLikeBytes);
                     Source source = hitContext.source();
                     hitContext.hit().sourceRef(source.internalSourceRef());
                 }

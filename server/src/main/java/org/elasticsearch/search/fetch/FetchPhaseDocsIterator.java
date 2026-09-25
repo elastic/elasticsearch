@@ -62,6 +62,14 @@ abstract class FetchPhaseDocsIterator {
         return requestBreakerBytes;
     }
 
+    /**
+     * Charges the document-field bytes held back by batching, and may throw
+     * {@link org.elasticsearch.common.breaker.CircuitBreakingException}. Only the non-streaming path calls this,
+     * and only on success; streaming charges as it goes and accumulates nothing. Leftover {@code _source} bytes
+     * below the buffer size stay uncharged, as they always have.
+     */
+    protected void flushPendingBreakerBytes() {}
+
     protected DirectoryMetrics getFetchMetricsDelta() {
         return fetchMetricsDelta.get();
     }

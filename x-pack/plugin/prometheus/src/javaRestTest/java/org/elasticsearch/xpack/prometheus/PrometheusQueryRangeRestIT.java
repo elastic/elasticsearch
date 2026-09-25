@@ -545,4 +545,11 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("topk(2.9, tx)", 30, 12);
         assertBinopRangeValues("topk(0.5, tx)");
     }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantClampWithMinAboveMaxIsEmpty}. */
+    public void testRangeClampWithMinAboveMaxIsEmpty() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("clamp(tx, 60, 40)");
+        assertBinopRangeValues("clamp(tx, 20, 25)", 20, 25, 20);
+    }
 }

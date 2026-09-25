@@ -648,4 +648,11 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("topk(2.9, tx)", 30, 12);
         assertBinopInstantValues("topk(0.5, tx)");
     }
+
+    /** Prometheus: {@code clamp} with {@code min > max} is the empty vector. */
+    public void testInstantClampWithMinAboveMaxIsEmpty() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("clamp(tx, 60, 40)");
+        assertBinopInstantValues("clamp(tx, 20, 25)", 20, 25, 20);
+    }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -233,6 +235,24 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("clamp(vector(15), 0, 10)", equalTo(10.0));
         assertConstantResult("clamp(vector(0), 0, 10)", equalTo(0.0));
         assertConstantResult("clamp(vector(10), 0, 10)", equalTo(10.0));
+    }
+
+    /**
+     * Prometheus: {@code clamp} with {@code min > max} is the empty vector. The value is null under that condition, so
+     * every sample drops out of the result like any sample without a value; a regular range clamps.
+     */
+    public void testClampWithMinAboveMaxIsEmpty() {
+        assertThat(clampEmptiesResult("clamp(network.bytes_in, 60, 40)"), equalTo(true));
+        assertThat(clampEmptiesResult("clamp(network.bytes_in, 40, 60)"), equalTo(false));
+    }
+
+    /** Whether the translated {@code clamp} value is a {@code CASE} whose empty-range condition folds to true. */
+    private boolean clampEmptiesResult(String promql) {
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + promql + ")", false);
+        List<Case> cases = new ArrayList<>();
+        plan.forEachExpressionDown(Case.class, cases::add);
+        assertThat(promql, cases, hasSize(1));
+        return Boolean.TRUE.equals(cases.getFirst().children().getFirst().fold(FoldContext.small()));
     }
 
     public void testClampMin() {

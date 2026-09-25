@@ -136,6 +136,8 @@ public final class Authentication implements ToXContentObject {
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
+    // null = not yet computed; non-null (including empty map) = already computed
+    private volatile Map<String, Object> parsedApiKeyMetadata;
 
     private Authentication(Subject subject, AuthenticationType type) {
         this(subject, subject, type);
@@ -251,6 +253,26 @@ public final class Authentication implements ToXContentObject {
 
     public AuthenticationType getAuthenticationType() {
         return type;
+    }
+
+    /**
+     * Returns the parsed API key metadata for this authentication, or an empty map if no metadata
+     * is present. The result is lazily computed and cached on first access. The assignment is a
+     * benign race: two threads may both parse on first access, but both produce equivalent maps
+     * and only visibility, not atomicity, is required.
+     */
+    public Map<String, Object> getApiKeyMetadata() {
+        if (false == this.isAuthenticatedAsApiKey()) {
+            return Map.of();
+        }
+        Map<String, Object> result = parsedApiKeyMetadata;
+        if (result != null) {
+            return result;
+        }
+        final BytesReference raw = (BytesReference) getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_METADATA_KEY);
+        result = raw == null ? Map.of() : XContentHelper.convertToMap(raw, false, XContentType.JSON).v2();
+        parsedApiKeyMetadata = result;
+        return result;
     }
 
     /**

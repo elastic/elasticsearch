@@ -157,7 +157,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         }
                         final Map<String, Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
                         if (false == apiKeyMetadata.isEmpty()) {
-                            apiKeyField.put("metadata", apiKeyMetadata);
+                            // deep-copy because we previously exposed mutable maps here, so there may be
+                            // ingest pipelines that mutate the returned structure.
+                            apiKeyField.put("metadata", IngestDocument.deepCopyMap(apiKeyMetadata));
                         }
 
                         if (false == apiKeyField.isEmpty()) {

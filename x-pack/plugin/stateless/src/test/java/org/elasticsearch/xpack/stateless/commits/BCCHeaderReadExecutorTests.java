@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
 import static org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor.MAX_CONCURRENCY_SETTING;
@@ -110,13 +111,13 @@ public class BCCHeaderReadExecutorTests extends ESTestCase {
             // a task is queued due to MAX_CONCURRENCY_SETTING
             assertThat(
                 recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "queue.size"),
-                RecordingMeterRegistry.measures(1L)
+                measures(1L)
             );
 
             // a task is still running due to `taskCanFinish`
             assertThat(
                 recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"),
-                RecordingMeterRegistry.measures(1L)
+                measures(1L)
             );
 
             taskCanFinish.countDown();
@@ -124,6 +125,16 @@ public class BCCHeaderReadExecutorTests extends ESTestCase {
 
             // had 2 enqueued tasks and hence 2 polled tasks and hence queue latency was measured twice
             assertThat(recorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, prefix + "queue.latency.histogram"), hasSize(2));
+
+            // no task is running now
+            assertBusy(() -> {
+                recorder.resetCalls();
+                recorder.collect();
+                assertThat(
+                    recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"),
+                    measures(0L)
+                );
+            });
         } finally {
             terminate(threadPool);
         }

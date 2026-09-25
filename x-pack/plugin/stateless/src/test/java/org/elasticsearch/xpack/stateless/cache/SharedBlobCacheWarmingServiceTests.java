@@ -3299,7 +3299,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
-    public void testWarmingTaskRunnerRecordsMetrics() throws IOException {
+    public void testWarmingTaskRunnerRecordsMetrics() throws Exception {
         final var recordingMeterRegistry = new RecordingMeterRegistry();
         try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), 1) {
             @Override
@@ -3378,6 +3378,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             safeAwait(allTasksDone);
             // had 3 enqueued tasks and hence 3 polled tasks and hence queue latency was measured thrice
             assertThat(recorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, prefix + "queue.latency.histogram"), hasSize(3));
+
+            // no task is running now
+            assertBusy(() -> {
+                recorder.resetCalls();
+                recorder.collect();
+                assertThat(
+                    recorder.getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, prefix + "running.current"),
+                    measures(0L)
+                );
+            });
         }
     }
 

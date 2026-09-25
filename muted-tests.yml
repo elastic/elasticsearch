@@ -249,6 +249,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
   issue: https://github.com/elastic/elasticsearch/issues/154602
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
+  issue: https://github.com/elastic/elasticsearch/issues/154606
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
@@ -531,9 +534,6 @@ tests:
 - class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
   method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=0}
   issue: https://github.com/elastic/elasticsearch/issues/159398
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testLiveVersionMapArchive
-  issue: https://github.com/elastic/elasticsearch/issues/159399
 - class: org.elasticsearch.xpack.application.EndpointMetadataClusterStateUpgradeIT
   method: testClusterStateContainsOnlyMetadataSubsetAfterUpgrade {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/159400
@@ -640,24 +640,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testPreferredNodeIdsAreUsedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/159502
-- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
-  method: testVirtualBatchedCompoundCommitUploadMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/159904
 - class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
   method: testLimitSkipsUnstartedNestedMergeAndQueuedSiblingLeaves
   issue: https://github.com/elastic/elasticsearch/issues/159932
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testUnhollowOnUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/159939
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/159947
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/159948
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testSourceRelocationDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/159951
 - class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
   method: test {p0=search/340_flattened/Test flattened mapped sub-field as index sort field}
   issue: https://github.com/elastic/elasticsearch/issues/160031
@@ -667,9 +658,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferSurvivesRestartIT
   method: testPreExistingBufferFilesDrainAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/160054
-- class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
-  method: testReadLatestBccPopulatesCache
-  issue: https://github.com/elastic/elasticsearch/issues/160077
 - class: org.elasticsearch.xpack.esql.action.ExternalRequestFilterRowGroupPruningIT
   method: testWhereAndRequestFilterPruneIdentically
   issue: https://github.com/elastic/elasticsearch/issues/160084
@@ -682,12 +670,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification byte vector type}
   issue: https://github.com/elastic/elasticsearch/issues/160126
-- class: org.elasticsearch.indices.recovery.RecoveryMetricsIT
-  method: testDirectCancellationMetricsQueuedAndStarted
-  issue: https://github.com/elastic/elasticsearch/issues/160130
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
-  issue: https://github.com/elastic/elasticsearch/issues/160160
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogramTests
   issue: https://github.com/elastic/elasticsearch/issues/160168
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
@@ -696,3 +678,26 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
   method: testStopSkipsQueuedNestedLeaves
   issue: https://github.com/elastic/elasticsearch/issues/160201
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounterTests
+  issue: https://github.com/elastic/elasticsearch/issues/160233
+- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/159774
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/159773
+- class: org.elasticsearch.xpack.esql.datasource.s3.EsqlContainerCredentialsProviderTests
+  method: testAMissingTokenFileNamesTheFileToCreate
+  issue: https://github.com/elastic/elasticsearch/issues/160275
+- class: org.elasticsearch.xpack.esql.datasource.s3.S3CredentialsProviderTests
+  method: testManagedIdentityChainFailsWhenPodIdentityMisconfigured
+  issue: https://github.com/elastic/elasticsearch/issues/160276
+- class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
+  method: testTcpHandshake
+  issue: https://github.com/elastic/elasticsearch/issues/160280
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/160285
+- class: org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunnerTests
+  method: testInstrumentedThrottledTaskRunnerRecordsQueuingAndRunningCounts
+  issue: https://github.com/elastic/elasticsearch/issues/160332

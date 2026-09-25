@@ -10,7 +10,7 @@ products:
 
 # Paginating through a large response [sql-pagination]
 
-Using the example from the [previous section](sql-rest-format.md), one can continue to the next page by sending back the cursor field. In the case of CSV, TSV and TXT formats, the cursor is returned in the `Cursor` HTTP header.
+Using the example from the [previous section](sql-rest-format.md), one can continue to the next page by sending back the cursor field. In the case of JSON and YAML formats, the cursor is returned in the `Cursor` HTTP header.
 
 ```console
 POST /_sql?format=json

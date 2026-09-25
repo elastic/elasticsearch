@@ -340,7 +340,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
 
     private record ParsedChunk(List<Candidate> candidates, UsageMetadata usage, String modelVersion, String responseId) {}
 
-    private record Candidate(Content content, String finishReason, int index) {}
+    private record Candidate(@Nullable Content content, String finishReason, int index) {}
 
     private static class CandidateParser {
         private static final ConstructingObjectParser<Candidate, Void> PARSER = new ConstructingObjectParser<>("candidate", true, args -> {
@@ -351,8 +351,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         });
 
         static {
+            // A candidate that has nothing to say carries no content, e.g. one stopped by finishReason SAFETY.
             PARSER.declareObject(
-                ConstructingObjectParser.constructorArg(),
+                ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> ContentParser.parse(p),
                 new ParseField(CONTENT_FIELD)
             );
@@ -365,7 +366,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    private record Content(String role, List<Part> parts) {}
+    private record Content(@Nullable String role, @Nullable List<Part> parts) {}
 
     private static class ContentParser {
         @SuppressWarnings("unchecked")
@@ -376,9 +377,12 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         );
 
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(ROLE_FIELD));
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ROLE_FIELD));
+            // Gemini sends content without parts when the output budget ran out before any part was produced, e.g. a
+            // Gemini 2.5 model that spent all of max_completion_tokens thinking: {"role": "model"} with
+            // finishReason MAX_TOKENS.
             PARSER.declareObjectArray(
-                ConstructingObjectParser.constructorArg(),
+                ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> PartParser.parse(p),
                 new ParseField(PARTS_FIELD)
             );

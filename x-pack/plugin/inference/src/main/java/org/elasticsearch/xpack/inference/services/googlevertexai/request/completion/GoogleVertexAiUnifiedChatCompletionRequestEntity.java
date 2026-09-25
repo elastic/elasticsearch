@@ -136,7 +136,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         this.taskMaxTokens = taskMaxTokens;
     }
 
-    private String messageRoleToGoogleVertexAiSupportedRole(String messageRole) {
+    private static String messageRoleToGoogleVertexAiSupportedRole(String messageRole) {
         var messageRoleLowered = messageRole.toLowerCase(Locale.ROOT);
 
         if (messageRoleLowered.equals(USER_ROLE)) {
@@ -259,26 +259,34 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     }
 
     /**
-     * Groups non-system messages into Gemini content turns. Gemini requires all {@code functionResponse} parts that
-     * answer a parallel function call turn to appear inside a single {@code user} content, whereas the unified API
-     * carries one {@code tool} message per tool call. Consecutive tool messages are therefore merged into one turn so
-     * that the number of {@code functionResponse} parts matches the number of {@code functionCall} parts in the
+     * Groups non-system messages into Gemini content turns, one turn per run of consecutive messages that map to the
+     * same Gemini role. Gemini expects contents to alternate between {@code user} and {@code model}, and the unified
+     * API does not guarantee that once {@code tool} messages become {@code user} contents: a tool result followed by
+     * a user message would otherwise be two adjacent {@code user} contents, for which Gemini 2.5 returns an empty
+     * answer.
+     * <p>
+     * This also keeps the {@code functionResponse} parts that answer a parallel function call step in a single
+     * {@code user} content, as Gemini requires, whereas the unified API carries one {@code tool} message per tool
+     * call. The number of {@code functionResponse} parts then matches the number of {@code functionCall} parts in the
      * preceding model turn.
      */
     private static List<List<Message>> toContentTurns(List<Message> messages) {
         var turns = new ArrayList<List<Message>>();
+        String turnRole = null;
         for (var message : messages) {
             if (isSystemMessage(message)) {
                 // System messages are written via systemInstruction; they do not produce a content turn.
                 continue;
             }
-            if (isToolMessage(message) && turns.isEmpty() == false && isToolMessage(turns.getLast().getFirst())) {
-                // Append to the current tool turn so all responses for a parallel function call step are grouped.
+            var role = messageRoleToGoogleVertexAiSupportedRole(message.role());
+            if (role.equals(turnRole)) {
+                // Append to the current turn so that the contents keep alternating between user and model.
                 turns.getLast().add(message);
             } else {
                 var turn = new ArrayList<Message>();
                 turn.add(message);
                 turns.add(turn);
+                turnRole = role;
             }
         }
         return turns;
@@ -302,17 +310,18 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
         builder.startArray(CONTENTS);
         for (var turn : toContentTurns(messages)) {
-            var first = turn.getFirst();
             builder.startObject();
-            builder.field(ROLE, messageRoleToGoogleVertexAiSupportedRole(first.role()));
+            builder.field(ROLE, messageRoleToGoogleVertexAiSupportedRole(turn.getFirst().role()));
             builder.startArray(PARTS);
             {
-                if (isToolMessage(first)) {
-                    for (var toolMessage : turn) {
-                        buildFunctionResponsePart(builder, toolMessage, functionNameById);
+                // A merged turn keeps its messages' parts in message order, e.g. a tool result's functionResponse
+                // followed by the text of the user message after it.
+                for (var message : turn) {
+                    if (isToolMessage(message)) {
+                        buildFunctionResponsePart(builder, message, functionNameById);
+                    } else {
+                        buildMessageParts(builder, message);
                     }
-                } else {
-                    buildMessageParts(builder, first);
                 }
             }
             builder.endArray();

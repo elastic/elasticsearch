@@ -56,6 +56,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     private static final String THOUGHT_SIGNATURE = "El4KXAERTTIPHPmb/yri/Qyy9cz7xqWoMPh394Dk3bIAt2jgXMJoP2cOWRyqxOs";
     private static final String REASONING_FORMAT = "google-vertex-ai-v1";
     private static final String TOOL_RESULT_JSON = "{\"delivery_date\": \"2025-03-27\"}";
+    private static final String FOLLOW_UP_QUESTION = "And when will it ship?";
+    private static final String ASSISTANT_TEXT = "Let me look that up.";
 
     public void testBasicSerialization_SingleMessage() throws IOException {
         Message message = new Message(new ContentString("Hello, Vertex AI!"), USER_ROLE, null, null);
@@ -1828,6 +1830,166 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 TOOL_RESULT_JSON
             )
         );
+    }
+
+    /**
+     * A user message right after a tool result must join the tool result's {@code user} content. As two adjacent
+     * {@code user} contents, Gemini 2.5 answers with an empty response.
+     */
+    public void testSerialization_ToolResultFollowedByUserMessage_MergedIntoOneUserTurn() throws IOException {
+        var messages = List.of(
+            assistantToolCall(GOOGLE_TOOL_CALL_ID),
+            toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
+            userMessage(FOLLOW_UP_QUESTION)
+        );
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "id": "%s",
+                                    "response": %s
+                                }
+                            },
+                            { "text": "%s" }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON, FOLLOW_UP_QUESTION));
+    }
+
+    /**
+     * The functionResponse parts of a parallel function call step and the user message after them all belong to one
+     * {@code user} content, in message order.
+     */
+    public void testSerialization_ParallelToolResultsFollowedByUserMessage_MergedIntoOneUserTurn() throws IOException {
+        var messages = List.of(
+            parallelAssistantToolCalls(),
+            toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
+            toolResult(SECOND_TOOL_CALL_ID, TOOL_RESULT_JSON),
+            userMessage(FOLLOW_UP_QUESTION)
+        );
+
+        assertJsonEquals(
+            serialize(requestOf(messages), emptyThinkingConfig),
+            Strings.format(
+                """
+                    {
+                        "contents": [
+                            {
+                                "role": "model",
+                                "parts": [
+                                    {
+                                        "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                        "thoughtSignature": "skip_thought_signature_validator"
+                                    },
+                                    {
+                                        "functionCall": { "name": "%s", "args": {}, "id": "%s" }
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    },
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    },
+                                    { "text": "%s" }
+                                ]
+                            }
+                        ]
+                    }
+                    """,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                SECOND_FUNCTION_NAME,
+                SECOND_TOOL_CALL_ID,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                TOOL_RESULT_JSON,
+                SECOND_FUNCTION_NAME,
+                SECOND_TOOL_CALL_ID,
+                TOOL_RESULT_JSON,
+                FOLLOW_UP_QUESTION
+            )
+        );
+    }
+
+    public void testSerialization_ConsecutiveUserMessages_MergedIntoOneTurn() throws IOException {
+        var firstQuestion = "Where is my order?";
+        var messages = List.of(userMessage(firstQuestion), userMessage(FOLLOW_UP_QUESTION));
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            { "text": "%s" },
+                            { "text": "%s" }
+                        ]
+                    }
+                ]
+            }
+            """, firstQuestion, FOLLOW_UP_QUESTION));
+    }
+
+    /**
+     * Consecutive assistant messages become one {@code model} content. Each message's parts are resolved on their
+     * own, so the tool call message's first call still gets the signature sentinel.
+     */
+    public void testSerialization_ConsecutiveAssistantMessages_MergedIntoOneModelTurn() throws IOException {
+        var messages = List.of(
+            new Message(new ContentString(ASSISTANT_TEXT), ASSISTANT_ROLE, null, null),
+            assistantToolCall(GOOGLE_TOOL_CALL_ID)
+        );
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            { "text": "%s" },
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, ASSISTANT_TEXT, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID));
+    }
+
+    private static Message userMessage(String text) {
+        return new Message(new ContentString(text), USER_ROLE, null, null);
     }
 
     private static Message assistantToolCall(String toolCallId) {

@@ -429,6 +429,57 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         assertThat(chunk.usage().completionTokenDetails(), is(nullValue()));
     }
 
+    /**
+     * The chunk Gemini 2.5 sends when it spends the whole output budget thinking: content with a role and no parts.
+     * It must end the stream with its finish reason rather than fail to parse.
+     */
+    public void testCandidateWithoutParts_ReportsFinishReasonAndNoContent() throws IOException {
+        var chunk = parse("""
+            {
+              "candidates": [ {
+                "content": { "role": "model" },
+                "finishReason": "MAX_TOKENS",
+                "index": 0
+              } ],
+              "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 0,
+                "totalTokenCount": 1010,
+                "thoughtsTokenCount": 1000
+              },
+              "modelVersion": "gemini-2.5-flash",
+              "responseId": "responseId"
+            }
+            """);
+
+        assertThat(chunk.choices().size(), is(1));
+        var choice = chunk.choices().getFirst();
+        assertThat(choice.finishReason(), is("MAX_TOKENS"));
+        assertNull(choice.message().content());
+        assertNull(choice.message().toolCalls());
+        assertNull(choice.message().reasoning());
+        assertNull(choice.message().reasoningDetails());
+        assertThat(chunk.usage().completionTokens(), is(1000));
+        assertThat(chunk.usage().completionTokenDetails().reasoningTokens(), is(1000));
+    }
+
+    public void testCandidateWithoutContent_ReportsFinishReason() throws IOException {
+        var chunk = parse("""
+            {
+              "candidates": [ { "finishReason": "SAFETY", "index": 0 } ],
+              "usageMetadata": { "promptTokenCount": 10, "candidatesTokenCount": 0, "totalTokenCount": 10 },
+              "modelVersion": "gemini-2.5-flash",
+              "responseId": "responseId"
+            }
+            """);
+
+        assertThat(chunk.choices().size(), is(1));
+        var choice = chunk.choices().getFirst();
+        assertThat(choice.finishReason(), is("SAFETY"));
+        assertNull(choice.message().content());
+        assertNull(choice.message().role());
+    }
+
     public void testReasoningIndexKeepsCountingAcrossTheChunksOfAStream() throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         var chunkParser = new GoogleVertexAiUnifiedStreamingProcessor.GoogleVertexAiChatCompletionChunkParser(false);

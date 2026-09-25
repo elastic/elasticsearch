@@ -31,6 +31,64 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class UploadQueueControllerServiceTests extends ESTestCase {
+    /** Checks that throttling between thresholds renews the cooldown and can still be removed once uploads recover. */
+    public void testRenewsThrottleBetweenThresholds() {
+        var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
+        long removalThreshold = randomLongBetween(1, 60_000);
+        long activationThreshold = randomLongBetween(removalThreshold + 2, 120_000);
+        long cooldown = randomLongBetween(1, 60_000);
+        var time = new AtomicLong(activationThreshold + cooldown + 1);
+        var throttler = new MemorizingThrottler();
+        var calculator = new ThrottleCalculator(time::get, throttler, MeterRegistry.NOOP);
+        var settings = new ThrottleSettings(
+            TimeValue.timeValueMillis(activationThreshold),
+            TimeValue.timeValueMillis(removalThreshold),
+            cooldown
+        );
+        long applicationTime = randomLongBetween(0, time.get() - cooldown - 1);
+        int applications = randomIntBetween(1, 10);
+        var currentState = Map.of(shardId, ThrottleState.throttled(applicationTime, applications));
+        var removedState = Map.of(shardId, ThrottleState.throttleRemoved(applicationTime));
+
+        var stats = new ShardCommitUploadStats() {
+            long age = randomLongBetween(removalThreshold, activationThreshold);
+
+            @Override
+            public ShardId shardId() {
+                return shardId;
+            }
+
+            @Override
+            public Long oldestCommitUploadStartTimeRelativeMillis() {
+                return time.get() - age;
+            }
+        };
+
+        var renewedState = calculator.newState(currentState, Stream.of(stats), settings);
+        var renewedThrottle = renewedState.get(shardId);
+        assertEquals(Type.THROTTLED, renewedThrottle.latestDecision());
+        assertEquals(time.get(), renewedThrottle.relativeApplicationTimeMs());
+        assertEquals(applications + 1, renewedThrottle.consecutiveApplications());
+        assertTrue(calculator.newState(removedState, Stream.of(stats), settings).isEmpty());
+        assertTrue(calculator.newState(Map.of(), Stream.of(stats), settings).isEmpty());
+        // Closed shards must still disappear from the rebuilt map.
+        assertTrue(calculator.newState(currentState, Stream.empty(), settings).isEmpty());
+        assertTrue(throttler.history.isEmpty());
+
+        // Rechecks must neither renew nor remove the throttle before the new cooldown expires.
+        time.addAndGet(cooldown);
+        assertEquals(renewedState, calculator.newState(renewedState, Stream.of(stats), settings));
+        stats.age = randomLongBetween(0, removalThreshold - 1);
+        assertEquals(renewedState, calculator.newState(renewedState, Stream.of(stats), settings));
+        assertTrue(throttler.history.isEmpty());
+
+        time.incrementAndGet();
+        var recoveredState = calculator.newState(renewedState, Stream.of(stats), settings).get(shardId);
+        assertEquals(Type.THROTTLE_REMOVED, recoveredState.latestDecision());
+        assertEquals(time.get(), recoveredState.relativeApplicationTimeMs());
+        assertEquals(List.of(new Decision(shardId, false)), throttler.history);
+    }
+
     public void testThrottleAndRemoveSteadyState() {
         var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
 

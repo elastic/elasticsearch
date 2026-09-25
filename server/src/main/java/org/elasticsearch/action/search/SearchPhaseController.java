@@ -230,8 +230,10 @@ public final class SearchPhaseController {
         var fetchResults = fetchResultsArray.asList();
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
         try {
-            if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
-                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits.getHits().length, reducedQueryPhase.sortedTopDocs.scoreDocs);
+            if (reducedQueryPhase.suggest != null) {
+                int suggestionsOffset = reducedQueryPhase.sortedTopDocs.scoreDocs.length
+                    - reducedQueryPhase.sortedTopDocs.numberOfCompletionsSuggestions;
+                mergeSuggest(reducedQueryPhase, fetchResultsArray, suggestionsOffset, reducedQueryPhase.sortedTopDocs.scoreDocs);
             }
             // Own refs for suggestion option hits so they survive fetch result release (caller exits try-with-resources).
             // Refs are incremented inside Suggest#collectCompletionOptionHits when passed true, not in mergeSuggest above.
@@ -256,7 +258,12 @@ public final class SearchPhaseController {
     ) {
         for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
             final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
-            for (int scoreDocIndex = currentOffset; scoreDocIndex < currentOffset + suggestionOptions.size(); scoreDocIndex++) {
+            if (suggestionOptions.isEmpty()) {
+                continue;
+            }
+            final int suggestionEnd = currentOffset + suggestionOptions.size();
+            final List<CompletionSuggestion.Entry.Option> fetchedOptions = new ArrayList<>(suggestionOptions.size());
+            for (int scoreDocIndex = currentOffset; scoreDocIndex < suggestionEnd; scoreDocIndex++) {
                 ScoreDoc shardDoc = sortedDocs[scoreDocIndex];
                 SearchPhaseResult searchResultProvider = fetchResultsArray.get(shardDoc.shardIndex);
                 if (searchResultProvider == null) {
@@ -277,8 +284,11 @@ public final class SearchPhaseController {
                 hit.score(shardDoc.score);
                 hit.shard(fetchResult.getSearchShardTarget());
                 suggestOption.setHit(hit);
+                fetchedOptions.add(suggestOption);
             }
-            currentOffset += suggestionOptions.size();
+            suggestionOptions.clear();
+            suggestionOptions.addAll(fetchedOptions);
+            currentOffset = suggestionEnd;
         }
         assert currentOffset == sortedDocs.length : "expected no more score doc slices";
     }

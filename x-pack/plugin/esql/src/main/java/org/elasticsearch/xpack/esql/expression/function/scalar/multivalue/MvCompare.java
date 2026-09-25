@@ -293,8 +293,12 @@ public abstract class MvCompare extends EsqlScalarFunction implements OptionalAr
         };
     }
 
-    /** Defaults to strict ({@code false}). */
-    private boolean includeBound() {
+    /**
+     * Whether the bound itself satisfies the comparison, resolved from {@code include_bound} (strict when absent). Public so
+     * a caller evaluating this function by other means reads the same answer the evaluator does rather than re-parsing the
+     * options.
+     */
+    public boolean includeBound() {
         return (boolean) optionsMap().getOrDefault(INCLUDE_BOUND, Boolean.FALSE);
     }
 

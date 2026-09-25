@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -81,7 +82,7 @@ public final class RequestFilterRewriter {
             return analyzed;
         }
         if (minimumVersion.supports(ESQL_REQUEST_FILTER_ON_DATASET) == false) {
-            warnNotApplied(analyzed, "the cluster contains a node too old to evaluate the translated filter");
+            warnNotApplied(analyzed);
             return analyzed;
         }
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
@@ -115,17 +116,17 @@ public final class RequestFilterRewriter {
         for (FilterRewriter.NodeFailure nf : failures) {
             skipped.add("[" + nf.clause().construct() + "] on dataset [" + name(nf.node()) + "]");
         }
-        // "could not be fully applied" is accurate whether some conjuncts were installed or none were.
+        // "not fully applied" is accurate whether some conjuncts were installed or none were.
         HeaderWarning.addWarning(
-            "The request filter could not be fully applied to external dataset(s); the following Query DSL constructs"
-                + " are not supported and were skipped: "
-                + String.join("; ", skipped)
-                + ". Use a WHERE clause to filter rows from external datasets instead."
+            "Request filter not fully applied to external datasets; unsupported: " + String.join(", ", skipped) + "; use WHERE instead"
         );
     }
 
-    /** Warns that the filter was not applied to the plan's dataset leaves, naming them, when there are any. */
-    private static void warnNotApplied(LogicalPlan plan, String reason) {
+    /**
+     * Warns that the filter was not applied to the plan's dataset leaves because a node is too old to evaluate it,
+     * naming them, when there are any.
+     */
+    private static void warnNotApplied(LogicalPlan plan) {
         List<String> datasets = plan.collect(ExternalRelation.class::isInstance)
             .stream()
             .map(RequestFilterRewriter::name)
@@ -133,10 +134,8 @@ public final class RequestFilterRewriter {
             .toList();
         if (datasets.isEmpty() == false) {
             HeaderWarning.addWarning(
-                "The request filter was not applied to external dataset(s) [{}] because {}; they were read unfiltered. "
-                    + "Use a WHERE clause to filter rows from external datasets instead",
-                String.join(", ", datasets),
-                reason
+                "Request filter not applied to external datasets [{}], a node is too old to evaluate it; use WHERE instead",
+                String.join(", ", datasets)
             );
         }
     }
@@ -148,7 +147,7 @@ public final class RequestFilterRewriter {
      */
     private static String name(LogicalPlan node) {
         if (node instanceof ExternalRelation relation) {
-            return relation.datasetName() != null ? relation.datasetName() : relation.sourcePath();
+            return relation.datasetName() != null ? relation.datasetName() : ExternalFailures.redactHttpUrl(relation.sourcePath());
         }
         return node.nodeName();
     }

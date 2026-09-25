@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -143,6 +144,42 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
                 equalTo(currentMetadata.getDeploymentAssignment(deploymentId).getTaskParams().getNumberOfAllocations())
             );
         }
+    }
+
+    public void testRebalance_HonoursObservedPerAllocationMemory() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(2).getBytes();
+        DiscoveryNode node = buildNode("node-1", nodeMemoryBytes, 8);
+
+        String deploymentId = "deployment-1";
+        // A small model whose a priori memory estimate would comfortably allow all 8 allocations to fit; without the
+        // observed memory the allocations would only be bounded by the 8 available processors.
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(deploymentId, deploymentId, 1024L, 8, 1);
+
+        // Observed per-allocation memory large enough that only a couple of allocations can fit within 2GB, so the
+        // rebalancer must bound the deployment by real memory rather than the (tiny) a priori estimate.
+        long observedPerAllocationMemoryBytes = ByteSizeValue.ofMb(700).getBytes();
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                deploymentId,
+                TrainedModelAssignment.Builder.empty(taskParams, null).setObservedPerAllocationMemoryBytes(observedPerAllocationMemoryBytes)
+            )
+            .build();
+        Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
+        nodeLoads.put(node, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node)),
+            Optional.empty(),
+            1,
+            false
+        ).rebalance().build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(deploymentId);
+        assertThat(assignment, is(notNullValue()));
+        int assignedAllocations = assignment.getNodeRoutingTable().values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum();
+        assertThat(assignedAllocations, lessThan(8));
     }
 
     public void testRebalance_GivenModelToAddAlreadyExists() {

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -48,6 +49,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
@@ -84,7 +86,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final Map<PrimaryTermAndGeneration, RefCounted> generationalFilesTermAndGens;
 
     /**
-     * Term/generation of the latest updated commit if it contained at least one generational file.
+     * Holds the pin(s) for the BCC term/generation(s) referenced by the generational files of the latest updated commit, or
+     * {@code null} if that commit contained no generational file. It can now hold every first-seen BCC of the live generational
+     * files (see {@link #mergeMetadata}), not just a single one, and releases them all exactly once on the next commit update or
+     * on directory close.
      */
     private volatile Releasable lastAcquiredGenerationalFilesTermAndGen = null;
 
@@ -398,7 +403,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             final long maxBccGen = maxBccGeneration;
             cacheService.forceEvict(shardId, (key, region) -> {
                 final String blobName = key.fileName();
-                final long bccGeneration = StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
+                final long bccGeneration = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
 
                 BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
                 if (activeRegions != null && activeRegions.get(region)) {
@@ -806,42 +811,74 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;
         try {
             final var reconciledMetadata = new HashMap<>(currentMetadata);
-            PrimaryTermAndGeneration generationalFilesTermAndGen = null;
+            //
+            // Distinct BCC term/generations referenced by the generational files in this incoming metadata.
+            //
+            // A fresh commit notification always references a single BCC since generation files are carried-over between BCC. But PIT
+            // relocation metadata (see mergePITReaderMetadata) carries generational files accumulated across many BCCs over the PIT's
+            // lifetime. We pin every one of them so that opening the relocated commit (which re-opens these files and acquires each file's
+            // BCC term/generation, see acquireGenerationalFileTermAndGeneration) always finds them present in generationalFilesTermAndGens.
+            // Re-pinning BCCs that happen to be already held is intentional: it keeps them alive even if the only reader referencing them
+            // is closed concurrently while we open the relocated commit.
+            assert pitContextRelocationTransfer || assertGenerationalFilesShareSingleBcc(incomingFileRanges);
+            final Set<PrimaryTermAndGeneration> incomingGenerationalFilesTermAndGens = new HashSet<>();
             long commitSize = 0L;
             for (var entry : incomingFileRanges.entrySet()) {
                 final String fileName = entry.getKey();
                 final var reconciledRanges = reconcileBlobFileRanges(fileName, reconciledMetadata.get(fileName), entry.getValue());
                 if (isGenerationalFile(fileName)) {
-                    // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
-                    // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
-                    // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
-                    // instances).
-                    reconciledMetadata.putIfAbsent(fileName, reconciledRanges);
-                    if (generationalFilesTermAndGen == null) {
-                        generationalFilesTermAndGen = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                    // Generational files are carried over into every subsequent BCC, so a fresh commit notification
+                    // references all the generational files it needs from a single (latest) BCC. Their blob locations are
+                    // not updated here: we keep the first location we see for each file (putIfAbsent below) and pin its BCC.
+                    // On the normal refresh path this is the location the reader opens as soon as the file is first picked
+                    // up, and it never reopens it afterwards (segment core readers are handed over between refreshed reader
+                    // instances), so the first-seen BCC is exactly the one kept alive by the reader.
+                    //
+                    // A deferred refresh (see lastRefreshDeferred usages) breaks that "opened immediately and kept open"
+                    // assumption: the metadata is updated but the refresh can be postponed, so a later commit may supersede
+                    // the first-seen BCC before the reader finally opens the file. We therefore pin every BCC referenced by
+                    // an active generational file, not just the latest one, so the deferred open can still acquire the
+                    // first-seen BCC.
+                    //
+                    // Likewise, a relocated PIT accumulates generational files across several BCCs over its lifetime. When
+                    // the PIT's own BCC is not yet uploaded, the handoff builds the PIT metadata from those multiple BCCs
+                    // (an uploaded BCC would instead carry the latest copy), and the target re-acquires each of them when
+                    // opening the PIT, which again requires all referenced BCCs to be pinned.
+                    //
+                    // TODO: a PIT is anchored on a single commit and should ideally reference each generational file from
+                    // one (latest) BCC like recovery does. That needs the search node to know the latest unuploaded copies
+                    // (read the unuploaded VBCC from the indexing shard, or track unuploaded StatelessCompoundCommits) to
+                    // override the blob-file-ranges timestamp.
+                    var incoming = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                    if (reconciledMetadata.putIfAbsent(fileName, reconciledRanges) != null) {
+                        // read the first known location
+                        incoming = reconciledMetadata.get(fileName).blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     }
-                    assert reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
-                        : "All generational files in an incoming commit batch must belong to the same BCC, but "
-                            + fileName
-                            + " belongs to BCC "
-                            + reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration()
-                            + " which differs from "
-                            + generationalFilesTermAndGen
-                            + " (established by a preceding generational file in this batch)";
+                    // Pin the BCC of the location we actually keep, which is what doOpenInput will use.
+                    incomingGenerationalFilesTermAndGens.add(incoming);
                 } else {
                     reconciledMetadata.put(fileName, reconciledRanges);
                 }
                 commitSize += reconciledRanges.blobLocation().fileLength();
             }
-            // If we have generational file(s) in the new commit, we create a ref counted instance that holds the term/generation of the
-            // batched compound commit so that it can be reported as used to the indexing shard in new commit responses. The ref counted
-            // instance will be decRef on the next commit update or when the directory is closed. Any generational file opened between two
-            // commits update should incRef the instance to indicate that the BCC term/generation is in use and decRef it once the file is
-            // closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
-            if (generationalFilesTermAndGen != null) {
-                var releasable = addGenerationalFileTermAndGeneration(generationalFilesTermAndGen);
+            // If we have generational file(s) in the new commit, we create ref counted instances that hold the term/generation of each
+            // referenced batched compound commit so that they can be reported as used to the indexing shard in new commit responses. The
+            // ref counted instances will be decRef on the next commit update or when the directory is closed. Any generational file opened
+            // between two commit updates should incRef the matching instance to indicate that the BCC term/generation is in use and decRef
+            // it once the file is closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
+            if (incomingGenerationalFilesTermAndGens.isEmpty() == false) {
+                final List<Releasable> releasables = new ArrayList<>(incomingGenerationalFilesTermAndGens.size());
+                try {
+                    for (final var termAndGen : incomingGenerationalFilesTermAndGens) {
+                        releasables.add(addGenerationalFileTermAndGeneration(termAndGen));
+                    }
+                } catch (Exception e) {
+                    // release any pin acquired so far to avoid leaking BCC references if acquiring a later one fails
+                    Releasables.close(releasables);
+                    throw e;
+                }
                 // use releaseOnce to decRef only once, either on commit update or directory close
-                this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(releasable);
+                this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(Releasables.wrap(releasables));
             } else if (pitContextRelocationTransfer) {
                 // commit has no generational files, and we're opening a PIT reader during relocation,
                 // in that case we don't want to decRef the current generational files term/gen until a
@@ -862,6 +899,23 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
             }
         }
+    }
+
+    /**
+     * Asserts that all generational files in a new commit notification reference a single BCC. Generational files are carried over into
+     * the latest BCC, so a normal commit notification never spans several BCCs, unlike relocated PIT metadata (see
+     * {@link #mergePITReaderMetadata}) which accumulates generational files across many BCCs over the PIT's lifetime.
+     */
+    private static boolean assertGenerationalFilesShareSingleBcc(Map<String, BlobFileRanges> incomingFileRanges) {
+        final var bccs = new HashSet<PrimaryTermAndGeneration>();
+        for (var entry : incomingFileRanges.entrySet()) {
+            if (isGenerationalFile(entry.getKey())) {
+                bccs.add(entry.getValue().blobLocation().getBatchedCompoundCommitTermAndGeneration());
+            }
+        }
+        final boolean result = bccs.size() <= 1;
+        assert result : "a new commit notification must reference a single BCC for its generational files but referenced " + bccs;
+        return result;
     }
 
     private static BlobFileRanges reconcileBlobFileRanges(String fileName, BlobFileRanges existingRanges, BlobFileRanges incomingRanges) {

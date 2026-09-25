@@ -14,7 +14,7 @@ A subquery is a complete ES|QL query wrapped in parentheses, nested inside anoth
 You can use subqueries in two places:
 
 * **In a [`FROM` command](/reference/query-languages/esql/esql-from-subquery.md)**: each subquery runs its own pipeline and its rows are combined into the outer result set.
-* **In a [`WHERE` command with `IN` or `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md)**: the subquery returns exactly one column, and the outer query filters rows against those values.
+* **With [`IN` or `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md)**: the subquery returns one column, or a tuple of columns matched by position, and can appear in [`WHERE`](/reference/query-languages/esql/commands/where.md), [`EVAL`](/reference/query-languages/esql/commands/eval.md), and the per-aggregate `WHERE` of [`STATS`](/reference/query-languages/esql/commands/stats-by.md) and [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md).
 
 ## Supported source commands
 
@@ -50,4 +50,4 @@ The source command can be followed by zero or more piped processing commands:
 ## Learn more
 
 * [Use subqueries in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md): combine result sets from independently processed sources.
-* [Use subqueries in a `WHERE` command](/reference/query-languages/esql/esql-in-subquery.md): filter rows with `IN` or `NOT IN`.
+* [Use subqueries with `IN` and `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md): filter or evaluate rows against another query.

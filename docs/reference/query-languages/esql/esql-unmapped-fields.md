@@ -85,6 +85,7 @@ In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read
 
 - [`PROMQL`](commands/promql.md) is not supported with `LOAD`.
 - Referencing subfields of [`flattened`](/reference/elasticsearch/mapping-reference/flattened.md) parents is not supported.
+- A query whose only source is a [`ROW`](commands/row.md) is rejected: it names no index to load from. A `ROW` that is unioned or joined with an index is still allowed. {applies_to}`stack: ga 9.6+`
 - Partially mapped fields whose type has no implicit conversion from `keyword` (for example `text` or `aggregate_metric_double`) keep their mapped type but are not loaded from `_source` (i.e., they're set as `null` where unmapped). Using explicit cast, e.g., `to_text` allows loading from `_source`. {applies_to}`stack: ga 9.5+`
 
 For the full list of restrictions, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.

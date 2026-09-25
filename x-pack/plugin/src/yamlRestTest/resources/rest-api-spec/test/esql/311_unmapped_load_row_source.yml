@@ -1,0 +1,126 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_reject_load_with_row_source]
+      reason: "a loading mode is rejected when the query names no index to load from"
+
+  - do:
+      indices.create:
+        index: row_source_index
+        body:
+          mappings:
+            properties:
+              message:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: row_source_lookup
+        body:
+          settings:
+            index.mode: lookup
+          mappings:
+            properties:
+              message:
+                type: keyword
+              label:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "row_source_index" } }
+          - { "message": "a" }
+          - { "index": { "_index": "row_source_lookup" } }
+          - { "message": "b", "label": "from_lookup" }
+
+---
+'load over a row source is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; ROW a = 1 | KEEP a'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:29: unmapped_fields="load" requires an index to load from; this query''s only source is a ROW' }
+
+---
+'load over a row source referencing an unmapped field is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; ROW a = 1 | EVAL b = unmapped_field'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 2 problems' }
+  - contains: { error.reason: 'line 1:29: unmapped_fields="load" requires an index to load from; this query''s only source is a ROW' }
+  - contains: { error.reason: 'Unknown column [unmapped_field]' }
+
+---
+'load_all over a row source is rejected':
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_load_all_v2]
+      reason: "load_all is snapshot-only"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; ROW a = 1 | KEEP a'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:33: unmapped_fields="load_all" requires an index to load from; this query''s only source is a ROW' }
+
+---
+'load over a row unioned with an index is allowed':
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [subquery_in_from_command, subquery_with_row]
+      reason: "the row is only one of the sources, the index still has a _source to load from"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM row_source_index, (ROW message = "b") | SORT message | LIMIT 5'
+  - match: { columns.0.name: message }
+  - match: { columns.0.type: keyword }
+  - match: { values: [["a"], ["b"]] }
+
+---
+'load over a row joined with a lookup index is allowed':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; ROW message = "b" | LOOKUP JOIN row_source_lookup ON message | LIMIT 5'
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: label }
+  - match: { values: [["b", "from_lookup"]] }
+
+---
+'nullify over a row source is allowed':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; ROW a = 1 | EVAL b = unmapped_field | KEEP a, b | LIMIT 5'
+  - match: { columns.0.name: a }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: b }
+  - match: { columns.1.type: "null" }
+  - match: { values: [[1, null]] }

@@ -22,6 +22,8 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,84 +39,80 @@ public class StoredFieldsPhaseTests extends ESTestCase {
 
     private static final String FIELD = "my_stored_field";
 
-    public void testChargesBytesForStoredFields() throws Exception {
-        try (TestRun run = new TestRun()) {
-            MemoryIndex index = new MemoryIndex();
-            var leafCtx = index.createSearcher().getIndexReader().leaves().get(0);
-            SearchHit hit = SearchHit.unpooled(0, null);
-            try {
-                Map<String, List<Object>> loadedFields = Map.of(FIELD, List.of("hello", "world"));
-                run.processor.process(new FetchSubPhase.HitContext(hit, leafCtx, 0, loadedFields, Source.empty(null), null));
-                assertNotNull(hit.field(FIELD));
-                assertThat(run.charged.stream().mapToLong(Long::longValue).sum(), greaterThan(0L));
-            } finally {
-                hit.decRef();
+    private List<Long> charged;
+    private FetchSubPhaseProcessor processor;
+    private TestSearchContext searchContext;
+
+    @Before
+    public void setUpPhase() {
+        charged = new ArrayList<>();
+        // Minimal stored MappedFieldType — isStored=true so StoredFieldsPhase includes it.
+        MappedFieldType storedFieldType = new MappedFieldType(FIELD, IndexType.NONE, true, Map.of()) {
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                throw new UnsupportedOperationException();
             }
+
+            @Override
+            public String typeName() {
+                return "test";
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        SearchExecutionContext sec = mock(SearchExecutionContext.class);
+        when(sec.getMatchingFieldNames(FIELD)).thenReturn(Set.of(FIELD));
+        when(sec.getFieldType(FIELD)).thenReturn(storedFieldType);
+        when(sec.isMetadataField(any())).thenReturn(false);
+
+        StoredFieldsContext storedFieldsCtx = StoredFieldsContext.fromList(List.of(FIELD));
+
+        searchContext = new TestSearchContext(sec) {
+            @Override
+            public StoredFieldsContext storedFieldsContext() {
+                return storedFieldsCtx;
+            }
+        };
+        FetchContext fetchContext = new FetchContext(searchContext, null);
+        fetchContext.setDocumentFieldsByteChecker(bytes -> charged.add(bytes));
+
+        processor = new StoredFieldsPhase().getProcessor(fetchContext);
+        assertNotNull(processor);
+    }
+
+    @After
+    public void tearDownPhase() throws Exception {
+        searchContext.close();
+    }
+
+    public void testChargesBytesForStoredFields() throws Exception {
+        MemoryIndex index = new MemoryIndex();
+        var leafCtx = index.createSearcher().getIndexReader().leaves().get(0);
+        SearchHit hit = SearchHit.unpooled(0, null);
+        try {
+            Map<String, List<Object>> loadedFields = Map.of(FIELD, List.of("hello", "world"));
+            processor.process(new FetchSubPhase.HitContext(hit, leafCtx, 0, loadedFields, Source.empty(null), null));
+            assertNotNull(hit.field(FIELD));
+            assertThat(charged.stream().mapToLong(Long::longValue).sum(), greaterThan(0L));
+        } finally {
+            hit.decRef();
         }
     }
 
     public void testNoChargeWhenNoMatchingLoadedFields() throws Exception {
-        try (TestRun run = new TestRun()) {
-            MemoryIndex index = new MemoryIndex();
-            var leafCtx = index.createSearcher().getIndexReader().leaves().get(0);
-            SearchHit hit = SearchHit.unpooled(0, null);
-            try {
-                // loaded fields map does not contain FIELD
-                run.processor.process(new FetchSubPhase.HitContext(hit, leafCtx, 0, Map.of(), Source.empty(null), null));
-                assertEquals(0L, run.charged.stream().mapToLong(Long::longValue).sum());
-            } finally {
-                hit.decRef();
-            }
-        }
-    }
-
-    private final class TestRun implements AutoCloseable {
-        final List<Long> charged = new ArrayList<>();
-        final FetchSubPhaseProcessor processor;
-        final TestSearchContext searchContext;
-
-        TestRun() {
-            // Minimal stored MappedFieldType — isStored=true so StoredFieldsPhase includes it.
-            MappedFieldType storedFieldType = new MappedFieldType(FIELD, IndexType.NONE, true, Map.of()) {
-                @Override
-                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public String typeName() {
-                    return "test";
-                }
-
-                @Override
-                public Query termQuery(Object value, SearchExecutionContext context) {
-                    throw new UnsupportedOperationException();
-                }
-            };
-
-            SearchExecutionContext sec = mock(SearchExecutionContext.class);
-            when(sec.getMatchingFieldNames(FIELD)).thenReturn(Set.of(FIELD));
-            when(sec.getFieldType(FIELD)).thenReturn(storedFieldType);
-            when(sec.isMetadataField(any())).thenReturn(false);
-
-            StoredFieldsContext storedFieldsCtx = StoredFieldsContext.fromList(List.of(FIELD));
-
-            searchContext = new TestSearchContext(sec) {
-                @Override
-                public StoredFieldsContext storedFieldsContext() {
-                    return storedFieldsCtx;
-                }
-            };
-            FetchContext fetchContext = new FetchContext(searchContext, null);
-            fetchContext.setDocumentFieldsByteChecker(bytes -> charged.add(bytes));
-
-            processor = new StoredFieldsPhase().getProcessor(fetchContext);
-            assertNotNull(processor);
-        }
-
-        @Override
-        public void close() throws Exception {
-            searchContext.close();
+        MemoryIndex index = new MemoryIndex();
+        var leafCtx = index.createSearcher().getIndexReader().leaves().get(0);
+        SearchHit hit = SearchHit.unpooled(0, null);
+        try {
+            // loaded fields map does not contain FIELD
+            processor.process(new FetchSubPhase.HitContext(hit, leafCtx, 0, Map.of(), Source.empty(null), null));
+            assertEquals(0L, charged.stream().mapToLong(Long::longValue).sum());
+        } finally {
+            hit.decRef();
         }
     }
 }

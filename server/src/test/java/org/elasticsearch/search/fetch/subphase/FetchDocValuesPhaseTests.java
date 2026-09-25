@@ -32,8 +32,9 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TestSearchContext;
+import org.junit.After;
+import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,51 @@ public class FetchDocValuesPhaseTests extends ESTestCase {
 
     private static final String FIELD = "numeric";
 
+    private List<Long> charged;
+    private FetchSubPhaseProcessor processor;
+    private TestSearchContext searchContext;
+
+    @Before
+    public void setUpPhase() throws Exception {
+        charged = new ArrayList<>();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
+        SearchExecutionContext sec = mock(SearchExecutionContext.class);
+        when(sec.getMatchingFieldNames(FIELD)).thenReturn(Set.of(FIELD));
+        when(sec.getIndexSettings()).thenReturn(indexSettings);
+
+        MappedFieldType fieldType = mock(MappedFieldType.class);
+        when(fieldType.docValueFormat(any(), any())).thenReturn(DocValueFormat.RAW);
+        when(sec.getFieldType(FIELD)).thenReturn(fieldType);
+        when(sec.getForField(any(), any())).thenReturn(
+            new SortedNumericIndexFieldData(
+                FIELD,
+                IndexNumericFieldData.NumericType.LONG,
+                CoreValuesSourceType.NUMERIC,
+                null,
+                IndexType.NONE
+            )
+        );
+
+        FetchDocValuesContext dvContext = new FetchDocValuesContext(sec, List.of(new FieldAndFormat(FIELD, null)));
+
+        searchContext = new TestSearchContext(sec) {
+            @Override
+            public FetchDocValuesContext docValuesContext() {
+                return dvContext;
+            }
+        };
+        FetchContext fetchContext = new FetchContext(searchContext, null);
+        fetchContext.setDocumentFieldsByteChecker(bytes -> charged.add(bytes));
+
+        processor = new FetchDocValuesPhase().getProcessor(fetchContext);
+        assertNotNull(processor);
+    }
+
+    @After
+    public void tearDownPhase() throws Exception {
+        searchContext.close();
+    }
+
     public void testChargesDocValueFieldBytes() throws Exception {
         Directory dir = newDirectory();
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir);
@@ -58,21 +104,22 @@ public class FetchDocValuesPhaseTests extends ESTestCase {
         IndexReader reader = iw.getReader();
         iw.close();
 
-        try (TestRun run = new TestRun()) {
+        try {
             LeafReaderContext leaf = reader.leaves().get(0);
-            run.processor.setNextReader(leaf);
+            processor.setNextReader(leaf);
             SearchHit hit = SearchHit.unpooled(0, null);
             try {
-                run.processor.process(new FetchSubPhase.HitContext(hit, leaf, 0, Map.of(), Source.empty(null), null));
+                processor.process(new FetchSubPhase.HitContext(hit, leaf, 0, Map.of(), Source.empty(null), null));
                 assertNotNull(hit.getFields().get(FIELD));
                 // baseline is 0 for a new field, so the full estimate (object + name + values) is charged
-                assertEquals(hit.field(FIELD).ramBytesUsedEstimate(), run.charged.stream().mapToLong(Long::longValue).sum());
+                assertEquals(hit.field(FIELD).ramBytesUsedEstimate(), charged.stream().mapToLong(Long::longValue).sum());
             } finally {
                 hit.decRef();
             }
+        } finally {
+            reader.close();
+            dir.close();
         }
-        reader.close();
-        dir.close();
     }
 
     /**
@@ -90,9 +137,9 @@ public class FetchDocValuesPhaseTests extends ESTestCase {
         IndexReader reader = iw.getReader();
         iw.close();
 
-        try (TestRun run = new TestRun()) {
+        try {
             LeafReaderContext leaf = reader.leaves().get(0);
-            run.processor.setNextReader(leaf);
+            processor.setNextReader(leaf);
             SearchHit hit = SearchHit.unpooled(0, null);
             try {
                 // simulate a field already set by a prior phase (e.g. StoredFieldsPhase)
@@ -100,62 +147,18 @@ public class FetchDocValuesPhaseTests extends ESTestCase {
                 long beforeBytes = existing.ramBytesUsedEstimate();
                 hit.setDocumentField(existing);
 
-                run.processor.process(new FetchSubPhase.HitContext(hit, leaf, 0, Map.of(), Source.empty(null), null));
+                processor.process(new FetchSubPhase.HitContext(hit, leaf, 0, Map.of(), Source.empty(null), null));
 
                 long afterBytes = hit.field(FIELD).ramBytesUsedEstimate();
                 long expectedDelta = afterBytes - beforeBytes;
                 assertThat(expectedDelta, greaterThan(0L));
-                assertEquals(expectedDelta, run.charged.stream().mapToLong(Long::longValue).sum());
+                assertEquals(expectedDelta, charged.stream().mapToLong(Long::longValue).sum());
             } finally {
                 hit.decRef();
             }
-        }
-        reader.close();
-        dir.close();
-    }
-
-    private final class TestRun implements AutoCloseable {
-        final List<Long> charged = new ArrayList<>();
-        final FetchSubPhaseProcessor processor;
-        final TestSearchContext searchContext;
-
-        TestRun() throws IOException {
-            IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
-            SearchExecutionContext sec = mock(SearchExecutionContext.class);
-            when(sec.getMatchingFieldNames(FIELD)).thenReturn(Set.of(FIELD));
-            when(sec.getIndexSettings()).thenReturn(indexSettings);
-
-            MappedFieldType fieldType = mock(MappedFieldType.class);
-            when(fieldType.docValueFormat(any(), any())).thenReturn(DocValueFormat.RAW);
-            when(sec.getFieldType(FIELD)).thenReturn(fieldType);
-            when(sec.getForField(any(), any())).thenReturn(
-                new SortedNumericIndexFieldData(
-                    FIELD,
-                    IndexNumericFieldData.NumericType.LONG,
-                    CoreValuesSourceType.NUMERIC,
-                    null,
-                    IndexType.NONE
-                )
-            );
-
-            FetchDocValuesContext dvContext = new FetchDocValuesContext(sec, List.of(new FieldAndFormat(FIELD, null)));
-
-            searchContext = new TestSearchContext(sec) {
-                @Override
-                public FetchDocValuesContext docValuesContext() {
-                    return dvContext;
-                }
-            };
-            FetchContext fetchContext = new FetchContext(searchContext, null);
-            fetchContext.setDocumentFieldsByteChecker(bytes -> charged.add(bytes));
-
-            processor = new FetchDocValuesPhase().getProcessor(fetchContext);
-            assertNotNull(processor);
-        }
-
-        @Override
-        public void close() throws Exception {
-            searchContext.close();
+        } finally {
+            reader.close();
+            dir.close();
         }
     }
 }

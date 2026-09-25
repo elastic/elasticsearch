@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 
 public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
 
-    // A pre-existing buffer file is sealed on shutdown (or recovered on startup), so it is drainable right after restart.
+    // The buffer file is sealed before the node stops, so it is drainable right after restart.
     private static final int BUFFER_DRAIN_TIMEOUT = 3;
 
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();

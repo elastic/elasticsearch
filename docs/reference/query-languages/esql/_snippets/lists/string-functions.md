@@ -19,6 +19,18 @@
 * [`FIELD_EXTRACT`](../../functions-operators/string-functions/field_extract.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/field_extract.md
   :::
+* [`FMT_BYTES`](../../functions-operators/string-functions/fmt_bytes.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/fmt_bytes.md
+  :::
+* [`FMT_BYTES_SI`](../../functions-operators/string-functions/fmt_bytes_si.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/fmt_bytes_si.md
+  :::
+* [`FMT_DURATION`](../../functions-operators/string-functions/fmt_duration.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/fmt_duration.md
+  :::
+* [`FMT_PERCENT`](../../functions-operators/string-functions/fmt_percent.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/fmt_percent.md
+  :::
 * [`FROM_BASE64`](../../functions-operators/string-functions/from_base64.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/from_base64.md
   :::

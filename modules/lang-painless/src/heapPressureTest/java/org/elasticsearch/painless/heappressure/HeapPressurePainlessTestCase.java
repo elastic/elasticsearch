@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.painless.resourceexhaustion;
+package org.elasticsearch.painless.heappressure;
 
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -22,7 +22,7 @@ import java.util.Map;
  * {@code script.painless.max_allocation_bytes.context.<name>.limit} node setting, which is
  * {@code NodeScope} and therefore must be set at startup rather than dynamically.
  */
-public abstract class ResourceExhaustionPainlessTestCase extends ESRestTestCase {
+public abstract class HeapPressurePainlessTestCase extends ESRestTestCase {
 
     /**
      * Asserts that a {@link ResponseException} was produced when a Painless script exceeded

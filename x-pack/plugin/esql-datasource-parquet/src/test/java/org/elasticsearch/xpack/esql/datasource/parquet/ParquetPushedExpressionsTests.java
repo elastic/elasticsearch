@@ -230,9 +230,10 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     // --- Declared LONG/INTEGER over a DECIMAL(scale>0) column (scale mismatch) ---
 
     /**
-     * A declared {@code long} over a physical {@code DECIMAL(scale=2)} INT64 decodes to {@code unscaled / 100} (a
-     * double rounded to long) while the raw footer statistics hold the unscaled integer — an implicit ÷100. Pushing a
-     * raw long literal against those stats mis-prunes, so comparison and IN must both decline.
+     * A declared {@code long} over a physical {@code DECIMAL(scale=2)} INT64 decodes to {@code unscaled / 100}
+     * (accepted only when that double is an exact whole number) while the raw footer statistics hold the unscaled
+     * integer — an implicit ÷100. Pushing a raw long literal against those stats mis-prunes, so comparison and IN
+     * must both decline.
      */
     public void testDeclaredLongOverDecimalScaledDeclinesPushdown() {
         MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("amt").named("test");

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDecider.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -1289,104 +1290,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             public Iterable<StoredShardMovement> getBestShardMovements() {
                 return bestShardMovementsByNode.values();
-            }
-        }
-
-        /**
-         * Sorts shards by desirability to move, sort order goes:
-         * <ol>
-         *     <li>Shards with write-load in <i>{@link PrioritiseByShardWriteLoadComparator#threshold}</i> &rarr;
-         *          {@link PrioritiseByShardWriteLoadComparator#maxWriteLoadOnNode} (exclusive)</li>
-         *     <li>Shards with write-load in <i>{@link PrioritiseByShardWriteLoadComparator#threshold}</i> &rarr; 0</li>
-         *     <li>Shards with write-load == {@link PrioritiseByShardWriteLoadComparator#maxWriteLoadOnNode}</li>
-         *     <li>Shards with missing write-load</li>
-         * </ol>
-         *
-         * e.g., for any two <code>ShardRouting</code>s, <code>r1</code> and <code>r2</code>,
-         * <ul>
-         *     <li><code>compare(r1, r2) &gt; 0</code> when <code>r2</code> is more desirable to move</li>
-         *     <li><code>compare(r1, r2) == 0</code> when the two shards are equally desirable to move</li>
-         *     <li><code>compare(r1, r2) &lt; 0</code> when <code>r1</code> is more desirable to move</li>
-         * </ul>
-         */
-        // Visible for testing
-        public static class PrioritiseByShardWriteLoadComparator implements Comparator<ShardRouting> {
-
-            /**
-             * This is the threshold over which we consider shards to have a "high" write load represented
-             * as a ratio of the maximum write-load present on the node.
-             * <p>
-             * We prefer to move shards that have a write-load close to <b>this value</b> x {@link #maxWriteLoadOnNode}.
-             */
-            public static final double THRESHOLD_RATIO = 0.5;
-            private static final double MISSING_WRITE_LOAD = -1;
-            private final Map<ShardId, Double> shardWriteLoads;
-            private final double maxWriteLoadOnNode;
-            private final double threshold;
-            private final String nodeId;
-
-            public PrioritiseByShardWriteLoadComparator(ClusterInfo clusterInfo, RoutingNode routingNode) {
-                shardWriteLoads = clusterInfo.getShardWriteLoads();
-                double maxWriteLoadOnNode = MISSING_WRITE_LOAD;
-                for (ShardRouting shardRouting : routingNode) {
-                    maxWriteLoadOnNode = Math.max(
-                        maxWriteLoadOnNode,
-                        shardWriteLoads.getOrDefault(shardRouting.shardId(), MISSING_WRITE_LOAD)
-                    );
-                }
-                this.maxWriteLoadOnNode = maxWriteLoadOnNode;
-                threshold = maxWriteLoadOnNode * THRESHOLD_RATIO;
-                nodeId = routingNode.nodeId();
-            }
-
-            @Override
-            public int compare(ShardRouting lhs, ShardRouting rhs) {
-                assert nodeId.equals(lhs.currentNodeId()) && nodeId.equals(rhs.currentNodeId())
-                    : this.getClass().getSimpleName()
-                        + " is node-specific. comparator="
-                        + nodeId
-                        + ", lhs="
-                        + lhs.currentNodeId()
-                        + ", rhs="
-                        + rhs.currentNodeId();
-
-                // If we have no shard write-load data, shortcut
-                if (maxWriteLoadOnNode == MISSING_WRITE_LOAD) {
-                    return 0;
-                }
-
-                final double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), MISSING_WRITE_LOAD);
-                final double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), MISSING_WRITE_LOAD);
-
-                // prefer any known write-load over any unknown write-load
-                final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
-                final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
-                if (rhsIsMissing && lhsIsMissing) {
-                    return 0;
-                }
-                if (rhsIsMissing ^ lhsIsMissing) {
-                    return lhsIsMissing ? 1 : -1;
-                }
-
-                if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
-                    final var lhsOverThreshold = lhsWriteLoad >= threshold;
-                    final var rhsOverThreshold = rhsWriteLoad >= threshold;
-                    if (lhsOverThreshold && rhsOverThreshold) {
-                        // Both values between threshold and maximum, prefer lowest
-                        return Double.compare(lhsWriteLoad, rhsWriteLoad);
-                    } else if (lhsOverThreshold) {
-                        // lhs between threshold and maximum, rhs below threshold, prefer lhs
-                        return -1;
-                    } else if (rhsOverThreshold) {
-                        // lhs below threshold, rhs between threshold and maximum, prefer rhs
-                        return 1;
-                    }
-                    // Both values below the threshold, prefer highest
-                    return Double.compare(rhsWriteLoad, lhsWriteLoad);
-                }
-
-                // prefer the non-max write load if there is one
-                return Double.compare(lhsWriteLoad, rhsWriteLoad);
             }
         }
 

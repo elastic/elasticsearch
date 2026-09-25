@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDecider.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
@@ -237,8 +237,7 @@ public class WriteLoadMetrics {
                     );
                 }
 
-                final double prioritisationThreshold = BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO
-                    * maxShardWriteLoad;
+                final double prioritisationThreshold = PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO * maxShardWriteLoad;
                 prioritisationThresholdMetrics.add(new DoubleWithAttributes(prioritisationThreshold, nodeAttrs));
 
                 final long shardsExceedingThreshold = (long) shardWeightHistogram.getCountBetweenValues(

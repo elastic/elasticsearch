@@ -1770,30 +1770,28 @@ public class Security extends Plugin
             assert getLicenseState() != null;
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 assert dlsBitsetCache.get() != null;
-                module.setReaderWrapper(
-                    indexService -> new SecurityIndexReaderWrapper(
-                        shardId -> indexService.newSearchExecutionContext(
-                            shardId.id(),
-                            0,
-                            // we pass a null index reader, which is legal and will disable rewrite optimizations
-                            // based on index statistics, which is probably safer...
-                            null,
-                            () -> {
-                                throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
+                module.setReaderWrapper(indexService -> new SecurityIndexReaderWrapper(shardId -> {
+                    var context = indexService.newSearchExecutionContext(
+                        shardId.id(),
+                        0,
+                        // we pass a null index reader, which is legal and will disable rewrite optimizations
+                        // based on index statistics, which is probably safer...
+                        null,
+                        () -> {
+                            throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
-                            },
-                            null,
-                            // Don't use runtime mappings in the security query
-                            emptyMap(),
-                            null,
-                            null
-                        ),
-                        dlsBitsetCache.get(),
-                        securityContext.get(),
-                        getLicenseState(),
-                        indexService.getScriptService()
-                    )
-                );
+                        },
+                        null,
+                        // Don't use runtime mappings in the security query
+                        emptyMap(),
+                        null,
+                        null
+                    );
+                    // DLS role queries are authorization rules and must be evaluated against the
+                    // complete mapping, independently of the user's field-level permissions.
+                    context.setFieldVisibilityPredicate(FieldPredicate.ACCEPT_ALL);
+                    return context;
+                }, dlsBitsetCache.get(), securityContext.get(), getLicenseState(), indexService.getScriptService()));
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully

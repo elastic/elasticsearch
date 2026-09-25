@@ -18,14 +18,18 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +60,11 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             user4:%s
             user5:%s
             """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), ConstantKeywordMapperPlugin.class);
     }
 
     @Override
@@ -428,6 +437,42 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             ).fieldCaps(fieldCapabilitiesRequest).actionGet();
             assertExpectedFields(response, "field1", "field2");
         }
+    }
+
+    public void testDLSCanFilterOnConstantKeywordHiddenByFLS() {
+        assertAcked(
+            indicesAdmin().prepareCreate("constant-allowed")
+                .setMapping("field1", "type=keyword", "field2", "type=constant_keyword,value=value2")
+        );
+        assertAcked(
+            indicesAdmin().prepareCreate("constant-denied")
+                .setMapping("field1", "type=keyword", "field2", "type=constant_keyword,value=other")
+        );
+
+        prepareIndex("constant-allowed").setId("allowed")
+            .setSource("field1", "visible", "field2", "value2")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        prepareIndex("constant-denied").setId("denied")
+            .setSource("field1", "visible", "field2", "other")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("constant-*"),
+            response -> {
+                assertHitCount(response, 1);
+                assertSearchHits(response, "allowed");
+
+                var hit = response.getHits().getAt(0);
+                assertThat(hit.getIndex(), equalTo("constant-allowed"));
+
+                // DLS was allowed to use field2, but FLS still hides it from the response.
+                assertThat(hit.getSourceAsMap(), equalTo(Map.of("field1", "visible")));
+            }
+        );
     }
 
     @SuppressWarnings("unchecked")

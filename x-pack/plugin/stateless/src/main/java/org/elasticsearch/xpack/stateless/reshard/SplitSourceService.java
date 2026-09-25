@@ -478,7 +478,7 @@ public class SplitSourceService {
                 long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
                 return handoffCount < Math.max(1, totalTargetShards / 8);
             },
-            TimeValue.timeValueMinutes(5),
+            TimeValue.timeValueMinutes(10),
             logger
         );
     }

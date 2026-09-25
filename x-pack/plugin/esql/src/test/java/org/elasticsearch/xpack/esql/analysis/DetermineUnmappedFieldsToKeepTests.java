@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -100,6 +102,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testKeepExactNameOmitsUnmappedFieldsAttribute() {
         assertNoUnmappedFieldsAttribute("FROM test | KEEP salary");
+    }
+
+    public void testEvalUnmappedThenKeepExactNameOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL z = unmapped_extra::keyword | KEEP emp_no, z");
     }
 
     public void testKeepExactNameBeforePatternOmitsUnmappedFieldsAttribute() {
@@ -376,6 +382,98 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, excl("_unmapped_fields"));
     }
 
+    public void testSubqueryKeepExactNameOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("""
+            FROM (FROM test | KEEP salary), (FROM test | KEEP emp_no)
+            | KEEP salary, emp_no
+            """);
+    }
+
+    public void testSubqueryEvalThenKeepExactNameOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("""
+            FROM (FROM test | WHERE emp_no == 10001), (FROM test | WHERE emp_no == 10002)
+            | EVAL z = salary + 1
+            | KEEP emp_no, z
+            | SORT emp_no
+            """);
+    }
+
+    public void testSubqueryEvalUnmappedConvertThenKeepExactNameOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("""
+            FROM (FROM test), (FROM test)
+            | EVAL z = unmapped_extra::keyword
+            | KEEP emp_no, z
+            """);
+    }
+
+    public void testSubqueryNoKeepAnnotatesBothRelations() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM (FROM test), (FROM test)"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, excl());
+        }
+    }
+
+    public void testSubqueryKeepStarAnnotatesBothRelations() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM (FROM test), (FROM test) | KEEP *"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, excl());
+        }
+    }
+
+    public void testSubqueryKeepInOneBranchOmitsThatBranch() {
+        LogicalPlan plan = test().addLanguages().statement(setUnmappedLoadAll("""
+            FROM (FROM test | KEEP emp_no), (FROM languages)
+            """));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            List<UnmappedFieldsAttribute> attrs = CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class);
+            if (relation.indexPattern().equals("test")) {
+                assertThat(attrs, empty());
+            } else {
+                assertThat(attrs, hasSize(1));
+                assertKept(attrs.getFirst().pattern(), "unmapped_extra");
+            }
+        }
+    }
+
+    public void testSubqueryStatsInOneBranchOmitsThatBranch() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM (FROM test), (FROM test | STATS c = COUNT(*))
+            """));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        UnionAll union = EsqlTestUtils.singleValue(plan.collect(UnionAll.class));
+        assertThat(unmappedFieldsAttributes(EsqlTestUtils.singleValue(union.children().get(0).collect(EsRelation.class))), hasSize(1));
+        assertThat(unmappedFieldsAttributes(EsqlTestUtils.singleValue(union.children().get(1).collect(EsRelation.class))), empty());
+    }
+
+    public void testSubqueryKeepWildcardInOneBranchStampsBothBranchesWithDifferentPatterns() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM (FROM test | KEEP first_name*), (FROM test | WHERE emp_no > 0)
+            """));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        UnionAll union = EsqlTestUtils.singleValue(plan.collect(UnionAll.class));
+        UnmappedFieldsPattern keepBranch = unmappedFieldsPattern(
+            EsqlTestUtils.singleValue(union.children().get(0).collect(EsRelation.class))
+        );
+        UnmappedFieldsPattern whereBranch = unmappedFieldsPattern(
+            EsqlTestUtils.singleValue(union.children().get(1).collect(EsRelation.class))
+        );
+        assertKept(keepBranch, "first_name_suffix");
+        assertNotKept(keepBranch, "unmapped_extra");
+        assertKept(whereBranch, "first_name_suffix", "unmapped_extra");
+        assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
+    }
+
     public void testRenameUnmappedFieldsIsAnOrdinarySourceField() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME _unmapped_fields AS extras");
         assertKept(pattern, "unmapped_extra");
@@ -437,7 +535,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
                 assertKept(unmappedFieldsPattern(relation), "unmapped_extra");
             }
         }
-        assertThat(stamped, is(1));
+        assertThat(stamped, equalTo(1));
     }
 
     public void testForkStatsInOneBranchStillSurfacesUnmappedFieldsAttribute() {
@@ -450,7 +548,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
                 assertKept(unmappedFieldsPattern(relation), "unmapped_extra");
             }
         }
-        assertThat(stamped, is(1));
+        assertThat(stamped, equalTo(1));
     }
 
     public void testForkKeepWildcardInOneBranchStampsBothBranchesWithDifferentPatterns() {
@@ -466,8 +564,8 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
                 droppedExtra++;
             }
         }
-        assertThat(keptExtra, is(1));
-        assertThat(droppedExtra, is(1));
+        assertThat(keptExtra, equalTo(1));
+        assertThat(droppedExtra, equalTo(1));
         // Coordinator expansion filters every branch's keys through Fork's pattern, so the union must still
         // keep extras the WHERE sibling loaded even when the KEEP branch is listed first.
         assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
@@ -663,6 +761,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     private void assertNoUnmappedFieldsAttribute(String query) {
         LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
         for (EsRelation relation : plan.collect(EsRelation.class)) {
             assertThat("expected no UnmappedFieldsAttribute on " + relation, unmappedFieldsAttributes(relation), empty());
         }

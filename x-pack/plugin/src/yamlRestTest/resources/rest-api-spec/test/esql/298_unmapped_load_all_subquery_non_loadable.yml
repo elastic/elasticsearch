@@ -1,0 +1,211 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings, allowed_warnings_regex, warnings, warnings_regex, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_subqueries, subquery_in_from_command, aggregate_metric_double_v0, support_partial_results ]
+      reason: 'a type with no implicit conversion from KEYWORD cannot be rebuilt from _source, so a sibling branch carrying a value null-fills and warns'
+
+  - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
+      indices.create:
+        index: idx1
+        body:
+          mappings:
+            properties:
+              tx:
+                type: aggregate_metric_double
+                metrics: [ min, max, sum, value_count ]
+                default_metric: max
+              txt:
+                type: text
+              vec:
+                type: dense_vector
+                dims: 3
+                index: false
+
+  - do:
+      indices.create:
+        index: idx2
+        body:
+          mappings:
+            dynamic: false
+            properties: {}
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx1" } }
+          - { "tx": { "min": 1.0, "max": 3.0, "sum": 10.1, "value_count": 5 }, "txt": "mapped", "vec": [ 1.0, 2.0, 3.0 ] }
+          - { "index": { "_index": "idx2" } }
+          - { "tx": 81, "txt": "unmapped", "vec": [ 4.0, 5.0, 6.0 ] }
+
+  - do:
+      indices.create:
+        index: idx_long
+        body:
+          mappings:
+            properties:
+              n:
+                type: long
+
+  - do:
+      indices.create:
+        index: idx_src
+        body:
+          mappings:
+            dynamic: false
+            properties: {}
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx_long" } }
+          - { "n": 7 }
+          - { "index": { "_index": "idx_src" } }
+          - { "n": "42" }
+          - { "index": { "_index": "idx_src" } }
+          - { "n": "not-a-long" }
+
+  - do:
+      indices.create:
+        index: idx_kw
+        body:
+          mappings:
+            properties:
+              client_ip:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: idx_ip
+        body:
+          mappings:
+            properties:
+              client_ip:
+                type: ip
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx_kw" } }
+          - { "client_ip": "172.21.2.162" }
+          - { "index": { "_index": "idx_ip" } }
+          - { "client_ip": "172.21.2.162" }
+
+  - do:
+      indices.create:
+        index: idx_date
+        body:
+          mappings:
+            properties:
+              ts:
+                type: date
+
+  - do:
+      indices.create:
+        index: idx_date_src
+        body:
+          mappings:
+            dynamic: false
+            properties: {}
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx_date" } }
+          - { "ts": "2024-10-23T12:15:03.360Z" }
+          - { "index": { "_index": "idx_date_src" } }
+          - { "ts": "2024-10-23T12:15:03.360Z" }
+          - { "index": { "_index": "idx_date_src" } }
+          - { "ts": "2024-10-23T12:15:03.360" }
+
+---
+"LOAD_ALL subquery warns and nulls when unmapped sibling has an aggregate_metric_double _source value":
+  - do:
+      warnings:
+        - "Field [tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1 METADATA _index), (FROM idx2 METADATA _index) | KEEP _index, tx | SORT _index | LIMIT 10'
+  - match: { values: [ [ "idx1", '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' ], [ "idx2", null ] ] }
+
+---
+"LOAD_ALL comma form warns and nulls where the subquery form used to fail":
+  - do:
+      warnings:
+        - "Field [vec] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM idx1, idx2 | EVAL present = vec IS NOT NULL | KEEP present | SORT present DESC | LIMIT 2'
+  - match: { values: [ [ true ], [ false ] ] }
+
+---
+"LOAD_ALL subquery still warns when another branch mentions the field and a third lacks it":
+  - do:
+      warnings:
+        - "Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2 | KEEP txt), (FROM idx2) | KEEP txt | SORT txt NULLS LAST | LIMIT 10'
+  - match: { values: [ [ "mapped" ], [ null ], [ null ] ] }
+
+---
+"LOAD_ALL subquery implicit cast to long nulls a keyword source value that is not a long":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      warnings_regex:
+        - "Line 1:39: evaluation of \\[FROM idx_long\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:39: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \\[not-a-long\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx_long), (FROM idx_src) | KEEP n | SORT n NULLS LAST | LIMIT 10'
+
+  - match: { columns.0.name: n }
+  - match: { columns.0.type: long }
+  - length: { values: 3 }
+  - match: { values.0: [ 7 ] }
+  - match: { values.1: [ 42 ] }
+  - match: { values.2: [ null ] }
+
+---
+"LOAD_ALL subquery type conflict reports original_types":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx_kw), (FROM idx_ip) | KEEP client_ip | LIMIT 1'
+
+  - match: { columns.0.name: client_ip }
+  - match: { columns.0.type: unsupported }
+  - match: { columns.0.original_types: [ "ip", "keyword" ] }
+  - match: { columns.0.suggested_cast: keyword }
+  - match: { values.0: [ null ] }
+
+---
+"LOAD_ALL subquery date cast applies the query time zone to a zone-less source value":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; SET time_zone="America/New_York"; FROM (FROM idx_date METADATA _index), (FROM idx_date_src METADATA _index) | KEEP _index, ts | SORT _index, ts'
+
+  - match: { columns.0.name: _index }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: ts }
+  - match: { columns.1.type: date }
+  - length: { values: 3 }
+  - match: { values.0: [ "idx_date", "2024-10-23T08:15:03.360-04:00" ] }
+  - match: { values.1: [ "idx_date_src", "2024-10-23T08:15:03.360-04:00" ] }
+  - match: { values.2: [ "idx_date_src", "2024-10-23T12:15:03.360-04:00" ] }

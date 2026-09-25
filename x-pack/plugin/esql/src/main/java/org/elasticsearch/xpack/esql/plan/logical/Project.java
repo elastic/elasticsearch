@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.Functions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -123,6 +124,16 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
 
     public Project withProjections(List<? extends NamedExpression> projections) {
         return new Project(source(), child(), projections);
+    }
+
+    public Project withAdditionalProjections(List<? extends NamedExpression> additional) {
+        if (additional.isEmpty()) {
+            return this;
+        }
+        List<NamedExpression> combined = new ArrayList<>(projections.size() + additional.size());
+        combined.addAll(projections);
+        combined.addAll(additional);
+        return withProjections(combined);
     }
 
     @Override

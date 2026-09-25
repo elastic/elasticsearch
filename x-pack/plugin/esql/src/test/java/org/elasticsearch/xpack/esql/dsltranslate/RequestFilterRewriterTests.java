@@ -148,10 +148,9 @@ public class RequestFilterRewriterTests extends ESTestCase {
         assertThat("the survivable conjunct is installed", condition.anyMatch(MvInRange.class::isInstance), equalTo(true));
         assertThat("the gated conjunct is not", condition.anyMatch(MvCompare.class::isInstance), equalTo(false));
         assertWarnings(
-            "Request filter not fully applied to external datasets; skipped: "
-                + "[range[single lower bound on keyword]] on dataset [ds] because "
+            "Request filter not fully applied to external datasets; not applied because "
                 + QueryDslTranslator.VERSION_REASON
-                + "; use WHERE instead"
+                + ": [range[single lower bound on keyword]] on dataset [ds]; use WHERE instead"
         );
     }
 

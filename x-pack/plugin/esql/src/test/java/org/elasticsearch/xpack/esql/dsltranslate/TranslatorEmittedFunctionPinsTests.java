@@ -209,9 +209,9 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
     /** The text of every {@code gated(...)} call in the source, each from the name to its matching close paren. */
     private static List<String> gatedCalls(String source) {
         List<String> calls = new ArrayList<>();
-        // The lookbehind skips the helper's own declaration, "private Expression gated(", whose parameter list
-        // carries no qualified constant and would otherwise read as a call that names no pin.
-        Matcher m = Pattern.compile("(?<!Expression )\\bgated\\s*\\(").matcher(source);
+        // "return gated(" matches the call sites and never the declaration, whatever gated()'s return type is
+        // written as. A lookbehind on the return type broke the moment it was annotated or made generic.
+        Matcher m = Pattern.compile("\\breturn\\s+gated\\s*\\(").matcher(source);
         while (m.find()) {
             int depth = 1;
             int i = m.end();
@@ -365,6 +365,12 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
                 int end = source.indexOf("*/", i + 2);
                 i = end < 0 ? source.length() : end + 2;
                 out.append(' ');
+            } else if (c == '"' && source.startsWith("\"\"\"", i)) {
+                // A text block first: pairing its delimiters as ordinary quotes desynchronises everything after it,
+                // and the census then silently misses real constructions rather than merely counting a fake one.
+                int close = source.indexOf("\"\"\"", i + 3);
+                i = close < 0 ? source.length() : close + 3;
+                out.append("\"\"");
             } else if (c == '"') {
                 i++;
                 while (i < source.length() && source.charAt(i) != '"') {

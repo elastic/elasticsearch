@@ -677,6 +677,7 @@ public final class QueryDslTranslator {
 
         // One bound → mv_greater / mv_less (any-value, two-valued).
         if (hasLower) {
+            // Bind the literal before the gate: a bound that cannot be coerced is not a version failure.
             Literal lower = literalFor(field, range.from());
             return gated(
                 field,
@@ -685,6 +686,7 @@ public final class QueryDslTranslator {
                 () -> checkedLeaf(field, new MvGreater(Source.EMPTY, field, lower, includeBoundOptions(range.includeLower())))
             );
         }
+        // Bind the literal before the gate, for the same reason.
         Literal upper = literalFor(field, range.to());
         return gated(
             field,

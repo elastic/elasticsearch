@@ -241,9 +241,9 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LogicalPlan viewChild = viewChild(result, "myView");
         assertThat("nothing gated is installed below the pin", viewChild, not(instanceOf(Filter.class)));
         assertWarnings(
-            "The request filter could not be fully applied to view(s); the following were skipped: "
-                + "[range[single lower bound on keyword]] on view [myView] because "
+            "The request filter could not be fully applied to view(s); the following were not applied because "
                 + QueryDslTranslator.VERSION_REASON
+                + ": [range[single lower bound on keyword]] on view [myView]"
                 + ". Use a WHERE clause to filter rows from views instead"
         );
     }

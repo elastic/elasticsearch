@@ -157,7 +157,6 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         return UNNAMED_ENDPOINT_BATCH_SIZE;
     }
 
-
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "DenseVector",

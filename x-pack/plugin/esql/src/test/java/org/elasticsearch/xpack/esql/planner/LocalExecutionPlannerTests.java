@@ -1293,8 +1293,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      * Plans a DENSE_VECTOR over a single keyword column and asserts the batch size the embedding operator is built with, reading
      * it off the operator rather than recomputing it here. A null {@code configuredBatchSize} leaves the setting unset.
      */
-    private void assertDenseVectorBatchSize(String inferenceId, Integer configuredBatchSize, int expectedBatchSize)
-        throws IOException {
+    private void assertDenseVectorBatchSize(String inferenceId, Integer configuredBatchSize, int expectedBatchSize) throws IOException {
         ReferenceAttribute input = new ReferenceAttribute(Source.EMPTY, "input", DataType.KEYWORD);
         ReferenceAttribute generated = new ReferenceAttribute(Source.EMPTY, "input_dense_vector", DataType.DENSE_VECTOR);
         var blockFactory = TestBlockFactory.getNonBreakingInstance();

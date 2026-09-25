@@ -13,6 +13,10 @@ This processor comes packaged with many [reusable patterns](https://github.com/e
 
 If you need help building patterns to match your logs, you will find the [Grok Debugger](docs-content://explore-analyze/query-filter/tools/grok-debugger.md) tool quite useful! The [Grok Constructor](https://grokconstructor.appspot.com) is also a useful tool.
 
+:::{note}
+While custom code can execute within {{es}}, troubleshooting its failures or optimizing its performance falls outside the of [scope of Elastic's support](https://www.elastic.co/support_policy#6).
+:::
+
 ## Using the Grok Processor in a Pipeline [using-grok]
 
 $$$grok-options$$$

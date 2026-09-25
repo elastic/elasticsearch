@@ -1368,12 +1368,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         final CyclicBarrier afterRelocatedBarrier = new CyclicBarrier(2);
         commitService.setStrategy(new TestStatelessCommitService.Strategy() {
             @Override
-            public ActionListener<Void> markRelocating(
-                Supplier<ActionListener<Void>> originalSupplier,
-                ShardId sid,
-                long minRelocatedGeneration,
-                ActionListener<Void> listener
-            ) {
+            public ActionListener<Void> markRelocationStarting(Supplier<ActionListener<Void>> originalSupplier, ShardId sid) {
                 return originalSupplier.get().delegateFailure((l, ignored) -> {
                     l.onResponse(null); // mark relocated
                     safeAwait(afterRelocatedBarrier);

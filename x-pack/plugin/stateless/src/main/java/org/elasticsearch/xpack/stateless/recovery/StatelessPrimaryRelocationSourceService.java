@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -332,7 +333,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
                 return;
             }
-            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+            final var shardId = indexShard.shardId();
+            final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
+
+            final ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocationStarting(shardId);
+            final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> handoffConsumer = (
+                primaryContext,
+                handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
@@ -342,7 +349,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
                 final long beforeFinalFlush = threadPool.relativeTimeInMillis();
 
-                final var shardId = indexShard.shardId();
                 final boolean hasRecentIdLookup = engine.hasRecentIdLookup(idLookupRecencyThreshold);
                 if (engine instanceof IndexEngine indexEngine) {
                     if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
@@ -417,12 +423,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 final var latestBccBlobLength = new AtomicLong(-1L);
                 final var otherBlobFilesCount = new AtomicLong(-1L);
                 final var markedShardAsRelocating = new SubscribableListener<Void>();
-                final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
-                ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
-                    indexShard.shardId(),
-                    lastFlushedGeneration,
-                    markedShardAsRelocating
-                );
+                statelessCommitService.markRelocating(indexShard.shardId(), lastFlushedGeneration, markedShardAsRelocating);
 
                 // Create a compound listener which will trigger both the stateless commit service listener and top-level
                 // handoffResultListener
@@ -550,7 +551,20 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         finalHandoffListener
                     );
                 }), recoveryExecutor, threadContext);
-            }, listener0.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())));
+            };
+
+            final ActionListener<Void> relocationResultListener = listener0.<Void>map(
+                unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())
+            ).delegateResponse((l, e) -> {
+                handoffCompleteListener.onFailure(e);
+                l.onFailure(e);
+            });
+            try {
+                indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), handoffConsumer, relocationResultListener);
+            } catch (Exception e) {
+                handoffCompleteListener.onFailure(e);
+                throw e;
+            }
         }), recoveryExecutor, threadContext);
     }
 

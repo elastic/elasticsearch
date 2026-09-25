@@ -671,7 +671,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 equalTo(secondCommit.getGeneration())
             );
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
-            ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+            ActionListener<Void> relocationListener = testHarness.commitService.markRelocationStarting(testHarness.shardId);
+            testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
             assertThat(
                 testHarness.commitService.getMaxPendingOrUploadedGeneration(testHarness.shardId),
                 equalTo(secondCommit.getGeneration())
@@ -739,7 +740,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.onCommitCreation(secondCommit);
 
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
-            ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+            ActionListener<Void> relocationListener = testHarness.commitService.markRelocationStarting(testHarness.shardId);
+            testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
 
             // Third commit is created after relocation started, so its generation > maxGenerationToUpload
             testHarness.commitService.onCommitCreation(thirdCommit);
@@ -829,7 +831,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(uploadedBlobs, not(hasItems(secondCommitFile.get())));
 
             PlainActionFuture<Void> listener = new PlainActionFuture<>();
-            ActionListener<Void> handoffListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+            ActionListener<Void> handoffListener = testHarness.commitService.markRelocationStarting(testHarness.shardId);
+            testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
 
             testHarness.commitService.onCommitCreation(thirdCommit);
             testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, thirdCommit.getGeneration());
@@ -894,11 +897,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             flushThreadPoolExecutor(testHarness.threadPool, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
 
             final var future = new PlainActionFuture<Void>();
-            ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(
-                testHarness.shardId,
-                mergedCommit.getGeneration(),
-                future
-            );
+            ActionListener<Void> relocationListener = testHarness.commitService.markRelocationStarting(testHarness.shardId);
+            testHarness.commitService.markRelocating(testHarness.shardId, mergedCommit.getGeneration(), future);
             safeGet(future);
 
             final Set<String> mergedCommitFiles = new HashSet<>(mergedCommit.getCommitFiles());
@@ -2463,7 +2463,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // Start the relocation handoff
             final var markedRelocating = new PlainActionFuture<Void>();
-            final var handoffListener = commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
+            final var handoffListener = commitService.markRelocationStarting(shardId);
+            commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
             markedRelocating.actionGet();
 
             // A background merge creates a commit above maxGenerationToUpload that will never be uploaded.
@@ -2487,6 +2488,63 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 response.getCompoundCommit().generation(),
                 equalTo(lastUploadedCommit.getGeneration())
             );
+
+            handoffListener.onResponse(null);
+        }
+    }
+
+    public void testRegisterCommitForUnpromotableRecoveryDoesNotGiveCurrentVbccOnceRelocationStarting() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            final var nodeId = stateWithSearchShards.getRoutingTable()
+                .shardRoutingTable(shardId)
+                .replicaShards()
+                .getFirst()
+                .currentNodeId();
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+            final var initialCommits = testHarness.generateIndexCommits(3);
+            for (var initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+            final var lastUploadedCommit = initialCommits.getLast();
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastUploadedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
+
+            // Relocation has begun, but the final flush has not happened and no bound is pinned yet.
+            final var handoffListener = commitService.markRelocationStarting(shardId);
+            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
+
+            // A merge commits in that window, opening a VBCC that markRelocating will leave above the bound.
+            final var mergedCommit = testHarness.generateIndexCommits(1, true).getFirst();
+            commitService.onCommitCreation(mergedCommit);
+            assertThat(mergedCommit.getGeneration(), greaterThan(lastUploadedCommit.getGeneration()));
+
+            final var registerFuture = new PlainActionFuture<RegisterCommitResponse>();
+            commitService.registerCommitForUnpromotableRecovery(
+                null,
+                new PrimaryTermAndGeneration(lastUploadedCommit.getPrimaryTerm(), lastUploadedCommit.getGeneration()),
+                shardId,
+                nodeId,
+                stateWithSearchShards,
+                registerFuture
+            );
+
+            final var response = registerFuture.actionGet();
+            assertThat(
+                "a commit created after the relocation started must not be handed to a recovering search shard",
+                response.getCompoundCommit().generation(),
+                equalTo(lastUploadedCommit.getGeneration())
+            );
+
+            // The bound pinned afterwards exclude the merged commit.
+            final var markedRelocating = new PlainActionFuture<Void>();
+            commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
+            markedRelocating.actionGet();
+            assertThat(commitService.getMaxGenerationToUpload(shardId), lessThan(mergedCommit.getGeneration()));
 
             handoffListener.onResponse(null);
         }
@@ -2527,13 +2585,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 waitUntilBCCIsUploaded(commitService, shardId, uploadedCommit.getGeneration());
 
                 // Hold the second commit's upload so that it is still pending when the handoff starts.
-                blockedBlobName.set(StatelessCompoundCommit.blobNameFromGeneration(pendingCommit.getGeneration()));
+                blockedBlobName.set(blobNameFromGeneration(pendingCommit.getGeneration()));
                 commitService.onCommitCreation(pendingCommit);
                 safeAwait(uploadBlocked);
 
                 // maxGenerationToUpload becomes the pending commit's generation
                 final var markedRelocating = new PlainActionFuture<Void>();
-                final var handoffListener = commitService.markRelocating(shardId, pendingCommit.getGeneration(), markedRelocating);
+                final var handoffListener = commitService.markRelocationStarting(shardId);
+                commitService.markRelocating(shardId, pendingCommit.getGeneration(), markedRelocating);
                 assertFalse("the handoff waits for the pending upload", markedRelocating.isDone());
 
                 // A background merge completes during the handoff, above maxGenerationToUpload.

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationColumn;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationColumn.DynamicColumnList;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationColumn.Static;
@@ -46,8 +47,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -328,6 +327,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return left.with(left.plan(), leftExpr);
         }
         TranslationResult right = translation.translate(right(), below);
+        if (vectors && (left.kind().constant || right.kind().constant)) {
+            // A constant vector is its own table, one `{}` row per step: like any two tables over different sources, it
+            // pairs with the other vector through the join, which compares the label sets ({} matches {} alone).
+            return translateJoin(translation);
+        }
         if (dropMetricName) {
             boolean leftRaw = isVectorBeforeInitialAgg(left(), left);
             boolean rightRaw = isVectorBeforeInitialAgg(right(), right);
@@ -365,8 +369,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             plan = ir.plan();
             filter = combineAndNullable(Arrays.asList(left.pendingFilter(), right.pendingFilter()));
         }
-        Kind kind = left.kind().afterInitialAggregation || right.kind().afterInitialAggregation
-            ? Kind.AFTER_INITIAL_AGGREGATE
+        // a constant table against a scalar expression stays a constant table
+        Kind kind = ir.kind().constant ? Kind.CONSTANT
+            : left.kind().afterInitialAggregation || right.kind().afterInitialAggregation ? Kind.AFTER_INITIAL_AGGREGATE
             : Kind.BEFORE_INITIAL_AGGREGATE;
         // OUT: the vector operand's labels (left when both are) - `__name__` for a name-dropping operator
         Map<TranslationColumn, Attribute> labels = dropMetricName ? ir.drop(name).labels() : ir.labels();
@@ -390,11 +395,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /**
-     * A scalar operand computed from the data ({@code scalar(sum(m))}, {@code scalar(m{..}) + 1}): a table of one value per
-     * step, as opposed to a literal or {@code time()}, which are expressions over any row.
+     * A scalar operand computed from a vector ({@code scalar(sum(m))}, {@code scalar(m{..}) + 1}, {@code scalar(vector(1))}):
+     * a table of one value per step, as opposed to a literal or {@code time()}, which are expressions over any row.
      */
     private static boolean isScalarTable(LogicalPlan operand) {
-        return getType(operand) == SCALAR && operand.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
+        return getType(operand) == SCALAR && operand.anyMatch(ScalarConversionFunction.class::isInstance);
     }
 
     /**

@@ -16,6 +16,8 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -65,6 +67,10 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
+        this(numShards, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+    }
+
+    public MockSearchPhaseContext(int numShards, CircuitBreaker circuitBreaker) {
         super(
             "mock",
             logger,
@@ -83,6 +89,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             ClusterState.EMPTY_STATE,
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
             new ArraySearchPhaseResults<>(numShards),
+            circuitBreaker,
             5,
             null,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
@@ -174,6 +181,9 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     @Override
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
+        // Completes the listener as production does, so anything registered with addReleasable is released. Unlike
+        // raisePhaseFailure it does not release the successful shards' contexts or notify the progress listener.
+        doneFuture.onResponse(null);
     }
 
     @Override

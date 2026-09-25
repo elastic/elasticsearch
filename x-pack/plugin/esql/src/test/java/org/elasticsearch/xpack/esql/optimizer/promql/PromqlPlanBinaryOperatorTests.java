@@ -1159,6 +1159,22 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         }
     }
 
+    /**
+     * A closed operand against a raw one matches through the join: the key is the closed side's labels plus the raw side's
+     * remaining packed labels, which must be empty for a pair. The result carries the closed label set.
+     */
+    public void testClosedAggregateAgainstRawVectorJoinsOnTheFullLabelSet() {
+        LogicalPlan plan = planMetricNameIndex("max by (cluster, pod) (requests) * errors");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster", "pod")));
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        LogicalPlan bare = planMetricNameIndex("sum(requests) / errors");
+        assertThat(bare.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+        assertThat(bare.collect(InnerJoin.class), hasSize(1));
+        LogicalPlan swapped = planMetricNameIndex("errors / sum by (pod) (requests)");
+        assertThat(swapped.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "pod")));
+        assertThat(swapped.collect(InnerJoin.class), hasSize(1));
+    }
+
     /** Plans against a remote-write shaped index: `__name__` is a dimension, every metric its own field. */
     private LogicalPlan planMetricNameIndex(String promql) {
         var index = new EsIndex(

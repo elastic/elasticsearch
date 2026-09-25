@@ -348,6 +348,19 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         assertThat(parseJsonObject(value), equalTo(Map.of("env", "prod")));
     }
 
+    /**
+     * A document that carries none of the loader's remaining dimensions (they are mapped, other series have them) packs
+     * to the empty object as well: the packing of "no labels" is the same whichever way it arises.
+     */
+    public void testReadWithNoRemainingDimensionOnTheDocumentEmitsEmptyObject() throws IOException {
+        BytesReference json = bytes(XContentType.JSON, b -> {
+            b.field("@timestamp", "2021-04-28T18:50:00Z");
+            b.field("host", "host-1");
+        });
+        BytesRef value = readTimeSeriesValue(TSDB_SYNTHETIC_SETTINGS, MAPPING, sourceToParse(json, XContentType.JSON), Set.of("host"));
+        assertThat(parseJsonObject(value), equalTo(Map.of()));
+    }
+
     /** A loader that excludes every dimension emits the empty object, never the rest of the document. */
     public void testReadWithEveryDimensionExcludedEmitsEmptyObject() throws IOException {
         BytesReference json = bytes(XContentType.JSON, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));

@@ -763,8 +763,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY,
             null,
-            topHits,
-            null
+            topHits
         );
         BytesStreamOutput out = new BytesStreamOutput();
         try {
@@ -813,8 +812,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 10,
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
-                reduceContextBuilder,
-                SearchCoordinatorContext.none()
+                reduceContextBuilder
             )
         ) {
             merger.add(remoteResponse);

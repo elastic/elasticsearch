@@ -219,7 +219,7 @@ public final class SearchResponseMerger implements Releasable {
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();
-            return new SearchResponse(
+            SearchResponse mergedResponse = new SearchResponse(
                 mergedSearchHits,
                 reducedAggs,
                 suggest,
@@ -237,6 +237,8 @@ public final class SearchResponseMerger implements Releasable {
                 null,
                 topHitsToRelease
             );
+            topHitsToRelease = null;
+            return mergedResponse;
         } finally {
             mergedSearchHits.decRef();
             // the reduce took a ref on every top_hits hit it kept, and remote hits pin the inbound network buffer until released

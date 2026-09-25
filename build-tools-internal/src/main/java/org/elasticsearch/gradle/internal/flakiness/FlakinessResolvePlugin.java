@@ -46,8 +46,8 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
         if (FlakinessProperties.enabled(project) == false) {
             return; // inert unless explicitly enabled by the resolve/scan Buildkite steps
         }
-        if (project.getPath().equals(":") == false) {
-            throw new IllegalStateException("elasticsearch.internal-flakiness-resolve must be applied to the root project");
+        if (project != project.getRootProject()) {
+            throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
 
         String refsPath = FlakinessProperties.refsPath(project);

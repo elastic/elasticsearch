@@ -201,6 +201,80 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         assertPendingMergeCompletes(false);
     }
 
+    /**
+     * A callback failure after the merge worker has selected its next task must cancel that task and complete its callback.
+     */
+    public void testMergeCallbackFailureCancelsCurrentMerge() {
+        assertMergeCallbackFailureCancelsCurrentMerge(false);
+    }
+
+    /**
+     * The next merge must retain its buffer until it starts so cancellation after a callback failure can release the buffered aggregations.
+     */
+    public void testMergeCallbackFailureReleasesCurrentMergeBuffer() {
+        assertMergeCallbackFailureCancelsCurrentMerge(true);
+    }
+
+    private void assertMergeCallbackFailureCancelsCurrentMerge(boolean withAggregations) {
+        var taskQueue = new DeterministicTaskQueue();
+        var request = new SearchRequest("index");
+        request.setBatchedReduceSize(2);
+        if (withAggregations) {
+            request.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("sum")));
+        }
+        var completedShards = new AtomicInteger();
+        var callbackFailure = new RuntimeException("simulated callback failure");
+        var mergeFailure = new AtomicReference<Exception>();
+        var results = new ArrayList<QuerySearchResult>();
+        try (
+            var consumer = new QueryPhaseResultConsumer(
+                request,
+                taskQueue.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                4,
+                mergeFailure::set
+            )
+        ) {
+            for (int i = 0; i < 4; i++) {
+                var target = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                var result = new QuerySearchResult(new ShardSearchContextId("", i), target, null);
+                results.add(result);
+                try {
+                    result.setShardIndex(i);
+                    result.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    if (withAggregations) {
+                        result.aggregations(InternalAggregations.EMPTY);
+                    }
+                    final int shardIndex = i;
+                    consumer.consumeResult(result, () -> {
+                        completedShards.incrementAndGet();
+                        if (shardIndex == 2) {
+                            throw callbackFailure;
+                        }
+                    });
+                } finally {
+                    result.decRef();
+                }
+            }
+
+            assertEquals(2, completedShards.get());
+            taskQueue.runAllRunnableTasks();
+            assertFalse(taskQueue.hasRunnableTasks());
+            assertEquals("the selected merge task's callback must be completed", 4, completedShards.get());
+            assertSame(callbackFailure, mergeFailure.get());
+            assertSame(callbackFailure, expectThrows(RuntimeException.class, consumer::reduce));
+            if (withAggregations) {
+                assertNull("the selected merge task's buffer must be released", results.get(2).aggregations());
+            }
+        }
+    }
+
     private void assertPendingMergeCompletes(boolean failRemoteReduction) {
         var taskQueue = new DeterministicTaskQueue();
         var request = new SearchRequest("index");

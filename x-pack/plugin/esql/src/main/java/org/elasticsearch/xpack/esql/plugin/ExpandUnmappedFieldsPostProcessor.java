@@ -69,6 +69,12 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  * The data node only puts keys into the column that hold a value, so no expanded column comes out null in every row -
  * {@link #assertNoAllNullExpandedColumn} holds that end of the contract down.
  * <p>
+ * The expansion scans every row of every page twice (once to collect field names, once to rewrite), so it polls for cancellation
+ * every {@link #ROWS_PER_CANCELLATION_CHECK} rows and throws {@link TaskCancelledException} to abort promptly. Cancellation is
+ * therefore row-granular: a single pathological row (deeply nested {@code _source} with very many leaves) still parses and flattens
+ * to completion before the next poll. That is acceptable here because expansion cost scales with row count rather than any one row,
+ * and the circuit breaker - not cancellation - is what bounds the memory a wide row can demand.
+ * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
  *  names and one of values — would let us build the union while reading and expand without re-parsing.

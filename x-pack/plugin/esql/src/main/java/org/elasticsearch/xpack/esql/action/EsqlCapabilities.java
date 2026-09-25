@@ -3782,6 +3782,14 @@ public class EsqlCapabilities {
         HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS,
 
         /**
+         * HIGHLIGHT tokenizes each mapped text field with its index analyzer, and each TO_TEXT column with its
+         * declared analyzer. Query leaf analyzers shape only their own query terms, while WITH overrides every field's
+         * values analyzer. When the queried indices disagree on an ON field's analyzer, HIGHLIGHT falls back to
+         * {@code standard} and emits a warning.
+         */
+        HIGHLIGHT_MAPPING_ANALYZER,
+
+        /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
          */
         PROMQL_HISTOGRAM_QUANTILE,

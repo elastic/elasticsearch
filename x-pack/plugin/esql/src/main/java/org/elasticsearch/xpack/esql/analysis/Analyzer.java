@@ -3168,7 +3168,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Nullable
         private static InferredSimilarity inferenceSimilarity(Expression inferenceId, AnalyzerContext context) {
-            if (inferenceId == null || inferenceId.resolved() == false || inferenceId.foldable() == false || DataType.isString(inferenceId.dataType()) == false) {
+            if (inferenceId == null
+                || inferenceId.resolved() == false
+                || inferenceId.foldable() == false
+                || DataType.isString(inferenceId.dataType()) == false) {
                 return null;
             }
             String id = BytesRefs.toString(inferenceId.fold(FoldContext.small()));

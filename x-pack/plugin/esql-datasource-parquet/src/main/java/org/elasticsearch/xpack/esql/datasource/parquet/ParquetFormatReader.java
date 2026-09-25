@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -1284,6 +1285,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     }
 
     /**
+     * Object name for user-facing messages. Falls back to the full path string for in-memory test
+     * URIs where the identifier is in the authority component and {@link StoragePath#objectName()}
+     * returns an empty string.
+     */
+    private static String safeObjectName(StoragePath path) {
+        String name = path.objectName();
+        return name.isEmpty() ? path.toString() : name;
+    }
+
+    /**
      * Parses the footer directly from the prefetched {@code tailBytes} (a suffix of the file ending at
      * {@code length}) on {@code executor}, completing {@code listener}. Parsing from the byte array is
      * deliberate: it does not depend on the {@link FooterByteCache} surviving between the async read
@@ -2357,7 +2368,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 rowLimit,
                 createdBy,
                 // Messages and logs are the only readers of the iterator's location, so it is redacted here.
-                object.path().objectName(),
+                safeObjectName(object.path()),
                 hasRecordFilter,
                 rangeBlockGlobalOffsets,
                 counters,
@@ -2401,7 +2412,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         String[] absentColumnWarnings = buildAbsentColumnWarnings(projectedAttributes, columnInfos);
         validatePlannerTypesAgainstFile(
             logger,
-            storageObject.path().objectName(),
+            safeObjectName(storageObject.path()),
             reader,
             projectedAttributes,
             columnInfos,
@@ -2550,7 +2561,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 rowLimit,
                 createdBy,
                 // Messages and logs are the only readers of the iterator's location, so it is redacted here.
-                storageObject.path().objectName(),
+                safeObjectName(storageObject.path()),
                 columnInfos,
                 preloadedMetadata,
                 storageObject,

@@ -288,7 +288,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 S3FailureDetail.of(cause),
                 "",
                 false,
-                0L
+                0L,
+                cause
             );
         }
         if (isSdkClientTransportFailure(cause)) {
@@ -299,14 +300,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 S3FailureDetail.of(cause),
                 "",
                 false,
-                0L
+                0L,
+                cause
             );
         }
         if (cause instanceof IllegalStateException ise) {
             return ise;
         }
         logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
-        return new IOException(context + ": " + S3FailureDetail.of(cause));
+        return new IOException(context + ": " + S3FailureDetail.of(cause), cause);
     }
 
     /**

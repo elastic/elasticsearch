@@ -174,7 +174,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         @Nullable Consumer<String> warningSink
     ) {
         this.storageObject = Objects.requireNonNull(storageObject, "storageObject");
-        this.messageLocation = storageObject.path().objectName();
+        String objectName = storageObject.path().objectName();
+        this.messageLocation = objectName.isEmpty() ? storageObject.path().toString() : objectName;
         this.reader = Objects.requireNonNull(reader, "reader");
         this.ownedFooter = Objects.requireNonNull(ownedFooter, "ownedFooter");
         this.errorPolicy = Objects.requireNonNull(errorPolicy, "errorPolicy");

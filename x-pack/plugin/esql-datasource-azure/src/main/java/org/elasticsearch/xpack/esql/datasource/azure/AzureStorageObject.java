@@ -179,7 +179,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             return new ExternalObjectChangedException(path, cause);
         }
         logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
-        return new IOException(context + " [" + path.objectName() + "]");
+        return new IOException(context + " [" + path.objectName() + "]", cause);
     }
 
     /**

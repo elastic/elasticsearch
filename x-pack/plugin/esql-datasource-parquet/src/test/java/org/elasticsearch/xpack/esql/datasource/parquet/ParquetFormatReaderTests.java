@@ -6488,7 +6488,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + warnings, 2, warnings.size());
-        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("s3://bucket/warn.parquet"));
+        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("warn.parquet"));
         assertEquals("column [x]: [integer] in the file, [ip] in the query", warnings.get(1));
     }
 
@@ -6532,7 +6532,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         // 1 summary + 1 detail
         assertEquals("Expected summary + 1 detail, got: " + sunk, 2, sunk.size());
-        assertTrue("Summary should mention the file path, got: " + sunk.get(0), sunk.get(0).contains("s3://bucket/warn.parquet"));
+        assertTrue("Summary should mention the file path, got: " + sunk.get(0), sunk.get(0).contains("warn.parquet"));
         assertTrue("Detail should mention column [x], got: " + sunk.get(1), sunk.get(1).contains("column [x]"));
         assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
     }

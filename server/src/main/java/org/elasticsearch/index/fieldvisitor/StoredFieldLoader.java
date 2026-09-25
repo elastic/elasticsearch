@@ -33,6 +33,8 @@ import java.util.Set;
  */
 public abstract class StoredFieldLoader {
 
+    static final int SEQUENTIAL_READER_THRESHOLD = 10;
+
     /**
      * Return a {@link LeafStoredFieldLoader} for the given segment and document set
      *
@@ -137,11 +139,21 @@ public abstract class StoredFieldLoader {
     protected static CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader(LeafReaderContext ctx, int[] docs)
         throws IOException {
         LeafReader leafReader = ctx.reader();
-        if (docs != null && docs.length > 10 && hasSequentialDocs(docs)) {
+        if (shouldUseSequentialReader(docs)) {
             return sequentialReader(ctx);
         }
         StoredFields storedFields = leafReader.storedFields();
         return storedFields::document;
+    }
+
+    /**
+     * Whether the given sorted, unique, leaf-relative document IDs should use the sequential stored fields reader.
+     * The sequential reader decompresses a whole block at a time, so the established fetch heuristic avoids its
+     * setup cost for lists of {@value #SEQUENTIAL_READER_THRESHOLD} documents or fewer. This cutoff preserves
+     * existing fetch behavior; it has not been extensively benchmarked.
+     */
+    public static boolean shouldUseSequentialReader(int[] docs) {
+        return docs != null && docs.length > SEQUENTIAL_READER_THRESHOLD && docs[docs.length - 1] - docs[0] == docs.length - 1;
     }
 
     protected static CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> sequentialReader(LeafReaderContext ctx)
@@ -162,10 +174,6 @@ public abstract class StoredFieldLoader {
         }
         fieldsToLoad.addAll(fields);
         return fieldsToLoad.stream().sorted().toList();
-    }
-
-    private static boolean hasSequentialDocs(int[] docs) {
-        return docs.length > 0 && docs[docs.length - 1] - docs[0] == docs.length - 1;
     }
 
     private static class EmptyStoredFieldLoader implements LeafStoredFieldLoader {

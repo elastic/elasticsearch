@@ -447,13 +447,11 @@ public final class RemoteFetchService {
                 ActionListener.noop(),
                 clusterService.getSettings(),
                 setupCallback,
+                configuration.profile(),
                 null,
                 1,
                 () -> node
             );
-            if (configuration.profile()) {
-                client.enableProfiling();
-            }
             retainedSessionReleaser.track(node, target.retainedSessionId());
             return new TargetExchangeChannel(target, node, retainedSessionReleaser, client, fields, pushdownPlan, configuration);
         }

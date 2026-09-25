@@ -106,7 +106,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * so they get shipped backed to the outbound API.
      */
     private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
-    private volatile boolean profiling;
+    private final boolean profiling;
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)
     // Track batch counts to ensure all batches complete before closing
     private int startedBatchCount = 0;
@@ -153,6 +153,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * @param batchExchangeStatusListener listener that will be called when batch exchange status is received (success or failure)
      * @param settings         settings for exchange configuration
      * @param serverSetupCallback callback to send setup request when a new worker is connected
+     * @param profiling        whether to collect profiling data
      * @param lookupPlanConsumer optional callback to receive (workerKey, planString) from server setup response
      * @param maxWorkers maximum number of workers (parallel connections) to create
      * @param serverNodeSupplier supplier for getting server nodes for new workers
@@ -167,6 +168,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         ActionListener<Void> batchExchangeStatusListener,
         Settings settings,
         ServerSetupCallback serverSetupCallback,
+        boolean profiling,
         @Nullable BiConsumer<String, String> lookupPlanConsumer,
         int maxWorkers,
         Supplier<DiscoveryNode> serverNodeSupplier
@@ -175,6 +177,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         this.sharedExchangeId = buildServerToClientId(sessionId);
         this.batchExchangeStatusListener = batchExchangeStatusListener;
         this.serverSetupCallback = serverSetupCallback;
+        this.profiling = profiling;
         this.lookupPlanConsumer = lookupPlanConsumer;
         this.maxWorkers = maxWorkers;
         this.serverNodeSupplier = serverNodeSupplier;
@@ -679,13 +682,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     public long bytesRead() {
         return totalBytesRead.get();
-    }
-
-    /**
-     * Enables per-worker setup timing before batches are sent.
-     */
-    public void enableProfiling() {
-        profiling = true;
     }
 
     /**

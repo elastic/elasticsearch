@@ -488,6 +488,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 batchExchangeStatusFuture,
                 CLIENT_SETTINGS,
                 failingCallback,
+                false,
                 null,
                 1,
                 () -> infra.serverTransportServices().get(0).getLocalNode()
@@ -535,6 +536,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 ActionListener.noop(),
                 CLIENT_SETTINGS,
                 (node, clientToServerId, serverToClientId, listener) -> fail("no worker setup expected"),
+                false,
                 null,
                 1,
                 () -> infra.serverTransportServices().get(0).getLocalNode()
@@ -740,11 +742,11 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             batchExchangeStatusListener,
             CLIENT_SETTINGS,
             testCallback,
+            true,
             null, // lookupPlanConsumer
             infra.numServers(), // maxWorkers
             () -> serverNodes.get(serverNodeIndex.getAndIncrement() % serverNodes.size()) // serverNodeSupplier
         );
-        client.enableProfiling();
         logger.debug("[TEST-CLIENT] Client initialized successfully");
 
         return client;

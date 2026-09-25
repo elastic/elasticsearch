@@ -51,7 +51,7 @@ setup:
 teardown:
   - do:
       indices.delete:
-        index: la_sub_a,la_sub_b
+        index: la_sub_a,la_sub_b,la_sub_ip
         ignore_unavailable: true
 
 ---
@@ -82,3 +82,37 @@ teardown:
   - match: { columns.2.type: keyword }
   - match: { values.0: [ "red", "a1", null ] }
   - match: { values.1: [ null, "b1", "from_source" ] }
+
+---
+'LOAD_ALL rejects a sub-query union whose conversion resolves on a later analyzer pass':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ subquery_in_from_command_conversion_resolved_on_later_pass ]
+      reason: "analysis of a conversion over a sub-query union that resolves on a later pass terminates"
+  # The unmapped does_not_exist delays the EVAL's resolution by one analyzer pass, so its TO_STRING(ip) is pushed
+  # into the union after the WHERE's equal conversion. Analysis must terminate so the LOAD_ALL command allow-list
+  # can reject the union.
+  - do:
+      indices.create:
+        index: la_sub_ip
+        body:
+          mappings:
+            properties:
+              ip:
+                type: ip
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_sub_ip", "_id": "1" } }
+          - { "ip": "172.21.3.15" }
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM la_sub_ip), (FROM la_sub_ip) | WHERE TO_STRING(ip) == "172.21.3.15" OR does_not_exist IS NOT NULL | EVAL x = TO_STRING(ip) | LIMIT 10'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "[UnionAll] is not supported yet" }

@@ -65,7 +65,14 @@ final class GenericFileList implements FileList {
         }
         this.files = files;
         this.originalPattern = originalPattern;
-        this.partitionMetadata = partitionMetadata;
+        // A truncated listing publishes its partition columns but not its per-file values, for the same reason the
+        // fingerprint below is withheld: PartitionMetadata#nullablePartitionColumns reads those values as evidence
+        // about the whole matched fileset, so over a prefix it proves a column non-null from a fraction of the data
+        // and the attribute built from it hands the optimizer a promise the data does not keep. The columns stay —
+        // which they are and what each holds is the schema's answer, and a mode that bounds its listing is a mode
+        // that answers the schema from part of the dataset by design. A scan's per-file values come from the scan's
+        // own listing; see SplitDiscoveryContext#withScanFileSet.
+        this.partitionMetadata = truncated && partitionMetadata != null ? partitionMetadata.withoutPerFileEvidence() : partitionMetadata;
         // The fingerprint only ever keys a dataset aggregate, which requires a multi-file listing
         // (see ExternalSourceResolver#datasetAggregateKey — fileCount >= 2). Skip the Murmur3 fold for
         // single-file listings so the common single-file resolve does not pay for machinery it cannot use.

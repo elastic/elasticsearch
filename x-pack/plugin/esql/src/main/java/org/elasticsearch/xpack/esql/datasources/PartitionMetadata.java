@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -59,6 +60,69 @@ public record PartitionMetadata(Map<String, DataType> partitionColumns, Map<Stor
 
     public boolean isEmpty() {
         return partitionColumns.isEmpty();
+    }
+
+    /**
+     * These partition columns, valued over a different set of files.
+     * <p>
+     * The columns are the dataset's schema: which they are, and what type each holds, is decided once at
+     * resolution, and the plan's output attributes already carry that answer. The values are per file, so they
+     * belong to whichever listing named the files being read — and when resolution answered the schema from a
+     * prefix of the dataset, that is not the listing resolution held. A file the schema's listing never saw has
+     * no entry in it, and a missing entry reads as an absent partition value: the column comes back null for
+     * every row of that file, silently.
+     * <p>
+     * Each value is conformed to the column's declared type. The two listings can type a column differently —
+     * a wider set of paths can carry a value the prefix's type cannot hold, a narrower one can look more
+     * specific than the prefix did — and the declared type is the one the plan is built on, so it wins. A value
+     * the declared type cannot hold becomes null, which is what a file outside the prefix already produced;
+     * unlike before, that is now confined to the values that genuinely do not fit.
+     */
+    public PartitionMetadata valuedOver(@Nullable PartitionMetadata scanned) {
+        if (partitionColumns.isEmpty() || scanned == null || scanned.filePartitionValues.isEmpty()) {
+            return this;
+        }
+        LinkedHashMap<StoragePath, Map<String, Object>> valued = Maps.newLinkedHashMapWithExpectedSize(scanned.filePartitionValues.size());
+        for (Map.Entry<StoragePath, Map<String, Object>> file : scanned.filePartitionValues.entrySet()) {
+            LinkedHashMap<String, Object> conformed = Maps.newLinkedHashMapWithExpectedSize(partitionColumns.size());
+            for (Map.Entry<String, DataType> column : partitionColumns.entrySet()) {
+                String name = column.getKey();
+                conformed.put(name, conform(file.getValue().get(name), column.getValue(), scanned.partitionColumns.get(name)));
+            }
+            valued.put(file.getKey(), conformed);
+        }
+        return new PartitionMetadata(partitionColumns, valued);
+    }
+
+    /**
+     * One value under the type the dataset's schema declares for its column, rather than the type the listing it
+     * came from inferred. Same type, or no value: nothing to do. Otherwise the token is re-cast, which is exact —
+     * the detected types are the ones {@link HivePartitionDetector#inferType} produces, and every one of them
+     * round-trips through its own text. A token the declared type cannot hold has no value under it.
+     */
+    private static Object conform(@Nullable Object value, DataType declared, @Nullable DataType detected) {
+        if (value == null || declared == detected) {
+            return value;
+        }
+        try {
+            return HivePartitionDetector.castValue(String.valueOf(value), declared);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * These partition columns with no per-file values.
+     * <p>
+     * The values are evidence, and {@link #nullablePartitionColumns} reads them as evidence about the whole
+     * matched fileset: a column present and non-null in every one of them is reported non-null, and the
+     * attribute built from it promises the optimizer that no row has a null there. Over a listing that covers
+     * part of a dataset that promise is not the listing's to make. Dropping the values makes it unprovable
+     * instead of wrong — every column comes back nullable, which is the conservative answer that method already
+     * gives when it has no per-file evidence at all.
+     */
+    public PartitionMetadata withoutPerFileEvidence() {
+        return filePartitionValues.isEmpty() ? this : new PartitionMetadata(partitionColumns, Map.of());
     }
 
     /**

@@ -111,17 +111,24 @@ public record SplitDiscoveryContext(
     }
 
     /**
-     * The same context over a different file set: what a provider resolved the query's files to be, when the
-     * listing it was handed answered the schema rather than the scan. Every reader downstream takes the file set
-     * from the context, so replacing it once here is what keeps them all on the same answer.
+     * The same context over the query's own file set: what a provider resolved the files to be, when the listing
+     * it was handed answered the schema rather than the scan. Every reader downstream takes the file set from the
+     * context, so replacing it once here is what keeps them all on the same answer.
+     * <p>
+     * Two things were derived per file from the listing this replaces, and both move with it. Partition values
+     * key off the path, so a file the old listing never saw had no value for any partition column and read as
+     * null on all of them; the columns themselves stay as resolution decided them, because the plan's attributes
+     * carry that answer already ({@link PartitionMetadata#valuedOver}). Per-file schema info keys off the path
+     * too, and a file with no entry is read under its own schema rather than the dataset's
+     * ({@link SchemaReconciliation#pinnedOver}).
      */
-    public SplitDiscoveryContext withFileList(FileList resolved) {
+    public SplitDiscoveryContext withScanFileSet(FileList resolved) {
         return new SplitDiscoveryContext(
             metadata,
             resolved,
-            schemaMap,
+            SchemaReconciliation.pinnedOver(schemaMap, resolved),
             config,
-            partitionInfo,
+            partitionInfo == null ? null : partitionInfo.valuedOver(resolved.partitionMetadata()),
             filterHints,
             querySchema,
             unifiedSchema,

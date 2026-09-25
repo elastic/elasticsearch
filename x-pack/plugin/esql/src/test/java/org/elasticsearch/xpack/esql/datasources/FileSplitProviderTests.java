@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -105,6 +106,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -3443,6 +3446,19 @@ public class FileSplitProviderTests extends ESTestCase {
 
     /** Storage provider serving a distinct payload per object name, so a multi-file test can vary file sizes. */
     private static StorageProviderRegistry createMultiFileStorageRegistry(Map<String, byte[]> payloads, @Nullable StreamTracking tracking) {
+        return createMultiFileStorageRegistry(payloads, tracking, null);
+    }
+
+    /**
+     * @param listing what {@code listObjects} serves, for a test whose provider has to discover its own files.
+     *                {@code null} keeps it unsupported, which is what every test that hands over a complete file
+     *                list wants: listing again would mean the file set came from somewhere it should not have.
+     */
+    private static StorageProviderRegistry createMultiFileStorageRegistry(
+        Map<String, byte[]> payloads,
+        @Nullable StreamTracking tracking,
+        @Nullable List<StorageEntry> listing
+    ) {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
         StorageProvider provider = new StorageProvider() {
             @Override
@@ -3535,7 +3551,25 @@ public class FileSplitProviderTests extends ESTestCase {
 
             @Override
             public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
-                throw new UnsupportedOperationException();
+                if (listing == null) {
+                    throw new UnsupportedOperationException();
+                }
+                return new StorageIterator() {
+                    private final Iterator<StorageEntry> entries = listing.iterator();
+
+                    @Override
+                    public boolean hasNext() {
+                        return entries.hasNext();
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        return entries.next();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
             }
 
             @Override
@@ -5485,7 +5519,7 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     public void testAPrefixIsNeverUsedAsTheQuerysFileSet() {
         List<StorageEntry> prefix = List.of(new StorageEntry(StoragePath.of("s3://b/data-0.parquet"), 2000, Instant.EPOCH));
-        SplitDiscoveryContext handed = rangeAwareContext(1).withFileList(GlobExpander.truncatedFileListOf(prefix, "s3://b/*.parquet"));
+        SplitDiscoveryContext handed = rangeAwareContext(1).withScanFileSet(GlobExpander.truncatedFileListOf(prefix, "s3://b/*.parquet"));
         FileSplitProvider provider = rangeAwareProvider(createMockRangeReader(List.of(new SplitRange(0, 2000))), null);
 
         // No storage provider is reachable here, so the files beyond the prefix cannot be discovered. Refusing is
@@ -5493,6 +5527,62 @@ public class FileSplitProviderTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> provider.discoverSplits(handed));
         assertThat(e.getMessage(), containsString("cannot discover the files for"));
         assertThat(e.getMessage(), containsString("covers part of the dataset"));
+    }
+
+    /**
+     * The shape no unit test here could see before: a prefix with files beyond it, and a provider that can find
+     * them. Discovering them is only half of it — each has to be read as the dataset says it is read, and the two
+     * things resolution derives per file it derived over the listing it held. A file it never saw has no partition
+     * value, so a path-derived column reads null for every one of its rows, and no read schema, so it is parsed as
+     * itself instead of as the anchor every {@code first_file_wins} file is pinned to.
+     */
+    public void testFilesPastThePrefixAreReadAsTheDatasetRatherThanAsThemselves() {
+        int folders = 10;
+        Map<String, byte[]> payloads = new HashMap<>();
+        List<StorageEntry> everyFile = new ArrayList<>();
+        for (int i = 0; i < folders; i++) {
+            String objectName = "data-" + i + ".parquet";
+            payloads.put(objectName, new byte[2000]);
+            everyFile.add(new StorageEntry(StoragePath.of("s3://b/hour=" + i + "/" + objectName), 2000, Instant.EPOCH));
+        }
+        // What resolution held: one file, and everything it could derive from one file.
+        List<StorageEntry> prefix = List.of(everyFile.get(0));
+        PartitionMetadata overThePrefix = HivePartitionDetector.INSTANCE.detect(prefix, w -> {});
+        ExternalSchema anchor = new ExternalSchema(
+            List.of(
+                new ReferenceAttribute(Source.EMPTY, "v", DataType.LONG),
+                new ReferenceAttribute(Source.EMPTY, "hour", DataType.INTEGER)
+            )
+        );
+        SplitDiscoveryContext handed = new SplitDiscoveryContext(
+            new SimpleSourceMetadata(anchor.attributes(), "parquet", "s3://b/" + "**/*.parquet"),
+            GlobExpander.truncatedFileListOf(prefix, "s3://b/" + "**/*.parquet"),
+            Map.of(prefix.get(0).path(), new SchemaReconciliation.FileSchemaInfo(anchor, null, null)),
+            Map.of(),
+            overThePrefix,
+            List.of(),
+            ExternalSchema.EMPTY
+        );
+        FileSplitProvider provider = rangeAwareProvider(
+            createMockRangeReader(List.of(new SplitRange(0, 2000))),
+            null,
+            Settings.EMPTY,
+            createMultiFileStorageRegistry(payloads, null, everyFile)
+        );
+
+        SplitDiscoveryResult result = provider.discoverSplits(handed);
+
+        Set<StoragePath> planned = new HashSet<>();
+        Set<Object> hours = new HashSet<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit file = (FileSplit) split;
+            planned.add(file.path());
+            assertEquals("a file past the prefix is read under the dataset's schema, not its own", anchor.attributes(), file.readSchema());
+            hours.add(file.partitionValues().get("hour"));
+        }
+        assertEquals("every file of the dataset was planned, not just the prefix", folders, planned.size());
+        assertFalse("every file knows its own partition value, including the nine nobody resolved", hours.contains(null));
+        assertEquals("and each of them is its own folder's value", folders, hours.size());
     }
 
     /** And the complete case is untouched: a listing that is the whole dataset is the query's file set already. */
@@ -5616,7 +5706,7 @@ public class FileSplitProviderTests extends ESTestCase {
     private static long totalRows(SplitDiscoveryResult result) {
         long rows = 0;
         for (ExternalSplit split : result.splits()) {
-            org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
+            var stats = split.splitStats();
             if (stats != null && stats.rowCount() >= 0) {
                 rows += stats.rowCount();
             }
@@ -5638,13 +5728,22 @@ public class FileSplitProviderTests extends ESTestCase {
         Settings settings,
         boolean releasesExecutor
     ) {
+        return rangeAwareProvider(reader, executor, settings, createMockStorageRegistry(releasesExecutor, releasesExecutor, settings));
+    }
+
+    private static FileSplitProvider rangeAwareProvider(
+        RangeAwareFormatReader reader,
+        @Nullable Executor executor,
+        Settings settings,
+        StorageProviderRegistry storageRegistry
+    ) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy("parquet", (s, bf) -> reader, Settings.EMPTY, null);
         formatRegistry.byName("parquet");
         return new FileSplitProvider(
             FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
             new DecompressionCodecRegistry(),
-            createMockStorageRegistry(releasesExecutor, releasesExecutor, settings),
+            storageRegistry,
             formatRegistry,
             settings,
             executor

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -417,7 +418,16 @@ public class FileSplitProvider implements SplitProvider {
         if (discovery.schemaListingIsComplete()) {
             return discovery.scanFileSet();
         }
-        return listForQuery(context);
+        FileList listed = listForQuery(context);
+        LOGGER.debug(
+            () -> Strings.format(
+                "the schema's listing held %d files of [%s]; discovered %d for the query",
+                discovery.schemaListing().fileCount(),
+                context.metadata() == null ? "?" : context.metadata().location(),
+                listed.fileCount()
+            )
+        );
+        return listed;
     }
 
     /**
@@ -472,7 +482,7 @@ public class FileSplitProvider implements SplitProvider {
         }
         final SplitDiscoveryContext context;
         try {
-            context = handedContext.withFileList(scanFileSet(handedContext));
+            context = handedContext.withScanFileSet(scanFileSet(handedContext));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -585,7 +595,7 @@ public class FileSplitProvider implements SplitProvider {
         }
         final SplitDiscoveryContext context;
         try {
-            context = handedContext.withFileList(scanFileSet(handedContext));
+            context = handedContext.withScanFileSet(scanFileSet(handedContext));
         } catch (IOException e) {
             listener.onFailure(e);
             return;
@@ -1926,7 +1936,7 @@ public class FileSplitProvider implements SplitProvider {
             }
             if (result instanceof PlanResult.Splits planned) {
                 for (ExternalSplit split : planned.splits()) {
-                    org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
+                    SplitStats stats = split.splitStats();
                     long rows = stats == null ? -1 : stats.rowCount();
                     if (rows < 0) {
                         usable = false;

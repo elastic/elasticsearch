@@ -144,4 +144,81 @@ public class PartitionMetadataTests extends ESTestCase {
         assertFalse(pm.isEmpty());
         assertEquals(Set.of(), pm.nullablePartitionColumns());
     }
+
+    /**
+     * The schema's listing and the scan's are two different sets of files. The columns are the schema's answer; the
+     * per-file values have to be the scan's, or a file the schema never listed reads null for every partition column.
+     */
+    public void testValuesComeFromTheListingThatNamedTheFilesBeingRead() {
+        StoragePath resolved = StoragePath.of("s3://b/hour=00/a.parquet");
+        StoragePath discovered = StoragePath.of("s3://b/hour=07/b.parquet");
+        PartitionMetadata overThePrefix = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(resolved, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        PartitionMetadata overTheScan = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(resolved, 1, Instant.EPOCH), new StorageEntry(discovered, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+
+        PartitionMetadata valued = overThePrefix.valuedOver(overTheScan);
+
+        assertEquals("the columns stay the schema's", overThePrefix.partitionColumns(), valued.partitionColumns());
+        assertEquals(2, valued.filePartitionValues().size());
+        assertEquals(0, valued.filePartitionValues().get(resolved).get("hour"));
+        assertEquals("the file nobody resolved knows its own value", 7, valued.filePartitionValues().get(discovered).get("hour"));
+    }
+
+    /**
+     * The two listings can type a column differently, because a wider set of paths can carry a value a narrower one
+     * could not. The type the plan was built on wins, and a value it cannot hold has none rather than being handed
+     * over as the wrong class.
+     */
+    public void testAValueTheDeclaredTypeCannotHoldHasNoValue() {
+        StoragePath numeric = StoragePath.of("s3://b/hour=07/a.parquet");
+        StoragePath notNumeric = StoragePath.of("s3://b/hour=unknown/b.parquet");
+        PartitionMetadata declaredInteger = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(numeric, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        PartitionMetadata scanned = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(numeric, 1, Instant.EPOCH), new StorageEntry(notNumeric, 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        assertEquals("the wider listing typed it as text", DataType.KEYWORD, scanned.partitionColumns().get("hour"));
+
+        PartitionMetadata valued = declaredInteger.valuedOver(scanned);
+
+        assertEquals(DataType.INTEGER, valued.partitionColumns().get("hour"));
+        assertEquals("a token the declared type holds is re-cast to it", 7, valued.filePartitionValues().get(numeric).get("hour"));
+        assertNull("and one it cannot hold has no value", valued.filePartitionValues().get(notNumeric).get("hour"));
+    }
+
+    /** Nothing to value over: the schema's own answer stands. */
+    public void testValuingOverNothingChangesNothing() {
+        PartitionMetadata metadata = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(StoragePath.of("s3://b/hour=00/a.parquet"), 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        assertSame(metadata, metadata.valuedOver(null));
+        assertSame(metadata, metadata.valuedOver(PartitionMetadata.EMPTY));
+    }
+
+    /**
+     * Per-file values are evidence about the files they came from, and a listing that stopped at a bound covers part
+     * of a dataset. Dropped, the column is unprovable rather than provably non-null over a fraction of the data.
+     */
+    public void testWithoutPerFileEvidenceNoColumnIsProvenNonNull() {
+        PartitionMetadata overAPrefix = HivePartitionDetector.INSTANCE.detect(
+            List.of(new StorageEntry(StoragePath.of("s3://b/year=2024/month=01/f.parquet"), 1, Instant.EPOCH)),
+            WarningSinks.FAILING
+        );
+        assertEquals("with evidence, both columns are provably non-null here", Set.of(), overAPrefix.nullablePartitionColumns());
+
+        PartitionMetadata unproven = overAPrefix.withoutPerFileEvidence();
+
+        assertEquals("the columns are still the dataset's", overAPrefix.partitionColumns(), unproven.partitionColumns());
+        assertEquals(Set.of("year", "month"), unproven.nullablePartitionColumns());
+        assertSame("and nothing to drop leaves it alone", unproven, unproven.withoutPerFileEvidence());
+    }
 }

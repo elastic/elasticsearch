@@ -1240,7 +1240,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
 
         @SuppressWarnings("RegexpMultiline")
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, HIVE_ON);
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/" + "**/*.parquet", provider, null, HIVE_ON);
         assertTrue(result.isResolved());
         assertNull(result.partitionMetadata());
     }
@@ -1326,7 +1326,7 @@ public class GlobExpanderTests extends ESTestCase {
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
 
         @SuppressWarnings("RegexpMultiline")
-        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, configMapOf(config));
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/" + "**/*.parquet", provider, null, configMapOf(config));
         assertTrue(result.isResolved());
         assertEquals(2, result.fileCount());
         assertNotNull(result.partitionMetadata());
@@ -3839,6 +3839,57 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue("a listing cut short must say so", result.isTruncated());
         assertEquals("keys past the bound must never be pulled from the provider", 1000, provider.keysPulled());
         assertNull("a truncated listing identifies no file set, so it carries no fingerprint", result.fileSetFingerprint());
+    }
+
+    /**
+     * And it proves no partition column non-null, for the same reason it carries no fingerprint: the per-file values
+     * describe the prefix it stopped at, while the column they would prove something about belongs to the dataset.
+     * The columns themselves stay — they are what the modes that bound a listing answer from part of it.
+     */
+    public void testATruncatedListingProvesNoPartitionColumnNonNull() throws IOException {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=2024/part-%03d.parquet", i), 100));
+        }
+        CountingStubProvider provider = new CountingStubProvider(entries);
+
+        FileList bounded = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(10, 10)
+        );
+        FileList complete = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            new CountingStubProvider(entries),
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            ListingExtents.UNBOUNDED
+        );
+
+        assertTrue(bounded.isTruncated());
+        assertEquals(
+            "the column is the dataset's answer either way",
+            complete.partitionMetadata().partitionColumns(),
+            bounded.partitionMetadata().partitionColumns()
+        );
+        assertEquals(
+            "a complete listing is evidence, and proves it non-null",
+            Set.of(),
+            complete.partitionMetadata().nullablePartitionColumns()
+        );
+        assertEquals(
+            "a prefix is not, so the column stays unprovable",
+            Set.of("year"),
+            bounded.partitionMetadata().nullablePartitionColumns()
+        );
     }
 
     /**

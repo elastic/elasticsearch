@@ -88,12 +88,12 @@ public final class QueryDslFieldNameExtractor {
     /**
      * Records the name references the translator resolves against the source's schema. There is no schema here, so every
      * reference resolves to nothing and only the names matter — and a reference is itself a field-caps pattern, so
-     * collecting it verbatim requests exactly what the construct covers: {@code user.*} for an {@code exists} over an
-     * object path, {@code host.*} for a {@code multi_match} pattern. The one reference that cannot be narrowed is
-     * {@code *} — a {@code multi_match} with no explicit fields covers the whole schema — so that one forces the
-     * caller's all-fields fallback. Recording what the translator actually asks for, rather than inspecting the DSL
-     * ourselves, keeps this tied to its behaviour: a future construct resolving {@code *} is handled conservatively by
-     * default.
+     * collecting it verbatim requests exactly what the construct covers: {@code user} and {@code user.*} for an
+     * {@code exists} over an object path. The one reference that cannot be narrowed is {@code *}, which
+     * {@code multi_match} resolves for every shape it has (it matches its own field patterns against the whole schema
+     * rather than resolving them here), so any {@code multi_match} forces the caller's all-fields fallback. Recording
+     * what the translator actually asks for, rather than inspecting the DSL ourselves, keeps this tied to its
+     * behaviour: a future construct resolving {@code *} is handled conservatively by default.
      */
     private static final class NameReferenceRecorder implements QueryDslTranslator.FieldNames {
         private final Set<String> collected;

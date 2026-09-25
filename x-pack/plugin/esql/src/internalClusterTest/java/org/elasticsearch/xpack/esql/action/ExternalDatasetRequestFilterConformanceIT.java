@@ -192,7 +192,7 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
 
         // The dataset: identical rows as a strict declared-schema CSV, types matching the index mapping exactly.
         StringBuilder csv = new StringBuilder(
-            "id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword,rating:integer,nick:keyword," + "user.name:keyword\n"
+            "id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword,rating:integer,nick:keyword,user.name:keyword\n"
         );
         for (int i = 0; i < ROWS; i++) {
             csv.append(i)
@@ -364,6 +364,18 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     public void testExistsOnUnmappedFieldSelectsNothing() {
         assertSelectsSameRows(QueryBuilders.existsQuery("no_such_field"));
         assertSelectsSameRows(QueryBuilders.existsQuery("no_such_prefix.*"));
+    }
+
+    /**
+     * Negated, that same reference excludes NOTHING — both paths return every row. This is the other direction, and the
+     * one an over-eager fold would break: answering the exists with anything but match-no-docs makes the NOT exclude
+     * rows the index keeps.
+     */
+    public void testMustNotExistsOnUnmappedFieldSelectsEverything() {
+        QueryBuilder negated = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("no_such_field"));
+        List<Object> all = idsWhere(i -> true);
+        assertEquals(all, selectedIds(INDEX, negated));
+        assertEquals(all, selectedIds(dataset, negated));
     }
 
     public void testBoolMustWithShould() {

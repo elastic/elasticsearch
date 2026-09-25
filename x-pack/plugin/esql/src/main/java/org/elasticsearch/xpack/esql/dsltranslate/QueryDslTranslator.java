@@ -161,8 +161,9 @@ public final class QueryDslTranslator {
 
     /**
      * A {@link FieldNames} over a known schema: every reference is matched against {@code names} as a pattern, which
-     * for a reference carrying no wildcard is an equality test — the same resolution
-     * {@code SearchExecutionContext.getMatchingFieldNames} performs against a mapping.
+     * for a reference carrying no wildcard is an equality test — {@code FieldTypeLookup.getMatchingFieldNames} answers
+     * a mapping the same way, by the singleton leaf or nothing. Its remaining branch, dynamic keys under a flattened
+     * field, has no counterpart here: a source's schema is the fields it has.
      */
     public static FieldNames over(Collection<String> names) {
         return reference -> {

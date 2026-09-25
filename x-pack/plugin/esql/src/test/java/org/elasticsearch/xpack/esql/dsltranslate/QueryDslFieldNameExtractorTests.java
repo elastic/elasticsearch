@@ -58,17 +58,6 @@ public class QueryDslFieldNameExtractorTests extends ESTestCase {
      * does not translate it — the field genuinely is not referenced by the filter, and loading it would be waste. See
      * {@link #testRequiredShouldClausesAreCollected} for the shapes where {@code should} does restrict matching.
      */
-    /**
-     * An {@code exists} over an object path is the case the pattern exists for: the filter needs {@code user.name} in the
-     * view branch's output, and only the {@code user.*} request can bring it — asking for {@code user} alone resolves to
-     * nothing and the filter would bind to NULL and match no rows.
-     */
-    public void testExistsCollectsTheObjectPrefixPattern() {
-        var result = extract(QueryBuilders.existsQuery("user"));
-        assertFalse(result.requiresAllFields());
-        assertThat(result.fieldNames(), containsInAnyOrder("user", "user.*"));
-    }
-
     public void testBoolCollectsFromRestrictingSections() {
         var filter = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("service.name", "checkout"))
@@ -78,6 +67,17 @@ public class QueryDslFieldNameExtractorTests extends ESTestCase {
         var result = extract(filter);
         assertFalse(result.requiresAllFields());
         assertThat(result.fieldNames(), containsInAnyOrder("service.name", "@timestamp", "error.stack", "error.stack.*"));
+    }
+
+    /**
+     * An {@code exists} over an object path is the case the pattern exists for: the filter needs {@code user.name} in the
+     * view branch's output, and only the {@code user.*} request can bring it — asking for {@code user} alone resolves to
+     * nothing and the filter would bind to NULL and match no rows.
+     */
+    public void testExistsCollectsTheObjectPrefixPattern() {
+        var result = extract(QueryBuilders.existsQuery("user"));
+        assertFalse(result.requiresAllFields());
+        assertThat(result.fieldNames(), containsInAnyOrder("user", "user.*"));
     }
 
     /**

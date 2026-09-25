@@ -80,6 +80,10 @@ public class QueryDslTranslatorTests extends ESTestCase {
         SCHEMA.put("client_ip", DataType.IP);
         SCHEMA.put("host.name", DataType.KEYWORD);
         SCHEMA.put("host.os", DataType.KEYWORD);
+        // A leaf that is ALSO the prefix of another field — a multi-field's shape, and the only one that tells the
+        // object-prefix fallback apart from a union over both.
+        SCHEMA.put("app", DataType.KEYWORD);
+        SCHEMA.put("app.raw", DataType.KEYWORD);
     }
 
     // A field of the schema binds to its attribute; everything else is missing and binds to NULL.
@@ -831,6 +835,17 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertThat(existsFieldNames(translate(QueryBuilders.existsQuery("*"))), hasSize(SCHEMA.size()));
     }
 
+    /**
+     * The object-prefix step is a FALLBACK, not a union. {@code FieldTypeLookup.getMatchingFieldNames} answers a
+     * reference carrying no wildcard with {@code Collections.singleton(pattern)} — the leaf alone — so for a name that
+     * is also the prefix of other fields, testing those others for presence too would match rows the index excludes.
+     */
+    public void testExistsOnLeafThatIsAlsoAPrefixResolvesTheLeafAlone() {
+        Expression e = translate(QueryBuilders.existsQuery("app"));
+        assertThat(e, instanceOf(IsNotNull.class));
+        assertThat(existsFieldNames(e), contains("app"));
+    }
+
     /** An exact leaf name binds to that one field: the object-prefix retry happens only when nothing matched at all. */
     public void testExistsOnLeafFieldBindsThatFieldAlone() {
         Expression e = translate(QueryBuilders.existsQuery("host.name"));
@@ -1108,6 +1123,16 @@ public class QueryDslTranslatorTests extends ESTestCase {
         List<Expression> sides = List.of(((Or) e).left(), ((Or) e).right());
         assertTrue("the integer field is dropped to false", sides.contains(Literal.FALSE));
         assertTrue("the keyword field keeps its match", sides.stream().anyMatch(s -> s instanceof MvContains));
+    }
+
+    /**
+     * A multi_match naming no field searches every field of the schema, which here includes {@code client_ip} — and an
+     * {@code ip} literal is a capability gap rather than a value a lenient match may skip, so the whole clause degrades
+     * and is dropped. Dropping widens the result, so this is safe; pinned because it is the behaviour a reader of the
+     * lenient case above would not predict.
+     */
+    public void testFieldlessMultiMatchDegradesOverAnUnencodableColumn() {
+        assertFalse(translateResult(QueryBuilders.multiMatchQuery("t2")).isComplete());
     }
 
     /** Only best_fields and phrase reduce to an OR of equality; other types fuse tokens/scores across fields. */

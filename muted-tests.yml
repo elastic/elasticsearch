@@ -695,3 +695,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.s3.S3CredentialsProviderTests
   method: testManagedIdentityChainFailsWhenPodIdentityMisconfigured
   issue: https://github.com/elastic/elasticsearch/issues/160276
+- class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
+  method: testTcpHandshake
+  issue: https://github.com/elastic/elasticsearch/issues/160280

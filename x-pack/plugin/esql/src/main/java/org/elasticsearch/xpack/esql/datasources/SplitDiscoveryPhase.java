@@ -13,17 +13,21 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -70,9 +74,14 @@ public final class SplitDiscoveryPhase {
      * that guard it — the seed for its partition pruning. Empty {@code filters} means the relation is unfiltered and
      * every file must be read.
      */
-    public record GuardedRelation(ExternalRelation relation, List<Expression> filters) {
+    public record GuardedRelation(ExternalRelation relation, List<Expression> filters, int rowLimit) {
         public GuardedRelation {
             filters = List.copyOf(filters);
+        }
+
+        /** A relation with no limit above it, or one the commands in between make no promise about. */
+        public GuardedRelation(ExternalRelation relation, List<Expression> filters) {
+            this(relation, filters, FormatReader.NO_LIMIT);
         }
     }
 
@@ -92,16 +101,26 @@ public final class SplitDiscoveryPhase {
      */
     public static List<GuardedRelation> guardedRelations(LogicalPlan fragment) {
         List<GuardedRelation> guarded = new ArrayList<>();
-        collectGuardedRelations(fragment, List.of(), guarded);
+        collectGuardedRelations(fragment, List.of(), FormatReader.NO_LIMIT, guarded);
         return guarded;
     }
 
-    private static void collectGuardedRelations(LogicalPlan plan, List<Expression> ancestorFilters, List<GuardedRelation> guarded) {
+    private static void collectGuardedRelations(
+        LogicalPlan plan,
+        List<Expression> ancestorFilters,
+        int rowLimit,
+        List<GuardedRelation> guarded
+    ) {
         if (plan instanceof ExternalRelation external) {
-            guarded.add(new GuardedRelation(external, ancestorFilters));
+            guarded.add(new GuardedRelation(external, ancestorFilters, rowLimit));
             return;
         }
 
+        // How many rows the relation below is asked for, carried only through commands that promise not to change
+        // that count: {@link Streaming} is the marker for exactly that promise, so LIMIT X | CMD and CMD | LIMIT X
+        // agree. Anything else - a filter, a sort, an aggregate, an expansion - and the count below stops being
+        // knowable from the limit above, so nothing is carried.
+        int limitForChildren = limitForChildren(plan, rowLimit);
         List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
         if (plan instanceof Filter filter) {
             List<Expression> extended = new ArrayList<>(filtersForChildren);
@@ -110,8 +129,20 @@ public final class SplitDiscoveryPhase {
         }
 
         for (LogicalPlan child : plan.children()) {
-            collectGuardedRelations(child, filtersForChildren, guarded);
+            collectGuardedRelations(child, filtersForChildren, limitForChildren, guarded);
         }
+    }
+
+    /**
+     * The row demand to carry past {@code plan}. A {@link Limit} sets it, and the smaller of two nested limits wins
+     * because the outer one cannot ask for more than the inner one produced. A {@link Streaming} command passes it
+     * through by contract. Everything else discards it.
+     */
+    private static int limitForChildren(LogicalPlan plan, int rowLimit) {
+        if (plan instanceof Limit limit && limit.limit() instanceof Literal literal && literal.value() instanceof Integer value) {
+            return rowLimit == FormatReader.NO_LIMIT ? value : Math.min(rowLimit, value);
+        }
+        return plan instanceof Streaming ? rowLimit : FormatReader.NO_LIMIT;
     }
 
     /**
@@ -206,8 +237,23 @@ public final class SplitDiscoveryPhase {
         BooleanSupplier isCancelled,
         List<Expression> seedFilters
     ) {
+        return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes, isCancelled, seedFilters, FormatReader.NO_LIMIT);
+    }
+
+    /**
+     * As above, and seeds the row demand the same way the filters are seeded: how many rows the query needs from the
+     * relation below, as {@link #guardedRelations} recovered it from the fragment before the relation was lowered.
+     */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit
+    ) {
         ScanStats stats = new ScanStats();
-        PhysicalPlan resolved = resolveRecursive(plan, seedFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
+        PhysicalPlan resolved = resolveRecursive(plan, seedFilters, seedRowLimit, sourceFactories, maxRecordBytes, stats, isCancelled);
         return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos);
     }
 
@@ -225,11 +271,35 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<Result> listener
     ) {
+        resolveExternalSplitsWithStatsAsync(
+            plan,
+            sourceFactories,
+            maxRecordBytes,
+            isCancelled,
+            seedFilters,
+            FormatReader.NO_LIMIT,
+            executor,
+            listener
+        );
+    }
+
+    /** As above, carrying the row demand {@link #guardedRelations} recovered for the relation below. */
+    public static void resolveExternalSplitsWithStatsAsync(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters,
+        int seedRowLimit,
+        Executor executor,
+        ActionListener<Result> listener
+    ) {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
             resolveRecursiveAsync(
                 plan,
                 seedFilters,
+                seedRowLimit,
                 sourceFactories,
                 maxRecordBytes,
                 stats,
@@ -243,6 +313,7 @@ public final class SplitDiscoveryPhase {
     private static void resolveRecursiveAsync(
         PhysicalPlan plan,
         List<Expression> ancestorFilters,
+        int rowLimit,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
@@ -251,7 +322,17 @@ public final class SplitDiscoveryPhase {
         ActionListener<PhysicalPlan> listener
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            resolveExternalSourceAsync(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled, executor, listener);
+            resolveExternalSourceAsync(
+                exec,
+                ancestorFilters,
+                rowLimit,
+                sourceFactories,
+                maxRecordBytes,
+                stats,
+                isCancelled,
+                executor,
+                listener
+            );
             return;
         }
 
@@ -276,6 +357,7 @@ public final class SplitDiscoveryPhase {
             0,
             new ArrayList<>(children.size()),
             filtersForChildren,
+            rowLimit,
             sourceFactories,
             maxRecordBytes,
             stats,
@@ -291,6 +373,7 @@ public final class SplitDiscoveryPhase {
         int index,
         List<PhysicalPlan> newChildren,
         List<Expression> filtersForChildren,
+        int rowLimit,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
@@ -320,6 +403,7 @@ public final class SplitDiscoveryPhase {
         resolveRecursiveAsync(
             children.get(index),
             filtersForChildren,
+            rowLimit,
             sourceFactories,
             maxRecordBytes,
             stats,
@@ -333,6 +417,7 @@ public final class SplitDiscoveryPhase {
                     index + 1,
                     newChildren,
                     filtersForChildren,
+                    rowLimit,
                     sourceFactories,
                     maxRecordBytes,
                     stats,
@@ -347,13 +432,14 @@ public final class SplitDiscoveryPhase {
     private static PhysicalPlan resolveRecursive(
         PhysicalPlan plan,
         List<Expression> ancestorFilters,
+        int rowLimit,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
         BooleanSupplier isCancelled
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
+            return resolveExternalSource(exec, ancestorFilters, rowLimit, sourceFactories, maxRecordBytes, stats, isCancelled);
         }
 
         List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
@@ -373,7 +459,15 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes, stats, isCancelled);
+            PhysicalPlan resolved = resolveRecursive(
+                child,
+                filtersForChildren,
+                rowLimit,
+                sourceFactories,
+                maxRecordBytes,
+                stats,
+                isCancelled
+            );
             if (resolved != child) {
                 changed = true;
             }
@@ -393,6 +487,7 @@ public final class SplitDiscoveryPhase {
     private static PhysicalPlan resolveExternalSource(
         ExternalSourceExec exec,
         List<Expression> ancestorFilters,
+        int rowLimit,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
@@ -437,7 +532,8 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             exec.declaredReadSpec(),
             metadataColumnNames,
-            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames)
+            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
+            rowLimit
         );
 
         SplitDiscoveryResult result;
@@ -452,6 +548,7 @@ public final class SplitDiscoveryPhase {
     private static void resolveExternalSourceAsync(
         ExternalSourceExec exec,
         List<Expression> ancestorFilters,
+        int rowLimit,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
         ScanStats stats,
@@ -491,7 +588,8 @@ public final class SplitDiscoveryPhase {
             isCancelled,
             exec.declaredReadSpec(),
             metadataColumnNames,
-            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames)
+            retainedPartitionKeys(querySchema, partitionInfo, metadataColumnNames),
+            rowLimit
         );
 
         splitProvider.discoverSplitsAsync(context, executor, ActionListener.wrap(result -> {

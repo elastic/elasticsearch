@@ -59,7 +59,11 @@ public record SplitDiscoveryContext(
     // dataset carries no declared mapping (every current SplitProvider but FileSplitProvider ignores it).
     DeclaredReadSpec declaredReadSpec,
     Set<String> metadataColumnNames,
-    @Nullable Set<String> retainedPartitionKeys
+    @Nullable Set<String> retainedPartitionKeys,
+    // How many rows the query needs from this relation, or FormatReader.NO_LIMIT when the commands above it make no
+    // promise about that count. A provider may use it to stop producing splits once the demand is covered; one that
+    // ignores it produces them all, as every provider does today.
+    int rowLimit
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -103,6 +107,40 @@ public record SplitDiscoveryContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
             DeclaredReadSpec.NONE
+        );
+    }
+
+    /** Without a row demand: the shape every caller had before a limit could reach split discovery. */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable ExternalSchema unifiedSchema,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        DeclaredReadSpec declaredReadSpec,
+        Set<String> metadataColumnNames,
+        @Nullable Set<String> retainedPartitionKeys
+    ) {
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            metadataColumnNames,
+            retainedPartitionKeys,
+            FormatReader.NO_LIMIT
         );
     }
 

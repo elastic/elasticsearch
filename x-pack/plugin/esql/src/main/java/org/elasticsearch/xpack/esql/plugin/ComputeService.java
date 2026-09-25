@@ -786,7 +786,8 @@ public class ComputeService {
                     operatorFactoryRegistry.sourceFactories(),
                     maxRecordBytes,
                     isCancelled,
-                    guarded.filters()
+                    guarded.filters(),
+                    guarded.rowLimit()
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
@@ -871,6 +872,7 @@ public class ComputeService {
             maxRecordBytes,
             isCancelled,
             work.guarded().filters(),
+            work.guarded().rowLimit(),
             ioExecutor,
             ActionListener.wrap(result -> {
                 try {

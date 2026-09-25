@@ -12,6 +12,7 @@ package org.elasticsearch.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -47,7 +48,12 @@ public class MockSearchService extends SearchService {
 
     private static final Logger logger = LogManager.getLogger(MockSearchService.class);
 
-    private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
+    private static final Map<ReaderContext, ActiveContext> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
+
+    /**
+     * A tracked context and when it was registered, so that a leak can report how long it has been held.
+     */
+    private record ActiveContext(Throwable creationSite, long registeredAtNanos) {}
 
     private Consumer<ReaderContext> onPutContext = context -> {};
     private Consumer<ReaderContext> onRemoveContext = context -> {};
@@ -69,22 +75,60 @@ public class MockSearchService extends SearchService {
      *     genuine context leaks remain detectable.
      */
     public static void assertNoInFlightContext() {
-        final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
+        final Map<ReaderContext, ActiveContext> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {
-            throw new AssertionError(
+            final StringBuilder message = new StringBuilder(
                 "There are still ["
                     + copy.size()
-                    + "] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
-                copy.values().iterator().next()
+                    + "] in-flight contexts. The first one's creation site is listed as the cause of this exception."
             );
+            copy.forEach((context, active) -> message.append('\n').append(describe(context, active)));
+            throw new AssertionError(message.toString(), copy.values().iterator().next().creationSite());
         }
+    }
+
+    /**
+     * Describes a leaked context, including the node, since this map spans every node of an internal test
+     * cluster. Reading a context is best effort: it can be closed while being described, and that must not
+     * mask the leak.
+     */
+    private static String describe(ReaderContext context, ActiveContext active) {
+        final TimeValue heldFor = TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - active.registeredAtNanos()));
+        final StringBuilder details = new StringBuilder("  ").append(context.getClass().getSimpleName())
+            .append(" held for ")
+            .append(heldFor);
+        try {
+            final ShardRouting routing = context.indexShard().routingEntry();
+            final long creatorTaskId = context.creatorTaskId();
+            details.append(" on shard ")
+                .append(context.indexShard().shardId())
+                .append(" of node ")
+                .append(routing == null ? "unassigned" : routing.currentNodeId())
+                .append(", id=")
+                .append(context.id())
+                .append(", creatorTask=")
+                .append(creatorTaskId == 0L ? "unknown" : Long.toString(creatorTaskId))
+                .append(", singleSession=")
+                .append(context.singleSession())
+                .append(", keepAlive=")
+                .append(TimeValue.timeValueMillis(context.keepAlive()));
+        } catch (Exception e) {
+            details.append(" (details unavailable: ").append(e).append(')');
+        }
+        return details.toString();
     }
 
     /**
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
     static void addActiveContext(ReaderContext context) {
-        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(String.format(Locale.ROOT, "%s : %s", context.toString(), context.id())));
+        ACTIVE_SEARCH_CONTEXTS.put(
+            context,
+            new ActiveContext(
+                new RuntimeException(String.format(Locale.ROOT, "%s : %s", context.toString(), context.id())),
+                System.nanoTime()
+            )
+        );
     }
 
     /**

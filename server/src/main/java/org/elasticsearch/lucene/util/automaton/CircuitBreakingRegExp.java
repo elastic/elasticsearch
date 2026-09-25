@@ -50,6 +50,9 @@ public final class CircuitBreakingRegExp {
 
     /** Bytes per entry of the operand list and per-copy bookkeeping in Lucene's repeat operations. */
     private static final long REPEAT_BYTES_PER_COPY = 16L;
+    private static final long RETAINED_BYTES_PER_STATE = 12L;
+    private static final long RETAINED_BYTES_PER_TRANSITION = 16L;
+    private static final long BUILDER_BYTES_PER_TRANSITION = 16L;
 
     private static final RegExp[] NO_OPERANDS = new RegExp[0];
 
@@ -268,18 +271,20 @@ public final class CircuitBreakingRegExp {
     }
 
     /**
-     * An upper bound on one operation: the states and transitions of what it builds, memory it holds besides that, and
-     * its work.
+     * An upper bound on one operation: the states and transitions of what it builds, the peak memory it holds while it runs,
+     * and its work.
      */
-    record Cost(long states, long transitions, long extraBytes, long work) {
+    record Cost(long states, long transitions, long bytes, long work) {
         static final Cost NONE = new Cost(0, 0, 0, 0);
 
+        /** One stage that builds the output, holding {@code extraBytes} besides, with {@code extraWork} on top of its size. */
         static Cost of(long states, long transitions, long extraBytes, long extraWork) {
-            return new Cost(states, transitions, extraBytes, addSaturating(addSaturating(states, transitions), extraWork));
-        }
-
-        long bytes() {
-            return addSaturating(buildBytes(states, transitions), extraBytes);
+            return new Cost(
+                states,
+                transitions,
+                addSaturating(buildBytes(states, transitions), extraBytes),
+                addSaturating(addSaturating(states, transitions), extraWork)
+            );
         }
     }
 
@@ -334,7 +339,7 @@ public final class CircuitBreakingRegExp {
             return Cost.NONE;
         }
         Shape star = starShape(a);
-        return Cost.of(star.states(), star.transitions(), 0, 0);
+        return Cost.of(star.states(), star.transitions(), builderBytes(star.transitions()), 0);
     }
 
     private static Shape starShape(Shape a) {
@@ -342,26 +347,31 @@ public final class CircuitBreakingRegExp {
         return new Shape(addSaturating(a.states(), 1), transitions, addSaturating(a.accepts(), 1), a.initial(), true);
     }
 
-    /** {@link Operations#repeat(Automaton, int)}: {@code min} copies concatenated with the star of the operand. */
+    /**
+     * {@link Operations#repeat(Automaton, int)}: the star of the operand, then {@code min} copies concatenated with it. The
+     * two stages run one after the other, the star staying alive through the second.
+     */
     static Cost repeatCost(Shape a, int min) {
         if (min == 0) {
             return starCost(a);
         }
         Shape star = starShape(a);
+        Cost starStage = starCost(a);
         Cost copies = copiesCost(a, min, star);
-        // the star is built first and stays alive while the copies are concatenated
+        long concatenateStage = addSaturating(retainedBytes(star.states(), star.transitions()), copies.bytes());
         return new Cost(
             copies.states(),
             copies.transitions(),
-            addSaturating(copies.extraBytes(), buildBytes(star.states(), star.transitions())),
-            copies.work()
+            Math.max(starStage.bytes(), concatenateStage),
+            addSaturating(starStage.work(), copies.work())
         );
     }
 
     /**
-     * {@link Operations#repeat(Automaton, int, int)}: {@code min} copies concatenated, then {@code max - min} more, each linked
-     * by copying its initial transitions onto every accept state of the previous one. Each link scans every transition built
-     * so far, so the work grows with the square of the number of optional copies.
+     * {@link Operations#repeat(Automaton, int, int)}: {@code min} copies concatenated, then, in a builder, that result and
+     * {@code max - min} more copies, each linked by copying its initial transitions onto every accept state of the previous
+     * one. The two stages run one after the other, the concatenation staying alive through the second. Each link scans every
+     * transition built so far, so the work grows with the square of the number of optional copies.
      */
     static Cost repeatCost(Shape a, int min, int max) {
         if (min > max) {
@@ -370,22 +380,26 @@ public final class CircuitBreakingRegExp {
         long bStates;
         long bTransitions;
         long bAccepts;
-        long bExtraBytes = 0;
-        long bWork = 0;
+        long bBytes;
+        long bWork;
         if (min == 0) {
             bStates = 1;
             bTransitions = 0;
             bAccepts = 1;
+            bBytes = 0;
+            bWork = 1;
         } else if (min == 1) {
             bStates = a.states();
             bTransitions = a.transitions();
             bAccepts = a.accepts();
+            bBytes = retainedBytes(bStates, bTransitions);
+            bWork = addSaturating(bStates, bTransitions);
         } else {
             Cost b = copiesCost(a, min, null);
             bStates = b.states();
             bTransitions = b.transitions();
             bAccepts = a.nullable() ? multiplySaturating(min, a.accepts()) : a.accepts();
-            bExtraBytes = b.extraBytes();
+            bBytes = b.bytes();
             bWork = b.work();
         }
         long optionalCopies = (long) max - min;
@@ -406,15 +420,28 @@ public final class CircuitBreakingRegExp {
                 addSaturating(multiplySaturating(optionalCopies, bTransitions), multiplySaturating(growthPerCopy, triangle))
             );
         }
-        // b is built first and copied into the builder; the builder holds four ints per transition
-        long extraBytes = addSaturating(addSaturating(bExtraBytes, buildBytes(bStates, bTransitions)), multiplySaturating(transitions, 16));
-        long extraWork = addSaturating(addSaturating(bWork, scanWork), multiplySaturating(optionalCopies, addSaturating(a.accepts(), 1)));
-        return Cost.of(
-            states,
-            transitions,
-            addSaturating(extraBytes, multiplySaturating(optionalCopies, REPEAT_BYTES_PER_COPY)),
-            extraWork
+        long builderStage = addSaturating(
+            addSaturating(retainedBytes(bStates, bTransitions), buildBytes(states, transitions)),
+            addSaturating(builderBytes(transitions), multiplySaturating(optionalCopies, REPEAT_BYTES_PER_COPY))
         );
+        long work = addSaturating(
+            addSaturating(addSaturating(states, transitions), addSaturating(bWork, scanWork)),
+            multiplySaturating(optionalCopies, addSaturating(a.accepts(), 1))
+        );
+        return new Cost(states, transitions, Math.max(bBytes, builderStage), work);
+    }
+
+    /** Retained bytes of a finished automaton: two ints per state and three per transition, with growth headroom. */
+    private static long retainedBytes(long states, long transitions) {
+        return addSaturating(
+            multiplySaturating(states, RETAINED_BYTES_PER_STATE),
+            multiplySaturating(transitions, RETAINED_BYTES_PER_TRANSITION)
+        );
+    }
+
+    /** Bytes an {@code Automaton.Builder} holds for {@code transitions}: four ints each. */
+    private static long builderBytes(long transitions) {
+        return multiplySaturating(transitions, BUILDER_BYTES_PER_TRANSITION);
     }
 
     /**

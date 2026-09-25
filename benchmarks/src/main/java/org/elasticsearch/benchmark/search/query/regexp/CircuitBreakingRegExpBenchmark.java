@@ -34,9 +34,10 @@ import java.util.concurrent.TimeUnit;
  * the time of the charged build against the plain one, and the peak it reserves on the breaker against the retained size of
  * what it builds.
  * <p>
- * The reservations are upper bounds on each step's peak live memory, so a {@code peakOverBuiltRatio} above {@code 1.0} is
- * expected; how far above shows how conservative the bounds are for each shape of pattern. The {@link Metrics} aux counters
- * are JMH {@code EVENTS}, scaled by the iteration count, so divide each by {@code Cnt} to recover absolute bytes.
+ * The reservations are upper bounds on each step's peak live memory, which is itself several times the retained size, so a
+ * {@code peakOverBuiltRatio} well above {@code 1.0} is expected; comparing it across shapes of pattern shows where the bounds
+ * are loosest. The {@link Metrics} aux counters are reported for {@code charged} only. They are JMH {@code EVENTS}, summed
+ * over the measurement iterations, so divide each, the ratio included, by {@code Cnt}.
  */
 @Fork(1)
 @Warmup(iterations = 3)
@@ -107,8 +108,7 @@ public class CircuitBreakingRegExpBenchmark {
     }
 
     @Benchmark
-    public Automaton lucene(Metrics metrics) {
-        publish(metrics);
+    public Automaton lucene() {
         return lucene.toAutomaton();
     }
 

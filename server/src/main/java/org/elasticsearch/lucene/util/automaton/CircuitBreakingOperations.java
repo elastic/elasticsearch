@@ -89,10 +89,11 @@ public final class CircuitBreakingOperations {
     /**
      * Peak live bytes per state and per transition of a Lucene operation that builds an automaton and then trims its dead
      * states: the output with growth headroom, the reversed copy {@code removeDeadStates} builds through
-     * {@code Automaton.Builder} to find live states, and the trimmed copy.
+     * {@code Automaton.Builder} to find live states, and the trimmed copy. Lucene's builds of chains, dense classes,
+     * nullable concatenations and repeats of large operands peak at 23 to 72 bytes per state and transition together.
      */
     static final long BUILD_BYTES_PER_STATE = 64L;
-    static final long BUILD_BYTES_PER_TRANSITION = 80L;
+    static final long BUILD_BYTES_PER_TRANSITION = 72L;
 
     /** Largest amount reserved in one call: above every breaker limit, so an amount capped here still trips. */
     static final long MAX_RESERVATION = 1L << 60;

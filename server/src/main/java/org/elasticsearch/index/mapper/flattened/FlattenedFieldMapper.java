@@ -1707,7 +1707,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
-            builder.ignoreAbove.get(),
+            ((RootFlattenedFieldType) mappedFieldType).ignoreAbove().limit(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
             builder.hasRootDocValues(),
@@ -1952,6 +1952,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             // ~1.25x headroom for documents a little wider than the first.
             docBlob.grow(seedEstimate + (seedEstimate >> 2));
 
+            final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
+
             for (int doc = 0; doc < docCount; doc++) {
                 int slotCount = 0;
                 int pos = 0;
@@ -1966,7 +1968,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                             value = nullValueBytes;
                         }
                         if (value != null) {
-                            if (fieldType().ignoreAbove().isIgnored(value)) {
+                            if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(value)) {
                                 throw new UnsupportedOperationException(
                                     "mapColumnGroupBatch: value for key ["
                                         + relativeKeys[k]

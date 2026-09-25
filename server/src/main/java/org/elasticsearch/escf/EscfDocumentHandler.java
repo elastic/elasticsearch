@@ -113,9 +113,10 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeStringField(fieldName, buf, off, len);
             return;
         }
-        int colIdx = row.stringField(fieldName, buf, off, len);
+        var text = new XContentString.UTF8Bytes(buf, off, len);
+        int colIdx = row.stringField(fieldName, text);
         if (firePathSink) {
-            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, new XContentString.UTF8Bytes(buf, off, len));
+            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, text);
         }
     }
 
@@ -144,14 +145,10 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeStringField(fieldName, srcBuf, srcOff, srcLen);
             return;
         }
-        int colIdx = row.stringField(fieldName, srcBuf, srcOff, srcLen);
+        var text = new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
+        int colIdx = row.stringField(fieldName, text);
         if (firePathSink) {
-            sink.onTextPrimitive(
-                colIdx,
-                backend.columnPath(colIdx),
-                SourceValueType.STRING,
-                new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen)
-            );
+            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, text);
         }
     }
 

@@ -18,15 +18,15 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalObjectChangedException extends ExternalException {
 
-    ExternalObjectChangedException(String message, Throwable cause) {
+    public ExternalObjectChangedException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    ExternalObjectChangedException(Throwable cause, String message, Object... args) {
+    public ExternalObjectChangedException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    ExternalObjectChangedException(String message, Object... args) {
+    public ExternalObjectChangedException(String message, Object... args) {
         super(message, args);
     }
 

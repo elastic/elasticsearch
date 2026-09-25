@@ -91,9 +91,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 10),
             null,
             "k:keyword\nhelloworld12\n",
-            "Malformed external data: CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
-                + "(10, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
-                + "(or null_field) to skip and warn instead of failing"
+            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [12] characters exceeds [10]; row: <unparsed>; "
+                + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
 
@@ -104,9 +103,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             null,
             "k:keyword\n\"helloworld\"\n",
-            "Malformed external data: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
-                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
-                + "(or null_field) to skip and warn instead of failing"
+            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+                + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
 
@@ -117,9 +115,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
-            "Malformed external data: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
-                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
-                + "(or null_field) to skip and warn instead of failing"
+            "Row [1] of [mem://csv-direct-block-parity-tests]: field of [10] characters exceeds [5]; row: <unparsed>; "
+                + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
 
@@ -130,8 +127,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * Both arms report the identical wrapped message for junk after a closing quote — the direct-block arm
-     * previously emitted it without the {@code "CSV parse error: "} prefix that the fallback arm adds.
+     * Both arms report the identical message for junk after a closing quote.
      */
     public void testContentAfterCloseQuoteErrorParity() throws IOException {
         assertFailFastParity(
@@ -139,9 +135,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of(),
             null,
             "k:keyword\n\"x\"y\n",
-            "Malformed external data: CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
-                + "quote; row: <unparsed>; set error_mode=skip_row (or null_field) to skip and warn "
-                + "instead of failing"
+            "Row [1] of [mem://csv-direct-block-parity-tests]: unexpected content after a closing quote; row: <unparsed>; "
+                + "set [error_mode] to [skip_row] to skip the row instead"
         );
     }
 
@@ -754,7 +749,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        String expected = "Malformed external data: CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
+        String expected = "Row [1] of [mem://csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
             assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));

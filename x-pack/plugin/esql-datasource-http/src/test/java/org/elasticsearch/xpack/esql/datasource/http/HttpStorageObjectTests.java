@@ -35,6 +35,7 @@ import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
@@ -579,6 +580,90 @@ public class HttpStorageObjectTests extends ESTestCase {
             in.readAllBytes();
         }
         expectThrows(ExternalObjectChangedException.class, obj::newStream);
+    }
+
+    /**
+     * Each {@code mapReadFailure} form names the object by its URL without user info or query string; the
+     * client-error form brackets it like the other two.
+     */
+    public void testReadFailureRedactsUrl() throws Exception {
+        IOException clientError = expectThrows(IOException.class, () -> objectAnswering(HttpStatus.SC_FORBIDDEN).newStream());
+        assertEquals("Failed to read object from [https://host:8443/a/b.csv] (HTTP 403)", clientError.getMessage());
+
+        ExternalUnavailableException unavailable = expectThrows(
+            ExternalUnavailableException.class,
+            () -> objectAnswering(HttpStatus.SC_SERVICE_UNAVAILABLE).newStream()
+        );
+        HttpUrlsTests.assertRedacted(unavailable.getMessage());
+
+        ExternalObjectChangedException changed = expectThrows(
+            ExternalObjectChangedException.class,
+            () -> objectAnswering(HttpStatus.SC_PRECONDITION_FAILED).newStream(1, 2)
+        );
+        HttpUrlsTests.assertRedacted(changed.getMessage());
+    }
+
+    /** Both {@code observeEtag} failures name the object by its redacted URL. */
+    public void testEtagMismatchRedactsUrl() throws Exception {
+        ExternalObjectChangedException changed = expectThrows(
+            ExternalObjectChangedException.class,
+            () -> readTwiceWithEtags("\"gen-1\"", "\"gen-2\"")
+        );
+        assertEquals("Object changed during read of [https://host:8443/a/b.csv]", changed.getMessage());
+
+        ExternalObjectChangedException unverifiable = expectThrows(
+            ExternalObjectChangedException.class,
+            () -> readTwiceWithEtags("\"gen-1\"", null)
+        );
+        HttpUrlsTests.assertRedacted(unverifiable.getMessage());
+    }
+
+    /** The async send failures that are not already typed are wrapped with the redacted URL. */
+    public void testAsyncSendFailureRedactsUrl() throws Exception {
+        for (Throwable failure : List.of(new CompletionException(new IOException("closed")), new IllegalArgumentException("boom"))) {
+            HttpClient mockClient = mock(HttpClient.class);
+            doReturn(CompletableFuture.failedFuture(failure)).when(mockClient).sendAsync(any(), any());
+            StoragePath path = StoragePath.of(HttpUrlsTests.SECRET_URL);
+            HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+            HttpUrlsTests.assertRedacted(readAsyncFailure(object, 10).getMessage());
+        }
+    }
+
+    /** An object at {@link HttpUrlsTests#SECRET_URL} whose every GET answers {@code statusCode} with an empty body. */
+    private static HttpStorageObject objectAnswering(int statusCode) throws Exception {
+        HttpResponse<InputStream> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(statusCode);
+        when(response.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
+        when(response.body()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(response).when(mockClient).send(any(), any());
+        return new HttpStorageObject(mockClient, StoragePath.of(HttpUrlsTests.SECRET_URL), HttpConfiguration.defaults());
+    }
+
+    /** Reads the object at {@link HttpUrlsTests#SECRET_URL} twice; the GETs return {@code firstEtag}, then {@code secondEtag}. */
+    private static void readTwiceWithEtags(String firstEtag, String secondEtag) throws Exception {
+        // Build both responses before stubbing: okWithEtag stubs its own mock, which Mockito rejects inside another stubbing.
+        HttpResponse<InputStream> first = okWithEtag(firstEtag);
+        HttpResponse<InputStream> second = okWithEtag(secondEtag);
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(first).doReturn(second).when(mockClient).send(any(), any());
+        HttpStorageObject obj = new HttpStorageObject(mockClient, StoragePath.of(HttpUrlsTests.SECRET_URL), HttpConfiguration.defaults());
+        for (int i = 0; i < 2; i++) {
+            try (InputStream in = obj.newStream()) {
+                in.readAllBytes();
+            }
+        }
+    }
+
+    private static HttpResponse<InputStream> okWithEtag(String etag) {
+        Map<String, List<String>> headers = etag == null
+            ? Map.of("Content-Length", List.of("5"))
+            : Map.of("Content-Length", List.of("5"), "ETag", List.of(etag));
+        HttpResponse<InputStream> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(response.headers()).thenReturn(HttpHeaders.of(headers, (a, b) -> true));
+        when(response.body()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        return response;
     }
 
     /**

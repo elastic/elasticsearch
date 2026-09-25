@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -261,6 +262,44 @@ public final class ExternalFailures {
     }
 
     /**
+     * The message for a wrapper that types a metadata-resolution failure as client-caused — {@code FileSourceFactory},
+     * {@code TableCatalog}. Such a wrapper exists to fix the HTTP status, not to say anything new, so it keeps the
+     * cause's own diagnosis: "Object not found: &lt;path&gt;", "CSV file has no schema line", "Could not read
+     * [&lt;path&gt;] as a Parquet file: ...". A wrapper that replaces the diagnosis with a constant naming only the
+     * path reports every distinct condition — a missing object, a wrong format, a truncated footer, an empty file —
+     * with one identical sentence, which is what makes an external-source failure unactionable.
+     * <p>
+     * The location is prepended only when the cause does not already name it. Storage and reader messages usually do
+     * (they are built from the path), and this method is reached through
+     * {@code ExternalSourceResolver#mapResolveFailure}, which passes a client-caused failure straight to the user
+     * without adding context of its own — so the location has to be here when the cause omits it, and must not be
+     * here twice when the cause includes it.
+     */
+    public static String resolutionFailureMessage(String location, Throwable cause) {
+        return locate("Failed to resolve metadata for", location, detail(cause));
+    }
+
+    /**
+     * Applies the same rule for any wrapper prefix: a detail that already names the location is returned as-is,
+     * so the path is not printed twice. Callers that have already resolved their own detail string use this
+     * directly rather than re-deriving it from the cause.
+     */
+    public static String locate(String prefix, String location, @Nullable String detail) {
+        String shown = redactHttpUrl(location);
+        if (detail == null) {
+            // A message-less throwable reaches here from the arms that pass getMessage() straight in --
+            // EsRejectedExecutionException has a no-argument constructor. Name the location and stop, rather
+            // than appending the word "null".
+            return prefix + " [" + shown + "]";
+        }
+        // Redact every occurrence of the raw location before deciding: a pre-signed URL's redacted form is a prefix of
+        // the raw one, so a detail naming the raw URL also "contains" the redacted form and would pass the signature
+        // through. A detail built from the redacted form (the HTTP store's own messages) already names the location.
+        String safeDetail = detail.replace(location, shown);
+        return safeDetail.contains(shown) ? safeDetail : prefix + " [" + shown + "]: " + safeDetail;
+    }
+
+    /**
      * {@link #detail} of the first exception in {@code failure}'s chain that carries a message someone wrote, rather
      * than one a wrapper derived from {@link Throwable#toString()}.
      */
@@ -286,5 +325,29 @@ public final class ExternalFailures {
     private static boolean derivesMessageFrom(Throwable wrapper, Throwable cause) {
         String message = wrapper.getMessage();
         return message == null || message.equals(cause.toString());
+    }
+
+    /**
+     * Drops the query string, fragment and user info from an {@code http}/{@code https} location, where a pre-signed
+     * URL carries its signature and a {@code user:pass@} its credentials. Other schemes are returned unchanged: their
+     * user info is not a secret (for {@code wasb}/{@code wasbs} it is the container name).
+     */
+    public static String redactHttpUrl(String location) {
+        int schemeEnd = location.indexOf("://");
+        if (schemeEnd < 0) {
+            return location;
+        }
+        String scheme = location.substring(0, schemeEnd);
+        if (scheme.equalsIgnoreCase("http") == false && scheme.equalsIgnoreCase("https") == false) {
+            return location;
+        }
+        String rest = location.substring(schemeEnd + 3);
+        int query = rest.indexOf('?');
+        int fragment = rest.indexOf('#');
+        int end = Math.min(query < 0 ? rest.length() : query, fragment < 0 ? rest.length() : fragment);
+        rest = rest.substring(0, end);
+        int pathStart = rest.indexOf('/');
+        int at = rest.lastIndexOf('@', pathStart < 0 ? rest.length() - 1 : pathStart - 1);
+        return location.substring(0, schemeEnd + 3) + (at < 0 ? rest : rest.substring(at + 1));
     }
 }

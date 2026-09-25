@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.nio.ByteBuffer;
 
@@ -30,27 +28,27 @@ import java.nio.ByteBuffer;
 public final class KnownLengthBodyFill {
 
     private final String store;
-    private final StoragePath path;
+    private final String location;
     private final int expectedLength;
     private int offset;
 
     /**
      * @param store first token of mismatch messages ({@code "HTTP"} or {@code "S3"})
-     * @param path named in every mismatch message
+     * @param location the object as it may be shown to the user, named in every mismatch message
      * @param expectedLength fill-window size in bytes
      */
-    public KnownLengthBodyFill(String store, StoragePath path, int expectedLength) {
+    public KnownLengthBodyFill(String store, String location, int expectedLength) {
         if (expectedLength < 0) {
             throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
         }
         if (store == null) {
             throw new IllegalArgumentException("store must not be null");
         }
-        if (path == null) {
-            throw new IllegalArgumentException("path must not be null");
+        if (location == null) {
+            throw new IllegalArgumentException("location must not be null");
         }
         this.store = store;
-        this.path = path;
+        this.location = location;
         this.expectedLength = expectedLength;
     }
 
@@ -61,15 +59,13 @@ public final class KnownLengthBodyFill {
     public ExternalUnavailableException copyOrOverflow(DirectReadBuffer dest, ByteBuffer chunk) {
         int remaining = chunk.remaining();
         if (remaining > expectedLength - offset) {
-            ExternalUnavailableException ex = new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L);
-            ex.setDetail(
-                store
-                    + " response body exceeded expected length: cumulative="
-                    + ((long) offset + remaining)
-                    + ", expected="
-                    + expectedLength
+            return new ExternalUnavailableException(
+                "{} response body exceeded expected length reading [{}]: cumulative={}, expected={}",
+                store,
+                location,
+                (long) offset + remaining,
+                expectedLength
             );
-            return ex;
         }
         DirectByteBufferCopies.copyChunkIntoDestination(dest.buffer(), offset, chunk);
         offset += remaining;
@@ -102,9 +98,13 @@ public final class KnownLengthBodyFill {
         if (offset == expectedLength) {
             return null;
         }
-        ExternalUnavailableException ex = new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L);
-        ex.setDetail(store + " response body shorter than expected: received=" + offset + ", expected=" + expectedLength);
-        return ex;
+        return new ExternalUnavailableException(
+            "{} response body shorter than expected reading [{}]: received={}, expected={}",
+            store,
+            location,
+            offset,
+            expectedLength
+        );
     }
 
     /**
@@ -112,9 +112,7 @@ public final class KnownLengthBodyFill {
      * it stays next to the other mismatch EUEs.
      */
     public ExternalUnavailableException beyondContentLength(long skip) {
-        ExternalUnavailableException ex = new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "", "", false, 0L);
-        ex.setDetail("position " + skip + " is beyond content length");
-        return ex;
+        return new ExternalUnavailableException("Position {} is beyond content length reading [{}]", skip, location);
     }
 
     /** Bytes copied so far. Callers set {@code dest.buffer().position(0).limit(offset())} after a successful fill. */

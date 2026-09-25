@@ -20,7 +20,7 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalClientException extends ExternalException {
 
-    ExternalClientException(String message, Throwable cause) {
+    public ExternalClientException(String message, Throwable cause) {
         super(message, cause);
     }
 

@@ -76,7 +76,7 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
 
     /**
      * Recovers a circuit-breaker rejection from anywhere in {@code failure}'s cause chain and returns it
-     * re-labelled with the object's {@code path}, or {@code null} if there is none. Native-async providers
+     * re-labelled with the object's {@code location}, or {@code null} if there is none. Native-async providers
      * allocate the destination buffer inside the client's response pipeline, so the client (the AWS SDK's
      * retry stage, {@code HttpClient}'s body-subscriber plumbing) hands back the
      * {@link CircuitBreakingException} wrapped in a status-neutral exception of its own; mapping that to a
@@ -85,10 +85,10 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
      * read boundary and telemetry consume — while its message names the object like every other mapped
      * failure, and the original trip stays reachable as its cause.
      */
-    protected static CircuitBreakingException unwrapBreakerTrip(Throwable failure, String context, StoragePath path) {
+    protected static CircuitBreakingException unwrapBreakerTrip(Throwable failure, String context, String location) {
         if (ExceptionsHelper.unwrap(failure, CircuitBreakingException.class) instanceof CircuitBreakingException trip) {
             CircuitBreakingException withPath = new CircuitBreakingException(
-                context + " [" + path.objectName() + "]: " + trip.getMessage(),
+                context + " [" + location + "]: " + trip.getMessage(),
                 trip.getBytesWanted(),
                 trip.getByteLimit(),
                 trip.getDurability()

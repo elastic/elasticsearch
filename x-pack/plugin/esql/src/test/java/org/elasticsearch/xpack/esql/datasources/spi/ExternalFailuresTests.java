@@ -267,6 +267,79 @@ public class ExternalFailuresTests extends ESTestCase {
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
     }
 
+    public void testLocateOmitsThePrefixWhenTheDetailAlreadyNamesTheLocation() {
+        String location = "s3://bucket/data/good.csv";
+        assertEquals(
+            "Object not found: s3://bucket/data/good.csv",
+            ExternalFailures.locate("Failed to resolve external source", location, "Object not found: " + location)
+        );
+    }
+
+    public void testLocateAddsThePrefixWhenTheDetailDoesNotNameTheLocation() {
+        assertEquals(
+            "Failed to resolve external source [s3://bucket/data/good.csv]: CSV file has no schema line",
+            ExternalFailures.locate("Failed to resolve external source", "s3://bucket/data/good.csv", "CSV file has no schema line")
+        );
+    }
+
+    public void testLocateHandlesAMessagelessFailure() {
+        // EsRejectedExecutionException has a no-argument constructor, and the rejection arm passes getMessage()
+        // straight into locate -- so a null detail is reachable, not hypothetical.
+        assertEquals(
+            "Failed to resolve external source [s3://bucket/data/good.csv]",
+            ExternalFailures.locate("Failed to resolve external source", "s3://bucket/data/good.csv", null)
+        );
+    }
+
+    public void testLocateRedactsAPreSignedUrlNamedInTheDetail() {
+        // The redacted form is a prefix of the raw one here, so a detail naming the raw URL must still be redacted.
+        String location = "https://bkt.s3.eu-west-1.amazonaws.com/w/x.parquet?X-Amz-Signature=deadbeef";
+        String message = ExternalFailures.locate("Failed to resolve metadata for", location, "File does not exist: " + location);
+        assertEquals("File does not exist: https://bkt.s3.eu-west-1.amazonaws.com/w/x.parquet", message);
+    }
+
+    public void testLocateRedactsUserInfoNamedInTheDetail() {
+        String location = "https://u:p@bkt.example.com/w/x.parquet?X-Amz-Signature=deadbeef";
+        String message = ExternalFailures.locate("Failed to resolve metadata for", location, "File does not exist: " + location);
+        assertEquals("File does not exist: https://bkt.example.com/w/x.parquet", message);
+    }
+
+    public void testLocateRedactsTheLocationItAdds() {
+        String location = "https://u:p@bkt.example.com/w/x.parquet?X-Amz-Signature=deadbeef";
+        assertEquals(
+            "Failed to resolve metadata for [https://bkt.example.com/w/x.parquet]: CSV file has no schema line",
+            ExternalFailures.locate("Failed to resolve metadata for", location, "CSV file has no schema line")
+        );
+        assertEquals(
+            "Failed to resolve metadata for [https://bkt.example.com/w/x.parquet]",
+            ExternalFailures.locate("Failed to resolve metadata for", location, null)
+        );
+    }
+
+    public void testLocateLeavesANonHttpLocationUnchanged() {
+        String location = "wasbs://container@account.blob.core.windows.net/w/x.parquet?snapshot=1";
+        assertEquals(
+            "File does not exist: " + location,
+            ExternalFailures.locate("Failed to resolve metadata for", location, "File does not exist: " + location)
+        );
+    }
+
+    public void testRedactHttpUrl() {
+        assertEquals("https://h.example.com/p/x.csv", ExternalFailures.redactHttpUrl("https://h.example.com/p/x.csv?sig=1"));
+        assertEquals("http://h.example.com/p/x.csv", ExternalFailures.redactHttpUrl("http://u:p@h.example.com/p/x.csv"));
+        // An '@' after the first '/' is part of the path, not user info.
+        assertEquals("https://h.example.com/a@b/x.csv", ExternalFailures.redactHttpUrl("https://h.example.com/a@b/x.csv?sig=1"));
+        assertEquals("https://h.example.com", ExternalFailures.redactHttpUrl("https://u:p@h.example.com"));
+        assertEquals("https://h.example.com", ExternalFailures.redactHttpUrl("https://h.example.com?sig=1"));
+        assertEquals("h.example.com/x.csv?sig=1", ExternalFailures.redactHttpUrl("h.example.com/x.csv?sig=1"));
+        // Whichever of '#' and '?' comes first ends the path.
+        assertEquals("https://h.example.com/x.csv", ExternalFailures.redactHttpUrl("https://h.example.com/x.csv#frag?sig=1"));
+        assertEquals("https://h.example.com/x.csv", ExternalFailures.redactHttpUrl("https://h.example.com/x.csv?sig=1#frag"));
+        // For wasbs the user info is the container name, not a secret.
+        String wasbs = "wasbs://container@account.blob.core.windows.net/x.csv";
+        assertEquals(wasbs, ExternalFailures.redactHttpUrl(wasbs));
+    }
+
     public void testRootCauseStepsThroughAToStringDerivedWrapper() {
         IOException real = new IOException("Object not found: s3://bucket/x.csv");
         // The shape the resolver sees: a JDK ExecutionException whose message is the cause's toString(). It is not

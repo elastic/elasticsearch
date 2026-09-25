@@ -17,15 +17,15 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalServerException extends ExternalException {
 
-    ExternalServerException(String message, Throwable cause) {
+    public ExternalServerException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    ExternalServerException(Throwable cause, String message, Object... args) {
+    public ExternalServerException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    ExternalServerException(String message, Object... args) {
+    public ExternalServerException(String message, Object... args) {
         super(message, args);
     }
 

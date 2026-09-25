@@ -31,31 +31,31 @@ public final class ExternalUnavailableException extends ExternalException {
     /** Server-supplied wait hint in milliseconds; 0 means absent. */
     private final long retryAfterMs;
 
-    ExternalUnavailableException(String message, Throwable cause) {
+    public ExternalUnavailableException(String message, Throwable cause) {
         super(message, cause);
         this.throttling = false;
         this.retryAfterMs = 0L;
     }
 
-    ExternalUnavailableException(Throwable cause, String message, Object... args) {
+    public ExternalUnavailableException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
         this.throttling = false;
         this.retryAfterMs = 0L;
     }
 
-    ExternalUnavailableException(String message, Object... args) {
+    public ExternalUnavailableException(String message, Object... args) {
         super(message, args);
         this.throttling = false;
         this.retryAfterMs = 0L;
     }
 
-    ExternalUnavailableException(boolean throttling, Throwable cause, String message, Object... args) {
+    public ExternalUnavailableException(boolean throttling, Throwable cause, String message, Object... args) {
         super(cause, message, args);
         this.throttling = throttling;
         this.retryAfterMs = 0L;
     }
 
-    ExternalUnavailableException(boolean throttling, String message, Object... args) {
+    public ExternalUnavailableException(boolean throttling, String message, Object... args) {
         super(message, args);
         this.throttling = throttling;
         this.retryAfterMs = 0L;
@@ -70,7 +70,7 @@ public final class ExternalUnavailableException extends ExternalException {
      * @param message        format string
      * @param args           format arguments
      */
-    ExternalUnavailableException(boolean throttling, long retryAfterMs, Throwable cause, String message, Object... args) {
+    public ExternalUnavailableException(boolean throttling, long retryAfterMs, Throwable cause, String message, Object... args) {
         super(cause, message, args);
         this.throttling = throttling;
         this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
@@ -84,7 +84,7 @@ public final class ExternalUnavailableException extends ExternalException {
      * @param message        format string
      * @param args           format arguments
      */
-    ExternalUnavailableException(boolean throttling, long retryAfterMs, String message, Object... args) {
+    public ExternalUnavailableException(boolean throttling, long retryAfterMs, String message, Object... args) {
         super(message, args);
         this.throttling = throttling;
         this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;

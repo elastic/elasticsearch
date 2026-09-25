@@ -18,15 +18,15 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalCredentialsExpiredException extends ExternalException {
 
-    ExternalCredentialsExpiredException(String message, Throwable cause) {
+    public ExternalCredentialsExpiredException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    ExternalCredentialsExpiredException(Throwable cause, String message, Object... args) {
+    public ExternalCredentialsExpiredException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    ExternalCredentialsExpiredException(String message, Object... args) {
+    public ExternalCredentialsExpiredException(String message, Object... args) {
         super(message, args);
     }
 

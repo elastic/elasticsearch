@@ -437,4 +437,23 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             declaredReadSpec
         );
     }
+
+    /**
+     * Returns a copy with {@link #schemaMap()} replaced. Split discovery calls this with an empty map
+     * after the per-file schema has been copied onto the splits, so the coordinator does not keep the
+     * listing map for the rest of the query. The splits themselves stay on the read path.
+     */
+    public ExternalRelation withSchemaMap(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> newSchemaMap) {
+        return new ExternalRelation(
+            source(),
+            sourcePath,
+            metadata,
+            output,
+            fileList,
+            newSchemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec
+        );
+    }
 }

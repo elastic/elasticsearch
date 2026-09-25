@@ -225,7 +225,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof CancellationException || cause instanceof TaskCancelledException) {
             return new TaskCancelledException("read cancelled");
         }
-        CircuitBreakingException breakerTrip = unwrapBreakerTrip(cause, context, path);
+        CircuitBreakingException breakerTrip = unwrapBreakerTrip(cause, context, path.objectName());
         if (breakerTrip != null) {
             return breakerTrip;
         }

@@ -610,6 +610,34 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         );
     }
 
+    /**
+     * Returns a copy with {@link #schemaMap()} replaced. Once splits have been copied, the coordinator
+     * drops the listing map; per-split {@code readSchema} and {@code columnMapping} already carry what
+     * the read needs. An empty map here is not an exhaustive prune — {@link #splits()} is unchanged.
+     */
+    public ExternalSourceExec withSchemaMap(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> newSchemaMap) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            newSchemaMap,
+            unifiedSchema,
+            splits,
+            datasetName,
+            deferredExtraction,
+            declaredReadSpec
+        );
+    }
+
     public ExternalSourceExec withPushedFilter(Object newFilter) {
         return new ExternalSourceExec(
             source(),

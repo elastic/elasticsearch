@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -33,7 +34,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -99,11 +99,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         ExternalRelation relation = relation();
         LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, randomBoolean());
         assertSame(relation, result);
-        assertWarnings(
-            "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
-        );
+        assertWarnings("Request filter not applied to external datasets [ds], a node is too old to evaluate it; use WHERE instead");
     }
 
     private static ExternalRelation relation(String name, Attribute... attrs) {
@@ -155,11 +151,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         );
         LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, false);
         assertThat(result, sameInstance(union));
-        assertWarnings(
-            "The request filter was not applied to external dataset(s) [dsA, dsB] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
-        );
+        assertWarnings("Request filter not applied to external datasets [dsA, dsB], a node is too old to evaluate it; use WHERE instead");
     }
 
     /** A dataset appearing more than once collapses to a single name in the version-gate warning. */
@@ -170,11 +162,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
             List.of()
         );
         RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, false);
-        assertWarnings(
-            "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
-        );
+        assertWarnings("Request filter not applied to external datasets [ds], a node is too old to evaluate it; use WHERE instead");
     }
 
     /** No datasets in the plan -> the version gate is silent (nothing to warn about). */
@@ -200,10 +188,36 @@ public class RequestFilterRewriterTests extends ESTestCase {
         );
         RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, false);
         assertWarnings(
-            "The request filter was not applied to external dataset(s) [file:///data.csv] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
+            "Request filter not applied to external datasets [file:///data.csv], a node is too old to evaluate it; use WHERE instead"
         );
+    }
+
+    /** The source-path fallback of an unnamed HTTP dataset drops the URL's user info, query string and fragment. */
+    public void testWarningFallbackRedactsHttpUrl() {
+        String url = "https://user:pass@host:8443/a/b.csv?X-Amz-Signature=abc";
+        List<Attribute> output = List.of(attr("a", DataType.INTEGER));
+        SourceMetadata metadata = new SimpleSourceMetadata(output, "test", url);
+        ExternalRelation relation = new ExternalRelation(Source.EMPTY, url, metadata, output, FileList.UNRESOLVED, Map.of(), null);
+        RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, false);
+        assertWarnings(
+            "Request filter not applied to external datasets [https://host:8443/a/b.csv], a node is too old to evaluate it; "
+                + "use WHERE instead"
+        );
+    }
+
+    public void testRedactHttpUrl() {
+        assertEquals(
+            "https://host:8443/a/b.csv",
+            ExternalFailures.redactHttpUrl("https://user:pass@host:8443/a/b.csv?X-Amz-Signature=abc")
+        );
+        assertEquals("http://host/a.csv", ExternalFailures.redactHttpUrl("http://u@host/a.csv#frag"));
+        assertEquals("HTTPS://host", ExternalFailures.redactHttpUrl("HTTPS://user:pass@host?sig=abc"));
+        // user info of other schemes is not a secret: for wasbs it is the container name
+        assertEquals(
+            "wasbs://container@account.blob.core.windows.net/a.csv",
+            ExternalFailures.redactHttpUrl("wasbs://container@account.blob.core.windows.net/a.csv")
+        );
+        assertEquals("s3://bucket/a?b.csv", ExternalFailures.redactHttpUrl("s3://bucket/a?b.csv"));
     }
 
     /** Fail-closed: an unsupported clause fails the query even when several datasets are queried together, listing all. */
@@ -280,7 +294,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         // The plan should have a Filter (from the supported term clause) rather than failing.
         assertThat(result, instanceOf(Filter.class));
         // A single warning must be emitted naming the dropped construct.
-        assertWarnings(true, List.of(containsString("[wildcard]")));
+        assertWarnings("Request filter not fully applied to external datasets; unsupported: [wildcard] on dataset [ds]; use WHERE instead");
     }
 
     /**
@@ -305,7 +319,10 @@ public class RequestFilterRewriterTests extends ESTestCase {
         );
         RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), CONFIG, CURRENT, true);
         // Both datasets named in a single warning.
-        assertWarnings(true, List.of(allOf(containsString("dsA"), containsString("dsB"), containsString("[wildcard]"))));
+        assertWarnings(
+            "Request filter not fully applied to external datasets; unsupported: [wildcard] on dataset [dsA], "
+                + "[wildcard] on dataset [dsB]; use WHERE instead"
+        );
     }
 
     /**

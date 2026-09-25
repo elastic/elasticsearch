@@ -910,7 +910,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * is sorted for a deterministic message.
      */
     public static String cannotDetermineFormatError(String resource, Set<String> formatSpecificKeys) {
-        return "cannot determine format for [" + resource + "]; set \"format\" to use settings like " + new TreeSet<>(formatSpecificKeys);
+        return "cannot determine the format of ["
+            + resource
+            + "] from its extension; set [format] to use "
+            + new TreeSet<>(formatSpecificKeys);
     }
 
     /**

@@ -250,7 +250,7 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
                 threadContext.getResponseHeaders()
                     .getOrDefault("Warning", List.of())
                     .stream()
-                    .filter(w -> w.contains("physical column [year] is shadowed"))
+                    .filter(w -> w.contains("column [year]: also a partition key"))
                     .forEach(shadowWarnings::add);
             } finally {
                 latch.countDown();

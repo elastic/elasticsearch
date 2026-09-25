@@ -30,7 +30,7 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
      * The image is pulled from quay.io (MinIO's canonical registry) because the minio/minio
      * repository was removed from Docker Hub, see https://github.com/elastic/elasticsearch/issues/159137.
      */
-    public static final String DOCKER_BASE_IMAGE = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z";
+    public static final String DOCKER_BASE_IMAGE = "chainguard/minio:latest";
 
     private static final int servicePort = 9000;
     private final boolean enabled;

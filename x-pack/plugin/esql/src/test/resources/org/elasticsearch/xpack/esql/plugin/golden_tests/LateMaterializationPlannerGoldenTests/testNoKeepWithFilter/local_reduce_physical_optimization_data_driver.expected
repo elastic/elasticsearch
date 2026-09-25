@@ -12,6 +12,6 @@ ExchangeSinkExec[[_doc{f}#0, hire_date{f}#1],false]
         }
       }
     },
-    "source" : "salary > 10000@3:9"
+    "source" : "salary > 10000@2:9"
   }
 }, tags=[]]]]

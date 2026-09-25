@@ -127,6 +127,68 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES, unindexedStats());
     }
 
+    /**
+     * No narrowing {@code KEEP}, so {@code ProjectAwayColumns} leaves the top-level {@code Project} covering the whole relation.
+     * That is the shape every {@code FORK} branch has (reproduced here without {@code FORK}, which {@code GoldenTestCase} cannot
+     * plan because of its multiple {@code ExchangeExec}s), and the case where using that {@code Project} to decide what crosses the
+     * exchange prunes nothing. The data driver must still come out as {@code [_doc, hire_date]}.
+     */
+    public void testNoKeepWithFilter() {
+        String query = """
+            FROM employees
+            | WHERE salary > 10000
+            | SORT hire_date
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code _score} is produced by the Lucene source operator and has no block loader, so the node-reduce driver cannot re-read it.
+     * It must cross the exchange even though it is neither a sort key nor referenced below the TopN.
+     */
+    public void testScoreMustCrossTheExchange() {
+        String query = """
+            FROM books METADATA _score
+            | WHERE title:"Tolkien"
+            | SORT year
+            | LIMIT 5
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * The positive counterpart to {@link #testScoreMustCrossTheExchange}. {@code _index} and {@code _id} are on
+     * {@code LateMaterializationPlanner}'s allow-list of metadata attributes that have a block loader, so even though the
+     * {@code EVAL} below the TopN pulls them into the pipeline breaker's output - which is the only way a metadata attribute
+     * reaches the pruning decision at all - they must be dropped from the exchange and re-read on the node-reduce driver.
+     * Only the sort key and the {@code EVAL} result should cross.
+     */
+    public void testReloadableMetadataMustNotCrossTheExchange() {
+        String query = """
+            FROM employees METADATA _index, _id
+            | EVAL id_len = LENGTH(CONCAT(_index, _id))
+            | SORT hire_date
+            | LIMIT 5
+            | KEEP _index, _id, id_len
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * For a TSDB index {@code ReplaceSourceAttributes} synthesizes a fresh {@code FieldAttribute} per
+     * {@code EsQueryExec#TIME_SERIES_SOURCE_FIELDS}, so {@code _ts_slice_index} and {@code _ts_future_max_timestamp} appear in the
+     * pipeline breaker's physical output without being the output of any {@code EsRelation}. They must not reach the data-side
+     * {@code Project}: its child is the logical fragment, which cannot produce them - the data node mints its own pair while
+     * mapping. Regression test for {@code missing references [_ts_slice_index, _ts_future_max_timestamp]}.
+     */
+    public void testTimeSeriesSourceAttributesMustNotBeProjected() {
+        String query = """
+            TS k8s METADATA _tsid
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
     public void testMultipleFieldSortTopN() {
         String query = """
             FROM employees

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -56,19 +58,26 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.any;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.of;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.sub;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationConstraint.union;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
 /**
@@ -306,27 +315,35 @@ public final class TranslationContext {
         }
 
         // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link.
-        var intermediateResultPlan = doTranslateUnion(
-            branches.stream().map(b -> translateIntermediate(b, new NameId(), new NameId())).toList()
-        );
-        return doTranslateFinal(intermediateResultPlan, null, false);
+        // IN: every label of each series, and the identity without the metric name - the set operators match on the
+        // label set minus `__name__`, so every open branch also delivers that packing for the dedup to key on.
+        TranslationConstraint branchRequired = union(any(), sub(any(), of(List.of(LabelMatcher.NAME))));
+        var intermediateResults = new ArrayList<TranslationResult>(branches.size());
+        for (var branch : branches) {
+            intermediateResults.add(translateOperand(branch, branchRequired));
+        }
+        Union union = doTranslateUnion(intermediateResults);
+        return doTranslateFinal(union.plan(), union.identity(), false);
     }
 
     /**
-     * Shared by every `final` translation root. {@code identity} is the column carrying the result's series identity
-     * (its grain), or null when the label set is closed.
+     * Shared by every `final` translation root. {@code identity} is the expression carrying the result's series identity
+     * (its grain): a packing column, or over a union the finest packing each row carries; null when the label set is closed.
      */
-    private LogicalPlan doTranslateFinal(LogicalPlan plan, Attribute identity, boolean localRelation) {
+    private LogicalPlan doTranslateFinal(LogicalPlan plan, Expression identity, boolean localRelation) {
         plan = emitNullsFilter(cmd.source(), emitFinalProjection(plan, identity), cmd.valueAttribute());
         return localRelation ? plan : emitByStepFilter(plan);
     }
+
+    /** A translated `or` chain: the deduplicated union and the identity each row carries, null when every branch is closed. */
+    private record Union(LogicalPlan plan, Expression identity) {}
 
     /**
      * Union combinator over independently translated tabular results.
      * {@link UnionAll} aligns columns by name and null-fills missing labels, then
      * {@link TopNBy} keeps single row per {@code (step, labelset)} group ordered by incoming IR order.
      */
-    private LogicalPlan doTranslateUnion(List<TranslationResult> intermediateResults) {
+    private Union doTranslateUnion(List<TranslationResult> intermediateResults) {
         // Already validated against MergePlan.MAX_BRANCHES by PromqlCommand.verify
         assert MergePlan.exceedsMaxBranches(intermediateResults.size()) == false
             : "[INVARIANT]: merge branch count ["
@@ -337,29 +354,26 @@ public final class TranslationContext {
 
         var source = cmd.source();
         var branchPlans = new ArrayList<LogicalPlan>(intermediateResults.size());
+        // every packing any branch carries, by column name, finest (fewest exclusions) first
+        var packings = new TreeMap<String, DynamicColumnList>();
         for (int i = 0; i < intermediateResults.size(); i++) {
             var ir = intermediateResults.get(i);
             LogicalPlan branchPlan = ir.plan();
-            // Each branch is projected to its public shape: value, step, its labels, its series identity
-            // (renamed to `_timeseries` for name-based union alignment) and the branch tag. The explicit
-            // projection also pins the page layout to the branch output: pages cross an exchange and an
-            // Eval below (the value double-cast) can name-shadow a column, leaving its channel in the
-            // page but not in output() (see #158164).
+            // Each branch is projected to its public shape: value, step, its label columns (the statics and every
+            // packing, under their natural names, e.g. `_timeseries$__name__`) and the branch tag. The union aligns
+            // columns by name; the dedup below keys on the statics and the identity without the metric name, and the
+            // final projection picks each row's finest packing as `_timeseries`. The explicit projection also pins
+            // the page layout to the branch output: pages cross an exchange and an Eval below (the value double-cast)
+            // can name-shadow a column, leaving its channel in the page but not in output() (see #158164).
             var branchOutput = new ArrayList<Attribute>();
             branchOutput.add(ir.valueColumn());
             branchOutput.add(ir.step());
-            for (String label : ir.statics()) {
-                branchOutput.add(ir.label(label));
-            }
-            Attribute identity = ir.grain();
-            if (identity != null) {
-                if (identity.name().equals(MetadataAttribute.TIMESERIES) == false) {
-                    var alias = new Alias(source, MetadataAttribute.TIMESERIES, identity, new NameId());
-                    branchPlan = new Eval(source, branchPlan, List.of(alias));
-                    identity = alias.toAttribute();
+            ir.labels().forEach((column, attribute) -> {
+                branchOutput.add(attribute);
+                if (column instanceof DynamicColumnList packing) {
+                    packings.putIfAbsent(attribute.name(), packing);
                 }
-                branchOutput.add(identity);
-            }
+            });
             // Drop null-valued rows per branch so an absent left side does not shadow a present right side.
             branchPlan = emitNullsFilter(source, branchPlan, ir.valueColumn());
             var branchTag = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
@@ -370,20 +384,60 @@ public final class TranslationContext {
         // The attribute ids chosen here are preserved by name when the analyzer later recomputes the UnionAll output,
         // so the groupings below remain valid. The command coda projects the synthetic branch tag away.
         List<Attribute> unionOutput = VectorBinarySet.unionOutputByName(branchPlans);
-        var union = new UnionAll(source, branchPlans, unionOutput);
+        LogicalPlan plan = new UnionAll(source, branchPlans, unionOutput);
 
-        // Left-preferring dedup: group by every column except the value and the branch tag, keep the lowest branch.
+        var byName = new HashMap<String, Attribute>();
+        unionOutput.forEach(attribute -> byName.put(attribute.name(), attribute));
+        List<Attribute> finestFirst = packings.entrySet()
+            .stream()
+            .sorted(Comparator.comparingInt((Map.Entry<String, DynamicColumnList> e) -> e.getValue().except().size()))
+            .map(e -> byName.get(e.getKey()))
+            .toList();
+        // A row's set signature is its label set without `__name__`: its finest packing that excludes the name (each open
+        // branch delivers one) and its statics but the name.
+        List<Attribute> nameFree = packings.entrySet()
+            .stream()
+            .filter(e -> e.getValue().except().contains(LabelMatcher.NAME))
+            .sorted(Comparator.comparingInt((Map.Entry<String, DynamicColumnList> e) -> e.getValue().except().size()))
+            .map(e -> byName.get(e.getKey()))
+            .toList();
+        Expression signature = firstNonNull(source, nameFree);
         var groupings = new ArrayList<Expression>();
         Attribute branchAttr = null;
         for (Attribute attr : unionOutput) {
             if (attr.name().equals(cmd.branchColumnName())) {
                 branchAttr = attr;
-            } else if (attr.name().equals(cmd.valueColumnName()) == false) {
-                groupings.add(attr);
+            } else if (attr.name().equals(cmd.valueColumnName()) == false
+                && packings.containsKey(attr.name()) == false
+                && LabelMatcher.NAME.equals(PromqlLabels.labelName(attr)) == false) {
+                    groupings.add(attr);
+                }
+        }
+        if (signature != null) {
+            if (signature instanceof Attribute attribute) {
+                groupings.add(attribute);
+            } else {
+                Alias alias = new Alias(source, TemporaryNameGenerator.locallyUniqueTemporaryName("signature"), signature);
+                plan = new Eval(source, plan, List.of(alias));
+                groupings.add(alias.toAttribute());
             }
         }
+        // Left-preferring dedup: keep the lowest branch per (step, signature).
         var order = new Order(source, branchAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        return new TopNBy(source, union, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
+        plan = new TopNBy(source, plan, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
+        // OUT: each row's finest packing (a row comes from one branch, whose own packings are the non-null ones)
+        return new Union(plan, firstNonNull(source, finestFirst));
+    }
+
+    /** The first non-null of {@code columns}: the column itself for one, a {@code COALESCE} for several, null for none. */
+    private static Expression firstNonNull(Source source, List<Attribute> columns) {
+        if (columns.isEmpty()) {
+            return null;
+        }
+        if (columns.size() == 1) {
+            return columns.getFirst();
+        }
+        return new Coalesce(source, columns.getFirst(), columns.subList(1, columns.size()));
     }
 
     /**
@@ -574,7 +628,7 @@ public final class TranslationContext {
     // ---------- the command coda ----------
 
     /** Projects the plan to the command's declared output, re-aliasing columns that match by name but not by id. */
-    private LogicalPlan emitFinalProjection(LogicalPlan plan, Attribute packing) {
+    private LogicalPlan emitFinalProjection(LogicalPlan plan, Expression identity) {
         var lookupMap = new HashMap<String, Attribute>();
         for (var attr : plan.output()) {
             lookupMap.put(attr.name(), attr);
@@ -584,14 +638,22 @@ public final class TranslationContext {
         for (var attr : plan.output()) {
             lookupMap.putIfAbsent(PromqlLabels.labelName(attr), attr);
         }
+        var projected = new ArrayList<Attribute>();
+        var evals = new ArrayList<Alias>();
         // Dynamic columns travel under names derived from their exclusions,
         // e.g.: * \ {a,b} is encoded as `_timeseries$a$b`;
         // Final output drops `$a$b` suffix.
-        if (packing != null) {
+        if (identity instanceof Attribute packing) {
             lookupMap.put(MetadataAttribute.TIMESERIES, packing);
+        } else if (identity != null) {
+            // over a union each row carries the packing of its own branch: `_timeseries` is the first one present
+            Attribute declared = PromqlLabels.find(cmd.output(), MetadataAttribute.TIMESERIES);
+            if (declared != null) {
+                var alias = new Alias(cmd.source(), declared.name(), identity, declared.id());
+                evals.add(alias);
+                lookupMap.put(MetadataAttribute.TIMESERIES, alias.toAttribute());
+            }
         }
-        var projected = new ArrayList<Attribute>();
-        var evals = new ArrayList<Alias>();
         for (var attr : cmd.output()) {
             var lookupAttr = lookupMap.get(attr.name());
             if (lookupAttr != null && lookupAttr.semanticEquals(attr) == false) {

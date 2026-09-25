@@ -182,6 +182,14 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                     : Collections.emptyMap();
                 final Map<String, DocumentField> metadataFields = metadataFieldFetcher.fetch(hitContext.source(), hitContext.docId());
                 hitContext.hit().addDocumentFields(fields, metadataFields);
+                long totalBytes = 0L;
+                for (DocumentField f : fields.values()) {
+                    totalBytes += f.ramBytesUsedEstimate();
+                }
+                for (DocumentField f : metadataFields.values()) {
+                    totalBytes += f.ramBytesUsedEstimate();
+                }
+                fetchContext.chargeDocumentFieldBytes(totalBytes);
             }
         };
     }

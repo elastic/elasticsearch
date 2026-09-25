@@ -86,7 +86,7 @@ public class ScriptFieldsPhaseTests extends ESTestCase {
 
             // TestSearchContext is used because FetchContext requires a SearchContext; we override
             // scriptFields() so ScriptFieldsPhase can read the configured script. The byte checker is
-            // wired via setScriptFieldsByteChecker so no live circuit breaker is needed.
+            // wired via setDocumentFieldsByteChecker so no live circuit breaker is needed.
             searchContext = new TestSearchContext((SearchExecutionContext) null) {
                 @Override
                 public boolean hasScriptFields() {
@@ -99,7 +99,7 @@ public class ScriptFieldsPhaseTests extends ESTestCase {
                 }
             };
             FetchContext fetchContext = new FetchContext(searchContext, null);
-            fetchContext.setScriptFieldsByteChecker(bytes -> deltas.add(bytes));
+            fetchContext.setDocumentFieldsByteChecker(bytes -> deltas.add(bytes));
 
             MemoryIndex index = new MemoryIndex();
             leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);

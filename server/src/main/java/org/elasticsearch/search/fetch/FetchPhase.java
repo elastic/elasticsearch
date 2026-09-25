@@ -307,29 +307,27 @@ public final class FetchPhase {
         SourceLoader sourceLoader = context.newSourceLoader(res.v2());
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
-        final long[] scriptFieldsBreakerBytes = new long[1];
+        final long[] documentFieldsBreakerBytes = new long[1];
         final long[] streamingHeldBytes = new long[1];
-        LongConsumer scriptFieldsByteChecker;
+        LongConsumer documentFieldsByteChecker;
         if (streaming) {
-            scriptFieldsByteChecker = bytes -> {
+            documentFieldsByteChecker = bytes -> {
                 if (bytes > context.memAccountingBufferSize()) {
-                    context.circuitBreaker()
-                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
+                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[fields]");
                     streamingHeldBytes[0] += bytes;
                 }
             };
         } else if (memoryChecker != null) {
-            scriptFieldsByteChecker = bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes);
+            documentFieldsByteChecker = bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes);
         } else {
-            scriptFieldsByteChecker = bytes -> {
+            documentFieldsByteChecker = bytes -> {
                 if (bytes > 0) {
-                    context.circuitBreaker()
-                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
-                    scriptFieldsBreakerBytes[0] += bytes;
+                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[fields]");
+                    documentFieldsBreakerBytes[0] += bytes;
                 }
             };
         }
-        fetchContext.setScriptFieldsByteChecker(scriptFieldsByteChecker);
+        fetchContext.setDocumentFieldsByteChecker(documentFieldsByteChecker);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
@@ -378,7 +376,7 @@ public final class FetchPhase {
 
             @Override
             public long getRequestBreakerBytes() {
-                return super.getRequestBreakerBytes() + scriptFieldsBreakerBytes[0] + streamingHeldBytes[0];
+                return super.getRequestBreakerBytes() + documentFieldsBreakerBytes[0] + streamingHeldBytes[0];
             }
 
             @Override

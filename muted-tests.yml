@@ -590,6 +590,18 @@ tests:
     - testCloseAfterRequestHasUsedQueryCache
     - testCloseWhileOngoingRequestUsesQueryCache
   issue: https://github.com/apache/lucene/issues/15558
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  methods:
+    - testClearAllCaches
+    - testFilterCacheStats
+  issue: https://github.com/apache/lucene/issues/15558
+- class: org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheParamsIT
+  methods:
+    - testNoParamsClearsAll
+    - testClearOnlyQueryCache
+    - testClearQueryAndRequestCache
+    - testClearQueryAndFielddataCache
+  issue: https://github.com/apache/lucene/issues/15558
 # Lucene 11 IndexSearcher.DEFAULT_QUERY_CACHE is null. The second pass expects a
 # cached constant-time phrase count and stays at 0 without a default cache.
 - class: org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregatorTests

@@ -35,8 +35,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
-import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -596,35 +596,24 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     @Nullable
-    private static RegExp parse(@Nullable String regex, ParseField field) {
+    private static CircuitBreakingRegExp parse(@Nullable String regex, ParseField field) {
         if (regex == null) {
             return null;
         }
         try {
-            return new RegExp(regex, REGEX_FLAGS);
+            return new CircuitBreakingRegExp(regex, REGEX_FLAGS, 0);
         } catch (StackOverflowError e) {
             throw tooDeeplyNested(field);
         }
     }
 
     /**
-     * Builds the NFA with its estimated peak heap reserved on {@code breaker}, as the regexp query does: a short pattern of
-     * nested bounded repeats expands to a state count that no length limit catches, and an {@code OutOfMemoryError} is
-     * as fatal to the node as the stack overflow.
+     * Builds the NFA with each step reserved on {@code breaker} while it runs, as the regexp query does: a short pattern of
+     * nested bounded repeats expands to a size that no length limit catches.
      */
     private static Automaton compile(String regex, ParseField field, CircuitBreaker breaker) {
         try {
-            RegExp re = parse(regex, field);
-            // The estimator walks the parse tree recursively too, so it stays inside the overflow guard.
-            long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
-            breaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
-            try {
-                return re.toAutomaton();
-            } finally {
-                breaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
-            }
-        } catch (StackOverflowError e) {
-            throw tooDeeplyNested(field);
+            return parse(regex, field).toAutomaton(breaker, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException(
                 "The regex used in the [" + field.getPreferredName() + "] of an aggregation is too complex to determinize",
@@ -633,7 +622,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    /** Lucene's parser and toAutomaton() both recurse on nesting; outside the aggregation-build guards this Error is fatal. */
+    /** Lucene's parser recurses on nested groups; outside the aggregation-build guards this Error is fatal. */
     private static IllegalArgumentException tooDeeplyNested(ParseField field) {
         return new IllegalArgumentException(
             "The regex used in the [" + field.getPreferredName() + "] of an aggregation is too deeply nested"

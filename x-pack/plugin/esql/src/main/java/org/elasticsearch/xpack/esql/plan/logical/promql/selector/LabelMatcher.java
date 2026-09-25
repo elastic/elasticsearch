@@ -15,8 +15,8 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -152,7 +152,7 @@ public class LabelMatcher implements NodeStringRenderable {
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException("The regex used in a label matcher is too complex to determinize", e);
         } catch (StackOverflowError e) {
-            // Lucene's parser and toAutomaton() both recurse on nesting; an Error here would take the node down.
+            // Lucene's parser recurses on nested groups; this Error must not escape the request.
             throw new IllegalArgumentException("The regex used in a label matcher is too deeply nested");
         }
         return automaton;
@@ -167,7 +167,7 @@ public class LabelMatcher implements NodeStringRenderable {
     private Automaton buildAutomaton() {
         // Matchers are built while parsing, before any request breaker exists, so each build is bounded the way constant
         // folding is: by a fresh fold budget, held only while the automaton is built. A length limit alone does not bound
-        // the heap: [ab]{1000}{1000}{1000} is 22 characters and about a billion NFA states.
+        // the size: nested bounded repeats multiply.
         CircuitBreaker breaker = FoldContext.small().circuitBreakerView(Source.EMPTY);
         long held = 0;
         try {
@@ -226,20 +226,13 @@ public class LabelMatcher implements NodeStringRenderable {
                     + "]"
             );
         }
-        RegExp re;
+        CircuitBreakingRegExp re;
         try {
-            re = new RegExp(regex);
+            re = new CircuitBreakingRegExp(regex, RegExp.ALL, 0);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
         }
-        // The NFA is built with its estimated peak reserved, as the regexp query does; the budget refuses it before any of it exists.
-        long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
-        breaker.addEstimateBytesAndMaybeBreak(reservation, BREAKER_LABEL);
-        try {
-            return re.toAutomaton();
-        } finally {
-            breaker.addWithoutBreaking(-reservation);
-        }
+        return re.toAutomaton(breaker, BREAKER_LABEL);
     }
 
     public boolean matchesAll() {

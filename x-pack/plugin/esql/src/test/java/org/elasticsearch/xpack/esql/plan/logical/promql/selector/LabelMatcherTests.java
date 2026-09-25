@@ -120,8 +120,8 @@ public class LabelMatcherTests extends ESTestCase {
     }
 
     /**
-     * 22 characters that expand to about a billion NFA states: the build budget must refuse the pattern before any of it is
-     * allocated, in a single-value and in a multi-value matcher alike. Building it would exhaust the test JVM.
+     * Nested bounded repeats expand far beyond the pattern's length: the budget must refuse the outer repeat before it is
+     * built, in a single-value and in a multi-value matcher alike.
      */
     public void testHugeRegexIsRefusedBeforeItIsBuilt() {
         LabelMatcher single = new LabelMatcher("l", "[ab]{1000}{1000}{1000}", Matcher.REG);

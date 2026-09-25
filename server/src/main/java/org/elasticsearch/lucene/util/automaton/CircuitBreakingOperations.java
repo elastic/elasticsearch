@@ -29,7 +29,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Provides a circuit-breaker-aware variant of {@link Operations#determinize(Automaton, int)}.
+ * Circuit-breaker-aware variants of the Lucene automaton operations whose size is only known once they are built:
+ * {@link Operations#determinize(Automaton, int)}, {@link Operations#complement(Automaton, int)},
+ * {@link Operations#intersection(Automaton, Automaton)} and {@link Operations#minus(Automaton, Automaton, int)}.
  * <p>
  * Lucene's {@code Operations.determinize} can allocate memory proportional to the powerset of
  * the NFA states, which grows exponentially for certain patterns (e.g. {@code .*a.*b.*c.*d.*}).
@@ -65,6 +67,14 @@ public final class CircuitBreakingOperations {
      * </ul>
      */
     private static final long ESTIMATED_BYTES_PER_STATE = 200L;
+    /** Transitions per new DFA state that {@link #ESTIMATED_BYTES_PER_STATE} already averages in. */
+    private static final long TRANSITIONS_PER_STATE_ESTIMATE = 3L;
+    /**
+     * Bytes per DFA transition beyond {@link #TRANSITIONS_PER_STATE_ESTIMATE} per state: the builder's four-int entry with
+     * growth headroom, and the copy {@code finish()} makes. A state reading a class of many separate ranges carries one
+     * transition per range.
+     */
+    private static final long ESTIMATED_BYTES_PER_EXTRA_TRANSITION = 32L;
 
     /**
      * Live bytes per reachable product state: its worklist entry, its slot in the pair map and the state itself. Only live
@@ -74,7 +84,18 @@ public final class CircuitBreakingOperations {
     /** Live bytes per transition: three ints plus growth headroom in the product, or one {@code Transition} object in a sorted input. */
     private static final long PRODUCT_TRANSITION_BYTES = 48L;
     /** Reserve in steps of this size rather than on every transition. */
-    private static final long PRODUCT_CHARGE_STEP = 64 * 1024L;
+    private static final long CHARGE_STEP = 64 * 1024L;
+
+    /**
+     * Peak live bytes per state and per transition of a Lucene operation that builds an automaton and then trims its dead
+     * states: the output with growth headroom, the reversed copy {@code removeDeadStates} builds through
+     * {@code Automaton.Builder} to find live states, and the trimmed copy.
+     */
+    static final long BUILD_BYTES_PER_STATE = 64L;
+    static final long BUILD_BYTES_PER_TRANSITION = 80L;
+
+    /** Largest amount reserved in one call: above every breaker limit, so an amount capped here still trips. */
+    static final long MAX_RESERVATION = 1L << 60;
 
     /**
      * Determinizes the given automaton, periodically checking the provided circuit breaker.
@@ -129,6 +150,8 @@ public final class CircuitBreakingOperations {
         long effortLimit = workLimit * (long) 10;
 
         int newStatesCreated = 0;
+        long transitionsAdded = 0;
+        long pendingTransitionBytes = 0;
         long totalReserved = 0;
 
         try {
@@ -188,6 +211,14 @@ public final class CircuitBreakingOperations {
                         }
 
                         b.addTransition(r, q, lastPoint, point - 1);
+                        if (++transitionsAdded > TRANSITIONS_PER_STATE_ESTIMATE * (newStatesCreated + 1)) {
+                            pendingTransitionBytes += ESTIMATED_BYTES_PER_EXTRA_TRANSITION;
+                            if (pendingTransitionBytes >= CHARGE_STEP) {
+                                circuitBreaker.addEstimateBytesAndMaybeBreak(pendingTransitionBytes, label);
+                                totalReserved += pendingTransitionBytes;
+                                pendingTransitionBytes = 0;
+                            }
+                        }
                     }
 
                     int[] transitions = points.points[i].ends.transitions;
@@ -223,10 +254,27 @@ public final class CircuitBreakingOperations {
         return result;
     }
 
-    // ------------------------------------------------------------------
-    // Package-private helper classes copied from Lucene (10.3.2) because
-    // they are not accessible outside org.apache.lucene.util.automaton.
-    // ------------------------------------------------------------------
+    /**
+     * {@link Operations#complement(Automaton, int)} with the determinization charged as it grows and the totalized and
+     * trimmed copies reserved before they are built. Temporary memory is released before returning; the caller accounts
+     * the result's {@code ramBytesUsed()}.
+     */
+    public static Automaton complement(Automaton a, int workLimit, CircuitBreaker circuitBreaker, String label) {
+        Automaton dfa = determinize(a, workLimit, circuitBreaker, label);
+        long reserved = 0;
+        try {
+            if (dfa != a) {
+                reserved += reserve(circuitBreaker, dfa.ramBytesUsed(), label);
+            }
+            // totalize adds a dead state and, per state, at most one transition per gap between its ranges plus one
+            long states = dfa.getNumStates() + 1L;
+            long transitions = addSaturating(multiplySaturating(2, dfa.getNumTransitions()), states);
+            reserved += reserve(circuitBreaker, buildBytes(states, transitions), label);
+            return Operations.complement(dfa, workLimit);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reserved, label);
+        }
+    }
 
     /**
      * {@link Operations#minus(Automaton, Automaton, int)} with the product construction charged to the breaker as it grows.
@@ -246,16 +294,13 @@ public final class CircuitBreakingOperations {
         if (Operations.isEmpty(excluded)) {
             return a;
         }
-        // complement totalizes the exclude and copies it again to drop dead states; each copy is about its own size
-        long complementReservation = 3 * excluded.ramBytesUsed();
-        circuitBreaker.addEstimateBytesAndMaybeBreak(complementReservation, label);
-        Automaton complement;
+        Automaton complement = complement(excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, circuitBreaker, label);
+        long held = reserve(circuitBreaker, complement.ramBytesUsed(), label);
         try {
-            complement = Operations.complement(excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            return intersection(a, complement, circuitBreaker, label);
         } finally {
-            circuitBreaker.addWithoutBreaking(-complementReservation, label);
+            circuitBreaker.addWithoutBreaking(-held, label);
         }
-        return intersection(a, complement, circuitBreaker, label);
     }
 
     /** {@link Operations#intersection(Automaton, Automaton)}, charging each product state and transition as it is created. */
@@ -270,7 +315,7 @@ public final class CircuitBreakingOperations {
             return a2;
         }
         long reserved = 0;
-        long pending = (long) (a1.getNumTransitions() + a2.getNumTransitions()) * PRODUCT_TRANSITION_BYTES;
+        long pending = ((long) a1.getNumTransitions() + a2.getNumTransitions()) * PRODUCT_TRANSITION_BYTES;
         try {
             circuitBreaker.addEstimateBytesAndMaybeBreak(pending, label);
             reserved += pending;
@@ -306,7 +351,7 @@ public final class CircuitBreakingOperations {
                             }
                             c.addTransition(p[0], r, Math.max(t1[n1].min, t2[n2].min), Math.min(t1[n1].max, t2[n2].max));
                             pending += PRODUCT_TRANSITION_BYTES;
-                            if (pending >= PRODUCT_CHARGE_STEP) {
+                            if (pending >= CHARGE_STEP) {
                                 circuitBreaker.addEstimateBytesAndMaybeBreak(pending, label);
                                 reserved += pending;
                                 pending = 0;
@@ -316,10 +361,7 @@ public final class CircuitBreakingOperations {
                 }
             }
             c.finishState();
-            // removeDeadStates copies the live part of c
-            long copy = c.ramBytesUsed();
-            circuitBreaker.addEstimateBytesAndMaybeBreak(copy, label);
-            reserved += copy;
+            reserved += reserve(circuitBreaker, buildBytes(c.getNumStates(), c.getNumTransitions()), label);
             return Operations.removeDeadStates(c);
         } finally {
             circuitBreaker.addWithoutBreaking(-reserved, label);
@@ -329,6 +371,37 @@ public final class CircuitBreakingOperations {
     private static long pairKey(int s1, int s2) {
         return ((long) s1 << 32) | (s2 & 0xffffffffL);
     }
+
+    /** Reserves {@code bytes} on {@code breaker}, capped at {@link #MAX_RESERVATION}, and returns the amount reserved. */
+    static long reserve(CircuitBreaker breaker, long bytes, String label) {
+        long capped = Math.min(bytes, MAX_RESERVATION);
+        breaker.addEstimateBytesAndMaybeBreak(capped, label);
+        return capped;
+    }
+
+    /** Peak live bytes of a Lucene operation producing an automaton of at most {@code states} and {@code transitions}. */
+    static long buildBytes(long states, long transitions) {
+        return addSaturating(
+            multiplySaturating(states, BUILD_BYTES_PER_STATE),
+            multiplySaturating(transitions, BUILD_BYTES_PER_TRANSITION)
+        );
+    }
+
+    static long addSaturating(long a, long b) {
+        long sum = a + b;
+        return ((a ^ sum) & (b ^ sum)) < 0 ? Long.MAX_VALUE : sum;
+    }
+
+    static long multiplySaturating(long a, long b) {
+        long high = Math.multiplyHigh(a, b);
+        long low = a * b;
+        return (high == 0 && low >= 0) ? low : Long.MAX_VALUE;
+    }
+
+    // ------------------------------------------------------------------
+    // Package-private helper classes copied from Lucene (10.3.2) because
+    // they are not accessible outside org.apache.lucene.util.automaton.
+    // ------------------------------------------------------------------
 
     abstract static class IntSet {
         abstract int[] getArray();

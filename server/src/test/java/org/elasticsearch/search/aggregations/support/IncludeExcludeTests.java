@@ -539,6 +539,29 @@ public class IncludeExcludeTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 
+    /** An intersection with a complement written inside one include is a product too, and is charged the same way. */
+    public void testIntersectionWithComplementInOnePatternIsCharged() {
+        IncludeExclude inexcl = new IncludeExclude("[ab]{200}&~((a|b)*b(a|b){10})", null, null, null);
+        CircuitBreaker small = newLimitedBreaker(ByteSizeValue.ofMb(2));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, small)
+        );
+        assertEquals("every reservation is released on failure", 0L, small.getUsed());
+    }
+
+    /** Optional copies whose linking work grows with the square of their count are refused before they are built. */
+    public void testTooMuchConstructionWorkIsAClientError() {
+        IncludeExclude inexcl = new IncludeExclude("x{0,1000000}", null, null, null);
+        CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, roomy)
+        );
+        assertThat(e.getMessage(), containsString("too complex"));
+        assertEquals(0L, roomy.getUsed());
+    }
+
     /**
      * Lucene parses nested groups recursively, so a deep pattern overflows the stack while parsing. The pattern must
      * not be compiled when the {@link IncludeExclude} is built (that runs on the coordinator's HTTP thread and on the
@@ -555,20 +578,29 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     /**
-     * Lucene parses concatenation iteratively but {@code toAutomaton()} still recurses over the left-deep tree that a run
-     * of character classes produces, so the overflow happens after a successful parse.
+     * Lucene parses a run of character classes iteratively, and the automaton is built by an iterative walk of the left-deep
+     * tree it produces, so a long concatenation compiles even on a small stack.
      */
-    public void testLongConcatenationRegexIsAClientError() {
+    public void testLongConcatenationRegexCompiles() {
         String regex = "[^a]".repeat(50_000);
         IncludeExclude inexcl = new IncludeExclude(regex, null, null, null);
-        assertDeepNestingRejected(() -> inexcl.convertToStringFilter(DocValueFormat.RAW, Integer.MAX_VALUE, BREAKER));
+        AtomicReference<StringFilter> filter = new AtomicReference<>();
+        assertNull(onSmallStack(() -> filter.set(inexcl.convertToStringFilter(DocValueFormat.RAW, Integer.MAX_VALUE, BREAKER))));
+        assertTrue(filter.get().accept(new BytesRef("b".repeat(50_000))));
+        assertFalse(filter.get().accept(new BytesRef("a".repeat(50_000))));
+    }
+
+    private static void assertDeepNestingRejected(Runnable compile) {
+        Throwable thrown = onSmallStack(compile);
+        assertThat(thrown, instanceOf(IllegalArgumentException.class));
+        assertThat(thrown.getMessage(), containsString("too deeply nested"));
     }
 
     /**
-     * Runs on a thread with a fixed, small stack so the overflow does not depend on the JVM's default stack size,
-     * which differs between platforms (1 MB on x86-64, 2 MB on aarch64).
+     * Runs on a thread with a fixed, small stack so the outcome does not depend on the JVM's default stack size, which
+     * differs between platforms (1 MB on x86-64, 2 MB on aarch64). Returns what it threw, or null.
      */
-    private static void assertDeepNestingRejected(Runnable compile) {
+    private static Throwable onSmallStack(Runnable compile) {
         AtomicReference<Throwable> thrown = new AtomicReference<>();
         Thread thread = new Thread(null, () -> {
             try {
@@ -586,7 +618,6 @@ public class IncludeExcludeTests extends ESTestCase {
             throw new AssertionError(e);
         }
         assertFalse("regex compilation did not finish", thread.isAlive());
-        assertThat(thrown.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(thrown.get().getMessage(), containsString("too deeply nested"));
+        return thrown.get();
     }
 }

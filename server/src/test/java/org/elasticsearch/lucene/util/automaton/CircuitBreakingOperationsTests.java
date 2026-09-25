@@ -98,10 +98,6 @@ public class CircuitBreakingOperationsTests extends ESTestCase {
         assertEquals("All reserved memory should be released after circuit breaker exception", 0, tripBreaker.getUsed());
     }
 
-    /**
-     * Builds a pathological NFA that causes exponential state blowup during determinization:
-     * .*a.*b.*c.*d... with {@code depth} interleaved wildcards and literals.
-     */
     /** The charged product must accept exactly the language Lucene's {@code minus} accepts, whatever the inputs. */
     public void testMinusMatchesLuceneOnRandomAutomata() {
         for (int i = 0; i < 20; i++) {
@@ -150,6 +146,59 @@ public class CircuitBreakingOperationsTests extends ESTestCase {
         assertEquals(0L, small.getUsed());
     }
 
+    /**
+     * A DFA over a class of many separate ranges carries one transition per range on every state, far more than the per-state
+     * estimate averages in. The limit sits above what the states alone are charged, so only the transition charge trips it.
+     */
+    public void testDeterminizeChargesDenseTransitions() {
+        StringBuilder ranges = new StringBuilder("[");
+        for (int i = 0; i < 100; i++) {
+            ranges.append((char) (0x100 + 2 * i));
+        }
+        ranges.append(']');
+        Automaton nfa = new RegExp(".*" + ranges + ".{10}").toAutomaton();
+        CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        Automaton dfa = CircuitBreakingOperations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, roomy, "test");
+        assertEquals(0L, roomy.getUsed());
+        assertTrue("dense", dfa.getNumTransitions() > 100L * dfa.getNumStates());
+        CircuitBreaker small = newLimitedBreaker(ByteSizeValue.ofBytes(4 * 200L * dfa.getNumStates()));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> CircuitBreakingOperations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, small, "test")
+        );
+        assertEquals(0L, small.getUsed());
+    }
+
+    /** A reservation larger than any limit trips, also when the breaker already holds bytes. */
+    public void testReserveOfMoreThanAnyLimitTrips() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        breaker.addEstimateBytesAndMaybeBreak(1, "test");
+        expectThrows(CircuitBreakingException.class, () -> CircuitBreakingOperations.reserve(breaker, Long.MAX_VALUE, "test"));
+        assertEquals(1L, breaker.getUsed());
+        breaker.addWithoutBreaking(-1, "test");
+    }
+
+    /** The charged complement accepts exactly what Lucene's accepts and releases what it reserved. */
+    public void testComplementMatchesLuceneOnRandomAutomata() {
+        for (int i = 0; i < 20; i++) {
+            Automaton a = AutomatonTestUtil.randomAutomaton(random());
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+            Automaton expected;
+            try {
+                expected = Operations.complement(a, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            } catch (TooComplexToDeterminizeException e) {
+                continue;
+            }
+            Automaton actual = CircuitBreakingOperations.complement(a, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, "test");
+            assertTrue(AutomatonTestUtil.sameLanguage(expected, actual));
+            assertEquals(0L, breaker.getUsed());
+        }
+    }
+
+    /**
+     * Builds a pathological NFA that causes exponential state blowup during determinization:
+     * .*a.*b.*c.*d... with {@code depth} interleaved wildcards and literals.
+     */
     private static Automaton buildPathologicalNFA(int depth) {
         List<Automaton> automata = new ArrayList<>();
         for (int i = 0; i < depth; i++) {

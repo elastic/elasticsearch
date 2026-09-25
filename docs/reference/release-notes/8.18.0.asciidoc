@@ -509,8 +509,11 @@ To determine whether MGLRU is enabled, run:
 
 [source,bash]
 ----
-cat /sys/kernel/mm/lru_gen/enabled`
+cat /sys/kernel/mm/lru_gen/enabled
 ----
 
-A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled. For more information, refer to {es-issue}124499[#124499].
+A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled.
+This issue is fixed in Elasticsearch 8.17.5 and later, 8.18.1 and later, and 9.0.2 and later.
+It does not affect Elasticsearch 8.19.
+For more information, refer to {es-issue}124499[#124499].
 --

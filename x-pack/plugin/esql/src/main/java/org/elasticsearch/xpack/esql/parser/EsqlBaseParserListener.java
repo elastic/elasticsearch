@@ -857,6 +857,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fillNullCommand}.
+   * @param ctx the parse tree
+   */
+  void enterFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fillNullCommand}.
+   * @param ctx the parse tree
+   */
+  void exitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fillNullValue}.
+   * @param ctx the parse tree
+   */
+  void enterFillNullValue(EsqlBaseParser.FillNullValueContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fillNullValue}.
+   * @param ctx the parse tree
+   */
+  void exitFillNullValue(EsqlBaseParser.FillNullValueContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree
    */

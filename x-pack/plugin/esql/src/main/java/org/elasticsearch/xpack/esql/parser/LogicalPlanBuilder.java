@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -494,6 +495,35 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
         Source source = source(ctx);
         return input -> new Dedup(source, input);
+    }
+
+    @Override
+    public PlanFactory visitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) {
+        var source = source(ctx);
+        EsqlBaseParser.FillNullValueContext valueCtx = ctx.fillNullValue();
+        final Expression fillValue;
+        // DEFAULT -> type-appropriate default (represented as a null fill value); NULL -> explicit no-op.
+        if (valueCtx.DEFAULT() != null) {
+            fillValue = null;
+        } else if (valueCtx.NULL() != null) {
+            fillValue = new Literal(source(valueCtx), null, DataType.NULL);
+        } else {
+            fillValue = expression(valueCtx);
+        }
+
+        final Holder<Boolean> hasSeenStar = new Holder<>(false);
+        List<NamedExpression> patterns = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            if (ne instanceof UnresolvedStar) {
+                hasSeenStar.set(Boolean.TRUE);
+            }
+        });
+        // `*` sweeps up every user column. A co-listed name/pattern is kept, not discarded: it still has to resolve (so a
+        // typo is an error), it is still requested from field-caps, and it can name something `*` does not cover.
+        boolean allColumns = hasSeenStar.get();
+        List<NamedExpression> targetFields = allColumns
+            ? patterns.stream().filter(ne -> ne instanceof UnresolvedStar == false).toList()
+            : patterns;
+        return input -> new FillNull(source, input, fillValue, targetFields, allColumns);
     }
 
     @Override

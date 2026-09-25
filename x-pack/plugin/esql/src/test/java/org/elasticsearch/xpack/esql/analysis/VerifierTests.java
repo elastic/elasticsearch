@@ -344,6 +344,31 @@ public class VerifierTests extends AnalyzerTestCase {
             )
         );
 
+        if (EsqlCapabilities.Cap.FILLNULL.isEnabled()) {
+            analyzer.error(
+                "from test* | fillnull DEFAULT ON unsupported",
+                equalTo("1:34: Cannot use field [unsupported] with unsupported type [flattened]")
+            );
+            analyzer.error(
+                "from test* | fillnull DEFAULT ON multi_typed",
+                equalTo(
+                    "1:34: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                        + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+                )
+            );
+            analyzer.error(
+                "from test* | fillnull 0 ON unsupported",
+                equalTo("1:28: Cannot use field [unsupported] with unsupported type [flattened]")
+            );
+            analyzer.error(
+                "from test* | fillnull 0 ON multi_typed",
+                equalTo(
+                    "1:28: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                        + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+                )
+            );
+        }
+
         // Verify that UnsupportedAttribute can pass through KEEP (Project) unchanged without error.
         // This is valid because the field is just being projected, not used in operations.
         analyzer.query("from test* | keep unsupported");
@@ -3804,6 +3829,118 @@ public class VerifierTests extends AnalyzerTestCase {
 
     private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
         fullText().query("from test | where " + functionInvocation);
+    }
+
+    /**
+     * FILLNULL never fails over a column it cannot fill, however the column was selected - it leaves the column alone
+     * and warns. These all used to be verification errors. The warning text itself is asserted in fillnull.csv-spec,
+     * which is the layer that can observe response-header warnings.
+     */
+    public void testFillNullUnfillableColumnIsNotAnError() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // incompatible type, by name and by pattern
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON first_name");
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON first_nam*");
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON emp_no, first_name, gender");
+        // value out of range for the column
+        defaultAnalyzer().query("FROM test | FILLNULL 9999999999999 ON emp_no");
+        defaultAnalyzer().query("FROM test | FILLNULL 9999999999999 ON avg_worked_seconds, emp_no");
+        // a fractional value would have to be rounded to fit an integral column
+        defaultAnalyzer().query("FROM test | FILLNULL 2.7 ON emp_no");
+        // unsigned_long is only ever compatible with unsigned_long
+        defaultAnalyzer().query("ROW ul = null | EVAL ul = ul::unsigned_long | FILLNULL 7 ON ul");
+        // a string that cannot be parsed into the column type
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::ip | FILLNULL \"not-an-ip\" ON a");
+        defaultAnalyzer().query("ROW d = null | EVAL d = d::datetime | FILLNULL \"not-a-date\" ON d");
+        // a string into a type strings are not implicitly cast to
+        defaultAnalyzer().query("ROW i = 1 | FILLNULL \"x\" ON i");
+        // a null-typed column can never be filled
+        defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL \"x\" ON a");
+    }
+
+    public void testFillNullAllFieldsModeSkipsIncompatible() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON *");
+    }
+
+    public void testFillNullAllFieldsModeSkipsOutOfRangeValue() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("FROM test | FILLNULL 9999999999999 ON *");
+    }
+
+    public void testFillNullDuplicateFieldIsDeduped() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("FROM test | FILLNULL DEFAULT ON emp_no, emp_no");
+    }
+
+    public void testFillNullOverlappingFieldsAreDeduped() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("FROM test | FILLNULL DEFAULT ON emp_no, salary, emp_no, salary");
+    }
+
+    public void testFillNullOnNullTypedColumnPassesVerification() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL \"x\" ON a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToDatePasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW d = null | EVAL d = d::datetime | FILLNULL \"2025-04-11T00:00:00.000Z\" ON d");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToIpPasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::ip | FILLNULL \"1.2.3.4\" ON a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToVersionPasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::version | FILLNULL \"1.2.3\" ON a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToBooleanPasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::boolean | FILLNULL \"true\" ON a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToDateNanosPasses() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().query("ROW d = null | EVAL d = d::date_nanos | FILLNULL \"2025-04-11T00:00:00.000Z\" ON d");
+    }
+
+    public void testFillNullStarMixedWithNameIsAllFieldsMode() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // `first_name` is a keyword an integer value cannot fill. It is skipped and warned about either way; co-listing
+        // `*` only changes which columns are in scope, never whether the query succeeds.
+        defaultAnalyzer().query("FROM test | FILLNULL 0 ON *, first_name");
+    }
+
+    public void testFillNullStarMixedWithUnknownNameReportsUnknownColumn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // A co-listed name is still resolved, so a typo is reported like in any other command - but the lenient
+        // all-fields contract means no [FILLNULL] fillability error is added on top.
+        for (String query : List.of("FROM test | FILLNULL 0 ON *, does_not_exist", "FROM test | FILLNULL 0 ON does_not_exist, *")) {
+            defaultAnalyzer().error(query, allOf(containsString("Unknown column [does_not_exist]"), not(containsString("[FILLNULL]"))));
+        }
+    }
+
+    public void testFillNullStarMixedWithPatternMatchingNothingIsError() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL 0 ON no_such_prefix_*, *",
+            allOf(containsString("No matches found for pattern [no_such_prefix_*]"), not(containsString("[FILLNULL]")))
+        );
+    }
+
+    public void testFillNullPatternMatchingNothingIsError() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        defaultAnalyzer().error("FROM test | FILLNULL 0 ON no_such_prefix_*", containsString("No matches found for pattern"));
+    }
+
+    public void testFillNullThenFullTextOnFilledFieldIsRuntimeSearch() throws Exception {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().query("from test | FILLNULL \"\" ON title | where match(title, \"data\")");
+        fullText().query("from test | FILLNULL \"\" ON title | where title : \"data\"");
     }
 
     public void testFullTextFunctionsInStats() {

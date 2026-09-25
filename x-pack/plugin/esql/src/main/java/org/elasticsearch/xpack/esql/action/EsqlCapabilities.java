@@ -4049,6 +4049,11 @@ public class EsqlCapabilities {
         PARTITIONING_AGGREGATIONS(),
 
         /**
+         * Support for the FILLNULL command that replaces null values with defaults or with user-specified value.
+         */
+        FILLNULL(Build.current().isSnapshot()),
+
+        /**
          * A blank cell in an external CSV/TSV datasource reads as {@code null} on every column whose type was
          * INFERRED, whatever that inferred type is — so the value no longer depends on what the rest of the column
          * happens to hold. The empty string is produced only for a {@code keyword}/{@code text} column of a

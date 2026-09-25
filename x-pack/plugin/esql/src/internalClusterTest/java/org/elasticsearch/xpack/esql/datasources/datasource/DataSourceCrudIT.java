@@ -333,7 +333,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         final String dsName = "persists_across_restart";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));
 
-        // Full-cluster restart. DataSourceMetadata.context() is GATEWAY-only, so the metadata is persisted to disk and survives restart.
+        // Full-cluster restart — metadata must survive via GATEWAY persistence.
         internalCluster().fullRestart();
         ensureYellow();
 
@@ -343,6 +343,54 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
         // Cleanup so subsequent tests start from a clean slate in a SUITE-scoped cluster.
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    public void testSnapshotRestoreOmitsSecrets() throws Exception {
+        final String dsName = "snap_test_ds";
+        final String repoName = "ds-snap-repo";
+        final String snapshotName = "ds-snapshot";
+
+        // Create a datasource with a non-secret setting and a credential (secret_* prefix → marked secret by TestValidator).
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest(dsName, Map.of("region", "eu-west-1", "secret_access_key", "SUPER_SECRET"))
+            )
+        );
+
+        // Register a filesystem snapshot repo and take a full snapshot including global state.
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        // Remove the datasource so restore has something to put back.
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setRestoreGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        // The datasource exists with its non-secret setting intact but without credentials.
+        GetDataSourceAction.Response resp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
+        assertThat(resp.getDataSources(), hasSize(1));
+        DataSource restored = resp.getDataSources().iterator().next();
+        assertThat(
+            "non-secret setting must survive snapshot/restore",
+            restored.settings().get("region").nonSecretValue(),
+            equalTo("eu-west-1")
+        );
+        assertNull("secret credential must not be present after restore", restored.settings().get("secret_access_key"));
+
+        // Cleanup.
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName));
     }
 
     public void testConcurrentPutSameDataSource() throws Exception {

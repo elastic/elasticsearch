@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -23,6 +24,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
+import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 
 public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSource> {
 
@@ -266,5 +270,33 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         DataSourceSetting roundTrippedAccessKey = deserialized.settings().get("access_key");
         assertTrue(roundTrippedAccessKey.isEncrypted());
         assertEquals(carrier, roundTrippedAccessKey.rawValue());
+    }
+
+    public void testSnapshotContextOmitsSecretSettings() throws IOException {
+        // Snapshot serialization must exclude secret settings so credentials are never written to snapshots.
+        // Non-secret settings must survive the round-trip intact.
+        Map<String, DataSourceSetting> settings = new HashMap<>();
+        settings.put("access_key", new DataSourceSetting("AKIA123", true));
+        settings.put("secret_key", new DataSourceSetting("wJalSecret", true));
+        settings.put("region", new DataSourceSetting("us-east-1", false));
+        settings.put("max_retries", new DataSourceSetting(3, false));
+        var dataSource = new DataSource("my-s3", "s3", "Snapshot test bucket", settings);
+
+        ToXContent.Params snapshotParams = new ToXContent.MapParams(Map.of(CONTEXT_MODE_PARAM, CONTEXT_MODE_SNAPSHOT));
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        dataSource.toXContent(builder, snapshotParams);
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        DataSource deserialized = DataSource.fromXContent(parser);
+
+        assertEquals("my-s3", deserialized.name());
+        assertEquals("s3", deserialized.type());
+        assertEquals("Snapshot test bucket", deserialized.description());
+        assertNull("secret setting access_key must be omitted from snapshot", deserialized.settings().get("access_key"));
+        assertNull("secret setting secret_key must be omitted from snapshot", deserialized.settings().get("secret_key"));
+        assertNotNull(deserialized.settings().get("region"));
+        assertEquals("us-east-1", deserialized.settings().get("region").nonSecretValue());
+        assertNotNull(deserialized.settings().get("max_retries"));
+        assertEquals(3, deserialized.settings().get("max_retries").nonSecretValue());
     }
 }

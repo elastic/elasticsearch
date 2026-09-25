@@ -119,10 +119,25 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        // The destination label is materialized during translation as a derived column exposed to the enclosing
-        // aggregation, so at the logical level the label set is that of the child; the derived label is surfaced only
-        // once translation runs.
-        return child().output();
+        // The destination label is materialized during translation as a derived column, so the label set is the child's
+        // with the destination shadowing a same-named label or appended as a new one. An enclosing by(...) aggregation
+        // ignores this and exposes its own groupings; it matters for a consumer that keeps the child's identity - a
+        // reduction, or the command's own output contract when the relabel is the outermost node.
+        List<Attribute> childOutput = child().output();
+        List<Attribute> labels = new ArrayList<>(childOutput.size() + 1);
+        boolean shadowed = false;
+        for (Attribute label : childOutput) {
+            if (PromqlLabels.labelName(label).equals(destination.name())) {
+                labels.add(destination);
+                shadowed = true;
+            } else {
+                labels.add(label);
+            }
+        }
+        if (shadowed == false) {
+            labels.add(destination);
+        }
+        return labels;
     }
 
     @Override

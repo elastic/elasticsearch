@@ -613,6 +613,53 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testLabelReplaceAddingNewLabelOverAggregatedVectorResolves() {
+        // The enclosed aggregation has already reduced identity to the concrete label `host`, and `dst` is a new label
+        // derived from it, so the relabeled identity only refines the aggregate's and no two series can collapse.
+        assertTrue(
+            tsdb.query("PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\")")
+                .resolved()
+        );
+    }
+
+    public void testLabelJoinAddingNewLabelOverAggregatedVectorResolves() {
+        assertTrue(
+            tsdb.query("PROMQL index=test step=5m label_join(sum by (host) (network.bytes_in), \"dst\", \"-\", \"host\")").resolved()
+        );
+    }
+
+    public void testLabelReplaceAddingNewLabelUnderReductionResolves() {
+        // topk preserves identity, which is fine when the relabel only refines the aggregate's concrete label set.
+        assertTrue(
+            tsdb.query(
+                "PROMQL index=test step=5m topk(3, label_replace(sum by (host) (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\"))"
+            ).resolved()
+        );
+    }
+
+    public void testLabelJoinOverBinaryOperatorRejected() {
+        // A binary operator's output does not materialize the relabel's source labels as readable columns, so the
+        // derivation would silently see them as absent and join empty strings instead of the matched label values.
+        tsdb.error(
+            "PROMQL index=test step=5m "
+                + "label_join(sum by (host) (network.bytes_in) / sum by (host) (network.bytes_in), \"dst\", \"-\", \"host\")",
+            containsString(
+                "[label_join] is only supported inside a `by(...)` aggregation, but was used as a top-level (non-aggregated) expression"
+            )
+        );
+    }
+
+    public void testLabelReplaceOverwritingAggregatedIdentityLabelRejected() {
+        // Overwriting a label that is part of the aggregate's identity can map two distinct series onto one label set,
+        // which needs Prometheus' duplicate-label-set handling and stays rejected.
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"host\", \"$1\", \"host\", \"(.+)\")",
+            containsString(
+                "[label_replace] is only supported inside a `by(...)` aggregation, but was used as a top-level (non-aggregated) expression"
+            )
+        );
+    }
+
     public void testLabelReplaceDottedDestinationResolves() {
         // OpenTelemetry-style dimension names contain dots (for example `service.name`). Prometheus validates the
         // label_replace destination with the permissive UTF-8 scheme and accepts such names, and the ES|QL pipeline

@@ -611,11 +611,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     /**
      * Enforces the supported scope for {@code label_replace}/{@code label_join}: because a derived label is materialized as a
-     * concrete column (never by rewriting the series-identity blob), it must be consumed by an enclosing {@code by(...)}
-     * aggregation. Walking down the plan, each relabel is checked against the nearest enclosing <i>identity consumer</i> - the
-     * aggregate, reduction, or binary operator whose output identity it would feed. Only an {@link AcrossSeriesAggregate} with
-     * {@link AcrossSeriesAggregate.Grouping#BY} can consume it; a bare (non-aggregated) call, a {@code without(...)} grouping,
-     * a {@code topk}/{@code bottomk} reduction, or a binary operator would require identity-blob rewriting and is rejected.
+     * concrete column (never by rewriting the series-identity blob), it must either be consumed by an enclosing
+     * {@code by(...)} aggregation, or merely add a new label to an identity that an enclosed {@code by(...)} aggregation has
+     * already reduced to concrete columns (see {@link #addsNewLabelToAggregatedIdentity}). Walking down the plan, each relabel
+     * is checked against the nearest enclosing <i>identity consumer</i> - the aggregate, reduction, or binary operator whose
+     * output identity it would feed. An {@link AcrossSeriesAggregate} with {@link AcrossSeriesAggregate.Grouping#BY} always
+     * consumes it; a bare (non-aggregated) call or a {@code topk}/{@code bottomk} reduction only when the relabel refines an
+     * aggregated identity; a {@code without(...)} grouping or a binary operator would require identity-blob rewriting and is
+     * rejected.
      *
      * @param consumer the nearest enclosing identity consumer for a relabel at this position, or {@code null} at the root
      */
@@ -654,6 +657,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             );
             return;
         }
+        if ((consumer == null || consumer instanceof AcrossSeriesReduction) && addsNewLabelToAggregatedIdentity(relabel)) {
+            // label modifications are allowed if they appear after an across series reduction
+            // AND they only add a label (= no risk of series colliding)
+            return;
+        }
         String context = switch (consumer) {
             case null -> "as a top-level (non-aggregated) expression";
             case AcrossSeriesReduction reduction -> "under [" + reduction.definition().name() + "]";
@@ -669,6 +677,51 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 relabel.sourceText()
             )
         );
+    }
+
+    /**
+     * Whether the relabel merely <i>adds</i> a label to an identity that a {@code by(...)} aggregation has already reduced
+     * to concrete label columns, in which case the derived column is correct on its own and no identity rewriting - and so
+     * no enclosing aggregation - is needed.
+     * <p>
+     * Two conditions have to hold. The identity must come from an enclosed {@code by(...)} aggregate, which both makes the
+     * label set enumerable (an unaggregated vector still carries the opaque {@code _timeseries} identity) and materializes
+     * the source labels as columns the derived expression can read. And the destination must not already be one of those
+     * labels: the derived value is a function of them, so adding a new label strictly refines the identity - series that
+     * differ before the relabel still differ after it - whereas overwriting one can collapse two series onto a shared label
+     * set and would need Prometheus' duplicate-label-set handling.
+     */
+    private static boolean addsNewLabelToAggregatedIdentity(MetadataManipulationFunction relabel) {
+        if (enclosedByAggregate(relabel.child()) == false) {
+            return false;
+        }
+        String destination = relabel.destination().name();
+        for (Attribute label : relabel.child().output()) {
+            if (MetadataAttribute.isTimeSeriesAttribute(label) || PromqlLabels.labelName(label).equals(destination)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Whether {@code plan}'s series identity is produced by a {@code by(...)} aggregation, looking through the
+     * identity-transparent nodes (see {@link PromqlPlan#isIdentityTransparent}) that may sit in between. An identity
+     * consumer that is not such an aggregate - a binary operator or a {@code topk}-style reduction - ends the walk: it
+     * reshapes identity in ways that do not leave the relabel's source labels readable as columns.
+     */
+    private static boolean enclosedByAggregate(LogicalPlan plan) {
+        LogicalPlan node = plan;
+        while (node instanceof PromqlPlan promqlPlan) {
+            if (node instanceof AcrossSeriesAggregate aggregate) {
+                return aggregate.grouping() == AcrossSeriesAggregate.Grouping.BY;
+            }
+            if (promqlPlan.isIdentityTransparent() == false || node.children().size() != 1) {
+                return false;
+            }
+            node = node.children().get(0);
+        }
+        return false;
     }
 
     /**

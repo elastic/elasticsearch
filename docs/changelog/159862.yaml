@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 159862
+summary: "PromQL: Allow label_replace/label_join over aggregates"
+type: enhancement

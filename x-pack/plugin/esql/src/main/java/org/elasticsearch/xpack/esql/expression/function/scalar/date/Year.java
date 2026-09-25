@@ -34,10 +34,11 @@ public class Year extends DatePartFunction {
         signatures = { @Signature(params = { "date|date_nanos" }, returnType = "long") },
         briefSummary = "Extracts the year from a date.",
         description = """
-            Extracts the calendar year from a date, using the query time zone.
+            Extracts the calendar year from a date, using the \
+            [query time zone](/reference/query-languages/esql/directives/set.md#esql-time_zone).
             Equivalent to `DATE_EXTRACT("year", date)`.
-            The argument is a date or date_nanos value, not a unix-seconds long; convert seconds
-            first (for example `TO_DATETIME(start * 1000)`).""",
+            This function accepts a `date` or `date_nanos` value. Unix timestamps in seconds must be converted first.
+            For example: `TO_DATETIME(start * 1000)`.""",
         examples = @Example(file = "date", tag = "docsYear"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") }
     )

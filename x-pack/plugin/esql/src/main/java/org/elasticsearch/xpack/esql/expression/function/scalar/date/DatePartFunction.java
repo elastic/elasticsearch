@@ -50,10 +50,6 @@ abstract class DatePartFunction extends EsqlConfigurationFunction implements Onl
         return field;
     }
 
-    String chronoField() {
-        return chronoField;
-    }
-
     @Override
     public DataType dataType() {
         return DataType.LONG;

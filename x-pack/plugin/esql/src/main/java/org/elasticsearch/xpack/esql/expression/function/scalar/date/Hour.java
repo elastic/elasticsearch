@@ -34,10 +34,11 @@ public class Hour extends DatePartFunction {
         signatures = { @Signature(params = { "date|date_nanos" }, returnType = "long") },
         briefSummary = "Extracts the hour of day from a date.",
         description = """
-            Extracts the hour of day (0-23) from a date, using the query time zone.
+            Extracts the hour of day (0-23) from a date, using the \
+            [query time zone](/reference/query-languages/esql/directives/set.md#esql-time_zone).
             Equivalent to `DATE_EXTRACT("hour_of_day", date)`.
-            The argument is a date or date_nanos value, not a unix-seconds long; convert seconds
-            first (for example `TO_DATETIME(start * 1000)`).
+            This function accepts a `date` or `date_nanos` value. Unix timestamps in seconds must be converted first.
+            For example: `TO_DATETIME(start * 1000)`.
             This extract is cyclic: `HOUR(ts) > 9` is not rewritten to a timestamp range.""",
         examples = @Example(file = "date", tag = "docsHour"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") }

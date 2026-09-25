@@ -35,4 +35,13 @@ public class AnalysisNoriFactoryTests extends AnalysisFactoryTestCase {
         filters.put("koreannumber", NoriNumberFilterFactory.class);
         return filters;
     }
+
+    @Override
+    protected Map<String, Class<?>> getCharFilters() {
+        Map<String, Class<?>> filters = new HashMap<>(super.getCharFilters());
+        // TODO: LUCENE11 expose HangulCompositionCharFilter as an ES char_filter
+        // (compose jamo before KoreanTokenizer).
+        filters.put("hangulcomposition", Void.class);
+        return filters;
+    }
 }

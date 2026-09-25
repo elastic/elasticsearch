@@ -47,8 +47,6 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -104,8 +102,6 @@ public final class QueryDslTranslator {
     private final Configuration configuration;
     private final long nowInMillis;
     private final TransportVersion minimumVersion;
-    /** Populated only under assertions: the gated functions {@link #gated} actually approved. */
-    private final Set<Expression> gateApproved = Collections.newSetFromMap(new IdentityHashMap<>());
 
     /**
      * @param fieldBinder   resolves a DSL field name to the ES|QL expression standing for it on this source — the
@@ -142,7 +138,6 @@ public final class QueryDslTranslator {
     public TranslationResult translate(QueryBuilder query) {
         List<UnsupportedClause> unsupported = new ArrayList<>();
         Expression applied = collectingDispatch(query, unsupported);
-        assert everyPinnedFunctionIsSupported(applied);
         // A failed top-level leaf returns null; the safe subset of "nothing translated" is no filter at all.
         return new TranslationResult(applied == null ? Literal.TRUE : applied, unsupported);
     }
@@ -855,44 +850,6 @@ public final class QueryDslTranslator {
         return new Literal(Source.EMPTY, value, type);
     }
 
-    /**
-     * Asserts that nothing in {@code applied} was built without going through {@link #gated}. It runs under {@code -ea}
-     * only, so this is coverage for the test suite rather than a runtime guard — production compiles it out and the
-     * gate itself is what protects a real cluster. In a test it fails here, on the coordinator, naming the function,
-     * rather than as {@code Unknown NamedWriteable} on whichever data node received the plan. The
-     * {@link AssertionError} is an {@link Error}, so {@code EsqlSession}'s {@code catch (Exception)} does not route it
-     * to the listener; a skipped gate should surface loudly rather than fail a query politely.
-     * <p>
-     * The gated families are walked explicitly rather than discovered by reflection. A {@code TransportVersion} on an
-     * expression class usually pins an OPTION rather than the function's existence — {@code Bucket} declares three,
-     * {@code AggregateFunction} one that every aggregate inherits — so treating any such constant as an availability
-     * pin would refuse plans for reasons that have nothing to do with deserialization. Add a family to this walk when
-     * it is gated; {@code TranslatorEmittedFunctionPinsTests} fails the build when a gated family is missing from it.
-     */
-    // Package-private so the suite can exercise the backstop directly; nothing outside calls it.
-    boolean everyPinnedFunctionIsSupported(Expression applied) {
-        if (applied == null) {
-            // A wholly unsupported filter translates to nothing; there is no expression to check.
-            return true;
-        }
-        applied.forEachDown(MvCompare.class, e -> {
-            if (gateApproved.contains(e) == false) {
-                throw new AssertionError(
-                    "translated filter carries ["
-                        + e.getClass().getSimpleName()
-                        + "] that was built without consulting its pin; every emit site must go through gated()"
-                );
-            }
-        });
-        return true;
-    }
-
-    /** Records the gated functions inside an approved leaf, so a sibling site that skipped the gate stands out. */
-    private boolean recordApproved(Expression built) {
-        built.forEachDown(MvCompare.class, gateApproved::add);
-        return true;
-    }
-
     /** Why a version-gated construct was skipped, kept out of the construct name. */
     static final String VERSION_REASON = "the cluster contains a node too old to evaluate it";
 
@@ -915,9 +872,7 @@ public final class QueryDslTranslator {
             leaf.get();
             throw new TranslationUnsupportedException(construct, VERSION_REASON);
         }
-        Expression built = leaf.get();
-        assert recordApproved(built);
-        return built;
+        return leaf.get();
     }
 
     /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */

@@ -23,9 +23,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -228,46 +228,6 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         return calls;
     }
 
-    /**
-     * The runtime backstop walks a fixed list of gated families. Nothing stops that list drifting behind {@link #GATED}
-     * — a family gated at its emit site but missing from the walk is unguarded, and the backstop's javadoc claims this
-     * test prevents exactly that. This is that claim, executed.
-     */
-    public void testTheBackstopWalksEveryGatedFamily() throws IOException {
-        String source = codeOnly(Files.readString(esqlModuleRoot().resolve(TRANSLATOR)));
-        // Scoped to the backstop's OWN body: recordApproved walks the same family, so scanning the whole file would
-        // pass on a backstop that walks nothing at all.
-        int start = source.indexOf("boolean everyPinnedFunctionIsSupported(");
-        assertThat("the backstop method was renamed; this test scans for it by name", start, greaterThan(-1));
-        int end = source.indexOf("\n    }", start);
-        // Fail closed. Reading to EOF would swallow recordApproved's walk of the same family and pass on a backstop
-        // that walks nothing.
-        assertThat("could not find the end of the backstop method", end, greaterThan(start));
-        String body = source.substring(start, end);
-
-        Set<String> walked = new TreeSet<>();
-        Matcher m = Pattern.compile("forEachDown\\(\\s*([A-Z]\\w+)\\.class").matcher(body);
-        while (m.find()) {
-            walked.add(m.group(1));
-        }
-
-        // Each gated class is guarded either by its own name or by a base the walk covers.
-        for (String gated : GATED.keySet()) {
-            assertTrue(
-                "the runtime backstop does not walk " + gated + "; it walks " + walked,
-                walked.contains(gated) || walked.stream().anyMatch(w -> baseOf(gated).equals(w))
-            );
-        }
-    }
-
-    /** The declared base a gated function is reached through in the backstop's walk. */
-    private static String baseOf(String gatedClass) {
-        return switch (gatedClass) {
-            case "MvGreater", "MvLess" -> "MvCompare";
-            default -> gatedClass;
-        };
-    }
-
     /** The census has to fail on a new undeclared construction, or it is decoration. */
     public void testCensusFailsOnAnUndeclaredConstruction() {
         String fake = """
@@ -306,6 +266,42 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         assertTrue(built.find());
         assertThat("the pairing must expose the mismatch, not hide it in a union", built.group(1), equalTo("MvGreater"));
         assertThat(constant.group(1), equalTo("MvLess.MV_COMPARE_TRANSPORT_VERSION"));
+    }
+
+    /**
+     * Every literal form that can carry a quote, in one case. Each of these has silently blinded the census at some
+     * point: a text block's delimiters paired as ordinary quotes, and a char literal holding a double quote. Both
+     * desynchronise the scan so a REAL construction after them is never seen, which is the dangerous direction.
+     */
+    public void testNoLiteralFormCanBlindTheCensus() {
+        String withTextBlock = """
+            class T {
+                static final String DOC = \"""
+                    the bound is written "gt
+                    \""";
+                Expression f() { return checkedLeaf(field, new MvSomethingNew(source, field)); }
+            }
+            """;
+        String withCharLiteral = """
+            class T {
+                static final char QUOTE = '"';
+                Expression f() { return checkedLeaf(field, new MvSomethingNew(source, field)); }
+            }
+            """;
+        String withApostropheInString = """
+            class T {
+                static final String MSG = "the node's version";
+                Expression f() { return checkedLeaf(field, new MvSomethingNew(source, field)); }
+            }
+            """;
+
+        for (String source : List.of(withTextBlock, withCharLiteral, withApostropheInString)) {
+            assertThat(
+                "a literal must not hide the construction after it: " + source,
+                codeOnly(source),
+                containsString("new MvSomethingNew(")
+            );
+        }
     }
 
     /** A fully-qualified construction has no import to intersect with, and must still be counted. */
@@ -371,6 +367,15 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
                 int close = source.indexOf("\"\"\"", i + 3);
                 i = close < 0 ? source.length() : close + 3;
                 out.append("\"\"");
+            } else if (c == '\'') {
+                // A char literal can hold a double quote. Left to the string branch, that one quote opens a run that
+                // swallows the code after it, and the census goes blind rather than merely miscounting.
+                i++;
+                while (i < source.length() && source.charAt(i) != '\'') {
+                    i += source.charAt(i) == '\\' ? 2 : 1;
+                }
+                i++;
+                out.append("' '");
             } else if (c == '"') {
                 i++;
                 while (i < source.length() && source.charAt(i) != '"') {

@@ -707,24 +707,30 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-    * The backstop itself, exercised directly. Every other case reaches it only as a side effect of translating, so
-    * none would notice its condition being replaced by a constant — which would make it decoration rather than a
-    * gate. These two are what make disabling it break something.
-    */
-    public void testBackstopRejectsAFunctionThatSkippedTheGate() {
-        QueryDslTranslator translator = new QueryDslTranslator(BINDER, FIELDS, CONFIG, TransportVersion.current());
-        Expression smuggled = new MvGreater(Source.EMPTY, BINDER.apply("tags"), Literal.keyword(Source.EMPTY, "m"), null);
-
-        AssertionError e = expectThrows(AssertionError.class, () -> translator.everyPinnedFunctionIsSupported(smuggled));
-        assertThat(e.getMessage(), containsString("MvGreater"));
-        assertThat(e.getMessage(), containsString("every emit site must go through gated()"));
-    }
-
-    /** And it accepts what the gate approved, or it would red every honest translation. */
-    public void testBackstopAcceptsAFunctionTheGateApproved() {
-        QueryDslTranslator translator = new QueryDslTranslator(BINDER, FIELDS, CONFIG, TransportVersion.current());
-        Expression approved = translator.translate(QueryBuilders.rangeQuery("tags").gt("m")).applied();
-        assertTrue(translator.everyPinnedFunctionIsSupported(approved));
+     * No gated function may reach the output below its pin, for any filter shape over any field type. A correctly
+     * gated translator cannot produce one there, so this catches an emit site that skipped {@code gated()} without the
+     * translator carrying any bookkeeping for the test's benefit.
+     */
+    public void testNoGatedFunctionSurvivesBelowThePin() {
+        for (String field : ALL_BOUND_FIELDS) {
+            for (var q : List.of(
+                QueryBuilders.rangeQuery(field).gt("m"),
+                QueryBuilders.rangeQuery(field).lt("m"),
+                QueryBuilders.rangeQuery(field).gte(1),
+                QueryBuilders.rangeQuery(field).lte(1),
+                QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery(field).gt("m")),
+                QueryBuilders.boolQuery().should(QueryBuilders.rangeQuery(field).lt(1)).minimumShouldMatch(1)
+            )) {
+                Expression applied = translateResult(q, BELOW_MV_COMPARE).applied();
+                if (applied != null) {
+                    assertThat(
+                        "below the pin, [" + field + "] must not carry a gated function: " + q,
+                        applied.anyMatch(MvCompare.class::isInstance),
+                        equalTo(false)
+                    );
+                }
+            }
+        }
     }
 
     /** A missing field needs no function: below the pin it still translates, to the false the leaf would fold to. */

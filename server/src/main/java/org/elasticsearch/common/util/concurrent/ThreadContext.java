@@ -671,6 +671,13 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
+     * Puts a transient header object into this context, replacing any existing value for the same key.
+     */
+    public void putTransientAllowOverwrite(String key, Object value) {
+        threadLocal.set(threadLocal.get().putTransientOverwrite(key, value));
+    }
+
+    /**
      * Returns a transient header object or <code>null</code> if there is no header for the given key
      */
     @SuppressWarnings("unchecked") // (T)object
@@ -1082,6 +1089,12 @@ public final class ThreadContext implements Writeable, TraceContext {
 
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
             putSingleHeader(key, value, newTransient);
+            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
+        }
+
+        private ThreadContextStruct putTransientOverwrite(String key, Object value) {
+            Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
+            newTransient.put(key, value);
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
         }
 

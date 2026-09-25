@@ -1401,4 +1401,27 @@ public class ThreadContextTests extends ESTestCase {
             }
         };
     }
+
+    public void testPutTransientAllowOverwrite_setsValueWhenAbsent() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransientAllowOverwrite("key", "value");
+        assertEquals("value", threadContext.getTransient("key"));
+    }
+
+    public void testPutTransientAllowOverwrite_replacesExistingValue() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient("key", "first");
+        threadContext.putTransientAllowOverwrite("key", "second");
+        assertEquals("second", threadContext.getTransient("key"));
+    }
+
+    public void testPutTransientAllowOverwrite_restoredByStash() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putTransient("key", "original");
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putTransientAllowOverwrite("key", "inside-stash");
+            assertEquals("inside-stash", threadContext.getTransient("key"));
+        }
+        assertEquals("original", threadContext.getTransient("key"));
+    }
 }

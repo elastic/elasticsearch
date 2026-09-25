@@ -21,6 +21,9 @@ import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanStatusExtractor
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
@@ -40,7 +43,9 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
     private final AttributesExtractor<RequestAndRoute, RestResponse> httpServerAttributesExtractor;
     private final SpanStatusExtractor<RequestAndRoute, RestResponse> httpSpanStatusExtractor;
 
-    public APMHttpServerInstrumentation(APMTracer tracer) {
+    private final RestRequestMetrics restRequestMetrics;
+
+    public APMHttpServerInstrumentation(APMTracer tracer, RestRequestMetrics restRequestMetrics) {
         this.tracer = tracer;
 
         this.getter = new OtelAttributesGetter();
@@ -50,16 +55,20 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
             .setCapturedResponseHeaders(List.of(/* TODO which headers? */))
             .build();
         this.httpSpanStatusExtractor = HttpSpanStatusExtractor.create(getter);
+
+        this.restRequestMetrics = restRequestMetrics;
     }
 
     @Override
-    public void start(ThreadContext threadContext, RestRequest request, String matchedRoute) {
+    public void start(ThreadContext threadContext, RestRequest request, @Nullable String matchedRoute) {
         var req = new RequestAndRoute(request, matchedRoute);
         tracer.startTrace(threadContext, request, spanNameExtractor.extract(req), legacyRequestAttributes(req));
 
         var attributes = Attributes.builder();
         httpServerAttributesExtractor.onStart(attributes, /* we don't care about the context in this case */ Context.root(), req);
         tracer.setAttributes(request, attributes.build());
+
+        restRequestMetrics.start(threadContext, request, matchedRoute);
     }
 
     private Map<String, Object> legacyRequestAttributes(RequestAndRoute req) {
@@ -80,22 +89,24 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
     }
 
     @Override
-    public void end(RestRequest request, RestResponse response) {
-        setLegacyResponseAttributes(request, response);
+    public Releasable prepareEnd(ThreadContext threadContext, RestRequest request, RestResponse response) {
+        return Releasables.wrap(restRequestMetrics.prepareEnd(threadContext, response), () -> {
+            setLegacyResponseAttributes(request, response);
 
-        var requestAndRoute = new RequestAndRoute(request, /* only needed at start */ null);
-        var attributes = Attributes.builder();
-        httpServerAttributesExtractor.onEnd(
-            attributes,
-            /* we don't care about the context in this case */ Context.root(),
-            requestAndRoute,
-            response,
-            null
-        );
-        tracer.setAttributes(request, attributes.build());
+            var requestAndRoute = new RequestAndRoute(request, /* only needed at start */ null);
+            var attributes = Attributes.builder();
+            httpServerAttributesExtractor.onEnd(
+                attributes,
+                /* we don't care about the context in this case */ Context.root(),
+                requestAndRoute,
+                response,
+                null
+            );
+            tracer.setAttributes(request, attributes.build());
 
-        httpSpanStatusExtractor.extract(tracer.spanStatusBuilder(request), requestAndRoute, response, null);
-        tracer.stopTrace(request);
+            httpSpanStatusExtractor.extract(tracer.spanStatusBuilder(request), requestAndRoute, response, null);
+            tracer.stopTrace(request);
+        });
     }
 
     private void setLegacyResponseAttributes(RestRequest request, RestResponse response) {

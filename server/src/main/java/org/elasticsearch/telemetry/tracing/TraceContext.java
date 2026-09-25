@@ -24,6 +24,11 @@ public interface TraceContext {
     void putTransient(String key, Object value);
 
     /**
+     * Puts a transient header object into this context, replacing any existing value for the same key.
+     */
+    void putTransientAllowOverwrite(String key, Object value);
+
+    /**
      * Returns the header for the given key or <code>null</code> if not present
      */
     String getHeader(String key);

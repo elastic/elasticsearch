@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -16,6 +17,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -34,9 +36,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Drives string columns through the real Lucene write path — {@link IndexWriter}, several segments, deletions,
@@ -271,6 +275,43 @@ public class StringColumnMergeTests extends ESTestCase {
     }
 
     /**
+     * A plain column is written without a temporary file, on flush and on merge alike. Documents of several slots
+     * and nulls among them, so slot counts and null lengths are written too.
+     */
+    public void testAPlainColumnWritesNoTemporaryFile() throws IOException {
+        final int numDocs = 300;
+        final String[][] values = new String[numDocs][];
+        for (int d = 0; d < numDocs; d++) {
+            values[d] = d % 5 == 0 ? new String[] { "distinct-" + d, null } : new String[] { "value-" + d + "-" + randomAlphaOfLength(8) };
+        }
+        final FieldType type = columnarBinaryFieldType();
+        try (Directory real = newDirectory()) {
+            final ColumnarTestUtils.TempOutputRecorder dir = new ColumnarTestUtils.TempOutputRecorder(real);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = 0; d < numDocs; d++) {
+                    final Document doc = new Document();
+                    doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                    doc.add(new Field(FIELD, encode(values[d]), type));
+                    writer.addDocument(doc);
+                    if ((d + 1) % 100 == 0) {
+                        writer.commit();
+                    }
+                }
+                writer.forceMerge(1);
+            }
+            assertEquals("temporary files asked for", Set.of(), dir.columnarSuffixes);
+            try (DirectoryReader reader = DirectoryReader.open(real)) {
+                final StringColumnReader column = columnOf(reader.leaves().get(0).reader());
+                assertFalse("distinct values make a plain column", column.hasDictionary());
+                assertEquals("slots", numDocs + numDocs / 5, column.numValues());
+                assertEquals("nulls", numDocs / 5, column.numNullSlots());
+            }
+        }
+    }
+
+    /**
      * A merge whose inputs are not all our own columns. Reading a foreign segment means decoding its payloads
      * rather than its slots, and it also puts the merge on the counting pass, since there is nothing recorded
      * to sum. Both halves are otherwise unexercised: every other merge here writes all of its inputs with the
@@ -332,6 +373,76 @@ public class StringColumnMergeTests extends ESTestCase {
                     expected.add(Arrays.asList(values[d]));
                 }
                 assertSlots(expected, readBlobs(reader.leaves().get(0).reader()));
+            }
+        }
+    }
+
+    /**
+     * Values of one length stay a column of one length through a merge: taken from what the segments recorded
+     * when nothing is deleted, and counted from the lengths when something is. Either way the merged column
+     * keeps no lengths. Segments of different lengths merge into a column that keeps them.
+     */
+    public void testALengthSharedByEverySegmentSurvivesAMerge() throws IOException {
+        for (boolean deleting : new boolean[] { false, true }) {
+            for (boolean sameLength : new boolean[] { true, false }) {
+                final int numDocs = 900;
+                final String[][] values = new String[numDocs][];
+                for (int d = 0; d < numDocs; d++) {
+                    // A segment of 300 documents apiece; the last one a byte longer unless every one shares the length.
+                    final int length = sameLength || d < 600 ? 16 : 17;
+                    values[d] = randomBoolean()
+                        ? new String[] { randomAlphaOfLength(length) }
+                        : new String[] { randomAlphaOfLength(length), randomAlphaOfLength(length) };
+                }
+                final boolean[] deleted = new boolean[numDocs];
+                final FieldType type = columnarBinaryFieldType();
+                try (Directory dir = newDirectory()) {
+                    final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                        .setMergePolicy(new LogDocMergePolicy());
+                    try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                        for (int d = 0; d < numDocs; d++) {
+                            final Document doc = new Document();
+                            doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                            doc.add(new Field(FIELD, encode(values[d]), type));
+                            writer.addDocument(doc);
+                            if ((d + 1) % 300 == 0) {
+                                writer.commit();
+                            }
+                        }
+                        if (deleting) {
+                            for (int d = 0; d < numDocs; d += 7) {
+                                writer.deleteDocuments(new Term(ID, Integer.toString(d)));
+                                deleted[d] = true;
+                            }
+                        }
+                        writer.forceMerge(1);
+                    }
+                    long lengthsBytes = 0;
+                    long emptyLengthsBytes = 0;
+                    for (String file : dir.listAll()) {
+                        if (file.endsWith(".cnl")) {
+                            lengthsBytes += dir.fileLength(file);
+                            final String suffix = IndexFileNames.stripExtension(file)
+                                .substring(IndexFileNames.parseSegmentName(file).length() + 1);
+                            emptyLengthsBytes += CodecUtil.indexHeaderLength("ColumNARLengths", suffix) + CodecUtil.footerLength();
+                        }
+                    }
+                    final String what = (deleting ? "counted" : "recorded") + (sameLength ? ", one length" : ", two lengths");
+                    try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                        assertEquals(1, reader.leaves().size());
+                        final StringColumnReader column = columnOf(reader.leaves().get(0).reader());
+                        assertFalse(what + ": distinct values make a plain column", column.hasDictionary());
+                        assertEquals(what + ": shortest", 16, column.minLength());
+                        assertEquals(what + ": longest", sameLength ? 16 : 17, column.maxLength());
+                        assertSlots(expected(values, deleted), readBlobs(reader.leaves().get(0).reader()));
+                    }
+                    // The lengths file holds its header and footer and nothing else when no lengths are kept.
+                    if (sameLength) {
+                        assertEquals(what + ": lengths file", emptyLengthsBytes, lengthsBytes);
+                    } else {
+                        assertThat(what + ": lengths file", lengthsBytes, greaterThan(emptyLengthsBytes));
+                    }
+                }
             }
         }
     }

@@ -54,17 +54,17 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
         PhysicalPlan child = aggregateExec.child();
         EsQueryExec queryExec;
-        AttributeMap<Attribute> aliasReplacedBy;
+        AliasResolution aliasReplacedBy;
 
         if (child instanceof EsQueryExec qe) {
             queryExec = qe;
-            aliasReplacedBy = AttributeMap.emptyAttributeMap();
+            aliasReplacedBy = AliasResolution.EMPTY;
         } else if (child instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec qe) {
             queryExec = qe;
-            aliasReplacedBy = PushFiltersToSource.getAliasReplacedBy(evalExec);
+            aliasReplacedBy = AliasResolution.of(evalExec);
         } else if (child instanceof ProjectExec projectExec && projectExec.child() instanceof EsQueryExec qe) {
             queryExec = qe;
-            aliasReplacedBy = PushFiltersToSource.getAliasReplacedBy(projectExec);
+            aliasReplacedBy = AliasResolution.of(projectExec);
         } else {
             return aggregateExec;
         }
@@ -116,14 +116,11 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
      * Resolves aliased attribute references in aggregate expressions, replacing
      * references to eval/project output attributes with their underlying source attributes.
      */
-    private static List<NamedExpression> resolveAliases(
-        List<? extends NamedExpression> aggregates,
-        AttributeMap<Attribute> aliasReplacedBy
-    ) {
+    private static List<NamedExpression> resolveAliases(List<? extends NamedExpression> aggregates, AliasResolution aliasReplacedBy) {
         List<NamedExpression> resolved = new ArrayList<>(aggregates.size());
         for (NamedExpression agg : aggregates) {
             if (agg instanceof Alias alias) {
-                Expression child = alias.child().transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+                Expression child = alias.child().transformDown(ReferenceAttribute.class, aliasReplacedBy::resolveRename);
                 resolved.add(new Alias(alias.source(), alias.name(), child, alias.id()));
             } else {
                 resolved.add(agg);

@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -512,6 +513,22 @@ public final class EsqlTestUtils {
         @Override
         public String constantValue(FieldName name) {
             return constantValues.get(name.string());
+        }
+
+        private boolean canSkipUnmappedFieldsExtraction = false;
+
+        /**
+         * Models a fully-mapped data node for {@code SET unmapped_fields="LOAD_ALL"}: the synthetic
+         * {@code _unmapped_fields} column can be nullified in the local physical plan instead of reading {@code _source}.
+         */
+        public TestConfigurableSearchStats canSkipUnmappedFieldsExtraction(boolean value) {
+            this.canSkipUnmappedFieldsExtraction = value;
+            return this;
+        }
+
+        @Override
+        public boolean canSkipUnmappedFieldsExtraction(UnmappedFieldsPattern pattern) {
+            return canSkipUnmappedFieldsExtraction;
         }
 
         @Override

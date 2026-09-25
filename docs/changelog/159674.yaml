@@ -1,0 +1,6 @@
+pr: 159674
+summary: "[ES|QL] Skip the `_source` read for `LOAD_ALL` on fully-mapped shards"
+area: ES|QL
+type: enhancement
+issues:
+ - 160147

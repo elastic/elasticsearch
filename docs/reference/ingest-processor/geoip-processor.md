@@ -264,7 +264,13 @@ You can create a service that mimics the Elastic GeoIP endpoint. You can then ge
 
     You can also use custom city, country, and ASN `.mmdb` files. These files must be uncompressed. The type (city, country, or ASN) will be pulled from the file metadata, so the filename does not matter.
 
-3. On {{ech}} deployments upload database using a [custom bundle](docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md).
+<!--
+TEMPORARY LINK. This page moved in docs-content and the new path is not on main yet, so a
+docs-content:// crosslink fails the build. This points at the PR preview instead. When
+https://github.com/elastic/docs-content/pull/7959 merges, restore:
+[custom bundle](docs-content://deploy-manage/plugins-and-configuration-files/elastic-cloud/upload-custom-plugins-bundles.md)
+-->
+3. On {{ech}} deployments upload database using a [custom bundle](https://docs-v3-preview.elastic.dev/elastic/docs-content/pull/7959/deploy-manage/plugins-and-configuration-files/elastic-cloud/upload-custom-plugins-bundles).
 4. On self-managed deployments copy the database files to `$ES_CONFIG/ingest-geoip`.
 5. In your `geoip` processors, configure the `database_file` parameter to use a custom database file.
 

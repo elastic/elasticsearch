@@ -63,23 +63,78 @@ redirects:
   'reference/elasticsearch/index-settings/pressure.md': 'reference/elasticsearch/configuration-reference/indexing-pressure-settings.md'
 
   # Manage plugins and extensions API guide moved to docs-content
-  'reference/elasticsearch-plugins/cloud/ec-plugins-guide.md': 'docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md'
+  'reference/elasticsearch-plugins/cloud/ec-plugins-guide.md': 'docs-content://deploy-manage/plugins-and-configuration-files/elastic-cloud/manage-plugins-extensions-through-api.md'
 
   # Related to https://github.com/elastic/elasticsearch/pull/130716/
   'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
 
   # Custom plugins and bundles moved to docs-content (narrative ECH deployment docs)
-  'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md'
+  'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/plugins-and-configuration-files/elastic-cloud/upload-custom-plugins-bundles.md'
 
   # ECE and ECH plugin management procedures moved to docs-content (see elastic/docs-content#7101)
+  # The page itself is kept as a landing surface, but its per-deployment sections are gone:
+  # those anchors go to the docs-content mini-hubs, and the self-managed CLI section goes to
+  # the elasticsearch-plugin tool page.
   'reference/elasticsearch-plugins/plugin-management.md':
     to: 'reference/elasticsearch-plugins/plugin-management.md'
-    anchors: {}
+    # The page is now a signpost with no sections of its own, so every old anchor is sent
+    # to wherever that content actually lives. The per-deployment anchors land on the
+    # procedures rather than on the summary that replaced them.
+    anchors: {'!'}
     many:
-      - to: 'docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-extensions.md'
-        anchors: {'ec-adding-plugins', 'managing-plugins-for-ech', 'ec-adding-elastic-plugins', 'ec_before_you_begin_6'}
-      - to: 'docs-content://deploy-manage/deploy/cloud-enterprise/add-plugins.md'
-        anchors: {'ece-adding-plugins', 'managing-plugins-for-ece'}
+      - to: 'docs-content://deploy-manage/plugins-and-configuration-files/elastic-cloud/add-plugins-extensions.md'
+        anchors: {'managing-plugins-for-ech', 'ec-adding-plugins', 'ec-adding-elastic-plugins', 'ec_before_you_begin_6'}
+      - to: 'docs-content://deploy-manage/plugins-and-configuration-files/cloud-enterprise/add-plugins.md'
+        anchors: {'managing-plugins-for-ece', 'ece-adding-plugins'}
+      - to: 'docs-content://deploy-manage/plugins-and-configuration-files/cloud-on-k8s/manage-plugins.md'
+        anchors: {'managing-plugins-for-eck'}
+      - to: 'docs-content://deploy-manage/plugins-and-configuration-files/self-managed/manage-plugins.md'
+        anchors: {'managing-plugins-for-self-managed'}
+      - to: 'reference/elasticsearch/command-line-tools/elasticsearch-plugin.md'
+        anchors: {'manage-plugins-with-package-and-archive-installs'}
+
+  # elasticsearch-plugin CLI reference consolidated into the command-line-tools section
+  # (see elastic/elasticsearch#157179 review). One tool, one page, matching its siblings.
+  'reference/elasticsearch-plugins/installation.md':
+    to: 'reference/elasticsearch/command-line-tools/elasticsearch-plugin.md'
+    anchors:
+      'installation': # whole-page anchor: land on the tool page itself
+      '_core_elasticsearch_plugins': 'elasticsearch-plugin-ids'
+  'reference/elasticsearch-plugins/plugin-management-custom-url.md':
+    to: 'reference/elasticsearch/command-line-tools/elasticsearch-plugin.md'
+    anchors:
+      'plugin-management-custom-url': 'elasticsearch-plugin-ids'
+  'reference/elasticsearch-plugins/installing-multiple-plugins.md':
+    to: 'reference/elasticsearch/command-line-tools/elasticsearch-plugin.md'
+    anchors:
+      'installing-multiple-plugins': 'elasticsearch-plugin-example-install-multiple'
+  'reference/elasticsearch-plugins/listing-removing-updating.md':
+    to: 'reference/elasticsearch/command-line-tools/elasticsearch-plugin.md'
+    anchors:
+      'listing-removing-updating': 'elasticsearch-plugin-parameters'
+      '_listing_plugins': 'elasticsearch-plugin-example-list'
+      '_removing_plugins': 'elasticsearch-plugin-example-remove'
+      'removing-multiple-plugins': 'elasticsearch-plugin-example-remove-multiple'
+      '_updating_plugins': 'elasticsearch-plugin-example-update'
+  'reference/elasticsearch-plugins/_other_command_line_parameters.md':
+    to: 'reference/elasticsearch/command-line-tools/elasticsearch-plugin.md'
+    anchors:
+      '_other_command_line_parameters': 'elasticsearch-plugin-parameters'
+      '_silentverbose_mode': 'elasticsearch-plugin-parameters'
+      '_batch_mode': 'elasticsearch-plugin-example-batch'
+      '_custom_config_directory': 'elasticsearch-plugin-custom-config-directory'
+      '_proxy_settings': 'elasticsearch-plugin-proxy-settings'
+  'reference/elasticsearch-plugins/_plugins_directory.md':
+    to: 'reference/elasticsearch/command-line-tools/elasticsearch-plugin.md'
+    anchors:
+      '_plugins_directory': 'elasticsearch-plugin-description'
+
+  # plugin.mandatory is an elasticsearch.yml node setting, not part of the CLI, so it moves
+  # to the settings reference alongside node.name and node.roles. The anchor is unchanged.
+  'reference/elasticsearch-plugins/mandatory-plugins.md':
+    to: 'reference/elasticsearch/configuration-reference/node-settings.md'
+    anchors:
+      'mandatory-plugins': 'mandatory-plugins'
 
   # https://github.com/elastic/elasticsearch/pull/131385
   'reference/elasticsearch/rest-apis/retrievers.md':

@@ -1,6 +1,7 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html
+  - https://www.elastic.co/guide/en/elasticsearch/plugins/current/mandatory-plugins.html
 applies_to:
   deployment:
     self:
@@ -136,6 +137,18 @@ stack: preview 9.3
 
     GPU indexing is supported for `hnsw` and `int8_hnsw` index types with `float` element type only.
     Requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+
+
+## Mandatory plugin settings [mandatory-plugins]
+
+`plugin.mandatory`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A comma-separated list of plugins that must be installed for the node to start. If any plugin in the list is missing, the node fails to start rather than joining the cluster without functionality you depend on. Use this for plugins your cluster cannot operate correctly without.
+
+    ```yaml
+    plugin.mandatory: analysis-icu,lang-js
+    ```
+
+    To install the plugins themselves, refer to [`elasticsearch-plugin`](/reference/elasticsearch/command-line-tools/elasticsearch-plugin.md).
 
 
 ## Other node settings [other-node-settings]

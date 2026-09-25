@@ -424,6 +424,42 @@ public class FileListCompactorTests extends ESTestCase {
     }
 
     /**
+     * Partition maps are planning memory. {@link FileList#estimatedBytes()} stays the listing-cache weight and
+     * does not grow with them; {@link FileList#planningBytes()} adds 560 bytes per partitioned file.
+     */
+    public void testPlanningBytesAddsPartitionMetadataOnGroupedList() {
+        String base = "s3://b/d/";
+        GenericFileList raw = listOf(base + "**/*.parquet", base + "year=2024/f1.parquet", base + "year=2024/f2.parquet");
+        FileList grouped = FileListCompactor.compact(base, raw);
+        assertThat(grouped, Matchers.instanceOf(DirectoryGroupedFileList.class));
+        assertFalse(grouped.partitionMetadata().isEmpty());
+        int partitionedFiles = grouped.partitionMetadata().filePartitionValues().size();
+        assertThat(partitionedFiles, Matchers.greaterThan(0));
+        assertEquals(grouped.estimatedBytes() + 560L * partitionedFiles, grouped.planningBytes());
+
+        // Same entries with and without partition metadata: estimatedBytes is the listing-cache weight and
+        // must not grow when the partition map is attached. planningBytes is the one that adds 560 per file.
+        GenericFileList without = new GenericFileList(raw.files(), raw.originalPattern(), PartitionMetadata.EMPTY);
+        GenericFileList with = new GenericFileList(raw.files(), raw.originalPattern(), grouped.partitionMetadata());
+        assertEquals(without.estimatedBytes(), with.estimatedBytes());
+        assertEquals(without.estimatedBytes(), without.planningBytes());
+        assertEquals(with.estimatedBytes() + 560L * with.partitionMetadata().filePartitionValues().size(), with.planningBytes());
+        assertThat(with.planningBytes(), Matchers.greaterThan(with.estimatedBytes()));
+    }
+
+    /** Empty partition metadata adds nothing on top of {@link FileList#estimatedBytes()}. */
+    public void testPlanningBytesIgnoresEmptyPartitionMetadata() {
+        StorageEntry file = new StorageEntry(StoragePath.of("s3://b/f.parquet"), 100L, Instant.EPOCH);
+        GenericFileList emptyMetadata = new GenericFileList(List.of(file), "s3://b/*.parquet", PartitionMetadata.EMPTY);
+        assertTrue(emptyMetadata.partitionMetadata().isEmpty());
+        assertEquals(emptyMetadata.estimatedBytes(), emptyMetadata.planningBytes());
+
+        GenericFileList noMetadata = new GenericFileList(List.of(file), "s3://b/*.parquet", null);
+        assertNull(noMetadata.partitionMetadata());
+        assertEquals(noMetadata.estimatedBytes(), noMetadata.planningBytes());
+    }
+
+    /**
      * Builds a raw listing with an explicit modification time per file, to drive the uniform / non-uniform
      * modification-time branches deterministically.
      */

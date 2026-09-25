@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -174,8 +175,19 @@ public class ExternalSourceResolver {
         return result;
     }
 
+    /**
+     * Per-file schema-map allowance, reserved before reconciliation, first-file-wins, or the strict schema loop.
+     * Not a measured deep size.
+     */
+    private static final long SCHEMA_MAP_BYTES_PER_FILE = 760L;
+
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
+    /**
+     * Query reservation for listing and schema-map bytes. Set once from {@code EsqlSession.execute}.
+     * Null when the session has no request breaker; those sessions skip the charge.
+     */
+    private volatile ExternalPlanningReservation planningReservation;
     private final Settings settings;
     /**
      * Kept-files, brace-expansion, and LIST-walk caps. Production wires these to
@@ -315,6 +327,27 @@ public class ExternalSourceResolver {
      * synchronous path), matching {@link StorageRetryCancellation}'s documented thread-affinity limits.
      */
     private final Executor metadataReadExecutor;
+
+    /**
+     * Binds the reservation {@code EsqlSession.execute} created from the session block factory.
+     * Charge and release then share that breaker. Null skips the charge.
+     */
+    public void planning(@Nullable ExternalPlanningReservation reservation) {
+        this.planningReservation = reservation;
+    }
+
+    /**
+     * Reserves listing memory plus the per-file schema map before reconciliation or the strict schema loop
+     * builds that map. A trip leaves the reservation unchanged: the breaker throws before the add is recorded.
+     */
+    private void chargeListingPlanning(FileList listing) {
+        ExternalPlanningReservation reservation = planningReservation;
+        if (reservation == null) {
+            return;
+        }
+        long bytes = listing.planningBytes() + listing.fileCount() * SCHEMA_MAP_BYTES_PER_FILE;
+        reservation.chargeQuery(bytes);
+    }
 
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
     public ExternalSourceCacheService cacheService() {
@@ -1039,6 +1072,7 @@ public class ExternalSourceResolver {
                 return;
             }
             FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable, demand);
+            chargeListingPlanning(listing);
             if (listing.fileCount() == 0) {
                 throw noFilesMatched(path, listing);
             }
@@ -3714,6 +3748,7 @@ public class ExternalSourceResolver {
         }
         pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));
+        chargeListingPlanning(listing);
         if (listing.fileCount() == 0) {
             throw noFilesMatched(path, listing);
         }

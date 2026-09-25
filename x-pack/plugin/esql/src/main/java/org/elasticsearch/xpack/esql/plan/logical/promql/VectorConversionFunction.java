@@ -28,6 +28,20 @@ public final class VectorConversionFunction extends PromqlFunctionCall {
         super(source, child, definition, parameters);
     }
 
+    /**
+     * {@code vector(s)}: one series with no labels whose value is {@code s} at every step of the query - a table of one row
+     * per step, independent of the source, so it aggregates, pairs and unions like any other vector ({@code sum(vector(1))}
+     * is {@code 1}, {@code x or vector(0)} fills the steps {@code x} lacks). Over a query with no known range the scalar
+     * stays an expression.
+     */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        // IN: nothing - the scalar argument carries no labels
+        TranslationResult child = translation.translate(child(), TranslationConstraint.of());
+        // OUT: no labels, one row per step
+        return translation.fold(child);
+    }
+
     @Override
     public FunctionType functionType() {
         return FunctionType.VECTOR_CONVERSION;

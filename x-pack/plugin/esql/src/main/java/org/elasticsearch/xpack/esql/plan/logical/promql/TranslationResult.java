@@ -11,6 +11,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -84,6 +86,11 @@ public record TranslationResult(
     /** The materialized value; valid after the value expression has been defined in the plan. */
     public Attribute valueColumn() {
         return (Attribute) value;
+    }
+
+    /** A table with no rows at all - the relation of a query over no matching index; there is nothing to compute over it. */
+    public boolean isEmpty() {
+        return plan instanceof LocalRelation local && local.supplier() == EmptyLocalSupplier.EMPTY;
     }
 
     /** Returns a named projection, not an arbitrary column with the same name in the plan. */

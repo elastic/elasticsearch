@@ -158,7 +158,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
         TranslationConstraint required = translation.required();
         // IN: required - `__name__` when the function drops the metric name
         TranslationResult child = translation.translate(child(), dropsMetricName() ? sub(required, of(name)) : required);
-        if (child.kind().constant) {
+        if (child.isEmpty()) {
             return child;
         }
         Expression function = buildEsqlFunction(child.value(), translation.promqlContext(child, window(translation.cmd())));

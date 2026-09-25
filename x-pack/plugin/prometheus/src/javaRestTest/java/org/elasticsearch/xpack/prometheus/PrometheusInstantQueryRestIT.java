@@ -616,4 +616,27 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         );
         assertBinopInstantValues("count(tx / rx{host=~\"nope\"})");
     }
+
+    /**
+     * {@code vector(s)} is one series with no labels at every step: in an {@code or} it fills what the other side lacks
+     * (whatever sample sits exactly one lookback before the query time), an aggregate over it is itself, it pairs only with
+     * another label-less vector, and a comparison filters it like any other vector.
+     */
+    public void testInstantConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME.minusSeconds(300));
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopInstantValues("vector(0) or tx", 0, 10, 30, 12);
+        assertBinopInstantValues("sum(tx) or vector(0)", 52);
+        assertBinopInstantValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
+        assertBinopInstantValues("sum(vector(1))", 1);
+        assertBinopInstantValues("count(vector(5))", 1);
+        assertBinopInstantValues("vector(1) + vector(2)", 3);
+        assertBinopInstantValues("sum(tx) + vector(1)", 53);
+        assertBinopInstantValues("sum by (cluster) (tx) + vector(1)");
+        assertBinopInstantValues("tx * vector(2)");
+        assertBinopInstantValues("abs(vector(-1)) * 3", 3);
+        assertBinopInstantValues("vector(1) > 2");
+        assertBinopInstantValues("vector(3) > 2", 3);
+    }
 }

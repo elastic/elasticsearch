@@ -520,4 +520,20 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeGroups("sum by (cluster) (tx - rx{host!=\"c\"})", "cluster", Map.of("prod", 35.0));
         assertBinopRangeValues("count(tx / rx{host=~\"nope\"})");
     }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantConstantVector}. */
+    public void testRangeConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopRangeValues("sum(tx) or vector(0)", 52);
+        assertBinopRangeValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
+        assertBinopRangeValues("sum(vector(1))", 1);
+        assertBinopRangeValues("count(vector(5))", 1);
+        assertBinopRangeValues("vector(1) + vector(2)", 3);
+        assertBinopRangeValues("sum(tx) + vector(1)", 53);
+        assertBinopRangeValues("sum by (cluster) (tx) + vector(1)");
+        assertBinopRangeValues("tx * vector(2)");
+        assertBinopRangeValues("vector(1) > 2");
+        assertBinopRangeValues("vector(3) > 2", 3);
+    }
 }

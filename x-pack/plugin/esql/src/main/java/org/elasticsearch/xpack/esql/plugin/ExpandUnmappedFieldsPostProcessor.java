@@ -82,6 +82,10 @@ public final class ExpandUnmappedFieldsPostProcessor {
      */
     private static final int ROWS_PER_CANCELLATION_CHECK = 1024;
 
+    static {
+        assert Integer.bitCount(ROWS_PER_CANCELLATION_CHECK) == 1 : "ROWS_PER_CANCELLATION_CHECK must be a power of two for the bit-mask";
+    }
+
     /**
      * Test-only seam invoked once at the start of the expansion phase — after a {@code _unmapped_fields} column has been confirmed
      * present but before any page is scanned. Production never installs a hook (the field stays {@code null}), so this adds a single
@@ -217,7 +221,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
     /** Throws {@link TaskCancelledException} if {@code isCancelled} reports the query cancelled, so a long expansion aborts promptly. */
     private static void throwIfCancelled(BooleanSupplier isCancelled) {
         if (isCancelled.getAsBoolean()) {
-            throw new TaskCancelledException("cancelled");
+            throw new TaskCancelledException("task cancelled during unmapped fields expansion");
         }
     }
 

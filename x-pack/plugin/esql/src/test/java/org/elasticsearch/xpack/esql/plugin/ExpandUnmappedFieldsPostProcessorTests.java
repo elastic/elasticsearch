@@ -650,6 +650,36 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         assertThat("expand leaked pages when cancelled during rewrite", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    /**
+     * Every other test uses a handful of rows, so the {@code (row & mask) == 0} cadence only ever fires on row 0 and the bit-mask
+     * arithmetic past the first row is never exercised. This scans a page wide enough to cross the 1024-row threshold several times and
+     * pins the exact number of polls: {@code collectFieldNames} and {@code rewritePage} each scan the page once, polling at rows
+     * {@code 0, 1024, 2048, ...}, i.e. {@code ceil(rows / 1024)} times apiece. It would catch a regression that polled every row (far
+     * too often) or only once per scan (defeating the point of a mid-scan checkpoint).
+     */
+    public void testCancellationPollCadenceMatchesRowThreshold() {
+        BlockFactory bf = blockFactory();
+        int rows = 3000;
+        List<List<Object>> pageRows = new ArrayList<>(rows);
+        for (int i = 0; i < rows; i++) {
+            pageRows.add(row(i, jsonObject("{'pet':'Rex'}")));
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, pageRows)));
+
+        AtomicInteger polls = new AtomicInteger();
+        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, null, bf, PlannerSettings.DEFAULTS, () -> {
+            polls.incrementAndGet();
+            return false;
+        });
+        try {
+            // 1024 mirrors the production ROWS_PER_CANCELLATION_CHECK, which is private to the post-processor.
+            int perScan = (rows + 1023) / 1024;
+            assertThat(polls.get(), equalTo(2 * perScan));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testExpansionPollsForCancellation() {
         BlockFactory bf = blockFactory();
         Result result = result(

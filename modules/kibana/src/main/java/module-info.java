@@ -8,6 +8,7 @@
  */
 
 module org.elasticsearch.kibana {
+    requires org.apache.lucene.core;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;

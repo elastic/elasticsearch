@@ -7,7 +7,7 @@
 // Numerator of the on(cluster) match below.
 vector_match_operand_numerator
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m tx=(sum by (cluster) (network.eth0.tx))
 | SORT cluster, step;
@@ -27,7 +27,7 @@ tx:double | step:datetime            | cluster:keyword
 // Denominator of the on(cluster) match below.
 vector_match_operand_denominator
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m rx=(sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -47,7 +47,7 @@ rx:double | step:datetime            | cluster:keyword
 // 1:1 match on (cluster): ratio[cluster, step] = numerator / denominator for the same (cluster, step).
 vector_match_on_cluster
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m ratio=(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -69,7 +69,7 @@ ratio:double       | step:datetime            | cluster:keyword
 // universe is (cluster, pod, region), so `without (pod, region)` matches vector_match_on_cluster exactly.
 vector_match_on_cluster_opaque_operands-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m ratio=(sum without (pod, region) (network.eth0.tx) / on (cluster) sum without (pod, region) (network.eth0.rx))
 | KEEP ratio, step, cluster
@@ -90,7 +90,7 @@ ratio:double       | step:datetime            | cluster:keyword
 // INNER semantics: the denominator only has cluster=prod, so qa/staging have no match and are dropped.
 vector_match_inner_drops_unmatched
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m ratio=(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, step;
@@ -105,7 +105,7 @@ ratio:double       | step:datetime            | cluster:keyword
 // summed rx (the "one" RHS grouped by cluster), which is broadcast across the pods of that cluster.
 vector_match_group_left
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m ratio=(sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left sum by (cluster) (network.eth0.rx))
 | SORT cluster, pod, step;
@@ -142,7 +142,7 @@ ratio:double        | step:datetime            | cluster:keyword | pod:keyword
 // One-to-many group_right: the "many" RHS is grouped by (cluster, pod); the "one" LHS (cluster) is broadcast.
 vector_match_group_right
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m ratio=(sum by (cluster) (network.eth0.tx) / on (cluster) group_right sum by (cluster, pod) (network.eth0.rx))
 | SORT cluster, pod, step;
@@ -179,7 +179,7 @@ ratio:double       | step:datetime            | cluster:keyword | pod:keyword
 // Bool-mode comparison: 1.0 where tx > rx for the matched (cluster, step), else 0.0; no rows dropped.
 vector_match_comparison_bool
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) > bool on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -199,7 +199,7 @@ result:double | step:datetime            | cluster:keyword
 // Filter-mode comparison: keep the LHS value (tx) only on the matched (cluster, step) rows where tx > rx.
 vector_match_comparison_filter
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) > on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -216,7 +216,7 @@ result:double | step:datetime            | cluster:keyword
 // `and on(cluster)` semi-join: every tx cluster also has an rx series, so all LHS (tx) series are kept (result = the tx sums).
 vector_match_and_keeps_all-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -236,7 +236,7 @@ result:double | step:datetime            | cluster:keyword
 // `and on(cluster)` semi-join with the RHS restricted to prod: only tx series whose cluster is prod survive.
 vector_match_and_filters-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, step;
@@ -250,7 +250,7 @@ result:double | step:datetime            | cluster:keyword
 // Nested: scalar arithmetic on top of a vector match. result[cluster,step] = 1 + ratio.
 vector_match_nested_scalar
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(1 + (sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)))
 | SORT cluster, step;
@@ -270,7 +270,7 @@ result:double      | step:datetime            | cluster:keyword
 // Nested: aggregation over a vector match. result[step] = sum over clusters of ratio (sum() drops the cluster label).
 vector_match_nested_sum
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)))
 | SORT step;
@@ -284,7 +284,7 @@ result:double      | step:datetime
 // Multiplication across the match: result = tx * rx per (cluster, step).
 vector_match_multiply
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) * on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -304,7 +304,7 @@ result:double | step:datetime            | cluster:keyword
 // Subtraction across the match: result = tx - rx (can be negative).
 vector_match_subtract
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) - on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -324,7 +324,7 @@ result:double | step:datetime            | cluster:keyword
 // ignoring(pod): both operands are grouped by cluster only, so ignoring pod matches on cluster - same result as on(cluster).
 vector_match_ignoring
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) / ignoring (pod) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -344,7 +344,7 @@ result:double      | step:datetime            | cluster:keyword
 // Bool-mode <=: 1.0 where tx <= rx for the matched (cluster, step), else 0.0.
 vector_match_comparison_le_bool
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) <= bool on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -364,7 +364,7 @@ result:double | step:datetime            | cluster:keyword
 // Filter-mode <: keep the LHS value (tx) only where tx < rx.
 vector_match_comparison_lt_filter
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) < on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -378,7 +378,7 @@ result:double | step:datetime            | cluster:keyword
 // `and` with no on/ignoring matches on the full (shared) label set - here cluster - so all tx series are kept.
 vector_match_and_default-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) and sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -398,7 +398,7 @@ result:double | step:datetime            | cluster:keyword
 // group_left with an INNER drop: RHS restricted to prod, so only prod's pods survive (qa/staging pods have no match).
 vector_match_group_left_inner_drop
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, pod, step;
@@ -417,7 +417,7 @@ result:double       | step:datetime            | cluster:keyword | pod:keyword
 // Nested: aggregate a bool comparison. result[step] = number of clusters where tx > rx.
 vector_match_nested_comparison_sum
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum(sum by (cluster) (network.eth0.tx) > bool on (cluster) sum by (cluster) (network.eth0.rx)))
 | SORT step;
@@ -431,7 +431,7 @@ result:double | step:datetime
 // Match on two labels on(cluster, pod): 1:1 per (cluster, pod).
 vector_match_on_two_labels
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / on (cluster, pod) sum by (cluster, pod) (network.eth0.rx))
 | SORT cluster, pod, step;
@@ -468,7 +468,7 @@ result:double      | step:datetime            | cluster:keyword | pod:keyword
 // Default 1:1 matching: same label sets match without an explicit on()/ignoring() modifier.
 vector_match_default_same_labels
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) / sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -488,7 +488,7 @@ result:double      | step:datetime            | cluster:keyword
 // Empty on(): match only by step, producing one value per evaluation step and no labels.
 vector_match_on_empty_label_list
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum(network.eth0.tx) / on () sum(network.eth0.rx))
 | SORT step;
@@ -502,7 +502,7 @@ result:double      | step:datetime
 // Empty ignoring(): ignore no labels, so it behaves like the default full-label match.
 vector_match_ignoring_empty_label_list
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) / ignoring () sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -522,7 +522,7 @@ result:double      | step:datetime            | cluster:keyword
 // Addition across the match: covers the + arithmetic operator on matched instant vectors.
 vector_match_add
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) + on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -542,7 +542,7 @@ result:double | step:datetime            | cluster:keyword
 // Modulo across the match: covers the % arithmetic operator on matched instant vectors.
 vector_match_modulo
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) % on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -562,7 +562,7 @@ result:double | step:datetime            | cluster:keyword
 // Power across the match: RHS is a same-label vector of 1.0 values, so result remains tx while exercising ^.
 vector_match_power
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) ^ on (cluster) max by (cluster) (network.eth0.rx * 0 + 1))
 | SORT cluster, step;
@@ -582,7 +582,7 @@ result:double | step:datetime            | cluster:keyword
 // Bool-mode ==: all matched tx/rx pairs differ, so all matched rows survive with 0.0.
 vector_match_comparison_eq_bool
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) == bool on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -602,7 +602,7 @@ result:double | step:datetime            | cluster:keyword
 // Filter-mode ==: no matched tx/rx pair is equal, so the result vector is empty.
 vector_match_comparison_eq_filter_empty
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) == on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -613,7 +613,7 @@ result:double | step:datetime | cluster:keyword
 // Filter-mode !=: every matched tx/rx pair differs, so all LHS values are kept.
 vector_match_comparison_neq_filter
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) != on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -633,7 +633,7 @@ result:double | step:datetime            | cluster:keyword
 // Filter-mode >=: same rows as > here because none of the matched pairs are equal.
 vector_match_comparison_gte_filter
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) >= on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -650,7 +650,7 @@ result:double | step:datetime            | cluster:keyword
 // group_left(label): copy pod from the one-side RHS while matching on cluster.
 vector_match_group_left_include_label
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) / on (cluster) group_left (pod) sum by (cluster, pod) (network.eth0.rx{pod="one"}))
 | SORT cluster, pod, step;
@@ -670,7 +670,7 @@ result:double       | step:datetime            | cluster:keyword | pod:keyword
 // group_right(label): copy pod from the one-side LHS while matching on cluster.
 vector_match_group_right_include_label
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx{pod="one"}) / on (cluster) group_right (pod) sum by (cluster) (network.eth0.rx))
 | SORT cluster, pod, step;
@@ -690,7 +690,7 @@ result:double       | step:datetime            | cluster:keyword | pod:keyword
 // ignoring(...) group_left: many-to-one matching can be requested with ignoring instead of on.
 vector_match_ignoring_group_left
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m ratio=(sum by (cluster, pod) (network.eth0.tx) / ignoring (pod) group_left sum by (cluster) (network.eth0.rx))
 | SORT cluster, pod, step;
@@ -727,7 +727,7 @@ ratio:double        | step:datetime            | cluster:keyword | pod:keyword
 // and ignoring(...): set-intersection with an ignoring modifier keeps LHS pod series that match the filtered RHS cluster.
 vector_match_and_ignoring-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) and ignoring (pod) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, pod, step;
@@ -746,7 +746,7 @@ result:double | step:datetime            | cluster:keyword | pod:keyword
 // Top-level or: set-union keeps LHS values for matching label sets and fills missing clusters from RHS.
 vector_match_or
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: promql_set_operator_union
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx{cluster="prod"}) or sum by (cluster) (network.eth0.rx))
@@ -768,7 +768,7 @@ result:double | step:datetime            | cluster:keyword
 // the filtered-out (cluster, step) pairs from rx.
 vector_match_comparison_filter_in_or
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: promql_set_operator_union
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) > on (cluster) sum by (cluster) (network.eth0.rx)) or sum by (cluster) (network.eth0.rx))
@@ -790,7 +790,7 @@ result:double | step:datetime            | cluster:keyword
 // to {cluster}, so the outer sum by (pod) sees pod as absent and folds everything into a single pod-less group.
 vector_match_parent_groups_by_dropped_label
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (pod) (sum by (cluster, pod) (network.eth0.tx{cluster="prod", pod="one"}) / on (cluster) sum by (cluster, pod) (network.eth0.rx{cluster="prod", pod="one"})))
 | SORT step;
@@ -805,7 +805,7 @@ result:double      | step:datetime            | pod:keyword
 // shared (cluster) label set; result = tx/rx + rx per (cluster, step).
 vector_match_composed_with_plain_operand
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) + sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -826,7 +826,7 @@ result:double      | step:datetime            | cluster:keyword
 // ranks); the or fills staging from rx.
 vector_match_topk_in_or
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: promql_set_operator_union
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(topk(2, sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) or sum by (cluster) (network.eth0.rx))
@@ -847,7 +847,7 @@ result:double      | step:datetime            | cluster:keyword
 // Baseline: concrete/concrete on (cluster, pod).
 vector_match_matrix_concrete_concrete
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(sum by (cluster, pod) (network.eth0.tx) / on (cluster, pod) sum by (cluster, pod) (network.eth0.rx))
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -863,7 +863,7 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 // Opaque/opaque: both keys are materialized from _timeseries, no regrouping.
 vector_match_matrix_opaque_opaque_on-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / on (cluster, pod) network.eth0.rx)
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -879,7 +879,7 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 // Opaque/concrete: hidden labels on the LHS become join keys.
 vector_match_matrix_opaque_concrete-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / on (cluster, pod) sum by (cluster, pod) (network.eth0.rx))
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -895,7 +895,7 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 // Concrete/opaque: hidden labels on the RHS become join keys.
 vector_match_matrix_concrete_opaque-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(sum by (cluster, pod) (network.eth0.tx) / on (cluster, pod) network.eth0.rx)
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -913,7 +913,7 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 // Same numbers as vector_match_group_left.
 vector_match_matrix_opaque_many_group_left-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / on (cluster) group_left (pod) sum by (cluster) (network.eth0.rx))
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -930,7 +930,7 @@ r:double            | cluster:keyword | pod:keyword | step:datetime
 // Same numbers as vector_match_group_right.
 vector_match_matrix_opaque_many_group_right-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(sum by (cluster) (network.eth0.tx) / on (cluster) group_right (pod) network.eth0.rx)
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -948,7 +948,7 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 // a physical-column intersection. Same numbers as vector_match_group_left.
 vector_match_matrix_opaque_ignoring-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / ignoring (pod) group_left (pod) sum by (cluster) (network.eth0.rx))
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -966,7 +966,7 @@ r:double            | cluster:keyword | pod:keyword | step:datetime
 // Same numbers as vector_match_on_cluster.
 vector_match_matrix_without_identity-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(sum without (pod) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx))
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -980,7 +980,7 @@ r:double          | cluster:keyword | step:datetime
 // per-series ratios. ROUND guards against float summation-order jitter.
 vector_match_matrix_nested_join-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(sum(network.eth0.tx / on (cluster, pod) network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
@@ -994,7 +994,7 @@ r:double    | step:datetime
 // The same key lowering works for comparisons: 1.0 where tx > rx per series.
 vector_match_matrix_comparison_bool-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx > bool on (cluster, pod) network.eth0.rx)
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -1011,7 +1011,7 @@ r:double | cluster:keyword | pod:keyword | step:datetime
 // rx series, so all LHS values survive unchanged.
 vector_match_matrix_and-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx and on (cluster, pod) network.eth0.rx)
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -1028,7 +1028,7 @@ r:double | cluster:keyword | pod:keyword | step:datetime
 // result = (tx - rx) / rx per (cluster, step).
 vector_match_nested_join_operand
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) - on (cluster) sum by (cluster) (network.eth0.rx)) / on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
@@ -1049,7 +1049,7 @@ result:double         | step:datetime            | cluster:keyword
 // result = (tx + rx) / (tx - rx) per (cluster, step).
 vector_match_nested_join_both_operands
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) + on (cluster) sum by (cluster) (network.eth0.rx)) / on (cluster) (sum by (cluster) (network.eth0.tx) - on (cluster) sum by (cluster) (network.eth0.rx)))
 | SORT cluster, step;
@@ -1070,7 +1070,7 @@ result:double       | step:datetime            | cluster:keyword
 // (cluster, step).
 vector_match_nested_join_rhs_operand
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) / on (cluster) (sum by (cluster) (network.eth0.tx) + on (cluster) sum by (cluster) (network.eth0.rx)))
 | SORT cluster, step;
@@ -1092,7 +1092,7 @@ result:double       | step:datetime            | cluster:keyword
 // result = (tx_pod / rx_pod) * rx_cluster.
 vector_match_nested_join_mixed_keys
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=((sum by (cluster, pod) (network.eth0.tx) / on (cluster, pod) sum by (cluster, pod) (network.eth0.rx)) * on (cluster) group_left sum by (cluster) (network.eth0.rx))
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -1108,7 +1108,7 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 // A bool comparison between two nested matches: tx/rx > rx/tx iff tx > rx.
 vector_match_nested_join_comparison
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) > bool on (cluster) (sum by (cluster) (network.eth0.rx) / on (cluster) sum by (cluster) (network.eth0.tx)))
 | SORT cluster, step;
@@ -1130,7 +1130,7 @@ result:double | step:datetime            | cluster:keyword
 // result = (tx_pod / rx_cluster) * rx_pod.
 vector_match_nested_group_left_in_join
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=((sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left sum by (cluster) (network.eth0.rx)) * on (cluster, pod) sum by (cluster, pod) (network.eth0.rx))
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -1148,7 +1148,7 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 // against float summation-order jitter.
 vector_match_nested_sum_by
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m r=(sum by (cluster) (sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left sum by (cluster) (network.eth0.rx)))
 | EVAL r = ROUND(r, 9)
@@ -1170,7 +1170,7 @@ r:double    | step:datetime            | cluster:keyword
 // A function call over a match: ceil(tx / rx) per (cluster, step).
 vector_match_nested_function
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(ceil(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)))
 | SORT cluster, step;
@@ -1191,7 +1191,7 @@ result:double | step:datetime            | cluster:keyword
 // also has a prod-filtered rx series, i.e. only prod's ratios.
 vector_match_nested_join_in_and-Ignore
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, step;
@@ -1206,7 +1206,7 @@ result:double      | step:datetime            | cluster:keyword
 // each operand lists its grouping labels does not matter. Same result as vector_match_on_two_labels.
 vector_match_ignoring_empty_by_order_swapped
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / ignoring () sum by (pod, cluster) (network.eth0.rx))
 | SORT cluster, pod, step;
@@ -1243,7 +1243,7 @@ result:double      | step:datetime            | cluster:keyword | pod:keyword
 // The same through default matching, which folds both operands into one shared aggregate.
 vector_match_default_by_order_swapped
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) / sum by (pod, cluster) (network.eth0.rx))
 | SORT cluster, pod, step;
@@ -1282,7 +1282,7 @@ result:double      | step:datetime            | cluster:keyword | pod:keyword
 // one-to-one match it carries the left operand's labels.
 vector_match_default_mismatched_label_sets_is_empty
 required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
+required_capability: promql_vector_matching_v1
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))
 | SORT cluster, step;

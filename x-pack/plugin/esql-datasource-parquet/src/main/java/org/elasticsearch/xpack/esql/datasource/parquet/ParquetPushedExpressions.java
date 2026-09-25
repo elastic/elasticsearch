@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -35,6 +36,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
@@ -42,6 +44,12 @@ import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -238,11 +246,13 @@ final class ParquetPushedExpressions {
      * are excluded from this check on purpose — their downstream {@code FilterExec} still
      * re-applies them, masking the shortcut's over-inclusion.
      *
-     * <p>Today the canConvert-but-not-translatable expressions are the LIKE-family predicates
-     * {@link WildcardLike}, {@code Contains}, {@code EndsWith} and any {@code Not} over them —
+     * <p>Today the canConvert-but-not-translatable expressions that matter here are the LIKE-family
+     * predicates {@link WildcardLike}, {@code Contains}, {@code EndsWith} and any {@code Not} over them —
      * none representable as a Parquet {@link FilterPredicate}. {@link StartsWith} and its
      * negation both translate (bare → prefix range; negated → {@code FilterApi.not(range)}).
-     * All YES-eligible LIKE-family conjuncts that land here are untranslatable.
+     * All YES-eligible LIKE-family conjuncts that land here are untranslatable. A {@code Not} over a
+     * multivalue comparison function is untranslatable too, but it is RECHECK rather than YES, so the
+     * rule above already excludes it and its {@code FilterExec} still re-applies it.
      *
      * <p>YES is determined here by {@link ParquetFilterPushdownSupport#isFullyEvaluable(Expression)}
      * rather than the full {@code canPush} check. The full check additionally probes
@@ -345,6 +355,59 @@ final class ParquetPushedExpressions {
         }
         if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
             return translateRange(ne.name(), ne.dataType(), range, schema, formats);
+        }
+        // ---- multivalue comparison functions -------------------------------------------------
+        // STATISTICS path. Each bound here is the scalar sibling's, pushed inclusive where the form is one-sided or
+        // ranged: a superset prunes fewer units and never drops a matching one, and nothing negates it, because
+        // isExactlyTranslatable lists no mv_ form. The row evaluator reads the same forms exactly instead — see
+        // evaluateExpression. All are collected by collectColumnNames, which also drives the dictionary and bloom
+        // pre-warm.
+        if (expr instanceof MvContains mvContains && mvContains.left() instanceof NamedExpression ne) {
+            Object value = scalarBoundOf(mvContains.right());
+            if (value == null || value instanceof List) {
+                return null; // a list-valued mv_contains is "contains all of these" — not the equality bound
+            }
+            return buildPredicate(ne.name(), ne.dataType(), value, PredicateOp.EQ, schema, formats);
+        }
+        if (expr instanceof MvIntersects mvIntersects && mvIntersects.left() instanceof NamedExpression ne) {
+            // The value set arrives as ONE list-valued Literal, unlike In, which carries a list of literals.
+            Object value = literalValueOrNull(mvIntersects.right());
+            List<Object> rawValues = new ArrayList<>();
+            if (value instanceof List<?> values) {
+                for (Object v : values) {
+                    if (v != null) {
+                        rawValues.add(v);
+                    }
+                }
+            } else if (value != null) {
+                rawValues.add(value);
+            }
+            return rawValues.isEmpty() ? null : translateRawIn(ne.name(), ne.dataType(), rawValues, schema, formats);
+        }
+        if (expr instanceof MvInRange mvInRange && mvInRange.field() instanceof NamedExpression ne) {
+            // Both bounds pushed INCLUSIVE regardless of the include_lower / include_upper options: a closed interval
+            // is a superset of a half-open one, so it prunes strictly fewer units and never drops a matching row,
+            // and the retained FilterExec computes the exact answer.
+            Object lower = scalarBoundOf(mvInRange.lower());
+            Object upper = scalarBoundOf(mvInRange.upper());
+            if (lower == null || upper == null) {
+                return null;
+            }
+            FilterPredicate lowerBound = buildPredicate(ne.name(), ne.dataType(), lower, PredicateOp.GTE, schema, formats);
+            FilterPredicate upperBound = buildPredicate(ne.name(), ne.dataType(), upper, PredicateOp.LTE, schema, formats);
+            // Mirrors translateRange: if either bound declines, the whole range declines.
+            if (lowerBound != null && upperBound != null) {
+                return FilterApi.and(lowerBound, upperBound);
+            }
+            return null;
+        }
+        if (expr instanceof MvGreater mvGreater && mvGreater.field() instanceof NamedExpression ne) {
+            Object bound = scalarBoundOf(mvGreater.bound());
+            return bound == null ? null : buildPredicate(ne.name(), ne.dataType(), bound, PredicateOp.GTE, schema, formats);
+        }
+        if (expr instanceof MvLess mvLess && mvLess.field() instanceof NamedExpression ne) {
+            Object bound = scalarBoundOf(mvLess.bound());
+            return bound == null ? null : buildPredicate(ne.name(), ne.dataType(), bound, PredicateOp.LTE, schema, formats);
         }
         if (expr instanceof And and) {
             // For AND, dropping an arm produces a LOOSER predicate (one that admits at least
@@ -1040,6 +1103,21 @@ final class ParquetPushedExpressions {
         if (rawValues.isEmpty()) {
             return null;
         }
+        return translateRawIn(columnName, dataType, rawValues, schema, formats);
+    }
+
+    /**
+     * The value-set half of {@link #translateIn}, callable with raw values. {@code In} carries a list of literal
+     * expressions; {@code mv_intersects} carries a single list-valued literal, so it unpacks and calls this directly
+     * rather than rebuilding expressions to satisfy a signature.
+     */
+    private FilterPredicate translateRawIn(
+        String columnName,
+        DataType dataType,
+        List<Object> rawValues,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         return switch (dataType) {
             case INTEGER -> translateIntIn(columnName, rawValues, schema);
             case LONG -> translateLongIn(columnName, rawValues, schema);
@@ -1314,6 +1392,14 @@ final class ParquetPushedExpressions {
             collectColumnNames(or.right(), names);
         } else if (expr instanceof Not not) {
             collectColumnNames(not.field(), names);
+        } else if (expr instanceof MvContains mvContains && mvContains.left() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof MvIntersects mvIntersects && mvIntersects.left() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof MvInRange mvInRange && mvInRange.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof MvCompare mvCompare && mvCompare.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
         } else if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
             names.add(ne.name());
         } else if (expr instanceof Contains c && c.singleValueField() instanceof NamedExpression ne) {
@@ -1514,6 +1600,81 @@ final class ParquetPushedExpressions {
             // alongside the other dictionary-aware predicate evaluators.
             return evaluateRange(range, block, rowCount);
         }
+        // ---- multivalue comparison functions ----------------------------------------------------
+        // Each form is an any-value existential, and each is answered by the arm of its scalar sibling. That is exact
+        // only where the column holds one value per row, so every form goes through singleValuedBlock and declines
+        // otherwise; the rows then reach the retained FilterExec, which evaluates the real function.
+        //
+        // The bounds are read EXACTLY, through the function's own includeBound/includeLower/includeUpper, never as
+        // a superset. evaluateNot negates whatever these return, and the complement of a superset is a subset of the
+        // true complement, so an inclusive stand-in for an exclusive bound would drop the boundary row under NOT
+        // with nothing left to restore it.
+        //
+        // These functions are two-valued: a null field is the empty set and answers false, so NOT answers true. The
+        // scalar arm leaves a null position at bit 0, which negates to 1, as it should. That depends on evaluateNot
+        // seeing the mv_ form rather than the sibling built here: valueColumnBlockForNot recognises the scalar
+        // comparison types, and its tvlNegate would drop those null rows, which is right for f == v and wrong here.
+        if (expr instanceof MvContains mv) {
+            Block block = singleValuedBlock(mv.left(), blocks);
+            Object value = block == null ? null : scalarBoundOf(mv.right());
+            if (value == null || value instanceof List) {
+                return null; // a list-valued mv_contains is "contains all of these", not an equality
+            }
+            return evaluateComparison(mv, new Equals(mv.source(), mv.left(), mv.right(), null), block, value, rowCount, dictCache);
+        }
+        if (expr instanceof MvIntersects mv) {
+            Block block = singleValuedBlock(mv.left(), blocks);
+            if (block == null) {
+                return null;
+            }
+            // One list-valued Literal, unlike In's list of literals. A null element can match nothing, and leaving it
+            // in would give In its three-valued "null when unmatched", so it is dropped.
+            Object value = literalValueOrNull(mv.right());
+            List<Expression> literals = new ArrayList<>();
+            if (value instanceof List<?> values) {
+                for (Object v : values) {
+                    if (v != null) {
+                        literals.add(new Literal(mv.source(), v, mv.left().dataType()));
+                    }
+                }
+            } else if (value != null) {
+                literals.add(new Literal(mv.source(), value, mv.left().dataType()));
+            }
+            if (literals.isEmpty()) {
+                return null;
+            }
+            return evaluateIn(mv, new In(mv.source(), mv.left(), literals), block, rowCount, dictCache);
+        }
+        if (expr instanceof MvInRange mv) {
+            Block block = singleValuedBlock(mv.field(), blocks);
+            if (block == null || scalarBoundOf(mv.lower()) == null || scalarBoundOf(mv.upper()) == null) {
+                return null;
+            }
+            Range exact = new Range(mv.source(), mv.field(), mv.lower(), mv.includeLower(), mv.upper(), mv.includeUpper(), null);
+            return evaluateRange(exact, block, rowCount);
+        }
+        if (expr instanceof MvGreater mv) {
+            Block block = singleValuedBlock(mv.field(), blocks);
+            Object bound = block == null ? null : scalarBoundOf(mv.bound());
+            if (bound == null) {
+                return null;
+            }
+            EsqlBinaryComparison exact = mv.includeBound()
+                ? new GreaterThanOrEqual(mv.source(), mv.field(), mv.bound(), null)
+                : new GreaterThan(mv.source(), mv.field(), mv.bound(), null);
+            return evaluateComparison(mv, exact, block, bound, rowCount, dictCache);
+        }
+        if (expr instanceof MvLess mv) {
+            Block block = singleValuedBlock(mv.field(), blocks);
+            Object bound = block == null ? null : scalarBoundOf(mv.bound());
+            if (bound == null) {
+                return null;
+            }
+            EsqlBinaryComparison exact = mv.includeBound()
+                ? new LessThanOrEqual(mv.source(), mv.field(), mv.bound(), null)
+                : new LessThan(mv.source(), mv.field(), mv.bound(), null);
+            return evaluateComparison(mv, exact, block, bound, rowCount, dictCache);
+        }
         if (expr instanceof And and) {
             WordMask left = evaluateExpression(and.left(), blocks, rowCount, intermediateMask, dictCache);
             // Nested-AND empty-mask short-circuit. Mirrors the top-level early exit in
@@ -1686,6 +1847,42 @@ final class ParquetPushedExpressions {
     }
 
     /**
+     * An mv_ form's operand as a single scalar, or {@code null} when it is not a literal, is null, or is list-valued.
+     * canConvert declines all three at the top level, but canConvert(And) is an OR of its arms, so an And whose other arm
+     * converts carries such an operand past it — and a user can write that shape, including a column as the operand.
+     * Both paths therefore decline the operand themselves rather than cast it or throw on it.
+     */
+    private static Object scalarBoundOf(Expression bound) {
+        Object value = literalValueOrNull(bound);
+        return value instanceof List ? null : value;
+    }
+
+    /** The value of a literal operand, or {@code null} for anything else; the mv_ arms decline on {@code null}. */
+    private static Object literalValueOrNull(Expression operand) {
+        return operand instanceof Literal literal ? literal.value() : null;
+    }
+
+    /**
+     * The decoded block for an mv_ form's field when the scalar arms can answer for it exactly, or {@code null}.
+     *
+     * <p>The scalar arms keep a position only when it holds exactly one value, which is the any-value answer only for
+     * a column that cannot hold more. This check is load-bearing rather than defensive: resolveNestedPrimitive
+     * declines a repeated column on the statistics path only, while canPush tests the ES|QL type and the reader maps a
+     * LIST column to its element type, so a genuinely multivalued block does arrive here.
+     *
+     * <p>A double block declines too. The scalar arms order doubles with {@code Double.compare}, which separates
+     * {@code -0.0} from {@code 0.0} and ranks NaN above everything, while the mv_ functions compare with primitive
+     * operators, which do neither; the mask would drop a row the function keeps.
+     */
+    private static Block singleValuedBlock(Expression field, Map<String, Block> blocks) {
+        if (field instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            return block == null || block.mayHaveMultivaluedFields() || block.elementType() == ElementType.DOUBLE ? null : block;
+        }
+        return null;
+    }
+
+    /**
      * Returns an all-zero (no-survivors) {@link WordMask} when {@code field} is a non-virtual
      * {@link NamedExpression} whose name is absent from {@code blocks}, or {@code null} (all-rows-
      * survive) in every other case.
@@ -1768,6 +1965,22 @@ final class ParquetPushedExpressions {
         int rowCount,
         @Nullable Map<Expression, boolean[]> dictCache
     ) {
+        return evaluateComparison(bc, bc, block, literal, rowCount, dictCache);
+    }
+
+    /**
+     * As above, with the dictionary cache keyed on {@code cacheKey} rather than on the comparison itself. The mv_ arms
+     * build their scalar sibling fresh for each batch, so keying on it would miss every time and leave another bitmap
+     * behind until the row group ends; they pass their own node, which is the same instance for the whole query.
+     */
+    private static WordMask evaluateComparison(
+        Expression cacheKey,
+        EsqlBinaryComparison bc,
+        Block block,
+        Object literal,
+        int rowCount,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
         WordMask mask = new WordMask();
         mask.reset(rowCount);
         if (allNullShortCircuit(block, rowCount, mask)) {
@@ -1831,7 +2044,7 @@ final class ParquetPushedExpressions {
             // per row group.
             BytesRef val = toByteRef(literal);
             Predicate<BytesRef> matcher = bytesRefComparisonMatcher(bc, val);
-            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, bc, obb.getDictionaryVector(), matcher);
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, cacheKey, obb.getDictionaryVector(), matcher);
             applyDictionaryMatches(obb, dictMatches, mask, rowCount);
         } else if (block instanceof BytesRefBlock bb) {
             BytesRef val = toByteRef(literal);
@@ -1926,6 +2139,17 @@ final class ParquetPushedExpressions {
     }
 
     private static WordMask evaluateIn(In inExpr, Block block, int rowCount, @Nullable Map<Expression, boolean[]> dictCache) {
+        return evaluateIn(inExpr, inExpr, block, rowCount, dictCache);
+    }
+
+    /** As above, with the dictionary cache keyed on {@code cacheKey}; see {@link #evaluateComparison}. */
+    private static WordMask evaluateIn(
+        Expression cacheKey,
+        In inExpr,
+        Block block,
+        int rowCount,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
         List<Object> values = new ArrayList<>();
         for (Expression item : inExpr.list()) {
             Object val = literalValueOf(item);
@@ -2000,7 +2224,7 @@ final class ParquetPushedExpressions {
             for (Object v : values) {
                 refSet.add(toByteRef(v));
             }
-            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, inExpr, obb.getDictionaryVector(), refSet::contains);
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, cacheKey, obb.getDictionaryVector(), refSet::contains);
             applyDictionaryMatches(obb, dictMatches, mask, rowCount);
         } else if (block instanceof BytesRefBlock bb) {
             Set<BytesRef> refSet = new HashSet<>();

@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -115,6 +116,8 @@ import java.util.function.Consumer;
 final class ParquetColumnExtractor implements ColumnExtractor {
 
     private final StorageObject storageObject;
+    /** {@link #storageObject}'s location as messages name it, without an HTTP query string or user info. */
+    private final String messageLocation;
     private final ParquetFormatReader reader;
     private final ParquetMetadata ownedFooter;
     /** See {@link #castBlockWarnings()}. */
@@ -172,6 +175,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         @Nullable Consumer<String> warningSink
     ) {
         this.storageObject = Objects.requireNonNull(storageObject, "storageObject");
+        this.messageLocation = ExternalFailures.redactHttpUrl(storageObject.path().toString());
         this.reader = Objects.requireNonNull(reader, "reader");
         this.ownedFooter = Objects.requireNonNull(ownedFooter, "ownedFooter");
         this.errorPolicy = Objects.requireNonNull(errorPolicy, "errorPolicy");
@@ -180,7 +184,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         // same malformed row would otherwise be charged to the error budget once per pass over it.
         this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
             errorPolicy,
-            storageObject.path().toString(),
+            messageLocation,
             warningSink,
             /* deduplicateRecoveries = */ true
         );
@@ -658,7 +662,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         Block concatenated = null;
         try {
             if (perBucketBlocks.length == 0) {
-                throw new IllegalStateException("no row groups visited for [" + storageObject.path() + "] (count=" + totalCount + ")");
+                throw new IllegalStateException("no row groups visited for [" + messageLocation + "] (count=" + totalCount + ")");
             }
             for (int b = 0; b < perBucketBlocks.length; b++) {
                 if (perBucketBlocks[b] == null) {
@@ -730,15 +734,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 );
             }
             coercionWarnings().add(
-                "Column ["
-                    + columnName
-                    + "] in file ["
-                    + storageObject.path()
-                    + "] has type ["
-                    + fileType
-                    + "] incompatible with planner type ["
-                    + target
-                    + "]; returning nulls for this column"
+                "column [" + columnName + "]: [" + fileType.typeName() + "] in the file, [" + target.typeName() + "] in the query"
             );
             return factory.newConstantNullBlock(count);
         } finally {
@@ -760,9 +756,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     private SkipWarnings coercionWarnings() {
         if (coercionWarnings == null) {
             coercionWarnings = new SkipWarnings(
-                "Parquet file ["
-                    + storageObject.path()
-                    + "] has values that could not be coerced to the declared column type; they are returned as null",
+                "Some values in [" + messageLocation + "] cannot be read as the column type; returning null",
                 warningSink
             );
         }
@@ -956,7 +950,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             info,
             listCorruptionHandler,
             columnName,
-            storageObject.path().toString(),
+            messageLocation,
             bucket.rowGroupIndex,
             rowGroupOffsets[bucket.rowGroupIndex]
         );

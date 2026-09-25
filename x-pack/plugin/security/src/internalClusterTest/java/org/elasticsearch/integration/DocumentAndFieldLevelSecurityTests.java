@@ -454,14 +454,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        prepareIndex("constant-denied").setId("denied")
-            .setSource("field1", "visible", "field2", "other")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        prepareIndex("constant-denied").setId("denied").setSource("field1", "visible", "field2", "other").setRefreshPolicy(IMMEDIATE).get();
 
         assertResponse(
-            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareSearch("constant-*"),
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))).prepareSearch("constant-*"),
             response -> {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "allowed");

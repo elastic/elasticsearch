@@ -113,10 +113,6 @@ public final class ExpandUnmappedFieldsPostProcessor {
         if (unmappedIdx == -1) {
             return result;
         }
-        Runnable expansionStarted = expansionStartedForTest;
-        if (expansionStarted != null) {
-            expansionStarted.run();
-        }
         double reservationFactor = plannerSettings.sourceReservationFactor();
         UnmappedFieldsAttribute unmappedAttribute = (UnmappedFieldsAttribute) schema.get(unmappedIdx);
         UnmappedFieldsPattern pattern = unmappedAttribute.pattern();
@@ -125,6 +121,12 @@ public final class ExpandUnmappedFieldsPostProcessor {
         // is left below. Page#releaseBlocks is idempotent, so re-releasing pages rewritePage already drained is a no-op.
         boolean success = false;
         try {
+            // Run the test seam inside the try so a throwing hook releases the input pages through the finally below, exactly like a
+            // cancellation or parsing failure would.
+            Runnable expansionStarted = expansionStartedForTest;
+            if (expansionStarted != null) {
+                expansionStarted.run();
+            }
             var fieldNames = collectFieldNames(result, unmappedIdx, pattern, blockFactory.breaker(), reservationFactor, isCancelled);
             Set<String> existingNames = existingColumnNames(schema, unmappedIdx);
             List<String> expandedFieldNames = new ArrayList<>(fieldNames.size());

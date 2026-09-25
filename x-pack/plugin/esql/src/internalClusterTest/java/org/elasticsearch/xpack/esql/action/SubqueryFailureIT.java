@@ -18,6 +18,8 @@ import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -283,7 +285,6 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInnerMostFailureWithQueuedNestedSiblings() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             FROM
                ( FROM ok | WHERE id == 1 ),
@@ -309,7 +310,7 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
      * One subquery reads from both fail and ok indices — the fail shard fails but the ok shard succeeds.
      * With allowPartialResults=true, the overall query succeeds and returns rows from all ok shards
      * across all subqueries.
-     *
+     * <p>
      * TODO: the PARTIAL status is only set on the main plan, the overall cluster status is SUCCESSFUL
      *  even though one shard failed inside a subquery, this should be addressed in a follow up. The
      *  behavior being tested is that the query does NOT fail.
@@ -343,14 +344,14 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Same scenario as {@link #testPartialResultsWithFailingShardInSubquery}, but the branch with the failing shard sits one level deeper,
-     * inside a nested union. The shard failure has to cross two {@code ExecutionMerge} levels in one {@code SubPlansExecutor} on its way
-     * up: the nested merge, then the outer one. With {@code allowPartialResults} the rows from every ok shard must still arrive, and the
-     * response must be marked partial — the flag travels through {@code EsqlExecutionInfo}, not the row stream, so losing it at a merge
-     * boundary would silently misreport a partial result as complete.
+     * Same scenario as {@link #testPartialResultsWithFailingShardInSubquery}, but the branch with the failing shard sits
+     * one level deeper, inside a nested union. The shard failure has to cross two merge levels on its way up: the nested
+     * {@code SubPlansExecutor}'s segment, then the outer one. With {@code allowPartialResults} the rows from every ok
+     * shard must still arrive, and the response must be marked partial - the flag travels through
+     * {@code EsqlExecutionInfo}, not the row stream, so losing it at a merge boundary would silently misreport a
+     * partial result as complete.
      */
     public void testPartialResultsWithFailingShardInNestedSubquery() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             FROM
                (FROM ok | WHERE id == 1),
@@ -406,6 +407,101 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assertThat(cause.getMessage(), containsString("index pattern 'ok'"));
         assertThat(cause.getMessage(), containsString("time_series"));
         assertThat(cause.getMessage(), containsString("standard"));
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchCountPragma() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to 4 branches in total, exceeding the limit of 3 set by the [max_branch_count] query pragma"),
+            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)).close()
+        );
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchLevelPragma() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build());
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to 3 nested union levels, exceeding the limit of 2 set by the [max_branch_level] query pragma"),
+            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)).close()
+        );
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchCountClusterSetting() {
+        var query = fourLeafThreeLevelQuery();
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 3));
+            expectThrows(
+                VerificationException.class,
+                containsString(
+                    "query resolved to 4 branches in total, "
+                        + "exceeding the limit of 3 set by the [esql.query.max_branch_count] cluster setting"
+                ),
+                () -> run(query).close()
+            );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()));
+        }
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchLevelClusterSetting() {
+        var query = fourLeafThreeLevelQuery();
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey(), 2));
+            expectThrows(
+                VerificationException.class,
+                containsString(
+                    "query resolved to 3 nested union levels, "
+                        + "exceeding the limit of 2 set by the [esql.query.max_branch_level] cluster setting"
+                ),
+                () -> run(query).close()
+            );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey()));
+        }
+    }
+
+    public void testPragmaOverridesClusterMaxBranchCount() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4).build());
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 3));
+            try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+                assertThat(resp.values().hasNext(), equalTo(true));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()));
+        }
+    }
+
+    public void testPragmaOverridesClusterMaxBranchLevel() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3).build());
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey(), 2));
+            try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+                assertThat(resp.values().hasNext(), equalTo(true));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey()));
+        }
+    }
+
+    private static String fourLeafThreeLevelQuery() {
+        return """
+            FROM
+               ( FROM ok | WHERE id == 1 ),
+               ( FROM
+                    ( FROM ok | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM ok | WHERE id == 3 ),
+                         ( FROM ok | WHERE id == 4 )
+                    )
+               )
+            | KEEP id
+            """;
     }
 
     private static QueryPragmas batchPragmas(int batchSize) {

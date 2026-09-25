@@ -981,8 +981,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         EsqlFlags flags,
         AliasFilter aliasFilter
     ) {
-        LogicalPlan optimizedLogical = new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats))
-            .localOptimize(logicalPlan);
+        LogicalPlan optimizedLogical = new LookupLogicalOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        ).localOptimize(logicalPlan);
         PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(optimizedLogical);
         LookupPhysicalOptimizerContext context = new LookupPhysicalOptimizerContext(
             plannerSettings,

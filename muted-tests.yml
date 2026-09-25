@@ -692,3 +692,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.s3.EsqlContainerCredentialsProviderTests
   method: testAMissingTokenFileNamesTheFileToCreate
   issue: https://github.com/elastic/elasticsearch/issues/160275
+- class: org.elasticsearch.xpack.esql.datasource.s3.S3CredentialsProviderTests
+  method: testManagedIdentityChainFailsWhenPodIdentityMisconfigured
+  issue: https://github.com/elastic/elasticsearch/issues/160276

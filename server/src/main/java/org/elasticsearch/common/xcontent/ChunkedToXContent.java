@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 
@@ -78,27 +77,15 @@ public interface ChunkedToXContent {
     }
 
     /**
-     * Wraps the given instance in a {@link ToXContent} that will fully serialize the instance when serialized.
+     * Wraps the given instance in a {@link ToXContent} that will fully serialize the instance when serialized. The resulting {@linkplain
+     * ToXContent wrapper} correctly implements {@link Object#equals(Object)} and {@link Object#hashCode()}, and allows to compare the
+     * wrapped {@code chunkedToXContent} instances.
      *
      * @param chunkedToXContent instance to wrap
      * @return x-content instance
      */
     static ToXContent wrapAsToXContent(ChunkedToXContent chunkedToXContent) {
-        return new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(params);
-                while (serialization.hasNext()) {
-                    serialization.next().toXContent(builder, params);
-                }
-                return builder;
-            }
-
-            @Override
-            public boolean isFragment() {
-                return chunkedToXContent.isFragment();
-            }
-        };
+        return new ToXContentWrapper(chunkedToXContent);
     }
 
     /**

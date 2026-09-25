@@ -21,18 +21,18 @@ import org.gradle.api.tasks.TaskProvider;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
 
 /**
- * Adds a {@code resourceExhaustionTest} source set for tests that require a heap-constrained
+ * Adds a {@code heapPressureTest} source set for tests that require a heap-constrained
  * cluster and must run in an isolated JVM.
  *
  * <p>Each test class runs in its own forked JVM ({@code forkEvery = 1}) so that heap state
- * from one resource-exhaustion test cannot affect another.
+ * from one heap-pressure test cannot affect another.
  *
  * <p>Consumers must declare their own compile dependencies (e.g. {@code :test:framework},
- * {@code :test:test-clusters}) on the {@code resourceExhaustionTestImplementation} configuration.
+ * {@code :test:test-clusters}) on the {@code heapPressureTestImplementation} configuration.
  */
-public class InternalResourceExhaustionTestPlugin implements Plugin<Project> {
+public class InternalHeapPressureTestPlugin implements Plugin<Project> {
 
-    public static final String SOURCE_SET_NAME = "resourceExhaustionTest";
+    public static final String SOURCE_SET_NAME = "heapPressureTest";
 
     @Override
     public void apply(Project project) {

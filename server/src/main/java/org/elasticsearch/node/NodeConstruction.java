@@ -959,7 +959,8 @@ class NodeConstruction {
             projectResolver,
             clusterService,
             recoverySchedulingListeners,
-            recoveryGateMonitor
+            recoveryGateMonitor,
+            JvmInfo.jvmInfo().getMem().getHeapMax()
         );
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)

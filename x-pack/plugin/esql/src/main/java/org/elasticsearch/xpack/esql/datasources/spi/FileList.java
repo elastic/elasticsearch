@@ -169,6 +169,20 @@ public interface FileList {
     }
 
     /**
+     * Heap reserved while planning this listing. {@link #estimatedBytes()} stays the listing-cache weight and does
+     * not include per-file partition maps; this adds a fixed allowance so planning can charge it before the schema
+     * map is built. Not a measured deep size. When {@link #partitionMetadata()} is missing or empty, the result is
+     * {@link #estimatedBytes()}. Otherwise it adds 560 bytes for each file in {@link PartitionMetadata#filePartitionValues()}.
+     */
+    default long planningBytes() {
+        PartitionMetadata metadata = partitionMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return estimatedBytes();
+        }
+        return estimatedBytes() + 560L * metadata.filePartitionValues().size();
+    }
+
+    /**
      * The 128-bit fingerprint identifying the resolved file SET: a commutative fold over every file's
      * {@code (path, mtime, size)} plus the file count, computed once when the listing is built. The same
      * set listed in any order yields the same fingerprint; any file added, removed, or modified (mtime
@@ -186,9 +200,10 @@ public interface FileList {
     }
 
     /**
-     * Notices raised while this listing was built: {@code file_exclusions} drops and reserved partition-name
-     * renames. Empty when neither happened. Nothing is emitted from here; cached listings carry these so a cache
-     * hit hands the resolver the same notices as a cold expand.
+     * Notices raised while this listing was built: reserved partition-name renames, and {@code file_exclusions} drops from
+     * a glob segment that listed nothing (a comma-separated resource gathers every segment's notices). Empty when neither
+     * happened. Nothing is emitted from here; cached listings carry these so a cache hit hands the resolver the same
+     * notices as a cold expand.
      */
     default List<String> listingWarnings() {
         return List.of();

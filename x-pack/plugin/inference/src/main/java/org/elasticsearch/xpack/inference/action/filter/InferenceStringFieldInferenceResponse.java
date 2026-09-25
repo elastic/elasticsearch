@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -54,11 +53,7 @@ final class InferenceStringFieldInferenceResponse extends FieldInferenceResponse
         if (useLegacyFormat) {
             throw new IllegalStateException("Legacy semantic text format does not support non-text chunks for field [" + field() + "]");
         }
-        List<SemanticTextField.Chunk> chunks = new ArrayList<>(inferenceResults.size());
-        for (var inferenceResult : inferenceResults) {
-            chunks.add(SemanticTextField.toSemanticFieldChunk(sourceFieldInputIndex, inferenceResult, contentType));
-        }
-        return chunks;
+        return SemanticTextField.toSemanticFieldChunks(sourceFieldInputIndex, inferenceResults, contentType);
     }
 
     @Override

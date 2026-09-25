@@ -530,17 +530,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                 var embeddingResults = (EmbeddingResults<?>) results;
                 List<? extends EmbeddingResults.Embedding<?>> embeddings = embeddingResults.embeddings();
+                if (embeddings.isEmpty()) {
+                    onUnexpectedInferenceResult(
+                        inferenceProvider,
+                        requests,
+                        new IllegalStateException("No inference results returned for inference id [" + inferenceId + "]")
+                    );
+                    return;
+                }
                 if (batch.isolated()) {
-                    if (embeddings.isEmpty()) {
-                        onUnexpectedInferenceResult(
-                            inferenceProvider,
-                            requests,
-                            new IllegalStateException(
-                                "No inference results returned for isolated input on inference id [" + inferenceId + "]"
-                            )
-                        );
-                        return;
-                    }
                     addEmbeddingInferenceResponse(inferenceProvider, requests.getFirst(), embeddings);
                 } else {
                     if (embeddings.size() != requests.size()) {

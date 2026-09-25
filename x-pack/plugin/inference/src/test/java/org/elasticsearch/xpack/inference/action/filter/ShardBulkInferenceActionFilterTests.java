@@ -76,7 +76,6 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
@@ -1280,15 +1279,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         model.putResults(new InferenceStringGroup(secondPdf), expectedEmbeddings.subList(3, 6));
         model.putResult(new InferenceStringGroup(secondImage), expectedEmbeddings.get(6));
 
-        List<EmbeddingRequest> inferenceRequests = Collections.synchronizedList(new ArrayList<>());
-        EmbeddingInferHandler handler = (requestModel, request, listener) -> {
-            inferenceRequests.add(request);
-            var embeddings = request.inputs().stream().flatMap(input -> requestModel.getAllResults(input).stream()).toList();
-            listener.onResponse(combineMultimodalEmbeddings(embeddings));
-        };
-
-        var result = runMultimodalInputsThroughFilter(model, List.of(firstPdf, firstImage, secondPdf, secondImage), handler);
+        var result = runMultimodalInputsThroughFilter(model, List.of(firstPdf, firstImage, secondPdf, secondImage));
         assertNull(result.failure());
+        List<EmbeddingRequest> inferenceRequests = model.embeddingRequests();
         assertThat(inferenceRequests.size(), equalTo(3));
         assertTrue(inferenceRequests.stream().anyMatch(r -> r.inputs().equals(List.of(new InferenceStringGroup(firstPdf)))));
         assertTrue(inferenceRequests.stream().anyMatch(r -> r.inputs().equals(List.of(new InferenceStringGroup(secondPdf)))));
@@ -1318,29 +1311,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         }
     }
 
-    public void testPdfInferenceFailureFailsItsBulkItem() throws Exception {
-        assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
-
-        StaticModel model = StaticModel.createRandomInstance(TaskType.EMBEDDING);
-        InferenceString pdf = new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64,AAAA");
-        InferenceString image = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,AAAA");
-        model.putResult(new InferenceStringGroup(image), randomMultimodalEmbedding(model));
-
-        EmbeddingInferHandler handler = (requestModel, request, listener) -> {
-            if (request.inputs().getFirst().containsPdfEntry()) {
-                listener.onFailure(new IllegalStateException("failed to embed PDF"));
-            } else {
-                listener.onResponse(combineMultimodalEmbeddings(List.of(requestModel.getResults(request.inputs().getFirst()))));
-            }
-        };
-
-        var result = runMultimodalInputsThroughFilter(model, List.of(pdf, image), handler);
-        assertNotNull(result.failure());
-        assertThat(result.failure().getCause().getCause().getMessage(), containsString("failed to embed PDF"));
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testPdfInferenceFailureDoesNotFailOtherBulkItems() throws Exception {
+    public void testPdfInferenceFailureFailsOnlyItsBulkItem() throws Exception {
         assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
 
         StaticModel model = StaticModel.createRandomInstance(TaskType.EMBEDDING);
@@ -1348,20 +1320,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         InferenceString image = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,AAAA");
         model.putResult(new InferenceStringGroup(image), randomMultimodalEmbedding(model));
 
-        EmbeddingInferHandler handler = (requestModel, request, listener) -> {
-            if (request.inputs().getFirst().containsPdfEntry()) {
-                listener.onFailure(new IllegalStateException("failed to embed PDF"));
-            } else {
-                listener.onResponse(combineMultimodalEmbeddings(List.of(requestModel.getResults(request.inputs().getFirst()))));
-            }
-        };
-
-        var result = runSeparateMultimodalInputsThroughFilter(model, pdf, image, handler);
+        var result = runSeparateMultimodalInputsThroughFilter(model, pdf, image);
 
         assertNotNull(result.firstItem().getPrimaryResponse());
         assertThat(
             result.firstItem().getPrimaryResponse().getFailure().getCause().getCause().getMessage(),
-            containsString("failed to embed PDF")
+            containsString("No multimodal inference result cached")
         );
         assertNull(result.secondItem().getPrimaryResponse());
         assertNotNull(
@@ -1372,65 +1336,25 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testMalformedPdfInferenceResultDoesNotFailOtherBulkItems() throws Exception {
-        assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
-
-        StaticModel model = StaticModel.createRandomInstance(TaskType.EMBEDDING);
-        InferenceString pdf = new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64,AAAA");
-        InferenceString image = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,AAAA");
-        model.putResult(new InferenceStringGroup(image), randomMultimodalEmbedding(model));
-
-        EmbeddingInferHandler handler = (requestModel, request, listener) -> {
-            if (request.inputs().getFirst().containsPdfEntry()) {
-                listener.onResponse(new GenericDenseEmbeddingFloatResults(List.of()));
-            } else {
-                listener.onResponse(combineMultimodalEmbeddings(List.of(requestModel.getResults(request.inputs().getFirst()))));
-            }
-        };
-
-        var result = runSeparateMultimodalInputsThroughFilter(model, pdf, image, handler);
-
-        assertNotNull(result.firstItem().getPrimaryResponse());
-        assertThat(
-            result.firstItem().getPrimaryResponse().getFailure().getCause().getCause().getMessage(),
-            containsString("No inference results returned for isolated input")
-        );
-        assertNull(result.secondItem().getPrimaryResponse());
-        assertNotNull(
-            XContentMapValues.extractValue(
-                InferenceMetadataFieldsMapper.NAME + "." + getChunksFieldName("semantic_field") + ".semantic_field",
-                result.secondRequest().sourceAsMap()
-            )
-        );
-    }
-
-    public void testNonPdfInferenceResultCountMismatchFailsTheMultimodalBatch() throws Exception {
+    public void testMultimodalInferenceResultCountMismatch() throws Exception {
         assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
 
         StaticModel model = StaticModel.createRandomInstance(TaskType.EMBEDDING);
         InferenceString firstImage = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,AAAA");
         InferenceString secondImage = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,BBBB");
-        model.putResult(new InferenceStringGroup(firstImage), randomMultimodalEmbedding(model));
+        model.putResults(new InferenceStringGroup(firstImage), List.of(randomMultimodalEmbedding(model), randomMultimodalEmbedding(model)));
+        model.putResult(new InferenceStringGroup(secondImage), randomMultimodalEmbedding(model));
 
-        EmbeddingInferHandler handler = (requestModel, request, listener) -> listener.onResponse(
-            combineMultimodalEmbeddings(List.of(requestModel.getResults(request.inputs().getFirst())))
-        );
-
-        var result = runMultimodalInputsThroughFilter(model, List.of(firstImage, secondImage), handler);
+        var result = runMultimodalInputsThroughFilter(model, List.of(firstImage, secondImage));
         assertNotNull(result.failure());
         assertThat(
             result.failure().getCause().getCause().getMessage(),
-            containsString("Inference result count [1] does not match request count [2]")
+            containsString("Inference result count [3] does not match request count [2]")
         );
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private MultimodalFilterResult runMultimodalInputsThroughFilter(
-        StaticModel model,
-        List<InferenceString> inputs,
-        EmbeddingInferHandler embeddingInferHandler
-    ) throws Exception {
+    private MultimodalFilterResult runMultimodalInputsThroughFilter(StaticModel model, List<InferenceString> inputs) throws Exception {
         InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
@@ -1441,8 +1365,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             false,
             licenseState,
             inferenceStats,
-            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY),
-            embeddingInferHandler
+            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY)
         );
 
         String field = "semantic_field";
@@ -1480,8 +1403,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     private SeparateMultimodalFilterResult runSeparateMultimodalInputsThroughFilter(
         StaticModel model,
         InferenceString firstInput,
-        InferenceString secondInput,
-        EmbeddingInferHandler embeddingInferHandler
+        InferenceString secondInput
     ) throws Exception {
         InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         MockLicenseState licenseState = MockLicenseState.createMock();
@@ -1493,8 +1415,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             false,
             licenseState,
             inferenceStats,
-            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY),
-            embeddingInferHandler
+            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY)
         );
 
         String field = "semantic_field";
@@ -1516,15 +1437,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ActionFilterChain actionFilterChain = (task, action, req, listener) -> chainExecuted.countDown();
         filter.apply(mock(Task.class), TransportShardBulkAction.ACTION_NAME, request, mock(ActionListener.class), actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
-        return new SeparateMultimodalFilterResult(firstRequest, firstItem, secondRequest, secondItem);
+        return new SeparateMultimodalFilterResult(firstItem, secondRequest, secondItem);
     }
 
-    private record SeparateMultimodalFilterResult(
-        IndexRequest firstRequest,
-        BulkItemRequest firstItem,
-        IndexRequest secondRequest,
-        BulkItemRequest secondItem
-    ) {}
+    private record SeparateMultimodalFilterResult(BulkItemRequest firstItem, IndexRequest secondRequest, BulkItemRequest secondItem) {}
 
     /**
      * Indexes a single document with one inference field set to the given input and returns the resulting item failure, or {@code null} if
@@ -1640,29 +1556,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         InferenceStats inferenceStats,
         ByteSizeValue maxBase64InputSize
     ) {
-        return createFilter(
-            threadPool,
-            modelMap,
-            indexingPressure,
-            useLegacyFormat,
-            licenseState,
-            inferenceStats,
-            maxBase64InputSize,
-            null
-        );
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ShardBulkInferenceActionFilter createFilter(
-        ThreadPool threadPool,
-        Map<String, StaticModel> modelMap,
-        IndexingPressure indexingPressure,
-        boolean useLegacyFormat,
-        MockLicenseState licenseState,
-        InferenceStats inferenceStats,
-        ByteSizeValue maxBase64InputSize,
-        EmbeddingInferHandler embeddingInferHandler
-    ) {
         ModelRegistry modelRegistry = mock(ModelRegistry.class);
         Answer<?> unparsedModelAnswer = invocationOnMock -> {
             String id = (String) invocationOnMock.getArguments()[0];
@@ -1763,14 +1656,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 }
             }
 
-            if (embeddingInferHandler != null) {
-                embeddingInferHandler.infer(model, request, listener);
-                return null;
-            }
-
+            model.recordEmbeddingRequest(request);
             EmbeddingResults<?> combinedEmbeddings;
             try {
-                var embeddings = groups.stream().flatMap(group -> model.getAllResults(group).stream()).toList();
+                var embeddings = groups.stream().flatMap(group -> model.getResults(group).stream()).toList();
                 combinedEmbeddings = combineMultimodalEmbeddings(embeddings);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -1810,11 +1699,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             indexingPressure,
             inferenceStats
         );
-    }
-
-    @FunctionalInterface
-    private interface EmbeddingInferHandler {
-        void infer(StaticModel model, EmbeddingRequest request, ActionListener<InferenceServiceResults> listener);
     }
 
     private static ClusterService createClusterService(boolean useLegacyFormat) {
@@ -1912,15 +1796,15 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             assert useLegacyFormat == false;
 
             InferenceStringGroup group = new InferenceStringGroup(inferenceString);
-            EmbeddingResults.Embedding<?> embedding;
+            List<? extends EmbeddingResults.Embedding<?>> embeddings;
             if (model.hasResult(group)) {
-                embedding = model.getResults(group);
+                embeddings = model.getResults(group);
             } else {
-                embedding = randomMultimodalEmbedding(model);
-                model.putResult(group, embedding);
+                embeddings = List.of(randomMultimodalEmbedding(model));
+                model.putResults(group, embeddings);
             }
 
-            var chunk = SemanticTextField.toSemanticFieldChunk(0, embedding, requestContentType);
+            var chunks = SemanticTextField.toSemanticFieldChunks(0, embeddings, requestContentType);
             return new SemanticTextField(
                 false,
                 field,
@@ -1929,7 +1813,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     model.getInferenceEntityId(),
                     new EndpointClusterState(model),
                     null,
-                    Map.of(field, List.of(chunk))
+                    Map.of(field, chunks)
                 ),
                 requestContentType
             );
@@ -2018,6 +1902,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     private static class StaticModel extends TestModel {
         private final Map<String, ChunkedInference> chunkedResultMap;
         private final Map<InferenceStringGroup, List<? extends EmbeddingResults.Embedding<?>>> embeddingResultMap;
+        private final List<EmbeddingRequest> embeddingRequests;
 
         StaticModel(
             String inferenceEntityId,
@@ -2030,6 +1915,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, secretSettings);
             this.chunkedResultMap = new HashMap<>();
             this.embeddingResultMap = new HashMap<>();
+            this.embeddingRequests = Collections.synchronizedList(new ArrayList<>());
         }
 
         public static StaticModel createRandomInstance() {
@@ -2064,11 +1950,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             return chunkedResultMap.containsKey(text);
         }
 
-        EmbeddingResults.Embedding<?> getResults(InferenceStringGroup group) {
-            return getAllResults(group).getFirst();
-        }
-
-        List<? extends EmbeddingResults.Embedding<?>> getAllResults(InferenceStringGroup group) {
+        List<? extends EmbeddingResults.Embedding<?>> getResults(InferenceStringGroup group) {
             assert getTaskType() == TaskType.EMBEDDING;
             var results = embeddingResultMap.get(group);
             if (results == null) {
@@ -2084,6 +1966,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         void putResults(InferenceStringGroup group, List<? extends EmbeddingResults.Embedding<?>> results) {
             assert getTaskType() == TaskType.EMBEDDING;
             embeddingResultMap.put(group, List.copyOf(results));
+        }
+
+        void recordEmbeddingRequest(EmbeddingRequest request) {
+            embeddingRequests.add(request);
+        }
+
+        List<EmbeddingRequest> embeddingRequests() {
+            return List.copyOf(embeddingRequests);
         }
 
         boolean hasResult(InferenceStringGroup group) {

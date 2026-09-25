@@ -1,0 +1,4 @@
+SET unmapped_fields="nullify";
+FROM (FROM sample_data), (FROM sample_data)
+| WHERE TO_DOUBLE(event_duration) > 0 OR does_not_exist IS NOT NULL
+| EVAL d = TO_DEGREES(event_duration)

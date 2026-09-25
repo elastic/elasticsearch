@@ -467,7 +467,10 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testFetchConstantKeywordRespectsFls() throws Exception {
-        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=constant_keyword,value=value1"));
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setMapping("field1", "type=constant_keyword,value=value1", "field1_alias", "type=alias,path=field1")
+        );
         prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
         SearchRequest fieldsRequest = new SearchRequest("test").source(new SearchSourceBuilder().fetchSource(false).fetchField("field1"));
@@ -497,6 +500,36 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertResponse(
             client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))).search(docValuesRequest),
             response -> assertFalse(response.getHits().getAt(0).getDocumentFields().containsKey("field1"))
+        );
+
+        SearchRequest aliasFieldsRequest = new SearchRequest("test").source(
+            new SearchSourceBuilder().fetchSource(false).fetchField("field1_alias")
+        );
+        // user1 may see field1 through alias
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))).search(aliasFieldsRequest),
+            response -> assertThat(response.getHits().getAt(0).field("field1_alias").getValue(), equalTo("value1"))
+        );
+
+        // user2 may not see field1 through alias
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))).search(aliasFieldsRequest),
+            response -> assertFalse(response.getHits().getAt(0).getDocumentFields().containsKey("field1_alias"))
+        );
+
+        SearchRequest aliasDocValuesRequest = new SearchRequest("test").source(
+            new SearchSourceBuilder().fetchSource(false).docValueField("field1_alias")
+        );
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))).search(aliasDocValuesRequest),
+            response -> assertThat(response.getHits().getAt(0).field("field1_alias").getValue(), equalTo("value1"))
+        );
+
+        // user2 may not see field1 through alias
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))).search(aliasDocValuesRequest),
+            response -> assertFalse(response.getHits().getAt(0).getDocumentFields().containsKey("field1_alias"))
         );
     }
 

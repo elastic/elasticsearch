@@ -20,10 +20,12 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class PyTorchBuilderTests extends ESTestCase {
 
@@ -149,6 +151,7 @@ public class PyTorchBuilderTests extends ESTestCase {
     }
 
     public void testBuildWithSandboxDisabled() throws IOException, InterruptedException {
+        when(processPipes.usesIsolatedChildIpcDir()).thenReturn(false);
         new PyTorchBuilder(
             nativeController,
             processPipes,
@@ -200,6 +203,7 @@ public class PyTorchBuilderTests extends ESTestCase {
     }
 
     public void testBuildWithSandboxEnabled() throws IOException, InterruptedException {
+        when(processPipes.usesIsolatedChildIpcDir()).thenReturn(true);
         new PyTorchBuilder(
             nativeController,
             processPipes,
@@ -248,5 +252,21 @@ public class PyTorchBuilderTests extends ESTestCase {
                 PROCESS_PIPES_ARG
             )
         );
+    }
+
+    public void testBuildWithSandboxEnabledGivenIsolatedIpcDirMismatchShouldThrow() {
+        when(processPipes.usesIsolatedChildIpcDir()).thenReturn(false);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> new PyTorchBuilder(
+                nativeController,
+                processPipes,
+                new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
+                true,
+                true,
+                true
+            ).build()
+        );
+        assertThat(e.getMessage(), containsString("sandbox token decision and isolated child IPC layout must agree"));
     }
 }

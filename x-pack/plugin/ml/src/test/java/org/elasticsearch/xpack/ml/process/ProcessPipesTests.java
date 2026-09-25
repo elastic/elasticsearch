@@ -344,33 +344,54 @@ public class ProcessPipesTests extends ESTestCase {
         assertEquals(ProcessPipes.LOG_PIPE_ARG + prefix + "log" + suffix, command.get(0));
     }
 
-    public void testPipeNaming_isolationRequestedButNoJobId_fallsBackToLegacyNaming() {
+    public void testIsolatedChildIpcDirGivenNullJobIdOnLinuxShouldReject() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
         NamedPipeHelper namedPipeHelper = new NamedPipeHelper();
 
-        ProcessPipes processPipes = new ProcessPipes(
-            env,
-            namedPipeHelper,
-            Duration.ofSeconds(10),
-            "myproc",
-            null,
-            null,
-            false,
-            true,
-            false,
-            false,
-            false,
-            true,
-            true
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ProcessPipes(
+                env,
+                namedPipeHelper,
+                Duration.ofSeconds(10),
+                "myproc",
+                null,
+                null,
+                false,
+                true,
+                false,
+                false,
+                false,
+                true,
+                true
+            )
         );
+    }
 
-        List<String> command = new ArrayList<>();
-        processPipes.addArgs(command);
+    public void testIsolatedChildIpcDirGivenEmptyJobIdOnLinuxShouldReject() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NamedPipeHelper namedPipeHelper = new NamedPipeHelper();
 
-        String prefix = namedPipeHelper.getDefaultPipeDirectoryPrefix(env) + "myproc_";
-        String suffix = "_" + JvmInfo.jvmInfo().getPid();
-        assertEquals(ProcessPipes.LOG_PIPE_ARG + prefix + "log" + suffix, command.get(0));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ProcessPipes(
+                env,
+                namedPipeHelper,
+                Duration.ofSeconds(10),
+                "myproc",
+                "",
+                null,
+                false,
+                true,
+                false,
+                false,
+                false,
+                true,
+                true
+            )
+        );
     }
 
     public void testIsolatedChildIpcDir_rejectsPersistPipe() {

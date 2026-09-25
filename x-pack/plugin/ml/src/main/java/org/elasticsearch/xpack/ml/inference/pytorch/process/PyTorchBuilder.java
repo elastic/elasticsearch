@@ -95,6 +95,14 @@ public class PyTorchBuilder {
         // no-token default (which now always means legacy, see ml-cpp#3188) is never relied upon
         // by Elasticsearch itself, only by direct/manual invocations of the controller.
         if (isLinux) {
+            if (sandboxEnabled != processPipes.usesIsolatedChildIpcDir()) {
+                throw new IllegalStateException(
+                    "sandbox token decision and isolated child IPC layout must agree: sandboxEnabled="
+                        + sandboxEnabled
+                        + ", usesIsolatedChildIpcDir="
+                        + processPipes.usesIsolatedChildIpcDir()
+                );
+            }
             command.add(sandboxEnabled ? REQUIRE_SANDBOX_ARG : DISABLE_SANDBOX_ARG);
         }
 

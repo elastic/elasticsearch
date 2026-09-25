@@ -64,6 +64,8 @@ public class ProcessPipes {
      */
     private final Duration timeout;
 
+    private final boolean usesIsolatedChildIpcDir;
+
     private CppLogMessageHandler logStreamHandler;
     private OutputStream commandStream;
     private OutputStream processInStream;
@@ -85,8 +87,9 @@ public class ProcessPipes {
      *                               instead of the legacy flat-prefix-plus-pid-suffix naming. See
      *                               {@link NamedPipeHelper#getChildIpcDirectoryPrefix}. Command and persist pipes have no
      *                               defined name within that directory, so requesting either while this is {@code true} is
-     *                               rejected. On any other platform, or if {@code jobId} is empty, this parameter has no effect
-     *                               and the legacy naming is used.
+     *                               rejected. On non-Linux platforms this parameter has no effect and the legacy naming is used.
+     *                               On Linux, if this is {@code true} and {@code jobId} is null or empty, construction fails
+     *                               rather than falling back to legacy naming while a sandbox launch may still advertise Sandbox2.
      */
     public ProcessPipes(
         Environment env,
@@ -144,8 +147,11 @@ public class ProcessPipes {
         this.tempDir = env.tmpDir();
         this.timeout = timeout;
 
-        boolean isolateChildIpcDir = useIsolatedChildIpcDir && isLinux && Strings.isNullOrEmpty(jobId) == false;
-        if (isolateChildIpcDir) {
+        if (useIsolatedChildIpcDir && isLinux && Strings.isNullOrEmpty(jobId)) {
+            throw new IllegalArgumentException("Isolated child IPC directory requires a non-empty jobId");
+        }
+        this.usesIsolatedChildIpcDir = useIsolatedChildIpcDir && isLinux && Strings.isNullOrEmpty(jobId) == false;
+        if (usesIsolatedChildIpcDir) {
             // The isolated child IPC directory contract validated by the native controller only covers the
             // input/output/restore/logPipe paths. Command and persist pipes are not part of that contract, so there
             // is no defined filename for them within the directory - fail fast rather than silently constructing an
@@ -184,6 +190,14 @@ public class ProcessPipes {
             restorePipeName = wantRestorePipe ? String.format(Locale.ROOT, "%srestore%s", prefix, suffix) : null;
             persistPipeName = wantPersistPipe ? String.format(Locale.ROOT, "%spersist%s", prefix, suffix) : null;
         }
+    }
+
+    /**
+     * Whether this instance lays out child IPC pipes under the isolated per-child directory
+     * ({@code $TMPDIR/ml-child-ipc/<jobId>/}) rather than the legacy flat-prefix naming.
+     */
+    public boolean usesIsolatedChildIpcDir() {
+        return usesIsolatedChildIpcDir;
     }
 
     /**

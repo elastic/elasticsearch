@@ -43,6 +43,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
@@ -688,13 +689,27 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        infer(model, input, stream, taskSettings, inputType, timeout, TaskId.EMPTY_TASK_ID, listener);
+    }
+
+    @Override
+    public void infer(
+        Model model,
+        List<String> input,
+        boolean stream,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        @Nullable TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         timeout = resolveInferenceTimeout(timeout, inputType, getClusterService(), model.getTaskType());
         if (model instanceof ElasticsearchInternalModel esModel) {
             var taskType = model.getConfigurations().getTaskType();
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                inferTextEmbedding(esModel, input, inputType, timeout, listener);
+                inferTextEmbedding(esModel, input, inputType, timeout, parentTaskId, listener);
             } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
-                inferSparseEmbedding(esModel, input, inputType, timeout, listener);
+                inferSparseEmbedding(esModel, input, inputType, timeout, parentTaskId, listener);
             } else {
                 throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
             }
@@ -708,6 +723,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> inputs,
         InputType inputType,
         TimeValue timeout,
+        TaskId parentTaskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         var request = buildInferenceRequest(
@@ -717,6 +733,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             inputType,
             timeout
         );
+        request.setParentTask(parentTaskId);
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
             (l, inferenceResult) -> l.onResponse(DenseEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
@@ -734,9 +751,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<String> inputs,
         InputType inputType,
         TimeValue timeout,
+        TaskId parentTaskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         var request = buildInferenceRequest(model.mlNodeDeploymentId(), TextExpansionConfigUpdate.EMPTY_UPDATE, inputs, inputType, timeout);
+        request.setParentTask(parentTaskId);
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
             (l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getInferenceResults()))

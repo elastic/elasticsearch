@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -86,6 +87,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         threadPool = mock();
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         transportService = mock();
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("local_node"));
         licenseState = mock();
         inferenceEndpointRegistry = mock();
         serviceRegistry = mock();
@@ -436,9 +438,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(service.supportedStreamingTasks()).thenReturn(supportedStreamingTasks);
         when(service.supportsNonStreamingChatCompletion()).thenReturn(true);
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(6));
+            listenerAction.accept(ans.getArgument(7));
             return null;
-        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;

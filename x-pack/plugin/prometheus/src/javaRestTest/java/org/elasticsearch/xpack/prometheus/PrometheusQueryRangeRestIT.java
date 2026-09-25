@@ -494,4 +494,10 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantClampWithMinAboveMaxIsEmpty}. */
+    public void testRangeClampWithMinAboveMaxIsEmpty() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("clamp(tx, 60, 40)");
+        assertBinopRangeValues("clamp(tx, 20, 25)", 20, 25, 20);
+    }
 }

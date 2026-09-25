@@ -508,4 +508,10 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** Prometheus: {@code clamp} with {@code min > max} is the empty vector. */
+    public void testInstantClampWithMinAboveMaxIsEmpty() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("clamp(tx, 60, 40)");
+        assertBinopInstantValues("clamp(tx, 20, 25)", 20, 25, 20);
+    }
 }

@@ -274,7 +274,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     ) {
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
         parentTask.addListener(
-            () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
+            () -> exchangeService.runOnDriverPool(
+                () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
+            )
         );
         exchangeSink.addCompletionListener(ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)));
         final String localSessionId = clusterAlias + ":" + globalSessionId;

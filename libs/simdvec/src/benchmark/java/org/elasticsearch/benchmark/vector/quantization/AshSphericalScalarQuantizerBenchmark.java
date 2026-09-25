@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.vector.quantization;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.benchmark.vector.VectorizationInfo;
+import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.AshSphericalScalarQuantizer;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
@@ -29,6 +30,9 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -71,12 +75,15 @@ public class AshSphericalScalarQuantizerBenchmark {
     @Param({ "GAUSSIAN", "UNIFORM", "TIED" })
     Distribution distribution;
 
+    // keeping this Arena alive keeps the MemorySegments accessible
+    private Arena arena;
     private AshSphericalScalarQuantizer quantizer;
-    private float[][] vectors;
-    private float[] out;
+    private MemorySegment[] vectors;
+    private MemorySegment out;
 
     @Setup(Level.Trial)
     public void init() {
+        arena = Arena.ofAuto();
         quantizer = (switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false);
             case PANAMA -> ESVectorizationProvider.lookup(true, false);
@@ -84,14 +91,16 @@ public class AshSphericalScalarQuantizerBenchmark {
         }).getVectorScorerFactory().newAshSphericalScalarQuantizer(bitsPerDim);
 
         Random random = new Random();
-        out = new float[dims];
-        vectors = new float[numVectors][];
+        out = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, dims);
+        vectors = new MemorySegment[numVectors];
         for (int i = 0; i < numVectors; i++) {
-            vectors[i] = switch (distribution) {
+            float[] vec = switch (distribution) {
                 case GAUSSIAN -> randomGaussians(random, dims);
                 case UNIFORM -> VectorTestUtils.randomFloatVector(random, dims);
                 case TIED -> tied(random, dims);
             };
+            vectors[i] = ArenaAdapter.allocate(arena, ValueLayout.JAVA_FLOAT, dims);
+            MemorySegment.copy(vec, 0, vectors[i], ValueLayout.JAVA_FLOAT, 0, dims);
         }
     }
 

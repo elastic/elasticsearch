@@ -29,8 +29,10 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteOrder;
 
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.AND;
 import static jdk.incubator.vector.VectorOperators.ASHR;
@@ -261,6 +263,44 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
         for (; i < end; i++) {
             v[i] *= scale;
+        }
+        return normSq;
+    }
+
+    @Override
+    public float l2NormalizeFloat(MemorySegment v, int offset, int length) {
+        // compute dot product of v with itself
+        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        int end = offset + length;
+
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        long i = offset;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, v, i * Float.BYTES, ByteOrder.nativeOrder());
+            acc = fma(vec, vec, acc);
+        }
+
+        float normSq = acc.reduceLanes(ADD);
+        for (; i < end; i++) {
+            float val = v.getAtIndex(JAVA_FLOAT, i);
+            normSq = fma(val, val, normSq);
+        }
+
+        if (normSq == 0f) {
+            return 0;
+        }
+
+        // then apply normalization factor
+        float scale = (float) (1.0 / Math.sqrt(normSq));
+        FloatVector scaleVec = FloatVector.broadcast(FLOAT_SPECIES, scale);
+
+        i = offset;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, v, i * Float.BYTES, ByteOrder.nativeOrder());
+            vec.mul(scaleVec).intoMemorySegment(v, i * Float.BYTES, ByteOrder.nativeOrder());
+        }
+        for (; i < end; i++) {
+            v.setAtIndex(JAVA_FLOAT, i, v.getAtIndex(JAVA_FLOAT, i) * scale);
         }
         return normSq;
     }
@@ -2430,14 +2470,14 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+    public void matrixMultiplyFloat(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result) {
         multiply(a, k, b, result, m, k, n);
     }
 
     /**
      * Panama version of matrix multiply, with 4x row unrolling
      */
-    private static void multiply(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
+    private static void multiply(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int cRows, int inner, int n) {
         int i = 0;
         // operate on 4 rows at a time
         for (; i + 4 <= cRows; i += 4) {
@@ -2449,7 +2489,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
     }
 
-    private static void multiplyTile4(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
+    private static void multiplyTile4(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int i, int inner, int n) {
         /*
          * AVX2, AVX512, NEON, and SVE all (generally) have 64-byte (512-bit) cache lines.
          * Ideally, all data we read in a cache line should be processed at that point, and not re-read.
@@ -2458,7 +2498,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
          * On AVX2 and AVX512, we unroll 2x, as the SIMD widths are wider.
          * It's ok to load two cache lines at once on AVX512 (where vector width == cache width)
          */
-        int j = VECTOR_BITSIZE == 128
+        long j = VECTOR_BITSIZE == 128
             ? multiplyTile4x4(a, aRowStride, b, c, i, inner, n)
             : multiplyTile4x2(a, aRowStride, b, c, i, inner, n);
 
@@ -2478,17 +2518,17 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
-            for (int l = 0; l < inner; l++) {
-                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j);
-                acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]), bv, acc0);
-                acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a1 + l]), bv, acc1);
-                acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a2 + l]), bv, acc2);
-                acc3 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a3 + l]), bv, acc3);
+            for (long l = 0; l < inner; l++) {
+                FloatVector bv = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, (l * n + j) * Float.BYTES, ByteOrder.nativeOrder());
+                acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a0 + l)), bv, acc0);
+                acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a1 + l)), bv, acc1);
+                acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a2 + l)), bv, acc2);
+                acc3 = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a3 + l)), bv, acc3);
             }
-            acc0.intoArray(c, c0 + j);
-            acc1.intoArray(c, c1 + j);
-            acc2.intoArray(c, c2 + j);
-            acc3.intoArray(c, c3 + j);
+            acc0.intoMemorySegment(c, (c0 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc1.intoMemorySegment(c, (c1 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc2.intoMemorySegment(c, (c2 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc3.intoMemorySegment(c, (c3 + j) * Float.BYTES, ByteOrder.nativeOrder());
         }
 
         // scalar column tail, groups of 4 rows
@@ -2497,21 +2537,21 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             float s1 = 0;
             float s2 = 0;
             float s3 = 0;
-            for (int l = 0; l < inner; l++) {
-                float bv = b[l * n + j];
-                s0 = fma(a[a0 + l], bv, s0);
-                s1 = fma(a[a1 + l], bv, s1);
-                s2 = fma(a[a2 + l], bv, s2);
-                s3 = fma(a[a3 + l], bv, s3);
+            for (long l = 0; l < inner; l++) {
+                float bv = b.getAtIndex(JAVA_FLOAT, l * n + j);
+                s0 = fma(a.getAtIndex(JAVA_FLOAT, a0 + l), bv, s0);
+                s1 = fma(a.getAtIndex(JAVA_FLOAT, a1 + l), bv, s1);
+                s2 = fma(a.getAtIndex(JAVA_FLOAT, a2 + l), bv, s2);
+                s3 = fma(a.getAtIndex(JAVA_FLOAT, a3 + l), bv, s3);
             }
-            c[c0 + j] = s0;
-            c[c1 + j] = s1;
-            c[c2 + j] = s2;
-            c[c3 + j] = s3;
+            c.setAtIndex(JAVA_FLOAT, c0 + j, s0);
+            c.setAtIndex(JAVA_FLOAT, c1 + j, s1);
+            c.setAtIndex(JAVA_FLOAT, c2 + j, s2);
+            c.setAtIndex(JAVA_FLOAT, c3 + j, s3);
         }
     }
 
-    private static int multiplyTile4x4(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
+    private static long multiplyTile4x4(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int i, int inner, int n) {
         /*
          * This uses 24 of the 32 vector registers on NEON and SVE
          */
@@ -2524,10 +2564,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         final int c2 = c0 + n * 2;
         final int c3 = c0 + n * 3;
 
-        int j = 0;
-        int len = FLOAT_SPECIES.length();
+        long j = 0;
+        long len = FLOAT_SPECIES.length();
         int sectionLength = FLOAT_SPECIES.length() * 4;
-        int limit = limit(n, sectionLength);
+        long limit = limit(n, sectionLength);
         for (; j < limit; j += sectionLength) {
             FloatVector acc00 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc01 = FloatVector.zero(FLOAT_SPECIES);
@@ -2545,58 +2585,58 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector acc31 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc32 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc33 = FloatVector.zero(FLOAT_SPECIES);
-            for (int l = 0; l < inner; l++) {
-                final int bBase = l * n + j;
-                FloatVector bv0 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase);
-                FloatVector bv1 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase + len);
-                FloatVector bv2 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase + len * 2);
-                FloatVector bv3 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase + len * 3);
+            for (long l = 0; l < inner; l++) {
+                final long bBase = l * n + j;
+                FloatVector bv0 = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, bBase * Float.BYTES, ByteOrder.nativeOrder());
+                FloatVector bv1 = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, (bBase + len) * Float.BYTES, ByteOrder.nativeOrder());
+                FloatVector bv2 = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, (bBase + len * 2) * Float.BYTES, ByteOrder.nativeOrder());
+                FloatVector bv3 = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, (bBase + len * 3) * Float.BYTES, ByteOrder.nativeOrder());
 
-                FloatVector av0 = FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]);
+                FloatVector av0 = FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a0 + l));
                 acc00 = fma(av0, bv0, acc00);
                 acc01 = fma(av0, bv1, acc01);
                 acc02 = fma(av0, bv2, acc02);
                 acc03 = fma(av0, bv3, acc03);
 
-                FloatVector av1 = FloatVector.broadcast(FLOAT_SPECIES, a[a1 + l]);
+                FloatVector av1 = FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a1 + l));
                 acc10 = fma(av1, bv0, acc10);
                 acc11 = fma(av1, bv1, acc11);
                 acc12 = fma(av1, bv2, acc12);
                 acc13 = fma(av1, bv3, acc13);
 
-                FloatVector av2 = FloatVector.broadcast(FLOAT_SPECIES, a[a2 + l]);
+                FloatVector av2 = FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a2 + l));
                 acc20 = fma(av2, bv0, acc20);
                 acc21 = fma(av2, bv1, acc21);
                 acc22 = fma(av2, bv2, acc22);
                 acc23 = fma(av2, bv3, acc23);
 
-                FloatVector av3 = FloatVector.broadcast(FLOAT_SPECIES, a[a3 + l]);
+                FloatVector av3 = FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a3 + l));
                 acc30 = fma(av3, bv0, acc30);
                 acc31 = fma(av3, bv1, acc31);
                 acc32 = fma(av3, bv2, acc32);
                 acc33 = fma(av3, bv3, acc33);
             }
-            acc00.intoArray(c, c0 + j);
-            acc01.intoArray(c, c0 + j + len);
-            acc02.intoArray(c, c0 + j + len * 2);
-            acc03.intoArray(c, c0 + j + len * 3);
-            acc10.intoArray(c, c1 + j);
-            acc11.intoArray(c, c1 + j + len);
-            acc12.intoArray(c, c1 + j + len * 2);
-            acc13.intoArray(c, c1 + j + len * 3);
-            acc20.intoArray(c, c2 + j);
-            acc21.intoArray(c, c2 + j + len);
-            acc22.intoArray(c, c2 + j + len * 2);
-            acc23.intoArray(c, c2 + j + len * 3);
-            acc30.intoArray(c, c3 + j);
-            acc31.intoArray(c, c3 + j + len);
-            acc32.intoArray(c, c3 + j + len * 2);
-            acc33.intoArray(c, c3 + j + len * 3);
+            acc00.intoMemorySegment(c, (c0 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc01.intoMemorySegment(c, (c0 + j + len) * Float.BYTES, ByteOrder.nativeOrder());
+            acc02.intoMemorySegment(c, (c0 + j + len * 2) * Float.BYTES, ByteOrder.nativeOrder());
+            acc03.intoMemorySegment(c, (c0 + j + len * 3) * Float.BYTES, ByteOrder.nativeOrder());
+            acc10.intoMemorySegment(c, (c1 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc11.intoMemorySegment(c, (c1 + j + len) * Float.BYTES, ByteOrder.nativeOrder());
+            acc12.intoMemorySegment(c, (c1 + j + len * 2) * Float.BYTES, ByteOrder.nativeOrder());
+            acc13.intoMemorySegment(c, (c1 + j + len * 3) * Float.BYTES, ByteOrder.nativeOrder());
+            acc20.intoMemorySegment(c, (c2 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc21.intoMemorySegment(c, (c2 + j + len) * Float.BYTES, ByteOrder.nativeOrder());
+            acc22.intoMemorySegment(c, (c2 + j + len * 2) * Float.BYTES, ByteOrder.nativeOrder());
+            acc23.intoMemorySegment(c, (c2 + j + len * 3) * Float.BYTES, ByteOrder.nativeOrder());
+            acc30.intoMemorySegment(c, (c3 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc31.intoMemorySegment(c, (c3 + j + len) * Float.BYTES, ByteOrder.nativeOrder());
+            acc32.intoMemorySegment(c, (c3 + j + len * 2) * Float.BYTES, ByteOrder.nativeOrder());
+            acc33.intoMemorySegment(c, (c3 + j + len * 3) * Float.BYTES, ByteOrder.nativeOrder());
         }
         return j;
     }
 
-    private static int multiplyTile4x2(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
+    private static long multiplyTile4x2(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int i, int inner, int n) {
         /*
          * This uses 14 of the 16 vector registers on AVX2 (SVE and AVX512 have more)
          */
@@ -2609,10 +2649,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         final int c2 = c0 + n * 2;
         final int c3 = c0 + n * 3;
 
-        int j = 0;
-        int len = FLOAT_SPECIES.length();
+        long j = 0;
+        long len = FLOAT_SPECIES.length();
         int sectionLength = FLOAT_SPECIES.length() * 2;
-        int limit = limit(n, sectionLength);
+        long limit = limit(n, sectionLength);
         for (; j < limit; j += sectionLength) {
             FloatVector acc00 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc01 = FloatVector.zero(FLOAT_SPECIES);
@@ -2622,61 +2662,61 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector acc21 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc30 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc31 = FloatVector.zero(FLOAT_SPECIES);
-            for (int l = 0; l < inner; l++) {
-                final int bBase = l * n + j;
-                FloatVector bv0 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase);
-                FloatVector bv1 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase + len);
+            for (long l = 0; l < inner; l++) {
+                final long bBase = l * n + j;
+                FloatVector bv0 = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, bBase * Float.BYTES, ByteOrder.nativeOrder());
+                FloatVector bv1 = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, (bBase + len) * Float.BYTES, ByteOrder.nativeOrder());
 
-                FloatVector av0 = FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]);
+                FloatVector av0 = FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a0 + l));
                 acc00 = fma(av0, bv0, acc00);
                 acc01 = fma(av0, bv1, acc01);
 
-                FloatVector av1 = FloatVector.broadcast(FLOAT_SPECIES, a[a1 + l]);
+                FloatVector av1 = FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a1 + l));
                 acc10 = fma(av1, bv0, acc10);
                 acc11 = fma(av1, bv1, acc11);
 
-                FloatVector av2 = FloatVector.broadcast(FLOAT_SPECIES, a[a2 + l]);
+                FloatVector av2 = FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a2 + l));
                 acc20 = fma(av2, bv0, acc20);
                 acc21 = fma(av2, bv1, acc21);
 
-                FloatVector av3 = FloatVector.broadcast(FLOAT_SPECIES, a[a3 + l]);
+                FloatVector av3 = FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a3 + l));
                 acc30 = fma(av3, bv0, acc30);
                 acc31 = fma(av3, bv1, acc31);
             }
-            acc00.intoArray(c, c0 + j);
-            acc01.intoArray(c, c0 + j + len);
-            acc10.intoArray(c, c1 + j);
-            acc11.intoArray(c, c1 + j + len);
-            acc20.intoArray(c, c2 + j);
-            acc21.intoArray(c, c2 + j + len);
-            acc30.intoArray(c, c3 + j);
-            acc31.intoArray(c, c3 + j + len);
+            acc00.intoMemorySegment(c, (c0 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc01.intoMemorySegment(c, (c0 + j + len) * Float.BYTES, ByteOrder.nativeOrder());
+            acc10.intoMemorySegment(c, (c1 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc11.intoMemorySegment(c, (c1 + j + len) * Float.BYTES, ByteOrder.nativeOrder());
+            acc20.intoMemorySegment(c, (c2 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc21.intoMemorySegment(c, (c2 + j + len) * Float.BYTES, ByteOrder.nativeOrder());
+            acc30.intoMemorySegment(c, (c3 + j) * Float.BYTES, ByteOrder.nativeOrder());
+            acc31.intoMemorySegment(c, (c3 + j + len) * Float.BYTES, ByteOrder.nativeOrder());
         }
         return j;
     }
 
-    private static void multiplyTile1(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
+    private static void multiplyTile1(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int i, int inner, int n) {
         final int a0 = i * aRowStride;
         final int c0 = i * n;
 
         final int limit = FLOAT_SPECIES.loopBound(n);
-        int j = 0;
+        long j = 0;
         for (; j < limit; j += FLOAT_SPECIES.length()) {
             FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
-            for (int l = 0; l < inner; l++) {
-                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j);
-                acc = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]), bv, acc);
+            for (long l = 0; l < inner; l++) {
+                FloatVector bv = FloatVector.fromMemorySegment(FLOAT_SPECIES, b, (l * n + j) * Float.BYTES, ByteOrder.nativeOrder());
+                acc = fma(FloatVector.broadcast(FLOAT_SPECIES, a.getAtIndex(JAVA_FLOAT, a0 + l)), bv, acc);
             }
-            acc.intoArray(c, c0 + j);
+            acc.intoMemorySegment(c, (c0 + j) * Float.BYTES, ByteOrder.nativeOrder());
         }
 
         // column tail
         for (; j < n; j++) {
             float s = 0;
-            for (int l = 0; l < inner; l++) {
-                s = fma(a[a0 + l], b[l * n + j], s);
+            for (long l = 0; l < inner; l++) {
+                s = fma(a.getAtIndex(JAVA_FLOAT, a0 + l), b.getAtIndex(JAVA_FLOAT, l * n + j), s);
             }
-            c[c0 + j] = s;
+            c.setAtIndex(JAVA_FLOAT, c0 + j, s);
         }
     }
 
@@ -2699,8 +2739,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
     }
 
-    private static void matrixVectorMultiply4Aligned(float[] a, int aOffset, int cols, float[] v, float[] result, int resultOffset) {
-        final int a0 = aOffset;
+    private static void matrixVectorMultiply4Aligned(float[] a, int a0, int cols, float[] v, float[] result, int resultOffset) {
         final int a1 = a0 + cols;
         final int a2 = a0 + cols * 2;
         final int a3 = a0 + cols * 3;
@@ -2723,8 +2762,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         result[resultOffset + 3] = sv3.reduceLanes(ADD);
     }
 
-    private static void matrixVectorMultiply4Unaligned(float[] a, int aOffset, int cols, float[] v, float[] result, int resultOffset) {
-        final int a0 = aOffset;
+    private static void matrixVectorMultiply4Unaligned(float[] a, int a0, int cols, float[] v, float[] result, int resultOffset) {
         final int a1 = a0 + cols;
         final int a2 = a0 + cols * 2;
         final int a3 = a0 + cols * 3;

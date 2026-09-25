@@ -10,16 +10,22 @@
 package org.elasticsearch.index.codec.vectors.ash;
 
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -29,18 +35,30 @@ import static org.hamcrest.Matchers.lessThan;
  */
 public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
+    private static Arena arena;
+
+    @BeforeClass
+    public static void setup() {
+        arena = Arena.ofConfined();
+    }
+
+    @AfterClass
+    public static void teardown() {
+        arena.close();
+    }
+
     public void testProcrustesOrthogonal() {
         // Procrustes of a random matrix should return orthogonal matrix (R^T R = I)
         int k = 5;
         float[] m = AshUtils.randomGaussians(random(), k * k);
-        float[] r = new float[k * k];
+        MemorySegment r = ArenaAdapter.allocate(arena, JAVA_FLOAT, k * k);
         AshUtils.procrustes(m, k, r);
         // Check R^T R ~= I
         for (int i = 0; i < k; i++) {
             for (int j = 0; j < k; j++) {
                 float dot = 0;
                 for (int l = 0; l < k; l++) {
-                    dot = Math.fma(r[l * k + i], r[l * k + j], dot);
+                    dot = Math.fma(r.getAtIndex(JAVA_FLOAT, l * k + i), r.getAtIndex(JAVA_FLOAT, l * k + j), dot);
                 }
                 float expected = (i == j) ? 1.0f : 0.0f;
                 assertEquals(expected, dot, 1e-4f);
@@ -299,15 +317,16 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int m = 6;
         int n = 4;
         int k = 2;
-        float[] a = new float[m * n];
-        a[0 * n + 0] = 4.0f;
-        a[1 * n + 1] = 3.0f;
-        a[2 * n + 2] = 2.0f;
-        a[3 * n + 3] = 1.0f;
+        MemorySegment a = ArenaAdapter.allocate(arena, JAVA_FLOAT, m * n);
+        a.setAtIndex(JAVA_FLOAT, 0 * n + 0, 4.0f);
+        a.setAtIndex(JAVA_FLOAT, 1 * n + 1, 3.0f);
+        a.setAtIndex(JAVA_FLOAT, 2 * n + 2, 2.0f);
+        a.setAtIndex(JAVA_FLOAT, 3 * n + 3, 1.0f);
 
         // Top-2 right singular vectors returned as columns (n x k)
-        float[] topK = AshUtils.topKRightSingularVectors(a, m, n, k, 42L);
-        assertEquals(n * k, topK.length);
+        MemorySegment topKSegment = ArenaAdapter.allocate(arena, JAVA_FLOAT, n * k);
+        AshUtils.topKRightSingularVectors(a, m, n, k, 42L, topKSegment);
+        float[] topK = topKSegment.toArray(JAVA_FLOAT);
 
         // First column should be dominated by row 0 (corresponding to singular value 4)
         assertThat(Math.abs(topK[0 * k + 0]), greaterThan(0.9f));
@@ -322,15 +341,16 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int m = 4;
         int n = 6;
         int k = 2;
-        float[] a = new float[m * n];
-        a[0 * n + 0] = 4.0f;
-        a[1 * n + 1] = 3.0f;
-        a[2 * n + 2] = 2.0f;
-        a[3 * n + 3] = 1.0f;
+        MemorySegment a = ArenaAdapter.allocate(arena, JAVA_FLOAT, m * n);
+        a.setAtIndex(JAVA_FLOAT, 0 * n + 0, 4.0f);
+        a.setAtIndex(JAVA_FLOAT, 1 * n + 1, 3.0f);
+        a.setAtIndex(JAVA_FLOAT, 2 * n + 2, 2.0f);
+        a.setAtIndex(JAVA_FLOAT, 3 * n + 3, 1.0f);
 
         // Top-2 right singular vectors returned as columns (n x k)
-        float[] topK = AshUtils.topKRightSingularVectors(a, m, n, k, 42L);
-        assertEquals(n * k, topK.length);
+        MemorySegment topKSegment = ArenaAdapter.allocate(arena, JAVA_FLOAT, n * k);
+        AshUtils.topKRightSingularVectors(a, m, n, k, 42L, topKSegment);
+        float[] topK = topKSegment.toArray(JAVA_FLOAT);
 
         // First column should be dominated by row 0 (corresponding to singular value 4)
         assertThat(Math.abs(topK[0 * k + 0]), greaterThan(0.9f));

@@ -6560,7 +6560,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Object tryParseInt(String value) {
             try {
                 return DeclaredTypeCoercions.exactToInt(value);
-            } catch (NumberFormatException | InvalidArgumentException e) {
+            } catch (InvalidArgumentException e) {
                 lastFieldError = cannotRead(value, DataType.INTEGER);
                 return null;
             }
@@ -6569,7 +6569,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Object tryParseLong(String value) {
             try {
                 return DeclaredTypeCoercions.exactToLong(value);
-            } catch (NumberFormatException | InvalidArgumentException e) {
+            } catch (InvalidArgumentException e) {
                 lastFieldError = cannotRead(value, DataType.LONG);
                 return null;
             }

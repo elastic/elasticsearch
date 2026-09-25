@@ -1294,7 +1294,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<String> warnings = new ArrayList<>();
         List<Attribute> schema = readSchema(object, warnings::add);
-        String location = object.path().toString();
+        String location = object.path().objectName();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
         try {
@@ -1337,7 +1337,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object, Consumer<String> warningSink) throws IOException {
-        String sourceLocation = object.path().toString();
+        String sourceLocation = object.path().objectName();
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -2198,7 +2198,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectiveSchema,
             declaredBinding,
             effective,
-            object.path().toString(),
+            object.path().objectName(),
             object.path(),
             cacheable ? object : null,
             cacheable ? stream : null,

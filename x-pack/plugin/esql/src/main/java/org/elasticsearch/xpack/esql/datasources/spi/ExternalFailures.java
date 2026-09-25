@@ -88,6 +88,13 @@ public final class ExternalFailures {
     /**
      * Storage-URI scheme prefixes that must never appear in an {@link ExternalException} message
      * handed to a caller. Used by the {@code assert} guard in {@link #classify}.
+     * <p>
+     * Scope: covers object-store schemes (S3, GCS, Azure Blob) and generic HTTP/HTTPS endpoints.
+     * The Flight/gRPC datasource ({@code esql-datasource-grpc}) is explicitly out of scope for
+     * this PR: Flight provider messages embed location/endpoint strings but use non-HTTP schemes
+     * (e.g. {@code grpc://}, {@code grpcs://}). Hardening that module is tracked separately.
+     * When that work lands, add {@code "grpc://"} and {@code "grpcs://"} to this array so the
+     * {@code assert} guard in {@link #classify} catches Flight path leaks too.
      */
     private static final String[] STORAGE_URI_SCHEMES = {
         "s3://",
@@ -129,6 +136,15 @@ public final class ExternalFailures {
             }
         }
         return false;
+    }
+
+    /**
+     * Returns {@code true} when {@code message} contains no known storage-URI scheme. Callers
+     * outside the {@code spi} package use this to decide whether a diagnostic message from a
+     * third-party library is safe to forward to the user.
+     */
+    public static boolean safeForUserMessage(String message) {
+        return containsStoragePath(message) == false;
     }
 
     /**

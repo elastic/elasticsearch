@@ -281,31 +281,32 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "", cause);
         }
         if (isClosedClient(cause)) {
+            logger.debug("S3 client closed during read for [{}]", path.objectName(), cause);
             return new ExternalUnavailableException(
                 ExternalUnavailableException.Condition.STORE_UNAVAILABLE,
                 path,
                 S3FailureDetail.of(cause),
                 "",
                 false,
-                0L,
-                cause
+                0L
             );
         }
         if (isSdkClientTransportFailure(cause)) {
+            logger.debug("S3 transport failure reading [{}]", path.objectName(), cause);
             return new ExternalUnavailableException(
                 ExternalUnavailableException.Condition.STORE_UNAVAILABLE,
                 path,
                 S3FailureDetail.of(cause),
                 "",
                 false,
-                0L,
-                cause
+                0L
             );
         }
         if (cause instanceof IllegalStateException ise) {
             return ise;
         }
-        return new IOException(context + ": " + S3FailureDetail.of(cause), cause);
+        logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
+        return new IOException(context + ": " + S3FailureDetail.of(cause));
     }
 
     /**

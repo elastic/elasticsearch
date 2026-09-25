@@ -467,7 +467,8 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 return new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "", cause);
             }
         }
-        return new IOException(context + " [" + path.objectName() + "]: " + GcsFailureDetail.of(cause), cause);
+        logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
+        return new IOException(context + " [" + path.objectName() + "]: " + GcsFailureDetail.of(cause));
     }
 
     /**

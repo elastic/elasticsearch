@@ -65,7 +65,9 @@ import static org.hamcrest.Matchers.not;
  * the bucket name in {@code profile.plans[].plan} strings for any user, while still preserving the
  * plan shape (e.g. {@code ExternalSourceExec} node type).
  *
- * <p>The cluster uses two nodes so that scan-time failures exercise the cross-node error path.
+ * <p>The cluster uses two nodes. All four failing shapes currently fail at resolution time on the
+ * coordinator, so cross-node serialization of the exception is not exercised here; a scan-time
+ * failure shape that exercises the data-node → coordinator hop is a follow-up.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class DatasetLocationSecurityIT extends ESRestTestCase {
@@ -120,12 +122,13 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         assumeTrue("datasources not available in release builds yet", Build.current().isSnapshot());
     }
 
-    private static final String GOOD_CSV = "loc/good.csv";
-    private static final String DENIED_CSV = "loc/denied.csv";
-    private static final String GARBAGE_PARQUET = "loc/garbage.parquet";
-    private static final String GARBAGE_ORC = "loc/garbage.orc";
-    private static final String GLOB_A = "loc/glob/a.csv";
-    private static final String GLOB_B = "loc/glob/b.csv";
+    private static final String LOC_PREFIX = "loc/";
+    private static final String GOOD_CSV = LOC_PREFIX + "good.csv";
+    private static final String DENIED_CSV = LOC_PREFIX + "denied.csv";
+    private static final String GARBAGE_PARQUET = LOC_PREFIX + "garbage.parquet";
+    private static final String GARBAGE_ORC = LOC_PREFIX + "garbage.orc";
+    private static final String GLOB_A = LOC_PREFIX + "glob/a.csv";
+    private static final String GLOB_B = LOC_PREFIX + "glob/b.csv";
 
     @BeforeClass
     public static void seedFixture() {
@@ -214,6 +217,7 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
                 List<String> texts = allErrorText(entityAsMap(error.getResponse()));
                 for (String text : texts) {
                     assertThat(label + " must not see bucket name in error for [" + dataset + "]", text, not(containsString(BUCKET)));
+                    assertThat(label + " must not see key prefix in error for [" + dataset + "]", text, not(containsString(LOC_PREFIX)));
                 }
                 String objName = expectedObjectName.get(dataset);
                 if (objName != null) {
@@ -238,6 +242,7 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
                 String plan = (String) entry.get("plan");
                 if (plan != null) {
                     assertThat(label + " must not see bucket name in profile plan", plan, not(containsString(BUCKET)));
+                    assertThat(label + " must not see key prefix in profile plan", plan, not(containsString(LOC_PREFIX)));
                     // Confirm the plan shape (node type) is still present.
                     assertThat("plan shape must be visible to " + label, plan, containsString("ExternalSourceExec"));
                 }

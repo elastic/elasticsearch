@@ -842,8 +842,13 @@ public class ExternalSourceResolver {
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (clientError != null) {
             recordDiscoveryFailure();
+            // Log the full IAE detail locally; forward only if free of storage-URI schemes.
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
-            return clientError;
+            String iaeMsg = clientError.getMessage();
+            String safeMsg = (iaeMsg != null && ExternalFailures.safeForUserMessage(iaeMsg)) ? iaeMsg
+                : "Malformed external data (" + clientError.getClass().getSimpleName() + ")";
+            // Wrap in ExternalClientException so the caller can annotate with dataset context.
+            return new ExternalClientException(safeMsg);
         }
         // Recover a typed client exception from behind a transparent wrapper for the same reason the IAE arm above
         // does. Storage connectors now throw ExternalClientException (400) directly for access-denied and

@@ -586,7 +586,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            object.path().objectName(),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()
@@ -734,7 +734,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters,
             declaredDateFormats,
             declaredTypeColumns,
-            object.path().toString(),
+            object.path().objectName(),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget()

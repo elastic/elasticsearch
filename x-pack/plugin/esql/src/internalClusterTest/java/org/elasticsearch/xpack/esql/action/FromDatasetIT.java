@@ -6190,12 +6190,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
 
         // The query must fail — the _SUCCESS marker is included in the listing and causes a CSV
-        // parse error. Path info is redacted in non-security test clusters, so we only verify
-        // that an exception is thrown (not the specific message).
-        expectThrows(
-            Exception.class,
-            () -> { try (var ignored = run(syncEsqlQueryRequest("FROM logs_no_exclusions | LIMIT 5"), TIMEOUT)) {} }
-        );
+        // parse error. Path info is redacted, but the object name (_SUCCESS) is allowed and must
+        // appear in the error so the user knows which file caused the problem.
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM logs_no_exclusions | LIMIT 5"), TIMEOUT)) {}
+        });
+        assertThat(e.getMessage(), containsString("_SUCCESS"));
     }
 
     private static PutDatasetAction.Request putDatasetRequest(

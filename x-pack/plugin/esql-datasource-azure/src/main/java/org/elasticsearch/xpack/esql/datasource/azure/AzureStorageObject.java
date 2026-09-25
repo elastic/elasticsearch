@@ -21,6 +21,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -48,6 +50,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * Supports full and range reads, and metadata retrieval with caching.
  */
 public final class AzureStorageObject extends AbstractMeteredStorageObject {
+    private static final Logger logger = LogManager.getLogger(AzureStorageObject.class);
+
     private final BlobClient blobClient;
     private final BlobAsyncClient blobAsyncClient;
     private final String container;
@@ -174,7 +178,8 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof BlobStorageException precondition && precondition.getStatusCode() == 412) {
             return new ExternalObjectChangedException(path, cause);
         }
-        return new IOException(context + " [" + path.objectName() + "]", cause);
+        logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
+        return new IOException(context + " [" + path.objectName() + "]");
     }
 
     /**

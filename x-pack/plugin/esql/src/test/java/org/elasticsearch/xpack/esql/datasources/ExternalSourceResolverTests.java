@@ -200,7 +200,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Exception.class,
                 () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.DATETIME)), props, dynamic)
             );
-            IllegalArgumentException e = (IllegalArgumentException) ex;
+            Exception e = ex;
             assertThat(e.getMessage(), containsString("[format] on column [ts]"));
             assertThat(e.getMessage(), containsString("datetime"));
             assertThat(e.getMessage(), containsString("epoch unit"));
@@ -218,7 +218,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Exception.class,
             () -> resolveWithDeclaredMapping(List.of(attr("event_ts", DataType.BOOLEAN)), props, DatasetMapping.Dynamic.TRUE)
         );
-        IllegalArgumentException e = (IllegalArgumentException) ex;
+        Exception e = ex;
         assertThat(e.getMessage(), containsString("cannot be read from the file's type [boolean]"));
         assertThat("the type check fires first, not the format check", e.getMessage(), not(containsString("[format] on column")));
     }
@@ -1496,7 +1496,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 config
             )
         );
-        IllegalArgumentException e = (IllegalArgumentException) ex;
+        Exception e = ex;
         assertThat(e.getMessage(), containsString("file_sort_by"));
         assertThat(e.getMessage(), containsString("file_order"));
         assertThat(e.getMessage(), containsString("first_file_wins"));
@@ -3674,7 +3674,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Exception.class,
             () -> resolveMultiplePaths(List.of("s3://bucket/data/file.parquet"), schemasByPath, listingsByPrefix)
         );
-        IllegalArgumentException e = (IllegalArgumentException) ex;
+        Exception e = ex;
         assertThat(e.getMessage(), containsString("ReferenceAttribute"));
         assertThat(e.getMessage(), containsString("FieldAttribute"));
     }
@@ -3716,7 +3716,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             future
         );
 
-        IllegalArgumentException e = (IllegalArgumentException) expectThrows(Exception.class, future::actionGet);
+        Exception e = expectThrows(Exception.class, future::actionGet);
         assertThat(e.getMessage(), containsString("bogus_unknown_key"));
     }
 
@@ -3738,7 +3738,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             future
         );
 
-        IllegalArgumentException e = (IllegalArgumentException) expectThrows(Exception.class, future::actionGet);
+        Exception e = expectThrows(Exception.class, future::actionGet);
         assertThat(e.getMessage(), containsString("bogus_unknown_key"));
         assertEquals("validateConfig must fire before resolveMetadata; the format reader must not be reached", 0, readerCallCount.get());
     }
@@ -4117,12 +4117,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
      */
     public void testAClientErrorKeepsItsStatusThroughAWrapper() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        // IAE message contains a storage URI — classify() must suppress it.
         IllegalArgumentException original = new IllegalArgumentException("Cannot determine how to read [s3://b/x.log.gz]");
 
         RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.log.gz", new ExecutionException("wrapped", original));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
-        assertSame("the original client error must be surfaced, not a re-wrap", original, mapped);
+        assertThat("IAE must be wrapped in ExternalClientException to carry dataset context", mapped, instanceOf(ExternalClientException.class));
+        assertThat("storage path must not appear in the mapped message", mapped.getMessage(), not(containsString("s3://b/x.log.gz")));
     }
 
     public void testCredentialsExpiredKeepsIts400ThroughAWrapper() {
@@ -6211,10 +6213,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
 
             Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            // Pins what the caller needs — which file aborted the fan-out and why — rather than the wrapper's
-            // boilerplate. The wrapper now keeps the reader's diagnosis instead of replacing it with a constant.
-            assertThat(e.getMessage(), containsString("simulated read failure"));
-            assertThat(e.getMessage(), containsString(failPath));
+            // Read failure with a URI-bearing message surfaces as a 400 with the path redacted.
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+            assertThat("full storage path must not appear in user-facing message", e.getMessage(), not(containsString("s3://")));
         } finally {
             resolverExecutor.shutdownNow();
             readPool.shutdownNow();
@@ -7005,7 +7006,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), future);
 
-        IllegalArgumentException e = (IllegalArgumentException) expectThrows(Exception.class, future::actionGet);
+        Exception e = expectThrows(Exception.class, future::actionGet);
         assertEquals("too wide a glob is the caller's mistake, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
         assertThat(e.getMessage(), containsString("discovered too many files"));
         assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
@@ -7047,7 +7048,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build());
         PlainActionFuture<ExternalSourceResolution> fail = new PlainActionFuture<>();
         resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), fail);
-        IllegalArgumentException e = (IllegalArgumentException) expectThrows(Exception.class, fail::actionGet);
+        Exception e = expectThrows(Exception.class, fail::actionGet);
         assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
 
         clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 10).build());
@@ -7094,7 +7095,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build());
             PlainActionFuture<ExternalSourceResolution> fail = new PlainActionFuture<>();
             resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), fail);
-            IllegalArgumentException e = (IllegalArgumentException) expectThrows(Exception.class, fail::actionGet);
+            Exception e = expectThrows(Exception.class, fail::actionGet);
             assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
         }
     }
@@ -7121,7 +7122,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
             resolver.resolve(List.of(path), Map.of(path, Map.of("schema_sample_size", "0")), future);
 
-            IllegalArgumentException e = (IllegalArgumentException) expectThrows(Exception.class, future::actionGet);
+            Exception e = expectThrows(Exception.class, future::actionGet);
             assertEquals(
                 "format [" + format[0] + "]: a rejected reader setting is a client error",
                 RestStatus.BAD_REQUEST,

@@ -86,7 +86,7 @@ final class S3FailureDetail {
             String code = s3.awsErrorDetails() != null ? s3.awsErrorDetails().errorCode() : null;
             return code == null || code.isEmpty() ? "HTTP " + s3.statusCode() : "HTTP " + s3.statusCode() + " " + code;
         }
-        // Falls back to the class name so a null-message fault reads as its type rather than as the literal "null".
-        return cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+        // Use the class name for non-S3Exception causes: getMessage() may embed a full storage URI.
+        return cause.getClass().getSimpleName();
     }
 }

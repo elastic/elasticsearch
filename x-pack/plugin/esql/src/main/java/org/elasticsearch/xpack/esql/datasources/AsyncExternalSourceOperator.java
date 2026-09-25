@@ -261,12 +261,18 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
+        Throwable rawFailure = buffer.failure();
+        // Classify the failure so _tasks?detailed=true never surfaces an unclassified exception whose
+        // message may embed a full storage URI from an un-migrated throw site.
+        Throwable statusFailure = rawFailure != null && (rawFailure instanceof Error) == false
+            ? ExternalFailures.classify(rawFailure)
+            : rawFailure;
         return new Status(
             buffer.size(),
             pagesEmitted,
             rowsEmitted,
             buffer.bytesInBuffer(),
-            buffer.failure(),
+            statusFailure,
             processNanos,
             buffer.splitsProcessed(),
             buffer.splitsTotal(),

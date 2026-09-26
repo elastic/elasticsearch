@@ -74,7 +74,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
     }
 
     @Override
-    public long valueCount() {
+    public long valueCount() throws IOException {
         return docValues.count();
     }
 
@@ -140,62 +140,65 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
      * marginally more cpu friendly because it resolves the ordinals one time.
      */
     private SingletonDocValuesLoader buildSingletonDocValuesLoader(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
+        // Advance to the first doc to fire a prefetch for its ordinals block. If the first doc
+        // has a value the iterator is safely positioned at docIdsInLeaf[0] and we can defer
+        // the bulk ordinal read and lookupOrd resolution.
+        if (singleton.advanceExact(docIdsInLeaf[0])) {
+            return new SingletonDocValuesLoader(docIdsInLeaf, singleton);
+        }
+        // First doc has no value; the iterator may have advanced past docIdsInLeaf[0],
+        // so fall through to eager reads for the remaining docs scanning forward.
         int[] ords = new int[docIdsInLeaf.length];
+        Arrays.fill(ords, -1);
         int found = 0;
-        for (int d = 0; d < docIdsInLeaf.length; d++) {
-            if (false == singleton.advanceExact(docIdsInLeaf[d])) {
-                ords[d] = -1;
-                continue;
+        for (int d = 1; d < docIdsInLeaf.length; d++) {
+            if (singleton.advanceExact(docIdsInLeaf[d])) {
+                ords[d] = singleton.ordValue();
+                found++;
             }
-            ords[d] = singleton.ordValue();
-            found++;
         }
         if (found == 0) {
             return null;
         }
-        int[] sortedOrds = ords.clone();
-        Arrays.sort(sortedOrds);
-        int unique = 0;
-        int prev = -1;
-        for (int ord : sortedOrds) {
-            if (ord != prev) {
-                prev = ord;
-                unique++;
-            }
-        }
-        int[] uniqueOrds = new int[unique];
-        BytesRef[] converted = new BytesRef[unique];
-        unique = 0;
-        prev = -1;
-        for (int ord : sortedOrds) {
-            if (ord != prev) {
-                prev = ord;
-                uniqueOrds[unique] = ord;
-                converted[unique] = preserve(convert(singleton.lookupOrd(ord)));
-                unique++;
-            }
-        }
-        logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, uniqueOrds.length);
-        return new SingletonDocValuesLoader(docIdsInLeaf, ords, uniqueOrds, converted);
+        return new SingletonDocValuesLoader(docIdsInLeaf, ords, singleton);
     }
 
-    private static class SingletonDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
+    private class SingletonDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
         private final int[] docIdsInLeaf;
-        private final int[] ords;
-        private final int[] uniqueOrds;
-        private final BytesRef[] converted;
+        /** Non-null only in the lazy path; null once the bulk load is done. */
+        private final SortedDocValues singleton;
+        /** Null until the bulk load runs (lazy gate). */
+        private int[] ords;
+        private int[] uniqueOrds;
+        private BytesRef[] converted;
 
         private int idx = -1;
 
-        private SingletonDocValuesLoader(int[] docIdsInLeaf, int[] ords, int[] uniqueOrds, BytesRef[] converted) {
+        /** Lazy constructor: {@code singleton} is positioned at {@code docIdsInLeaf[0]}. */
+        private SingletonDocValuesLoader(int[] docIdsInLeaf, SortedDocValues singleton) {
             this.docIdsInLeaf = docIdsInLeaf;
+            this.singleton = singleton;
+        }
+
+        /** Eager constructor: ords already collected; resolves uniqueOrds/converted immediately. */
+        private SingletonDocValuesLoader(int[] docIdsInLeaf, int[] ords, SortedDocValues dv) throws IOException {
+            this.docIdsInLeaf = docIdsInLeaf;
+            this.singleton = null;
             this.ords = ords;
-            this.uniqueOrds = uniqueOrds;
-            this.converted = converted;
+            resolveOrds(dv);
         }
 
         @Override
         public boolean advanceToDoc(int docId) throws IOException {
+            if (ords == null) {
+                // Lazy bulk load: singleton is already positioned at docIdsInLeaf[0].
+                ords = new int[docIdsInLeaf.length];
+                ords[0] = singleton.ordValue();
+                for (int d = 1; d < docIdsInLeaf.length; d++) {
+                    ords[d] = singleton.advanceExact(docIdsInLeaf[d]) ? singleton.ordValue() : -1;
+                }
+                resolveOrds(singleton);
+            }
             idx++;
             if (docIdsInLeaf[idx] != docId) {
                 throw new IllegalArgumentException(
@@ -203,6 +206,31 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
                 );
             }
             return ords[idx] >= 0;
+        }
+
+        private void resolveOrds(SortedDocValues dv) throws IOException {
+            int[] sortedOrds = ords.clone();
+            Arrays.sort(sortedOrds);
+            int unique = 0, prev = -1;
+            for (int ord : sortedOrds) {
+                if (ord != prev) {
+                    prev = ord;
+                    unique++;
+                }
+            }
+            uniqueOrds = new int[unique];
+            converted = new BytesRef[unique];
+            unique = 0;
+            prev = -1;
+            for (int ord : sortedOrds) {
+                if (ord != prev) {
+                    prev = ord;
+                    uniqueOrds[unique] = ord;
+                    converted[unique] = preserve(convert(dv.lookupOrd(ord)));
+                    unique++;
+                }
+            }
+            logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, uniqueOrds.length);
         }
 
         @Override

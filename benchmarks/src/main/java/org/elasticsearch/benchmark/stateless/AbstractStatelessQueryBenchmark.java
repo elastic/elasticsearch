@@ -87,6 +87,10 @@ public abstract class AbstractStatelessQueryBenchmark {
     @Param({ "0" })
     public long firstByteLatencyMs;
 
+    /** Cache size in bytes passed to the stateless directory; 0 means auto-size to fit the whole index. */
+    @Param({ "0" })
+    public long cacheSizeBytes;
+
     private Path dataPath;
     private Path workPath;
     protected Directory directory;
@@ -123,6 +127,11 @@ public abstract class AbstractStatelessQueryBenchmark {
     @Setup(Level.Invocation)
     public final void setupInvocation() throws IOException {
         System.setProperty(StatelessDirectoryFactory.FIRST_BYTE_LATENCY_MS_PROP, Long.toString(firstByteLatencyMs));
+        if (cacheSizeBytes > 0) {
+            System.setProperty(StatelessDirectoryFactory.CACHE_SIZE_BYTES_PROP, Long.toString(cacheSizeBytes));
+        } else {
+            System.clearProperty(StatelessDirectoryFactory.CACHE_SIZE_BYTES_PROP);
+        }
         deleteRecursively(workPath);
         Files.createDirectories(workPath);
         directory = StatelessDirectoryFactory.newSearchDirectory(dataPath, workPath, extraNodeSettings());

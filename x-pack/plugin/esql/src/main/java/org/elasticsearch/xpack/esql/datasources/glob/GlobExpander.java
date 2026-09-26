@@ -1092,11 +1092,12 @@ public final class GlobExpander {
                 // pattern — a keyed data/year=*/** rewrites to data/year=2024/** and the walk prunes under that
                 // prefix. Provider support cannot be known at key time; over-inclusion merely fragments, safely.
                 // A closed range does not rewrite the glob (a brace of the integer literals would drop in-range
-                // spellings such as 2.5 and narrow the detected type). It still changes which files the flat
-                // listing keeps, so on a pattern the walk does not already key, those hints join the identity.
+                // spellings such as 2.5 and narrow the detected type). A non-integral equality does not either:
+                // printing 6.0 would miss price=6.00. Both still change which files the flat listing keeps, so on
+                // a pattern the walk does not already key, those hints join the identity.
                 walkShapeEligible(effectivePattern, partitionConfig)
                     ? encodedHints(partitionPruningHints(hints))
-                    : encodedHints(closedRangeFilterHints(hints, partitionConfig)),
+                    : encodedHints(folderPostFilterHints(hints, partitionConfig)),
                 exclusionConfig,
                 fileOrder
             );
@@ -1492,6 +1493,11 @@ public final class GlobExpander {
                         continue;
                     }
                     List<Object> values = hint.values();
+                    // A non-integral number's printed form is one spelling. 6.0 would miss price=6.00, and 1.10
+                    // would hit price=1.1. Leave the wildcard; the typed folder filter keeps the matches.
+                    if (containsNonIntegralNumber(values)) {
+                        continue;
+                    }
                     if (hint.isSingleValue()) {
                         String value = String.valueOf(values.get(0));
                         if (globExpressible(value) == false) {
@@ -1582,6 +1588,43 @@ public final class GlobExpander {
         return filterHints;
     }
 
+    /**
+     * {@code EQUALS} and {@code IN} hints whose values include a non-integral number. The glob rewrite leaves
+     * those segments as {@code *}; this is the pass that still drops a folder the number excludes.
+     */
+    private static List<PartitionFilterHint> nonIntegralEqualityHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        if (hints == null || hints.isEmpty() || partitionConfig == null) {
+            return List.of();
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        boolean template = PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(partitionConfig.pathTemplate()).isEmpty() == false;
+        if (hive == false && template == false) {
+            return List.of();
+        }
+        List<PartitionFilterHint> equality = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if ((hint.operator() == Operator.EQUALS || hint.operator() == Operator.IN) && containsNonIntegralNumber(hint.values())) {
+                equality.add(hint);
+            }
+        }
+        return equality;
+    }
+
+    /** A {@link Float} or {@link Double} hint value, whose printed form is not the only on-disk spelling. */
+    private static boolean containsNonIntegralNumber(List<Object> values) {
+        for (Object value : values) {
+            if (value instanceof Float || value instanceof Double) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean rangeOperator(Operator operator) {
         return switch (operator) {
             case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL -> true;
@@ -1639,12 +1682,27 @@ public final class GlobExpander {
         return value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long;
     }
 
+    /**
+     * Hints the flat listing applies after listObjects, without rewriting the glob. The listing-cache identity
+     * keys the same set on a pattern the walk does not already key: a filtered query must not share an unfiltered
+     * entry.
+     */
+    private static List<PartitionFilterHint> folderPostFilterHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        List<PartitionFilterHint> filterHints = new ArrayList<>();
+        filterHints.addAll(closedRangeFilterHints(hints, partitionConfig));
+        filterHints.addAll(nonIntegralEqualityHints(hints, partitionConfig));
+        return filterHints;
+    }
+
     private static List<StorageEntry> withoutFoldersOutsideClosedRange(
         List<StorageEntry> matched,
         @Nullable List<PartitionFilterHint> hints,
         PartitionConfig partitionConfig
     ) {
-        List<PartitionFilterHint> rangeHints = closedRangeFilterHints(hints, partitionConfig);
+        List<PartitionFilterHint> rangeHints = folderPostFilterHints(hints, partitionConfig);
         if (rangeHints.isEmpty()) {
             return matched;
         }
@@ -1700,8 +1758,7 @@ public final class GlobExpander {
 
     @Nullable
     private static FoundValue hivePartitionValue(StoragePath path, String column) {
-        String[] segments = path.path().split("/");
-        for (String segment : segments) {
+        for (String segment : HivePartitionDetector.directorySegments(path.path())) {
             String key = PartitionValueMatcher.folderKey(segment);
             if (column.equals(key)) {
                 return new FoundValue(PartitionValueMatcher.folderValue(segment));
@@ -1734,6 +1791,11 @@ public final class GlobExpander {
         }
 
         List<Object> values = hint.values();
+        // Same as the template rewrite: a non-integral number is not one folder name. Keep key=* and let the
+        // typed filter decide, so IN (1.25, 6.0) still lists price=6.00.
+        if (containsNonIntegralNumber(values)) {
+            return segment;
+        }
         if (hint.isSingleValue()) {
             String value = String.valueOf(values.get(0));
             return globExpressible(value) ? key + "=" + value : segment;

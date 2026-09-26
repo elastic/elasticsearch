@@ -170,24 +170,12 @@ public final class TemplatePartitionDetector implements PartitionDetector {
 
     /**
      * Non-empty directory segments of a {@link StoragePath#path()} string, filename dropped.
-     * Extract and depth use this so the skip-empty / drop-filename cut cannot drift. Rewrite
-     * repeats the same cut on a {@code path.split("/")} array so it can edit slots in place.
+     * Delegates to {@link HivePartitionDetector#directorySegments} so the skip-empty / drop-filename
+     * cut cannot drift. Rewrite repeats the same cut on a {@code path.split("/")} array so it can
+     * edit slots in place.
      */
     public static List<String> directorySegments(String path) {
-        if (path == null || path.isEmpty()) {
-            return List.of();
-        }
-        List<String> nonEmpty = new ArrayList<>();
-        for (String segment : path.split("/")) {
-            if (segment.isEmpty() == false) {
-                nonEmpty.add(segment);
-            }
-        }
-        if (nonEmpty.isEmpty()) {
-            return List.of();
-        }
-        nonEmpty.remove(nonEmpty.size() - 1);
-        return nonEmpty;
+        return HivePartitionDetector.directorySegments(path);
     }
 
     /**

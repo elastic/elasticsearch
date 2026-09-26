@@ -82,12 +82,29 @@ public class RestReindexActionTests extends RestActionTestCase {
               },
               "dest": {
                 "index": "dest",
-                "slice": "s1"
+                "_slice": "s1"
               }
             }
             """));
         assertEquals("s1", request.getDestination().routing());
         assertTrue(request.getDestination().isRoutingFromSlice());
+    }
+
+    public void testSourceSliceParsedWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = action.buildRequest(buildRequestWithBody("""
+            {
+              "source": {
+                "index": "source",
+                "_slice": "tenant-a"
+              },
+              "dest": {
+                "index": "dest"
+              }
+            }
+            """));
+        assertEquals("tenant-a", request.getSearchRequest().searchSlice());
+        assertTrue(request.getSearchRequest().isRoutingFromSlice());
     }
 
     public void testDestSliceRejectedWhenFeatureFlagDisabled() throws IOException {
@@ -99,13 +116,13 @@ public class RestReindexActionTests extends RestActionTestCase {
               },
               "dest": {
                 "index": "dest",
-                "slice": "s1"
+                "_slice": "s1"
               }
             }
             """)));
         assertThat(e.getMessage(), containsString("failed to parse field"));
         assertThat(e.getCause().getMessage(), containsString("failed to parse field"));
-        assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
+        assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.FIELD_NAME + "]"));
     }
 
     public void testFilterSource() throws IOException {

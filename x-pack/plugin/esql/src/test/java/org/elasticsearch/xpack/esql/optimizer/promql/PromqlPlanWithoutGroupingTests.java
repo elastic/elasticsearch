@@ -174,7 +174,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()))
             .toList();
         assertThat(fragment.toString(), fragmentPackedTimeSeriesValues, hasSize(1));
         assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
@@ -190,7 +190,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()))
             .toList();
         assertThat(deserializedFragment.toString(), deserializedPackedTimeSeriesValues, hasSize(1));
         assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
@@ -204,7 +204,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()))
             .toList();
         assertThat(localizedFragment.toString(), localizedPackedTimeSeriesValues, hasSize(1));
         assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
@@ -217,7 +217,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .filter(Attribute.class::isInstance)
             .map(Attribute.class::cast)
-            .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
+            .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()))
             .toList();
         assertThat(mappedLocalizedFragment.toString(), mappedPackedTimeSeriesValues, hasSize(1));
         assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
@@ -235,7 +235,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
         ReadDimsExec readTimeSeries = localizedDataNodePlan.collect(ReadDimsExec.class)
             .stream()
-            .filter(readDims -> Expressions.names(readDims.dims()).contains(MetadataAttribute.TIMESERIES))
+            .filter(readDims -> Expressions.names(readDims.dims()).stream().anyMatch(MetadataAttribute::isTimeSeriesAttributeName))
             .findFirst()
             .orElse(null);
         assertNotNull(localizedDataNodePlan.toString(), readTimeSeries);
@@ -421,5 +421,24 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_time(network.cost[1h])))))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+    }
+
+    /**
+     * {@code topk} ranks whole series, so it asks the scan for the full identity; the enclosing {@code without} needs the
+     * identity minus {@code pod}. Both packings come from the one relation and must be distinct output attributes - a
+     * packing is named by its exclusions ({@code _timeseries}, {@code _timeseries$pod}) so the plan stays consistent.
+     */
+    public void testWithoutOverTopKCarriesTwoPackingsFromOneRelation() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (topk(1, network.bytes_in)))");
+        var relation = plan.collect(EsRelation.class).getFirst();
+        List<TimeSeriesMetadataAttribute> packings = relation.output()
+            .stream()
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .toList();
+        assertThat(packings.stream().map(Attribute::name).toList(), equalTo(List.of("_timeseries", "_timeseries$pod")));
+        assertThat(packings.get(0).excludedFields(), empty());
+        assertThat(packings.get(1).excludedFields(), equalTo(Set.of("pod")));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "_timeseries")));
     }
 }

@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
@@ -33,6 +34,8 @@ import java.util.Set;
  * Loads {@code _timeseries} metadata into blocks.
  */
 public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
+
+    private static final BytesReference EMPTY_OBJECT = new BytesArray("{}");
 
     private final Set<String> metadataFields;
 
@@ -84,11 +87,15 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeriesReader(breaker);
+        return new TimeSeriesReader(breaker, metadataFields);
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
+        if (metadataFields.isEmpty()) {
+            // nothing left to read: the column is the empty object
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
         return StoredFieldsSpec.withSourcePaths(
             IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE,
             metadataFields
@@ -111,34 +118,41 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
-        private TimeSeriesReader(CircuitBreaker breaker) {
+        private final Set<String> metadataFields;
+        private final XContentParserConfiguration filter;
+
+        private TimeSeriesReader(CircuitBreaker breaker, Set<String> metadataFields) {
             super(breaker);
+            this.metadataFields = metadataFields;
+            this.filter = XContentParserConfiguration.EMPTY.withFiltering(null, metadataFields, Set.of(), false);
         }
 
         /**
-         * Returns source bytes normalized to JSON.
+         * Returns the source restricted to this loader's fields, as JSON.
          *
          * The {@code _timeseries} keyword column is documented as a JSON-encoded object containing
          * the dimension key/value pairs that identify a time series. Synthetic source already
          * reconstructs as JSON, but stored source preserves the original content type. For example,
          * documents written through the Prometheus remote-write endpoint may be stored as CBOR.
          *
-         * If the source is already JSON, this method returns the original bytes to avoid an
-         * unnecessary parser/builder round trip.
+         * The source handed to {@link #read} is loaded once for every field read alongside, over the
+         * union of their source paths, so it may carry dimensions this loader excludes (a second
+         * {@code _timeseries} column with fewer exclusions read from the same document). The filter
+         * makes each column exactly its own view; a loader with no fields left emits {@code {}}.
          */
-        private static BytesReference toJson(Source source) throws IOException {
+        private BytesReference toJson(Source source) throws IOException {
+            if (metadataFields.isEmpty()) {
+                return EMPTY_OBJECT;
+            }
             BytesReference bytes = source.internalSourceRef();
             XContentType contentType = source.sourceContentType();
-
-            if (contentType == XContentType.JSON) {
-                return bytes;
-            }
-
             try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, contentType);
+                XContentParser parser = XContentHelper.createParserNotCompressed(filter, bytes, contentType);
                 XContentBuilder json = XContentFactory.jsonBuilder()
             ) {
-                parser.nextToken();
+                if (parser.nextToken() == null) {
+                    return EMPTY_OBJECT;
+                }
                 json.copyCurrentStructure(parser);
                 return BytesReference.bytes(json);
             }

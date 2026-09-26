@@ -508,4 +508,36 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /**
+     * {@code topk} keeps whole series (name included) and the enclosing {@code without} regroups them on every other
+     * label: two packings of the same relation, {@code _timeseries} for the ranking and {@code _timeseries$host} for the
+     * regroup. Prometheus: {@code topk(1, tx)} is host b (30), summed without host into {@code {cluster="prod"} 30}.
+     */
+    public void testInstantAggregateWithoutOverTopK() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum without (host) (topk(1, tx))", "cluster", Map.of("prod", 30.0));
+        assertBinopInstantGroups("count without (cluster) (topk(2, tx))", "host", Map.of("b", 1.0, "c", 1.0));
+        assertBinopInstantValues("max without (host, cluster) (bottomk(2, rx))", 3.0);
+    }
+
+    /**
+     * {@code without} over every dimension the data stream maps leaves the empty label set: one series, not one series
+     * per document labelled with the rest of the document.
+     */
+    public void testInstantAggregateWithoutEveryLabel() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertThat(
+            instantSeriesAt("min without (__name__, host, cluster) (tx)", QUERY_TIME),
+            contains(new PromqlResponseSeries(Map.of(), 10.0))
+        );
+        assertThat(
+            instantSeriesAt("sum without (__name__, host, cluster) (rx)", QUERY_TIME),
+            contains(new PromqlResponseSeries(Map.of(), 9.0))
+        );
+    }
+
+    private List<PromqlResponseSeries> instantSeriesAt(String promql, Instant time) throws Exception {
+        return PromqlResponseSeries.ofInstant(executeInstantQuery(promql, time.toString(), null));
+    }
+
 }

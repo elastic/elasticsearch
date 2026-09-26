@@ -494,4 +494,12 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantAggregateWithoutOverTopK}. */
+    public void testRangeAggregateWithoutOverTopK() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum without (host) (topk(1, tx))", "cluster", Map.of("prod", 30.0));
+        assertBinopRangeGroups("count without (cluster) (topk(2, tx))", "host", Map.of("b", 1.0, "c", 1.0));
+        assertBinopRangeValues("max without (host, cluster) (bottomk(2, rx))", 3.0);
+    }
+
 }

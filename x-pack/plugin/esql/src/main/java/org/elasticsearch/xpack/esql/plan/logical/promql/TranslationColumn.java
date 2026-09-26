@@ -8,14 +8,10 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
-
-import static org.elasticsearch.xpack.esql.core.expression.Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR;
 
 /**
  * A label column of a translated PromQL relation. The label schema is open: which labels a series carries is not known
@@ -36,8 +32,7 @@ public sealed interface TranslationColumn permits TranslationColumn.Static, Tran
 
         /** The physical column name: {@code _timeseries} for the full series, {@code _timeseries$a$b} (sorted) otherwise. */
         public String name() {
-            var suffix = String.join(SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR, new TreeSet<>(except));
-            return MetadataAttribute.TIMESERIES + (suffix.isEmpty() ? suffix : SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR + suffix);
+            return TimeSeriesMetadataAttribute.nameFor(except);
         }
 
         /** The attribute among {@code attributes} that produces this column, or null. */

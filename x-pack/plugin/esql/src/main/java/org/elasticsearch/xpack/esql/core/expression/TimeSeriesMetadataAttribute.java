@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Field attribute for {@code _timeseries} field
@@ -22,7 +23,17 @@ public final class TimeSeriesMetadataAttribute extends FieldAttribute {
     private final Set<String> excludedFields;
 
     public TimeSeriesMetadataAttribute(Source source, Set<String> excludedFields) {
-        this(source, null, null, MetadataAttribute.TIMESERIES, timeSeriesField(), Nullability.TRUE, null, false, excludedFields);
+        this(source, null, null, nameFor(excludedFields), timeSeriesField(), Nullability.TRUE, null, false, excludedFields);
+    }
+
+    /**
+     * The attribute name of the {@code _timeseries} packing that excludes {@code excludedFields}: {@code _timeseries} when nothing
+     * is excluded, otherwise {@code _timeseries$a$b} over the sorted exclusions. Distinct exclusions give distinct names, so one
+     * relation can carry several packings side by side; {@link MetadataAttribute#isTimeSeriesAttributeName} recognizes them all.
+     */
+    public static String nameFor(Set<String> excludedFields) {
+        var suffix = String.join(SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR, new TreeSet<>(excludedFields));
+        return MetadataAttribute.TIMESERIES + (suffix.isEmpty() ? suffix : SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR + suffix);
     }
 
     public TimeSeriesMetadataAttribute(

@@ -24,6 +24,28 @@ bytes_in:double | step:datetime            | cluster:keyword
 5.0             | 2024-05-10T00:30:00.000Z | qa
 ;
 
+// A counter field counts like a gauge: Prometheus does not distinguish sample types here.
+count_over_time_of_counter_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_over_time_counters
+
+PROMQL index=prometheus-k8s step=10m bytes_in=(sum by (cluster) (count_over_time(network.total_bytes_in[10m])))
+| SORT bytes_in DESC, cluster, step | LIMIT 10;
+
+bytes_in:double | step:datetime            | cluster:keyword
+40.0            | 2024-05-10T00:20:00.000Z | qa
+37.0            | 2024-05-10T00:10:00.000Z | qa
+32.0            | 2024-05-10T00:20:00.000Z | prod
+24.0            | 2024-05-10T00:10:00.000Z | staging
+24.0            | 2024-05-10T00:20:00.000Z | staging
+23.0            | 2024-05-10T00:10:00.000Z | prod
+9.0             | 2024-05-10T00:30:00.000Z | staging
+6.0             | 2024-05-10T00:30:00.000Z | prod
+5.0             | 2024-05-10T00:30:00.000Z | qa
+;
+
 count_over_time_with_window_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2

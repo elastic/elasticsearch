@@ -3894,6 +3894,14 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code count_over_time}, {@code present_over_time} and {@code absent_over_time} accept counter fields, and
+         * a selector by Prometheus name over an index that stores the name as a label ({@code labels.__name__} next to
+         * {@code metrics.<name>}) filters the source on it, so a document of another metric with the same labels never
+         * yields a count or presence for a series that is not this metric's.
+         */
+        PROMQL_OVER_TIME_COUNTERS(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket

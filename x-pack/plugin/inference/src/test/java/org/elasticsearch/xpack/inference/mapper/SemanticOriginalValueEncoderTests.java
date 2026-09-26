@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.Base64;
 import java.util.Map;
 
+import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -88,6 +90,42 @@ public class SemanticOriginalValueEncoderTests extends ESTestCase {
         InferenceString value = new InferenceString(DataType.IMAGE, "data:image/png;base64,@@@not-base64");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SemanticOriginalValueEncoder.encode(value));
         assertThat(e.getMessage(), containsString("Invalid base64 payload"));
+    }
+
+    public void testUrlRoundTrip() throws IOException {
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        InferenceString value = randomUrlInferenceString();
+
+        XContentBuilder expected = JsonXContent.contentBuilder().startObject().field("f");
+        value.toXContent(expected, ToXContent.EMPTY_PARAMS);
+        expected.endObject();
+
+        assertThat(decode(SemanticOriginalValueEncoder.encode(value)), equalTo(Strings.toString(expected)));
+    }
+
+    public void testUrlDecodeReturnsSourceValue() throws IOException {
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        InferenceString value = randomUrlInferenceString();
+        Object decoded = SemanticOriginalValueEncoder.decode(SemanticOriginalValueEncoder.encode(value));
+        assertThat(
+            decoded,
+            equalTo(
+                Map.of(
+                    InferenceString.TYPE_FIELD,
+                    value.dataType().toString(),
+                    InferenceString.FORMAT_FIELD,
+                    DataFormat.URL.toString(),
+                    InferenceString.VALUE_FIELD,
+                    value.value()
+                )
+            )
+        );
+    }
+
+    /** A random URL-format {@link InferenceString} for a non-text data type. */
+    private static InferenceString randomUrlInferenceString() {
+        DataType dataType = randomFrom(DataType.IMAGE, DataType.AUDIO, DataType.VIDEO, DataType.PDF);
+        return new InferenceString(dataType, DataFormat.URL, "https://example.com/" + randomAlphaOfLength(10));
     }
 
     private static String decode(BytesRef encoded) throws IOException {

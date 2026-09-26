@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,21 +32,23 @@ import java.util.Map;
  * (which holds the media type) is kept verbatim, and the base64 data is stored <b>decoded</b> and regenerated only on read (needed to
  * embed the bytes in JSON, or any string-only format), keeping the stored bytes compact. Storing decoded bytes (rather than the base64
  * text) keeps the value ~33% smaller both on disk and, more importantly, in memory wherever it is materialized uncompressed (indexing
- * buffers, merges, block decompression).
+ * buffers, merges, block decompression). Base64 decoding is <b>strict</b>: a malformed payload is rejected at index time rather than
+ * stored unparsed, since the value must always be regeneratable on read.
  * <p>
- * Non-text {@link InferenceString}s are always base64 data URIs (as {@code ShardBulkInferenceActionFilter} and {@link InferenceString}
- * enforce), so the base64 invariant is enforced explicitly here. Base64 decoding is <b>strict</b>: a malformed payload is rejected at
- * index time rather than stored unparsed, since the value must always be regeneratable on read.
+ * {@link #VERBATIM} is a non-text {@link InferenceString} whose value is stored as-is (e.g. a URL string). Its {@link DataType},
+ * {@link DataFormat}, and value are stored as UTF-8 — no decode/re-encode cycle is needed. Both ordinals are persisted, so
+ * {@link DataType} and {@link DataFormat} must remain append-only to preserve stored values.
  */
 final class SemanticOriginalValueEncoder {
     private static final byte TEXT = 0;
     private static final byte BASE64_ENCODED_BINARY = 1;
+    private static final byte VERBATIM = 2;
 
     private SemanticOriginalValueEncoder() {}
 
     /**
      * Encodes a single original input value (a {@link String}, boolean or number for text, or a non-text {@link InferenceString} for a
-     * base64 binary input).
+     * base64 or verbatim input).
      */
     static BytesRef encode(Object value) {
         if (value instanceof InferenceString inferenceString) {
@@ -56,7 +59,13 @@ final class SemanticOriginalValueEncoder {
                     "Text values must be supplied as a string, not as an InferenceString of type [" + inferenceString.dataType() + "]"
                 );
             }
-            return encodeBinary(inferenceString);
+            return switch (inferenceString.dataFormat()) {
+                case BASE64 -> encodeBinary(inferenceString);
+                case URL -> encodeVerbatim(inferenceString);
+                default -> throw new IllegalArgumentException(
+                    "Unsupported data format [" + inferenceString.dataFormat() + "] for non-text InferenceString encoding"
+                );
+            };
         }
         // A boolean or number is coerced to its string form (consistent with the inference filter's SemanticTextUtils#nodeStringValues).
         String text = value.toString();
@@ -106,6 +115,17 @@ final class SemanticOriginalValueEncoder {
         }
     }
 
+    private static BytesRef encodeVerbatim(InferenceString value) {
+        byte[] valueBytes = value.value().getBytes(StandardCharsets.UTF_8);
+        byte[] out = new byte[3 + valueBytes.length];
+        out[0] = VERBATIM;
+        // Both ordinals are persisted, so DataType and DataFormat must stay append-only.
+        out[1] = (byte) value.dataType().ordinal();
+        out[2] = (byte) value.dataFormat().ordinal();
+        System.arraycopy(valueBytes, 0, out, 3, valueBytes.length);
+        return new BytesRef(out);
+    }
+
     /** A data URI header carries base64 data when it ends with {@code ;base64,} (otherwise the data is percent-encoded text). */
     private static boolean isBase64(String dataUriHeader) {
         return dataUriHeader.endsWith(";base64,");
@@ -113,47 +133,73 @@ final class SemanticOriginalValueEncoder {
 
     /**
      * Decodes a single encoded value and writes it back to {@code builder} in its original {@code _source} form: a string for text,
-     * or a {@code {type, format, value}} object for a data URI input (with the base64 payload regenerated here).
+     * a {@code {type, format, value}} object for a base64 data URI input (with the base64 payload regenerated), or a
+     * {@code {type, format, value}} object for a verbatim input.
      */
     static void decodeAndWrite(BytesRef encoded, XContentBuilder builder) throws IOException {
         // Write directly from bytes (no intermediate String) to keep heap usage low when reconstructing large values.
         final byte kind = encoded.bytes[encoded.offset];
         switch (kind) {
             case TEXT -> builder.utf8Value(encoded.bytes, encoded.offset + 1, encoded.length - 1);
-            case BASE64_ENCODED_BINARY -> {
-                final DecodedBinary binary = readBinary(encoded);
-                builder.startObject();
-                builder.field(InferenceString.TYPE_FIELD, binary.dataType());
-                // Every non-text DataType defaults to (and only supports) base64, which is the format the encoder stores and regenerates;
-                // the reconstructed object reports that default format. See DataType.
-                builder.field(InferenceString.FORMAT_FIELD, binary.dataType().getDefaultFormat());
-                builder.field(InferenceString.VALUE_FIELD);
-                builder.utf8Value(binary.dataUri(), 0, binary.dataUri().length);
-                builder.endObject();
-            }
+            case BASE64_ENCODED_BINARY -> decodeAndWriteBinary(encoded, builder);
+            case VERBATIM -> decodeAndWriteVerbatim(encoded, builder);
             default -> throw new IllegalStateException("Unknown semantic value encoding [" + kind + "]");
         }
     }
 
+    private static void decodeAndWriteBinary(BytesRef encoded, XContentBuilder builder) throws IOException {
+        final DecodedBinary binary = readBinary(encoded);
+        builder.startObject();
+        builder.field(InferenceString.TYPE_FIELD, binary.dataType());
+        builder.field(InferenceString.FORMAT_FIELD, DataFormat.BASE64);
+        builder.field(InferenceString.VALUE_FIELD);
+        builder.utf8Value(binary.dataUri(), 0, binary.dataUri().length);
+        builder.endObject();
+    }
+
+    private static void decodeAndWriteVerbatim(BytesRef encoded, XContentBuilder builder) throws IOException {
+        DataType dataType = DataType.values()[encoded.bytes[encoded.offset + 1]];
+        DataFormat dataFormat = DataFormat.values()[encoded.bytes[encoded.offset + 2]];
+        builder.startObject();
+        builder.field(InferenceString.TYPE_FIELD, dataType);
+        builder.field(InferenceString.FORMAT_FIELD, dataFormat);
+        builder.field(InferenceString.VALUE_FIELD);
+        builder.utf8Value(encoded.bytes, encoded.offset + 3, encoded.length - 3);
+        builder.endObject();
+    }
+
     /**
      * Decodes a single encoded value into its {@code _source} value form (the inverse of {@link #encode}): a {@link String} for
-     * text, or a {@code {type, format, value}} map for a data URI input. Used by the doc-values value fetcher so retrieval (the
+     * text, or a {@code {type, format, value}} map for a data URI or verbatim input. Used by the doc-values value fetcher so retrieval (the
      * {@code fields} option, highlighting) can read from the binary store without rebuilding {@code _source}.
      */
     static Object decode(BytesRef encoded) throws IOException {
         final byte kind = encoded.bytes[encoded.offset];
         return switch (kind) {
             case TEXT -> new String(encoded.bytes, encoded.offset + 1, encoded.length - 1, StandardCharsets.UTF_8);
-            case BASE64_ENCODED_BINARY -> {
-                final DecodedBinary binary = readBinary(encoded);
-                final Map<String, Object> object = new LinkedHashMap<>();
-                object.put(InferenceString.TYPE_FIELD, binary.dataType().toString());
-                object.put(InferenceString.FORMAT_FIELD, binary.dataType().getDefaultFormat().toString());
-                object.put(InferenceString.VALUE_FIELD, new String(binary.dataUri(), StandardCharsets.UTF_8));
-                yield object;
-            }
+            case BASE64_ENCODED_BINARY -> decodeBinary(encoded);
+            case VERBATIM -> decodeVerbatim(encoded);
             default -> throw new IllegalStateException("Unknown semantic value encoding [" + kind + "]");
         };
+    }
+
+    private static Map<String, Object> decodeVerbatim(BytesRef encoded) {
+        DataType dataType = DataType.values()[encoded.bytes[encoded.offset + 1]];
+        DataFormat dataFormat = DataFormat.values()[encoded.bytes[encoded.offset + 2]];
+        final Map<String, Object> object = new LinkedHashMap<>();
+        object.put(InferenceString.TYPE_FIELD, dataType.toString());
+        object.put(InferenceString.FORMAT_FIELD, dataFormat.toString());
+        object.put(InferenceString.VALUE_FIELD, new String(encoded.bytes, encoded.offset + 3, encoded.length - 3, StandardCharsets.UTF_8));
+        return object;
+    }
+
+    private static Map<String, Object> decodeBinary(BytesRef encoded) throws IOException {
+        final DecodedBinary binary = readBinary(encoded);
+        final Map<String, Object> object = new LinkedHashMap<>();
+        object.put(InferenceString.TYPE_FIELD, binary.dataType().toString());
+        object.put(InferenceString.FORMAT_FIELD, DataFormat.BASE64.toString());
+        object.put(InferenceString.VALUE_FIELD, new String(binary.dataUri(), StandardCharsets.UTF_8));
+        return object;
     }
 
     private record DecodedBinary(DataType dataType, byte[] dataUri) {}

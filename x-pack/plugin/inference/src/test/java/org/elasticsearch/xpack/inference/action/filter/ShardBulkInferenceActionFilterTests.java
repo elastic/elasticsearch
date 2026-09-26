@@ -102,6 +102,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
+import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -1251,6 +1252,23 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         // "AAAAAA==" -> 8 base64 chars with two padding chars -> 4 decoded bytes, exactly at the 4 byte limit.
         InferenceString doublePadding = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAAAAA==");
         assertNull("a base64 input at the limit should be accepted", runSingleInputThroughFilter(ByteSizeValue.ofBytes(4), doublePadding));
+    }
+
+    /**
+     * A URL-format input should be accepted regardless of the configured {@code maxBase64InputSize}: the base64 size validation only
+     * applies to base64 data URIs and must not be triggered for URL-format inputs.
+     */
+    public void testUrlInputIsAcceptedWithoutBase64SizeValidation() throws Exception {
+        assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        // A URL string is far smaller than any base64 payload, but we set an absurdly low limit to prove the validation is skipped.
+        ByteSizeValue maxSize = ByteSizeValue.ofBytes(2);
+        InferenceString input = new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png");
+
+        assertNull(
+            "a URL-format input should be accepted regardless of the binary size limit",
+            runSingleInputThroughFilter(maxSize, input)
+        );
     }
 
     /**

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -444,6 +445,22 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      */
     private static double parseTimestamp(long millis) {
         return millis / 1000.0;
+    }
+
+    /** The response of a string literal instant query: Prometheus renders it as {@code [<unix_time>, "<string>"]}. */
+    static XContentBuilder buildStringResult(Instant time, String value) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.field("status", "success");
+        builder.startObject("data");
+        builder.field("resultType", "string");
+        builder.startArray("result");
+        builder.value(parseTimestamp(time.toEpochMilli()));
+        builder.value(value);
+        builder.endArray();
+        builder.endObject(); // data
+        builder.endObject(); // root
+        return builder;
     }
 
     /**

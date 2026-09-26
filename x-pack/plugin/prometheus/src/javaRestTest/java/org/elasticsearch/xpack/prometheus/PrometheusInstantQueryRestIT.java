@@ -163,6 +163,19 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(Double.parseDouble(path.evaluate("data.result.1")), equalTo(5400.0));
     }
 
+    /** Prometheus: a string literal is a result of type {@code string}, rendered as {@code [<unix_time>, "<string>"]}. */
+    public void testInstantQueryStringLiteral() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "\"a string\""),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("string"));
+        assertThat(path.evaluate("data.result"), equalTo(List.of(1767225900.0, "a string")));
+    }
+
     public void testInstantQueryDropsSeriesOutsideDefaultLookback() throws Exception {
         ingestTestData("test_gauge_iq");
 

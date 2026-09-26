@@ -188,6 +188,12 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
         handle.updateStoredSecureSettings();
     }
 
+    @Override
+    public boolean areAllNodesAlive() {
+        checkHandle();
+        return handle.areAllNodesAlive();
+    }
+
     protected H getHandle() {
         return handle;
     }

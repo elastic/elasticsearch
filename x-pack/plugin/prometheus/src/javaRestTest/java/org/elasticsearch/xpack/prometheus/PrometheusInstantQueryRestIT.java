@@ -575,4 +575,27 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("count(rx * scalar(sum(tx)))", 3);
         assertThat(metricLabelNames("scalar(sum(tx)) * rx"), equalTo(List.of("cluster", "host")));
     }
+
+    /**
+     * Default matching between a closed operand (a {@code by} aggregate) and a raw selector pairs one-to-one on the full
+     * label set: a pair exists only where the raw series carries exactly the aggregate's labels (and no other), so
+     * {@code max by (host, cluster) (tx) * rx} pairs every host while {@code max by (host) (tx) * rx} and
+     * {@code sum(tx) / rx} are empty.
+     */
+    public void testInstantClosedAggregateAgainstRawVectorMatchesOnTheFullLabelSet() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("max by (host, cluster) (tx) * rx", 20, 90, 48);
+        assertBinopInstantValues("rx * max by (host, cluster) (tx)", 20, 90, 48);
+        assertThat(metricLabelNames("max by (host, cluster) (tx) * rx"), equalTo(List.of("cluster", "host")));
+        assertBinopInstantGroups("sum by (host, cluster) (tx) / rx{host!=\"c\"}", "host", Map.of("a", 5.0, "b", 10.0));
+        assertBinopInstantValues("count(max by (host, cluster) (tx) * rx)", 3);
+        assertBinopInstantValues("max by (host) (tx) * rx");
+        assertBinopInstantValues("sum(tx) / rx");
+        assertBinopInstantValues("rx / sum(tx)");
+        assertBinopInstantValues("stdvar(tx) + rx");
+        // a reduction is a finished table over packed series and pairs the same way, on the whole label set
+        assertBinopInstantValues("topk(2, tx) * rx", 90, 48);
+        assertBinopInstantValues("topk(1, tx) / topk(1, rx)");
+        assertBinopInstantValues("bottomk(2, bottomk(1, tx)) * tx", 100);
+    }
 }

@@ -210,12 +210,13 @@ public class DataStreamFailureStoreDefinition {
      * @param nodeSettings settings from the cluster service which capture the node's current settings
      * @param builder      to capture failure store specific index settings
      */
-    public static void applyFailureStoreSettings(Settings nodeSettings, Settings.Builder builder) {
+    public static Settings.Builder applyFailureStoreSettings(Settings nodeSettings, Settings.Builder builder) {
         // Optionally set a custom refresh interval for the failure store index.
         TimeValue refreshInterval = getFailureStoreRefreshInterval(nodeSettings);
         if (refreshInterval != null) {
             builder.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
         }
+        return builder;
     }
 
     /**

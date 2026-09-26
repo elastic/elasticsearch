@@ -634,4 +634,32 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         );
         assertBinopRangeValues("sum without (host, cluster) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))", 18);
     }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantNegativeNameMatcherSelectsTheOtherMetrics}. */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/metrics-program/issues/39")
+    public void testRangeNegativeNameMatcherSelectsTheOtherMetrics() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertThat(
+            PromqlResponseSeries.ofRange(executeBinopRangeQuery("{__name__!=\"tx\",host=\"a\"}")),
+            equalTo(List.of(new PromqlResponseSeries(Map.of("host", "a", "cluster", "prod"), 2.0)))
+        );
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantNegativeNameMatcherIsRejected}. */
+    public void testRangeNegativeNameMatcherIsRejected() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "{__name__!=\"tx\",host=\"a\"}"),
+            new BasicNameValuePair("start", RANGE_START),
+            new BasicNameValuePair("end", RANGE_END),
+            new BasicNameValuePair("step", RANGE_STEP)
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            EntityUtils.toString(e.getResponse().getEntity()),
+            containsString("negative label selectors on __name__ are not supported at this time")
+        );
+    }
 }

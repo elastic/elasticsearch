@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
@@ -444,6 +445,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 case Selector s -> {
                     if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher().isRegex()) {
                         failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
+                    }
+                    // `{__name__!="m"}` selects every metric but `m`; a selector reads exactly one metric field here
+                    if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher() == LabelMatcher.Matcher.NEQ) {
+                        failures.add(fail(s, "negative label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
                     }
                     if (s.series() == null) {
                         failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));

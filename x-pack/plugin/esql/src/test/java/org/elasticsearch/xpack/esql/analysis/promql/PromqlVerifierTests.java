@@ -78,6 +78,23 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * Prometheus reads {@code {__name__!="m"}} as every metric but {@code m}; a selector here reads one metric field, so
+     * the shape is rejected rather than silently read as the metric it excludes.
+     */
+    public void testPromqlNegativeNameLabelMatcher() {
+        tsdb.error(
+            "PROMQL index=test step=5m ({__name__!=\"network.bytes_in\",pod=\"p1\"})",
+            containsString(
+                "negative label selectors on __name__ are not supported at this time [{__name__!=\"network.bytes_in\",pod=\"p1\"}]"
+            )
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m (sum_over_time({__name__!=\"network.bytes_in\",pod=\"p1\"}[5m] offset 1m))",
+            containsString("negative label selectors on __name__ are not supported at this time")
+        );
+    }
+
     public void testPromqlSubquery() {
         tsdb.error(
             "PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:])))",

@@ -381,6 +381,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
     /**
      * Runs {@code check} against the parsed configuration on a PUT. The same rule in {@code validateSettings}
      * would run inside the constructor and so refuse a stored configuration on every read.
+     *
+     * <p>Connectors that must also enforce the same rule at read time (for example, to honour an operator
+     * allowlist that was narrowed after registration) should apply the same check directly in their
+     * {@link StorageProviderFactory} implementation.
      */
     public FileDataSourceValidator withDatasourceCheck(BiConsumer<DataSourceConfiguration, ValidationException> check) {
         return new FileDataSourceValidator(

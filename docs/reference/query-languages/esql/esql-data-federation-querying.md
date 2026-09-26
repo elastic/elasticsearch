@@ -141,9 +141,11 @@ The following search functions are available for datasets:
 | [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: experimental 9.6` |
 | `_score` for dataset rows | {applies_to}`stack: experimental 9.6` |
 
-## FORK
+## Use FORK across dataset sources
 
-{applies_to}`stack: experimental 9.6+`
+```{applies_to}
+stack: experimental 9.6+
+```
 
 `FORK` can branch a query whose `FROM` reads datasets, a mix of indices and datasets, or a view whose body is that same source list. Each branch runs against every resolved producer, and the coordinator merges the branch results.
 
@@ -162,7 +164,7 @@ The limitations below include operations that require structures available only 
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets; dataset(s) requested: [...]` |
 | Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version and deployment type. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
-| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8. That cap is separate from [`FORK`](#fork). Query fewer sources together. | |
+| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8. That cap is separate from [`FORK`](#use-fork-across-dataset-sources). Query fewer sources together. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
 | A file column whose name matches a requested `METADATA` name {applies_to}`stack: experimental 9.6` | The engine-generated value replaces the file column. Rename the file column in the dataset mapping to keep both. | A warning names the dropped column. |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |

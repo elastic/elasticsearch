@@ -59,6 +59,7 @@ interleaved. Use `SORT _fork` to group results by branch.
 ## Limitations
 
 - `FORK` supports at most 8 execution branches.
+- When `FROM` includes external datasets, branch count and source count multiply. See [Use FORK across dataset sources](/reference/query-languages/esql/esql-data-federation-querying.md#use-fork-across-dataset-sources).
 - In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
 - Using more than one `FORK` command in a query is not supported.
 

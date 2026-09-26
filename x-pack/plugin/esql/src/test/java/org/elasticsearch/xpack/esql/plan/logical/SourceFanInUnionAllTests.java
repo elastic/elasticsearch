@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
 
 import java.util.ArrayList;
@@ -332,33 +331,9 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         }
         Fork fork = new Fork(Source.EMPTY, branches, List.of());
         Failures failures = new Failures();
-        UnionAll.checkForkSourceFanInLeafCount(fork, 20, failures);
+        UnionAll.checkNestedSubqueryLimits(fork, 20, 5, "[max_branch_count] query pragma", "[max_branch_level] query pragma", failures);
         assertThat(failures.toString(), containsString("64 branches"));
         assertThat(failures.toString(), containsString("limit of 20"));
-
-        Failures snapshot = new Failures();
-        UnionAll.checkNestedSubqueryLimits(fork, 20, 5, snapshot);
-        assertThat(snapshot.toString(), containsString("64 branches"));
-    }
-
-    public void testReleaseCheckIgnoresUnrelatedIndexUnionAndInSubquery() {
-        List<LogicalPlan> indexes = new ArrayList<>();
-        for (int i = 0; i < 21; i++) {
-            indexes.add(index("idx" + i));
-        }
-        FieldAttribute left = field("emp_no");
-        FieldAttribute right = field("emp_no");
-        Fork smallFork = new Fork(Source.EMPTY, List.of(fanIn(external("c", left), external("d", left)), index("only", left)), List.of());
-        LogicalPlan plan = new SemiJoin(
-            Source.EMPTY,
-            new UnionAll(Source.EMPTY, List.of(smallFork, viewOf(indexes)), List.of()),
-            fanIn(external("a", right), external("b", right)),
-            List.of(left),
-            List.of(right)
-        );
-        Failures failures = new Failures();
-        UnionAll.checkForkSourceFanInLeafCount(plan, 20, failures);
-        assertThat(failures.toString(), failures.hasFailures(), equalTo(false));
     }
 
     private static String verifyAnalysis(LogicalPlan plan) {

@@ -508,4 +508,32 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(error.getMessage(), containsString("duplicate"));
     }
 
+    /**
+     * Prometheus reads {@code {__name__!="tx",host="a"}} as every metric but {@code tx} with {@code host="a"}: here
+     * {@code rx{host="a"} 2}. A selector reads one metric field, so the shape is rejected until it can scan the others.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/146977")
+    public void testInstantNegativeNameMatcherSelectsTheOtherMetrics() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertThat(
+            PromqlResponseSeries.ofInstant(executeBinopInstantQuery("{__name__!=\"tx\",host=\"a\"}")),
+            equalTo(List.of(new PromqlResponseSeries(Map.of("host", "a", "cluster", "prod"), 2.0)))
+        );
+    }
+
+    /** Until then the shape is a clear rejection rather than a silent read of the metric it excludes. */
+    public void testInstantNegativeNameMatcherIsRejected() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "{__name__!=\"tx\",host=\"a\"}"),
+            new BasicNameValuePair("time", QUERY_TIME.toString())
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            EntityUtils.toString(e.getResponse().getEntity()),
+            containsString("negative label selectors on __name__ are not supported at this time")
+        );
+    }
 }

@@ -19,7 +19,6 @@ class ElasticsearchDistributionPluginFuncTest extends AbstractGradleInternalPlug
     
     def "copied modules are resolved from explodedBundleZip"() {
         given:
-        disableConfigurationCache("esplugin plugin is not configuration cache compatible yet")
         moduleSubProject()
 
         // elasticsearch.distro is applied by AbstractGradleInternalPluginFuncTest

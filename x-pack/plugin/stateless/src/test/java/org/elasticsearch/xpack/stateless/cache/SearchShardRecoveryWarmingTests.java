@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -46,6 +48,7 @@ import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,6 +59,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.mockito.Mockito;
 
 import java.util.List;
@@ -69,10 +73,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.apache.logging.log4j.Level.WARN;
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SEARCH_RECOVERY_LOG_FIELD_PREFIX;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.totalBytesToWarm;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -98,6 +106,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
@@ -207,6 +216,25 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         return indexShard;
     }
 
+    /**
+     * A stand-in for the directory being warmed. {@link SharedBlobCacheWarmingService#searchRecoveryWarmingListener} only reads two
+     * counters off it, but the real {@link BlobStoreCacheDirectory} implementations need a live shared blob cache, an object store and a
+     * commit installed via {@code updateCommit} before those counters mean anything, none of which these tests set up. The warmed-bytes
+     * counter is stubbed with two consecutive values: the baseline read when the listener is built, then the value read when the timeout
+     * fires.
+     */
+    private static BlobStoreCacheDirectory mockDirectory(long dataSetSizeInBytes, long bytesWarmedAtStart, long bytesWarmedAtTimeout) {
+        BlobStoreCacheDirectory directory = mock(BlobStoreCacheDirectory.class);
+        when(directory.estimateDataSetSizeInBytes()).thenReturn(dataSetSizeInBytes);
+        when(directory.totalBytesWarmedFromObjectStore()).thenReturn(bytesWarmedAtStart, bytesWarmedAtTimeout);
+        return directory;
+    }
+
+    /** A {@link #mockDirectory} with zeroed counters, for tests that do not assert on the timeout log message. */
+    private static BlobStoreCacheDirectory mockDirectory() {
+        return mockDirectory(0L, 0L, 0L);
+    }
+
     /** One primary-replica pair: {@link ShardRouting.Role#INDEX_ONLY} primary, {@link ShardRouting.Role#SEARCH_ONLY} replica. */
     private static ClusterState clusterStateOneSearchReplica(String indexName, ShardRoutingState replicaState) {
         return ClusterStateCreationUtils.state(
@@ -304,7 +332,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ClusterState state = clusterStateOneSearchReplica("idx", INITIALIZING);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting shardRouting = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(shardRouting), Map.of());
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(shardRouting), 0L);
             assertThat(plan.awaitWarming(), is(false));
             assertThat(plan.timeout(), equalTo(TimeValue.ZERO));
         }
@@ -324,7 +352,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             }
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = initializingSearchReplica(state, shardId);
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), Map.of());
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
             assertThat(plan.awaitWarming(), is(true));
             assertThat(
                 plan.timeout(),
@@ -345,9 +373,128 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             assertThat(state.metadata().nodeShutdowns().getAll().isEmpty(), is(false));
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = initializingSearchReplica(state, shardId);
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), Map.of());
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
             assertThat(plan.awaitWarming(), is(false));
             assertThat(plan.timeout(), equalTo(TimeValue.ZERO));
+        }
+    }
+
+    /**
+     * Builds a cluster state where shard 1 of {@code indexName} is an INITIALIZING {@link ShardRouting.Role#SEARCH_ONLY} replica
+     * representing a resharding split target. The index has resharding metadata that identifies shard 0 as the source shard and shard 1
+     * as the target, matching what {@link IndexReshardingMetadata#newSplitByMultiple(int, int)} produces for a 1→2 split.
+     * Shard 1 has no active search copy (it is brand-new), so the non-relocation {@code hasAnotherActiveSearchShardCopy} branch does
+     * not apply — only the reshard-target branch applies.
+     */
+    private static ClusterState clusterStateReshardTargetInitializingSearchShard(String indexName) {
+        final String primaryNodeId = "primary-node";
+        final String targetNodeId = "target-node";
+        final String masterNodeId = "master-node";
+        // Build the base metadata first so that routingNumShards is initialized, then layer resharding on top.
+        final IndexMetadata baseIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(indexSettings(IndexVersion.current(), IndexMetadata.INDEX_UUID_NA_VALUE, 1, 0))
+            .primaryTerm(0, 1)
+            .build();
+        final IndexReshardingMetadata reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(baseIndexMetadata)
+            .reshardingMetadata(reshardingMetadata)
+            .reshardAddShards(reshardingMetadata.shardCountAfter())
+            .primaryTerm(1, 1)
+            .build();
+        final ShardId shard0 = new ShardId(indexMetadata.getIndex(), 0);
+        final ShardId shard1 = new ShardId(indexMetadata.getIndex(), 1);
+        // Each shard's IndexShardRoutingTable requires exactly one primary. For shard 1, the INDEX_ONLY primary
+        // is recovering on the same node as the search-only replica; the SEARCH_ONLY shard is the one under test.
+        final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addIndexShard(
+                new IndexShardRoutingTable.Builder(shard0).addShard(
+                    TestShardRouting.shardRoutingBuilder(shard0, primaryNodeId, true, STARTED)
+                        .withRole(ShardRouting.Role.INDEX_ONLY)
+                        .build()
+                )
+            )
+            .addIndexShard(
+                new IndexShardRoutingTable.Builder(shard1).addShard(
+                    TestShardRouting.shardRoutingBuilder(shard1, primaryNodeId, true, STARTED)
+                        .withRole(ShardRouting.Role.INDEX_ONLY)
+                        .build()
+                )
+                    .addShard(
+                        TestShardRouting.shardRoutingBuilder(shard1, targetNodeId, false, INITIALIZING)
+                            .withRole(ShardRouting.Role.SEARCH_ONLY)
+                            .build()
+                    )
+            );
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create(primaryNodeId))
+                    .add(DiscoveryNodeUtils.create(targetNodeId))
+                    .add(DiscoveryNodeUtils.create(masterNodeId))
+                    .localNodeId(targetNodeId)
+                    .masterNodeId(masterNodeId)
+                    .build()
+            )
+            .metadata(
+                Metadata.builder().put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false)).generateClusterUuidIfNeeded()
+            )
+            .routingTable(GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build())
+            .build();
+    }
+
+    /**
+     * The reshard-target warming timeout default must be at least a few seconds smaller than the search-shards-online timeout so that
+     * warming has time to finish before the state machine gives up waiting for the shard to go GREEN and publishes SPLIT without it.
+     */
+    public void testReshardTargetWarmingTimeoutDefaultIsSmallerThanOnlineTimeout() {
+        final long warmingDefault = SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getDefault(
+            Settings.EMPTY
+        ).millis();
+        final long onlineDefault = SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.getDefault(Settings.EMPTY).millis();
+        assertThat(
+            "reshard target warming timeout default must leave at least 3 s margin before the search-shards-online timeout",
+            warmingDefault,
+            lessThan(onlineDefault - TimeValue.timeValueSeconds(3).millis())
+        );
+    }
+
+    /**
+     * Resharding split target: the shard is brand-new (no other active search copy), so
+     * {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} must use the reshard-target timeout rather than skip.
+     */
+    public void testSearchRecoveryReshardTargetAwaitsWarming() {
+        try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            var service = newWarmingService(threadPool);
+            ClusterState state = clusterStateReshardTargetInitializingSearchShard("idx");
+            ShardId shard1 = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
+            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shard1).replicaShards().get(0);
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(plan.awaitWarming(), is(true));
+            assertThat(
+                plan.timeout(),
+                equalTo(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getDefault(Settings.EMPTY))
+            );
+        }
+    }
+
+    /**
+     * Resharding split target with an active cluster shutdown: the timeout is short enough that warming still proceeds — unlike the
+     * non-relocation branch, the reshard-target branch does not suppress warming during shutdown.
+     */
+    public void testSearchRecoveryReshardTargetAwaitsWarmingEvenWithActiveShutdown() {
+        try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            var service = newWarmingService(threadPool);
+            ClusterState base = clusterStateReshardTargetInitializingSearchShard("idx");
+            ClusterState state = withActiveShutdownNodeMetadata(base, null);
+            assertThat(state.metadata().nodeShutdowns().getAll().isEmpty(), is(false));
+            ShardId shard1 = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
+            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shard1).replicaShards().get(0);
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
+            assertThat(plan.awaitWarming(), is(true));
+            assertThat(
+                plan.timeout(),
+                equalTo(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING.getDefault(Settings.EMPTY))
+            );
         }
     }
 
@@ -381,7 +528,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             assertTrue(self.initializing());
             assertNotNull(self.relocatingNodeId());
             assertEquals(ShardRouting.Role.SEARCH_ONLY, self.role());
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), Map.of());
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
             assertThat(plan.awaitWarming(), is(true));
             assertThat(
                 plan.timeout(),
@@ -417,7 +564,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             // exclude the relocation source so we test the "another node shutting down" branch, not the source-removal branch
             ClusterState state = withActiveShutdownNodeMetadata(base, self.relocatingNodeId());
             assertThat(state.metadata().nodeShutdowns().getAll().isEmpty(), is(false));
-            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), Map.of());
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L);
             assertThat(plan.awaitWarming(), is(true));
             assertThat(
                 plan.timeout(),
@@ -530,16 +677,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
 
             // advance time
             threadPool.setCurrentTimeInMillis(shutdownStartedMillis + randomLongBetween(1, 100_000));
-            SharedBlobCacheWarmingService.SearchRecoveryTimeout planT1 = service.searchRecoveryTimeout(
-                state,
-                mockIndexShard(selfT1),
-                Map.of()
-            );
-            SharedBlobCacheWarmingService.SearchRecoveryTimeout planT2 = service.searchRecoveryTimeout(
-                state,
-                mockIndexShard(selfT2),
-                Map.of()
-            );
+            SharedBlobCacheWarmingService.SearchRecoveryTimeout planT1 = service.searchRecoveryTimeout(state, mockIndexShard(selfT1), 0L);
+            SharedBlobCacheWarmingService.SearchRecoveryTimeout planT2 = service.searchRecoveryTimeout(state, mockIndexShard(selfT2), 0L);
 
             assertThat(planT1.awaitWarming(), is(true));
             assertThat(planT2.awaitWarming(), is(true));
@@ -613,7 +752,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final SharedBlobCacheWarmingService.SearchRecoveryTimeout planUncapped = service.searchRecoveryTimeout(
                 stateUncapped,
                 mockIndexShard(selfUncapped),
-                endTargetsToWarm
+                totalBytesToWarm(endTargetsToWarm)
             );
             assertThat(planUncapped.awaitWarming(), is(true));
             assertThat(planUncapped.timeout().millis(), equalTo(6400L)); // 6400 × 1 < 8000
@@ -631,7 +770,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final SharedBlobCacheWarmingService.SearchRecoveryTimeout planCapped = service.searchRecoveryTimeout(
                 stateCapped,
                 mockIndexShard(selfCapped),
-                endTargetsToWarm
+                totalBytesToWarm(endTargetsToWarm)
             );
             assertThat(planCapped.awaitWarming(), is(true));
             assertThat(planCapped.timeout().millis(), equalTo(8000L)); // min(8000, 6400 × 3 = 19200)
@@ -705,7 +844,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final SharedBlobCacheWarmingService.SearchRecoveryTimeout planUncapped = service.searchRecoveryTimeout(
                 stateUncapped,
                 mockIndexShard(selfUncapped),
-                endTargetsToWarm
+                totalBytesToWarm(endTargetsToWarm)
             );
             assertThat(planUncapped.awaitWarming(), is(true));
             assertThat(planUncapped.timeout().millis(), equalTo(4000L)); // 4000 × 1 < 8000
@@ -723,7 +862,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             final SharedBlobCacheWarmingService.SearchRecoveryTimeout planCapped = service.searchRecoveryTimeout(
                 stateCapped,
                 mockIndexShard(selfCapped),
-                endTargetsToWarm
+                totalBytesToWarm(endTargetsToWarm)
             );
             assertThat(planCapped.awaitWarming(), is(true));
             assertThat(planCapped.timeout().millis(), equalTo(8000L)); // min(8000, 4000 × 3 = 12000)
@@ -811,7 +950,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 state,
                 mockIndexShard(self),
                 null,
-                null,
+                mockDirectory(),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
@@ -930,7 +1069,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 state,
                 mockIndexShard(self),
                 null,
-                null,
+                mockDirectory(),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
                 resume
             );
@@ -1020,6 +1159,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                 randomAlphaOfLength(10),
                 randomMockIndexShard(),
+                mockDirectory(),
+                randomNonNegativeLong(),
                 resume
             );
             // deterministic here: the timeout cannot fire on its own, the test holds the captured command
@@ -1049,6 +1190,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                 randomAlphaOfLength(10),
                 randomMockIndexShard(),
+                mockDirectory(),
+                randomNonNegativeLong(),
                 resume
             );
             warmingListener.onResponse(null);
@@ -1075,6 +1218,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     TimeValue.timeValueMillis(randomLongBetween(1, 100_000)),
                     randomAlphaOfLength(10),
                     randomMockIndexShard(),
+                    mockDirectory(),
+                    randomNonNegativeLong(),
                     resumeListener
                 ).onFailure(failure)
             );
@@ -1165,6 +1310,74 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
             .routingTable(GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build())
             .build();
+    }
+
+    /// The timeout branch reports how much of the shard was warmed before the deadline: the shard's data set size, the bytes offline
+    /// warming was targeting, and the bytes actually warmed since the listener was built.
+    public void testSearchRecoveryWarmingListenerLogsWarmingProgressOnTimeout() {
+        final var dataSetSize = ByteSizeValue.ofGb(4);
+        final var bytesToWarm = ByteSizeValue.ofMb(512);
+        final var bytesWarmedBefore = ByteSizeValue.ofMb(128);
+        final var bytesWarmed = ByteSizeValue.ofMb(64);
+        final var shardId = new ShardId("logs", IndexMetadata.INDEX_UUID_NA_VALUE, 2);
+        final var timeout = TimeValue.timeValueSeconds(30);
+        final var timeoutContext = "relocation source shutting down";
+
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            final var service = newWarmingService(threadPool);
+            final var resume = new PlainActionFuture<Void>();
+            final var warmingListener = service.searchRecoveryWarmingListener(
+                timeout,
+                timeoutContext,
+                mockIndexShard(TestShardRouting.newShardRouting(shardId, randomIdentifier(), true, STARTED)),
+                // the baseline is read when the listener is built, so only the 64mb warmed afterwards must be reported
+                mockDirectory(dataSetSize.getBytes(), bytesWarmedBefore.getBytes(), bytesWarmedBefore.getBytes() + bytesWarmed.getBytes()),
+                bytesToWarm.getBytes(),
+                resume
+            );
+            assertThatLogger(() -> {
+                threadPool.scheduledCommand.get().run();
+                safeGet(resume);
+            },
+                SharedBlobCacheWarmingService.class,
+                new MockLog.SeenEventExpectation(
+                    "warming timeout reporting sizes",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    WARN,
+                    "Search shard recovery cache warming timed out after [30s] (relocation source shutting down) for [logs][2], "
+                        + "shard data set size [4gb], bytes to warm [512mb], bytes warmed [64mb]"
+                ),
+                new MockLog.SeenEventExpectation(
+                    "data set size field",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    WARN,
+                    SEARCH_RECOVERY_LOG_FIELD_PREFIX + "data_set_size_bytes=\"" + dataSetSize.getBytes() + '"'
+                ),
+                new MockLog.SeenEventExpectation(
+                    "bytes to warm field",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    WARN,
+                    SEARCH_RECOVERY_LOG_FIELD_PREFIX + "bytes_to_warm=\"" + bytesToWarm.getBytes() + '"'
+                ),
+                new MockLog.SeenEventExpectation(
+                    "bytes warmed field",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    WARN,
+                    SEARCH_RECOVERY_LOG_FIELD_PREFIX + "bytes_warmed=\"" + bytesWarmed.getBytes() + '"'
+                )
+            );
+            // warming completing after losing the race is discarded, so it must not log a second timeout
+            assertThatLogger(
+                () -> warmingListener.onResponse(null),
+                SharedBlobCacheWarmingService.class,
+                new MockLog.UnseenEventExpectation(
+                    "no timeout warning for the discarded event",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    WARN,
+                    "Search shard recovery cache warming timed out"
+                )
+            );
+        }
     }
 
     /**

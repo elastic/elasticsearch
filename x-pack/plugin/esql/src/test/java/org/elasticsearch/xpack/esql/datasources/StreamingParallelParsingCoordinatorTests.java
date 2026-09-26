@@ -1092,7 +1092,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         StripeColumnScope.PROJECTED,
                         StreamingParallelParsingCoordinator.WarningSinks.NONE,
                         admission,
-                        new org.elasticsearch.common.breaker.NoopCircuitBreaker("test")
+                        new org.elasticsearch.common.breaker.NoopCircuitBreaker("test"),
+                        ExternalReadCounters.NOOP,
+                        null
                     )
                 );
             }
@@ -1182,7 +1184,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
-                breaker
+                breaker,
+                ExternalReadCounters.NOOP,
+                null
             );
             expectThrows(CircuitBreakingException.class, () -> {
                 while (it.hasNext()) {
@@ -1235,7 +1239,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
-                breaker
+                breaker,
+                ExternalReadCounters.NOOP,
+                null
             );
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -1441,7 +1447,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
-            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded external_max_record_size"));
+            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeds [8kb]"));
         } finally {
             executor.shutdownNow();
         }
@@ -1490,10 +1496,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
-            assertTrue(
-                "strict policy must still hard-fail on the cap-hit, got: " + chain,
-                chain.contains("record exceeded external_max_record_size")
-            );
+            assertTrue("strict policy must still hard-fail on the cap-hit, got: " + chain, chain.contains("record exceeds [4kb]"));
         } finally {
             strictExecutor.shutdownNow();
         }
@@ -1574,12 +1577,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         assertEquals("truncation must record exactly one partial-results warning", 1, sink.size());
-        assertTrue(
-            "expected a partial-results truncation warning, got: " + sink,
-            sink.get(0).contains("results are partial")
-                && sink.get(0).contains("truncated at byte")
-                && sink.get(0).contains("record exceeded external_max_record_size")
-        );
+        assertEquals("Record exceeds [4kb]; results are partial", sink.get(0));
     }
 
     /**
@@ -1622,7 +1620,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         assertTrue(
             "expected a client-visible partial-results warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("record exceeded external_max_record_size"))
+            warnings.stream().anyMatch(w -> w.equals("Record exceeds [4kb]; results are partial"))
         );
     }
 

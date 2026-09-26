@@ -50,12 +50,12 @@ public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin 
      */
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET, Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS), Set.of()));
+        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET, Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS), Set.of(), null));
     }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of(FormatNameResolver.FORMAT_PARQUET, (s, blockFactory) -> new ParquetFormatReader(blockFactory));
+        return Map.of(FormatNameResolver.FORMAT_PARQUET, (s, blockFactory) -> new ParquetFormatReader(s, blockFactory));
     }
 
     @Override

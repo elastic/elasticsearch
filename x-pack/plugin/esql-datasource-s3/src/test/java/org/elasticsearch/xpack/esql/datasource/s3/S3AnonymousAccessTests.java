@@ -92,24 +92,27 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When the suffix-range GET fails with a non-403 S3 error, falls back to HEAD.
-     * A retryable HEAD status (500) maps like a retryable GET: {@link ExternalUnavailableException}
-     * (HTTP 503), not a client-class {@link IOException}.
+     * When the suffix-range GET fails with a retryable S3 status, metadata resolution falls back to HEAD.
+     * A retryable HEAD status maps like a retryable GET: {@link ExternalUnavailableException} (HTTP 503),
+     * not a client-class {@link IOException}.
      */
-    public void testHeadNon403ErrorPropagates() {
-        when(mockS3Client.getObject(any(GetObjectRequest.class))).thenThrow(
-            S3Exception.builder().statusCode(500).message("Internal Server Error").build()
-        );
-        when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
-            S3Exception.builder().statusCode(500).message("Internal Server Error").build()
-        );
+    public void testRetryableMetadataStatusIsUnavailable() {
+        for (int status : new int[] { 429, 500, 502, 503, 504 }) {
+            S3Client client = mock(S3Client.class);
+            when(client.getObject(any(GetObjectRequest.class))).thenThrow(
+                S3Exception.builder().statusCode(status).message("Retryable failure").build()
+            );
+            when(client.headObject(any(HeadObjectRequest.class))).thenThrow(
+                S3Exception.builder().statusCode(status).message("Retryable failure").build()
+            );
 
-        S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
+            S3StorageObject obj = new S3StorageObject(client, BUCKET, KEY, PATH);
+            ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::length);
 
-        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::length);
-        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
-        assertThat(eue.getMessage(), containsString("HTTP 500"));
-        assertFalse(eue.throttling());
+            assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
+            assertThat(eue.getMessage(), containsString("HTTP " + status));
+            assertEquals(ExternalUnavailableException.isThrottlingStatus(status), eue.throttling());
+        }
     }
 
     /**
@@ -146,8 +149,12 @@ public class S3AnonymousAccessTests extends ESTestCase {
         S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
 
         IOException e = expectThrows(IOException.class, obj::length);
-        assertThat(e.getMessage(), containsString("Failed to get metadata for"));
+        assertThat(e.getMessage(), containsString("Access denied reading [" + PATH + "]"));
         assertThat(e.getMessage(), containsString("HTTP 403"));
+        // The message has to say what to change, not only what was refused: S3 answers a wrong key and an
+        // anonymous request against an authenticated bucket identically, so both remedies are named.
+        assertThat(e.getMessage(), containsString("access_key and secret_key"));
+        assertThat(e.getMessage(), containsString("auth=anonymous"));
     }
 
     /**

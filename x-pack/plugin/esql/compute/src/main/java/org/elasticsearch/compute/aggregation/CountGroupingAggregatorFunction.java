@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -26,6 +28,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
+import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
+
 public class CountGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -33,7 +38,20 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         new IntermediateStateDesc("seen", ElementType.BOOLEAN)
     );
 
-    private LongArray counts;
+    private static final int INTS_PER_PAGE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES;
+    private static final int INT_PAGE_SHIFT = Integer.numberOfTrailingZeros(INTS_PER_PAGE);
+    private static final int INT_PAGE_MASK = INTS_PER_PAGE - 1;
+
+    private static final int LONGS_PER_PAGE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES;
+    private static final int LONG_PAGE_SHIFT = Integer.numberOfTrailingZeros(LONGS_PER_PAGE);
+    private static final int LONG_PAGE_MASK = LONGS_PER_PAGE - 1;
+
+    private final CircuitBreaker breaker;
+    private long usedBytes;
+    private int capacity;
+    private int[][] intPages;
+    private long[][] longPages;
+
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final boolean countAll;
@@ -45,8 +63,12 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     CountGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
         this.driverContext = driverContext;
-        this.counts = driverContext.bigArrays().newLongArray(256);
         this.countAll = channels.isEmpty();
+        this.breaker = driverContext.breaker();
+        final int initialLength = 256;
+        reserveBytes(bytesUsedByPagesArray(1) + bytesUsedByIntArray(initialLength));
+        this.intPages = new int[1][initialLength];
+        this.capacity = initialLength;
     }
 
     private int blockIndex() {
@@ -289,23 +311,144 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     private void accumulateCount(int groupId, long value) {
-        if (groupId < counts.size()) {
-            counts.increment(groupId, value);
-        } else {
-            counts = driverContext.bigArrays().grow(counts, groupId + 1);
-            counts.set(groupId, value);
+        assert (longPages == null) != (intPages == null);
+        if (longPages != null) {
+            accumulateLongCount(groupId, value);
+            return;
         }
+        if (groupId >= capacity) {
+            growIntCounts(groupId);
+        }
+        final int[] intPage = intPages[groupId >>> INT_PAGE_SHIFT];
+        final int indexInPage = groupId & INT_PAGE_MASK;
+        final long total = intPage[indexInPage] + value;
+        final int intTotal = (int) total;
+        if (total == intTotal) {
+            intPage[indexInPage] = intTotal;
+        } else {
+            migrateToLongCounts();
+            accumulateLongCount(groupId, value);
+        }
+    }
+
+    private void accumulateLongCount(int groupId, long value) {
+        if (groupId >= capacity) {
+            growLongCounts(groupId);
+        }
+        longPages[groupId >>> LONG_PAGE_SHIFT][groupId & LONG_PAGE_MASK] += value;
+    }
+
+    private void growIntCounts(int groupId) {
+        if (capacity < INTS_PER_PAGE) {
+            reserveBytes(bytesUsedByIntArray(INTS_PER_PAGE));
+            intPages[0] = Arrays.copyOf(intPages[0], INTS_PER_PAGE);
+            releaseBytes(bytesUsedByIntArray(capacity));
+            capacity = INTS_PER_PAGE;
+            if (capacity > groupId) {
+                return;
+            }
+        }
+        final int pageIndex = groupId >>> INT_PAGE_SHIFT;
+        int oldLength = intPages.length;
+        if (pageIndex >= oldLength) {
+            final int newLength = ArrayUtil.oversize(pageIndex + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+            reserveBytes(bytesUsedByPagesArray(newLength));
+            intPages = Arrays.copyOf(intPages, newLength);
+            releaseBytes(bytesUsedByPagesArray(oldLength));
+        }
+        if (capacity == groupId) {
+            reserveBytes(bytesUsedByIntArray(INTS_PER_PAGE));
+            intPages[pageIndex] = new int[INTS_PER_PAGE];
+            capacity += INTS_PER_PAGE;
+            return;
+        }
+        int lastPage = capacity >>> INT_PAGE_SHIFT;
+        for (int i = lastPage; i <= pageIndex; i++) {
+            assert intPages[i] == null;
+            reserveBytes(bytesUsedByIntArray(INTS_PER_PAGE));
+            intPages[i] = new int[INTS_PER_PAGE];
+        }
+        capacity = (pageIndex + 1) << INT_PAGE_SHIFT;
+    }
+
+    private void growLongCounts(int groupId) {
+        if (capacity < LONGS_PER_PAGE) {
+            reserveBytes(bytesUsedByLongArray(LONGS_PER_PAGE));
+            longPages[0] = Arrays.copyOf(longPages[0], LONGS_PER_PAGE);
+            releaseBytes(bytesUsedByLongArray(capacity));
+            capacity = LONGS_PER_PAGE;
+            if (capacity > groupId) {
+                return;
+            }
+        }
+        final int pageIndex = groupId >>> LONG_PAGE_SHIFT;
+        int oldLength = longPages.length;
+        if (pageIndex >= oldLength) {
+            final int newLength = ArrayUtil.oversize(pageIndex + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+            reserveBytes(bytesUsedByPagesArray(newLength));
+            longPages = Arrays.copyOf(longPages, newLength);
+            releaseBytes(bytesUsedByPagesArray(oldLength));
+        }
+        if (capacity == groupId) {
+            reserveBytes(bytesUsedByLongArray(LONGS_PER_PAGE));
+            longPages[pageIndex] = new long[LONGS_PER_PAGE];
+            capacity += LONGS_PER_PAGE;
+            return;
+        }
+        int lastPage = capacity >>> LONG_PAGE_SHIFT;
+        for (int i = lastPage; i <= pageIndex; i++) {
+            assert longPages[i] == null;
+            reserveBytes(bytesUsedByLongArray(LONGS_PER_PAGE));
+            longPages[i] = new long[LONGS_PER_PAGE];
+        }
+        capacity = (pageIndex + 1) << LONG_PAGE_SHIFT;
+    }
+
+    private void migrateToLongCounts() {
+        assert longPages == null;
+        final int numPages = Math.ceilDiv(capacity, LONGS_PER_PAGE);
+        final int longsPerPage = Math.min(capacity, LONGS_PER_PAGE);
+        reserveBytes(bytesUsedByPagesArray(numPages) + numPages * bytesUsedByLongArray(longsPerPage));
+        longPages = new long[numPages][];
+        for (int p = 0; p < numPages; p++) {
+            longPages[p] = new long[longsPerPage];
+        }
+        for (int i = 0; i < capacity; i++) {
+            longPages[i >>> LONG_PAGE_SHIFT][i & LONG_PAGE_MASK] = intPages[i >>> INT_PAGE_SHIFT][i & INT_PAGE_MASK];
+        }
+        long bytesUsedByInts = bytesUsedByPagesArray(intPages.length) + Math.ceilDiv(capacity, INTS_PER_PAGE) * bytesUsedByIntArray(
+            Math.min(capacity, INTS_PER_PAGE)
+        );
+        intPages = null;
+        releaseBytes(bytesUsedByInts);
+    }
+
+    private void reserveBytes(long bytes) {
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "CountGroupingAggregatorFunction");
+        usedBytes += bytes;
+    }
+
+    private void releaseBytes(long bytes) {
+        breaker.addWithoutBreaking(-bytes);
+        usedBytes -= bytes;
     }
 
     private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage) {
         try (LongVector.Builder builder = driverContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
             final int positionCount = selectedInPage.getPositionCount();
-            for (int i = 0; i < positionCount; i++) {
-                final int si = selectedInPage.getInt(i);
-                if (si < counts.size()) {
-                    builder.appendLong(counts.get(si));
-                } else {
-                    builder.appendLong(0L);
+            final int[][] pages = intPages;
+            if (pages != null) {
+                final int capacity = this.capacity;
+                for (int i = 0; i < positionCount; i++) {
+                    final int groupId = selectedInPage.getInt(i);
+                    builder.appendLong(groupId < capacity ? pages[groupId >>> INT_PAGE_SHIFT][groupId & INT_PAGE_MASK] : 0L);
+                }
+            } else {
+                final long[][] longs = longPages;
+                final int capacity = this.capacity;
+                for (int i = 0; i < positionCount; i++) {
+                    final int groupId = selectedInPage.getInt(i);
+                    builder.appendLong(groupId < capacity ? longs[groupId >>> LONG_PAGE_SHIFT][groupId & LONG_PAGE_MASK] : 0L);
                 }
             }
             blocks[offset] = builder.build().asBlock();
@@ -341,10 +484,22 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                     }
                 };
             }
-            for (int i = 0; i < positionCount; i++) {
-                final int groupId = selected.getInt(i);
-                final long count = groupId < counts.size() ? counts.get(groupId) : 0L;
-                pq.insertWithOverflow(new GroupIdAndCount(groupId, count));
+            final int[][] pages = intPages;
+            if (pages != null) {
+                final int capacity = this.capacity;
+                for (int i = 0; i < positionCount; i++) {
+                    final int groupId = selected.getInt(i);
+                    final long count = groupId < capacity ? pages[groupId >>> INT_PAGE_SHIFT][groupId & INT_PAGE_MASK] : 0L;
+                    pq.insertWithOverflow(new GroupIdAndCount(groupId, count));
+                }
+            } else {
+                final long[][] longs = longPages;
+                final int capacity = this.capacity;
+                for (int i = 0; i < positionCount; i++) {
+                    final int groupId = selected.getInt(i);
+                    final long count = groupId < capacity ? longs[groupId >>> LONG_PAGE_SHIFT][groupId & LONG_PAGE_MASK] : 0L;
+                    pq.insertWithOverflow(new GroupIdAndCount(groupId, count));
+                }
             }
             final int[] topGroupIds = new int[pq.size()];
             int idx = 0;
@@ -374,6 +529,240 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void close() {
-        counts.close();
+        intPages = null;
+        longPages = null;
+        releaseBytes(usedBytes);
+    }
+
+    static long bytesUsedByPagesArray(int arrayLength) {
+        return RamUsageEstimator.alignObjectSize(
+            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * arrayLength
+        );
+    }
+
+    static long bytesUsedByIntArray(int arrayLength) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * arrayLength);
+    }
+
+    static long bytesUsedByLongArray(int arrayLength) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * arrayLength);
+    }
+
+    @Override
+    public boolean supportPartitioning() {
+        return true;
+    }
+
+    static final class CountPartitionedState implements PartitionedState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(CountPartitionedState.class);
+
+        @Override
+        public boolean hasAllValues(int partition) {
+            // count is never null
+            return true;
+        }
+
+        final long baseBytes;
+        final int[][] ints;
+        final long[][] longs;
+
+        CountPartitionedState(CircuitBreaker breaker, boolean useInts, int partitionSize) {
+            this.baseBytes = BASE_RAM_USAGE + RamUsageEstimator.alignObjectSize(
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * NUM_PARTITIONS
+            );
+            long requiredBytes = this.baseBytes + NUM_PARTITIONS * (useInts
+                ? bytesUsedByIntArray(partitionSize)
+                : bytesUsedByLongArray(partitionSize));
+            breaker.addEstimateBytesAndMaybeBreak(requiredBytes, "CountPartitionedState");
+            if (useInts) {
+                this.ints = new int[NUM_PARTITIONS][partitionSize];
+                this.longs = null;
+            } else {
+                this.ints = null;
+                this.longs = new long[NUM_PARTITIONS][partitionSize];
+            }
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            long usedBytes = 0L;
+            if (ints != null && ints[partition] != null) {
+                usedBytes = bytesUsedByIntArray(ints[partition].length);
+                ints[partition] = null;
+            }
+            if (longs != null && longs[partition] != null) {
+                usedBytes = bytesUsedByLongArray(longs[partition].length);
+                longs[partition] = null;
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            long usedBytes = this.baseBytes;
+            if (ints != null) {
+                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    if (ints[p] != null) {
+                        usedBytes += bytesUsedByIntArray(ints[p].length);
+                        ints[p] = null;
+                    }
+                }
+            }
+            if (longs != null) {
+                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    if (longs[p] != null) {
+                        usedBytes += bytesUsedByLongArray(longs[p].length);
+                        longs[p] = null;
+                    }
+                }
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+    }
+
+    final class CountPartitionSplitter implements PartitionSplitter {
+        private static final String LABEL = "CountGroupingAggregatorFunction#partition";
+        private final CircuitBreaker breaker;
+        private CountPartitionedState state;
+
+        CountPartitionSplitter(CircuitBreaker breaker) {
+            this.breaker = breaker;
+            final int perPartition = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(capacity, NUM_PARTITIONS)), Integer.BYTES);
+            state = new CountPartitionedState(breaker, intPages != null, perPartition);
+        }
+
+        @Override
+        public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+            ensureCapacity(firstId + batchSize);
+            if (state.ints != null) {
+                splitInts(firstId, shiftedIds, batchPartitionCounts, partitionOffsets);
+            } else {
+                splitLongs(firstId, shiftedIds, batchPartitionCounts, partitionOffsets);
+            }
+        }
+
+        private void splitInts(int firstId, short[] shiftedIds, int[] batchPartitionCounts, int[] partitionOffsets) {
+            final int[][] pages = intPages;
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int c = batchPartitionCounts[p];
+                if (c == 0) {
+                    continue;
+                }
+                final int dst = partitionOffsets[p];
+                final int[] sub = state.ints[p].length < dst + c ? growIntPartition(p, dst + c) : state.ints[p];
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < c; i++) {
+                    final int id = firstId + shiftedIds[base + i];
+                    sub[dst + i] = pages[id >>> INT_PAGE_SHIFT][id & INT_PAGE_MASK];
+                }
+            }
+        }
+
+        private int[] growIntPartition(int p, int minLength) {
+            final int[] old = state.ints[p];
+            final int newLength = ArrayUtil.oversize(minLength, Integer.BYTES);
+            breaker.addEstimateBytesAndMaybeBreak(bytesUsedByIntArray(newLength), LABEL);
+            state.ints[p] = Arrays.copyOf(old, newLength);
+            breaker.addWithoutBreaking(-bytesUsedByIntArray(old.length));
+            return state.ints[p];
+        }
+
+        private void splitLongs(int firstId, short[] shiftedIds, int[] batchPartitionCounts, int[] partitionOffsets) {
+            final long[][] pages = longPages;
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int c = batchPartitionCounts[p];
+                if (c == 0) {
+                    continue;
+                }
+                final int dst = partitionOffsets[p];
+                final long[] sub = state.longs[p].length < dst + c ? growLongPartition(p, dst + c) : state.longs[p];
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < c; i++) {
+                    final int id = firstId + shiftedIds[base + i];
+                    sub[dst + i] = pages[id >>> LONG_PAGE_SHIFT][id & LONG_PAGE_MASK];
+                }
+            }
+        }
+
+        private long[] growLongPartition(int p, int minLength) {
+            final long[] old = state.longs[p];
+            final int newLength = ArrayUtil.oversize(minLength, Long.BYTES);
+            breaker.addEstimateBytesAndMaybeBreak(bytesUsedByLongArray(newLength), LABEL);
+            state.longs[p] = Arrays.copyOf(old, newLength);
+            breaker.addWithoutBreaking(-bytesUsedByLongArray(old.length));
+            return state.longs[p];
+        }
+
+        @Override
+        public CountPartitionedState finish() {
+            final CountPartitionedState result = state;
+            state = null;
+            return result;
+        }
+
+        @Override
+        public void release(CircuitBreaker breaker) {
+            if (state != null) {
+                state.releaseAll(breaker);
+                state = null;
+            }
+        }
+    }
+
+    @Override
+    public PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+        return new CountPartitionSplitter(breaker);
+    }
+
+    @Override
+    public void combinePartition(PartitionedState source, int partition, boolean appendOnly, int[] dstIds, int length) {
+        if (length == 0) {
+            return;
+        }
+        final CountPartitionedState state = (CountPartitionedState) source;
+        if (state.ints != null) {
+            final int[] src = state.ints[partition];
+            if (appendOnly && intPages != null) {
+                appendInts(src, dstIds[0], length);
+                return;
+            }
+            for (int i = 0; i < length; i++) {
+                accumulateCount(dstIds[i], src[i]);
+            }
+        } else {
+            final long[] src = state.longs[partition];
+            for (int i = 0; i < length; i++) {
+                accumulateCount(dstIds[i], src[i]);
+            }
+        }
+    }
+
+    private void appendInts(int[] src, int firstId, int length) {
+        final int end = firstId + length;
+        ensureCapacity(end);
+        for (int id = firstId, i = 0; id < end;) {
+            final int indexInPage = id & INT_PAGE_MASK;
+            final int n = Math.min(INTS_PER_PAGE - indexInPage, end - id);
+            System.arraycopy(src, i, intPages[id >>> INT_PAGE_SHIFT], indexInPage, n);
+            id += n;
+            i += n;
+        }
+    }
+
+    @Override
+    public void maybeEnsureCapacity(int size) {
+        ensureCapacity(size);
+    }
+
+    private void ensureCapacity(int size) {
+        if (size <= capacity) {
+            return;
+        }
+        if (intPages != null) {
+            growIntCounts(Math.max(0, size - 1));
+        } else {
+            growLongCounts(Math.max(0, size - 1));
+        }
+        assert capacity >= size : capacity + " < " + size;
     }
 }

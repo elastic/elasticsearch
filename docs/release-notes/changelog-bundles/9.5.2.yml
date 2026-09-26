@@ -9,13 +9,13 @@ changelogs:
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3149
-    summary: Fail closed on an incomplete TorchScript pre-load state hook scan
+    summary: Fail closed when the TorchScript state hook scan is incomplete
     area: Machine Learning
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 132434
-    summary: Fix `NullPointerException` in `LongComparator` caused by null `search_after` values
+    summary: Reject `null` values in `search_after` instead of failing the search
     area: Search
     type: bug
     issues:
@@ -48,7 +48,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 155600
-    summary: Integrate circuit breaker into `BestBucketsDeferringCollector`
+    summary: Account for deferred aggregation memory in the request circuit breaker
     area: ES|QL
     type: bug
     issues:
@@ -71,13 +71,13 @@ changelogs:
     issues:
       - 90912
   - pr: 155706
-    summary: Exclude non-metadata `_type` from default search hit fields
+    summary: Stop returning a user field named `_type` as search hit metadata
     area: Search
     type: bug
     issues:
       - 110438
   - pr: 155743
-    summary: Add a limit on aggregation nesting depth
+    summary: Limit aggregation nesting depth with `search.aggs.max_nested_depth`
     area: Search
     type: bug
     issues: []
@@ -101,7 +101,7 @@ changelogs:
       - 156009
       - 156012
   - pr: 156191
-    summary: Preserve headers when copying a transform configuration
+    summary: Preserve security headers when copying a transform configuration
     area: Transform
     type: bug
     issues: []
@@ -116,7 +116,7 @@ changelogs:
     type: upgrade
     issues: []
   - pr: 156268
-    summary: Fix exponential histogram min/max not being fully respected in rank estimation
+    summary: Fix rank estimation ignoring min and max in exponential histograms
     area: Aggregations
     type: bug
     issues:
@@ -150,12 +150,12 @@ changelogs:
     issues:
       - 156289
   - pr: 156466
-    summary: Fix search failures on indices without vector fields when many field patterns are requested
+    summary: Fix search failures when many field patterns match no vector fields
     area: Vector Search
     type: bug
     issues: []
   - pr: 156603
-    summary: Fix `BroadcastMessageAction` request serialization
+    summary: Fix inference and security cache clearing on multi-node clusters
     area: Inference
     type: bug
     issues: []
@@ -175,7 +175,7 @@ changelogs:
     type: upgrade
     issues: []
   - pr: 156665
-    summary: Fix Google Vertex AI chat completion tool call argument serialization for non-string values
+    summary: Fix Google Vertex AI tool calls with non-string argument values
     area: Inference
     type: bug
     issues:
@@ -186,7 +186,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 156765
-    summary: Ensure `Error` propagates out of `S3BlobContainer`
+    summary: Halt the node on fatal errors during S3 multipart uploads
     area: Snapshot/Restore
     type: bug
     issues: []

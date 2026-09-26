@@ -1536,6 +1536,33 @@ cnt:long
 
 // -------------------------------------------------------------------------------
 
+count with bucket for exponential histogram docs
+required_capability: exponential_histogram_tech_preview
+required_capability: ts_command_v0
+required_capability: fn_bucket_histogram_types
+required_capability: fn_count_histogram_bucket
+
+// tag::countBucketExpHistoForDocs[]
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1)
+| SORT RANGE_MIN(bucket)
+// end::countBucketExpHistoForDocs[]
+;
+
+// tag::countBucketExpHistoForDocs-result[]
+count:long | bucket:double_range
+8723       | 0.0..1.0
+112        | 1.0..2.0
+1          | 2.0..3.0
+2          | 3.0..4.0
+2          | 5.0..6.0
+1          | 6.0..7.0
+// end::countBucketExpHistoForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
 isNotNullFilter
 required_capability: count_of_histogram_types
 required_capability: fix_histogram_blockloaders_isnull

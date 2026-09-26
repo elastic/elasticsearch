@@ -204,6 +204,7 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             getBatchSize(voyageaiModel),
+            getRegexReadLimitFactor(),
             voyageaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

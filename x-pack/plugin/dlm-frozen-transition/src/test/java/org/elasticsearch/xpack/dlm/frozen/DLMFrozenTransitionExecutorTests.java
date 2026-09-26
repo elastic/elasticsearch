@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -87,7 +88,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
             runtimeTask.throwOnRun = new IllegalStateException("simulated failure");
             executor.submit(runtimeTask).get(10, TimeUnit.SECONDS);
             assertFalse(executor.transitionSubmitted(projectId, "exception-index"));
-            ErrorEntry err = errorStore.getError(projectId, "exception-index");
+            ErrorEntry err = errorStore.getError(projectId, new Index("exception-index", "exception-index"));
             assertNotNull("expected an error to be recorded in the error store", err);
             assertThat(err.error(), containsString("simulated failure"));
         }
@@ -142,7 +143,7 @@ public class DLMFrozenTransitionExecutorTests extends DLMFrozenTransitionExecuto
 
             // The removal happens asynchronously after all nodes ack the cluster state change
             assertBusy(() -> assertFalse(executor.transitionSubmitted(projectId, indexName)));
-            assertNull(errorStore.getError(projectId, indexName));
+            assertNull(errorStore.getError(projectId, new Index(indexName, indexName)));
         }
     }
 

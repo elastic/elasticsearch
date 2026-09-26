@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159089
+summary: Support remote fetch for `_source`
+type: enhancement

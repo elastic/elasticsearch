@@ -56,7 +56,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
@@ -67,6 +66,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.FileNotFoundException;
@@ -116,8 +116,8 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.S
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -320,7 +320,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             }
             assertNoFailures(bulkRequest.get());
             shard.refresh("update directory size");
-        } while (getDirectorySize(directory) <= PAGE_SIZE * pages);
+        } while (getLocalDirectorySize(directory) <= PAGE_SIZE * pages);
         updateIndexSettings(
             Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), originalRefreshInterval),
             indexName
@@ -333,20 +333,15 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
     private IndexedDocs indexDocsAndRefresh(String indexName) throws Exception {
         final var indexedDocs = indexDocs(indexName);
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
-        logger.info("--> directory size {}", getDirectorySize(findIndexShard(indexName).store().directory()));
+        logger.info("--> directory size {}", getLocalDirectorySize(findIndexShard(indexName).store().directory()));
         return indexedDocs;
     }
 
-    private long getDirectorySize(Directory directory) throws IOException {
-        long size = 0;
-        for (String file : directory.listAll()) {
-            // Don't count .tmp files from ongoing merges, they can and will disappear
-            if (file.endsWith(".tmp")) {
-                continue;
-            }
-            size += directory.fileLength(file);
-        }
-        return size;
+    /**
+     * Size of non-uploaded local files on disk.
+     */
+    private static long getLocalDirectorySize(Directory directory) {
+        return IndexDirectory.unwrapDirectory(directory).estimateSizeInBytes();
     }
 
     private enum TestSearchType {
@@ -491,7 +486,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                          }
                        }
                      }
-            """, XContentType.JSON).get());
+            """).get());
 
         List<Long> minInCommits = new ArrayList<>();
         List<Long> maxInCommits = new ArrayList<>();
@@ -1364,7 +1359,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                          }
                        }
                      }
-            """, XContentType.JSON).get());
+            """).get());
 
         // Constrained positive epoch-millis so the exact minutes assertion stays clean.
         final long tenYearsMillis = TimeValue.timeValueDays(3650).millis();

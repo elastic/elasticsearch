@@ -320,8 +320,12 @@ public class Subject {
         );
     }
 
+    /**
+     * Role names that cap this subject's assigned roles, as reported by the cloud identity provider, or {@code null}
+     * if the subject is uncapped.
+     */
     @Nullable
-    private List<String> getCloudLimitedByRoleNames() {
+    public List<String> getCloudLimitedByRoleNames() {
         final Object value = metadata.get(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY);
         if (value == null) {
             return null;

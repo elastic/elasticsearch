@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -80,6 +81,11 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public List<String> configWarnings() {
+        return inner.configWarnings();
+    }
+
+    @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         FormatReader filtered = inner.withPushedFilter(pushedFilter);
         return filtered == inner ? this : new CompressionDelegatingFormatReader(filtered, codec);
@@ -142,6 +148,11 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     @Override
     public RowPositionStrategy rowPositionStrategy() {
         return inner.rowPositionStrategy();
+    }
+
+    @Override
+    public FormatReadCounters newReadCounters() {
+        return inner.newReadCounters();
     }
 
     FormatReader unwrap() {

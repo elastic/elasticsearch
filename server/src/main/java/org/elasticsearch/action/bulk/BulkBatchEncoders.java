@@ -13,74 +13,47 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.cluster.routing.RoutingExtractor;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatch;
-import org.elasticsearch.sourcebatch.SourceBatchEncoder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Per-bulk helper that performs single-pass {@code XContent → ESCF} encoding while shard routing is
- * being computed, accumulating one row per item directly into the destination shard's row partition
- * inside an {@link EscfEncoder}. There is one encoder per concrete write index encountered in the
- * bulk; each encoder fans rows out to many partitions (one per destination shard).
+ * Pre-routing {@code XContent → ESCF} encode pass. Runs once over the bulk request before
+ * {@link BulkOperation#groupRequestsByShards} resolves concrete indices, producing one
+ * {@link EscfEncoder}-built {@link org.elasticsearch.escf.EscfBatch} per index abstraction (data
+ * stream, concrete index, or plain alias). The resulting batches are handed to
+ * {@link BatchRouterSet#forBatches} and then routed and scattered by {@link BatchModeRouter} in
+ * the normal way — the same path used by external producers that call
+ * {@link BulkRequest#setPreBuiltBatches}.
  *
- * <p>Lifecycle: created at the start of a {@link BulkOperation#doRun() bulk run} only when
- * {@link #isBulkBatchEligible} returns true (i.e. every item in the bulk is structurally eligible
- * for batch encoding), used inside the initial-pass shard grouping, finalized via
- * {@link #finalizeBatches} just before per-shard {@code BulkShardRequest}s are constructed, and
- * {@link #close closed} when the bulk operation tears down.
- *
- * <p>Routing parity with the source-parser-based path is preserved by feeding the routing strategy's
- * {@link RoutingExtractor} (when one is available) data sourced from the encoder's parse pass.
- * Routing strategies without an extractor (Unpartitioned / Partitioned / IdAndRoutingOnly) fall
- * through to {@link IndexRouting#indexShard(IndexRequest)} since they don't need source parsing.
- * If the extractor throws (e.g. an array at a matched routing column), the helper catches it,
- * disables itself for the remainder of the bulk, and every item routes through the inline-source
- * path.
- *
- * <p>Bulk-wide all-or-nothing: the decision to use batch encoding is made once for the whole bulk by
- * the pre-scan in {@link BulkOperation#doRun()}. If a runtime encoder failure happens mid-grouping
- * — typically because the source bytes that already passed {@code BulkRequestParser} validation
- * fail the encoder's full parse — {@link #tryEncodeAndRoute} signals that via {@link #disabled()}
- * and the rest of the bulk goes through the inline-source path. {@link #finalizeBatches} returns an
- * empty map when disabled, so previously-committed rows are simply discarded and items keep their
- * inline source.
+ * <p>Bulk-wide all-or-nothing: if any item is structurally ineligible
+ * ({@link #isBulkBatchEligible}), or if any item's abstraction resolves to a {@code null} batch
+ * key (e.g. a direct write to a backing index of a data stream), or if any item's write index
+ * uses a routing strategy that requires extracting fields from the source on the shard side
+ * (e.g. routing-path-based TSDB), or if any item's source bytes fail encoding, {@link #encode}
+ * returns {@code null} and the whole bulk takes the row path.
+ * Because attachment ({@link org.elasticsearch.action.index.IndexSource#setSourceRow}) is deferred
+ * until every document has been encoded successfully, every {@link IndexRequest} still holds its
+ * original inline source on abort, and the row path picks it up without any recovery step.
  */
-final class BulkBatchEncoders implements Releasable {
+final class BulkBatchEncoders {
 
     private static final Logger logger = LogManager.getLogger(BulkBatchEncoders.class);
 
-    /** Sentinel returned from {@link #tryEncodeAndRoute} when the item cannot be batch-encoded. */
-    static final int NOT_BATCHABLE = -1;
+    private record PendingAttachment(IndexRequest indexRequest, String key, int rowIndex) {}
 
-    private static final class IndexState {
-        final SourceBatchEncoder encoder;
-        final RoutingExtractor extractor;
-        final Map<ShardId, List<PendingAttachment>> pendingByShard = new HashMap<>();
-
-        IndexState(SourceBatchEncoder encoder, RoutingExtractor extractor) {
-            this.encoder = encoder;
-            this.extractor = extractor;
-        }
-    }
-
-    private record PendingAttachment(IndexRequest indexRequest, int rowIndex) {}
-
-    private final Map<Index, IndexState> indexStates = new HashMap<>();
-    private boolean disabled;
-    private boolean closed;
+    private BulkBatchEncoders() {}
 
     /**
      * Returns true if every item in {@code bulkRequest} is structurally eligible to be batch-encoded:
@@ -113,102 +86,126 @@ final class BulkBatchEncoders implements Releasable {
     }
 
     /**
-     * True after {@link #tryEncodeAndRoute} has hit a runtime encoder failure. Once disabled, the
-     * helper still returns shard ids (so grouping can continue normally) but no batches are produced
-     * by {@link #finalizeBatches} — every item ends up routed via the inline-source path.
-     */
-    boolean disabled() {
-        return disabled;
-    }
-
-    /**
-     * Encode {@code request} into the per-(concrete-index) encoder, compute its shard id (via the
-     * routing strategy's extractor when applicable, falling back to
-     * {@link IndexRouting#indexShard(IndexRequest)} otherwise), commit the staged row to the
-     * destination shard's partition, and return the shard id.
+     * Encodes every item in {@code bulkRequest} from x-content into ESCF, groups them by index
+     * abstraction, and returns a {@link BatchRouterSet} ready for the routing pass.
      *
-     * @return the destination shard id within {@code concreteIndex}, or {@link #NOT_BATCHABLE} if
-     *         the encoder failed for this item — in which case the entire bulk's batch is
-     *         abandoned ({@link #disabled()} becomes true) and the caller must route the item via
-     *         {@link IndexRouting#indexShard(IndexRequest)} on the inline source.
+     * <p>Returns {@code null} if the bulk is not eligible (see {@link #isBulkBatchEligible}), if any
+     * item targets a null batch key, if any write index uses routing that requires source-extraction
+     * at the shard (e.g. {@link IndexRouting.ExtractFromSource.ForRoutingPath}), or if encoding
+     * fails for any item. On {@code null} return every {@link IndexRequest} still holds its
+     * original inline source bytes.
      */
-    int tryEncodeAndRoute(IndexRequest request, Index concreteIndex, IndexRouting indexRouting) {
-        if (disabled) {
-            return NOT_BATCHABLE;
+    @Nullable
+    static BatchRouterSet encode(BulkRequest bulkRequest, ProjectMetadata project, IndexNameExpressionResolver resolver) {
+        if (isBulkBatchEligible(bulkRequest) == false) {
+            return null;
         }
-        IndexState state = indexStates.computeIfAbsent(
-            concreteIndex,
-            idx -> new IndexState(new EscfEncoder(), indexRouting.newRoutingExtractor())
-        );
-        if (state.extractor != null) {
-            state.extractor.reset();
-        }
-        LeafSink sink = state.extractor != null ? state.extractor : LeafSink.NO_OP;
-        XContentType contentType = request.getContentType();
-        try {
-            state.encoder.parseToScratch(request.indexSource().bytes(), contentType, sink);
-        } catch (Exception e) {
-            // Either the source bytes failed the encoder's parse (rare — they already passed
-            // BulkRequestParser validation), or the extractor threw because it can't handle the
-            // input (e.g. an array at a matched routing column). Either way, abandon the entire
-            // bulk's batch: items already committed are discarded by finalizeBatches returning
-            // empty, and subsequent items skip encoding (see the disabled check above). The
-            // encoder's scratch will be reset at the start of the next parseToScratch call, so we
-            // don't need to clean up here.
-            logger.debug("batch encoding / routing extraction failed; abandoning batch for the rest of this bulk", e);
-            disabled = true;
-            return NOT_BATCHABLE;
-        }
-        int shardIdInt = state.extractor != null ? state.extractor.computeShardId(request) : indexRouting.indexShard(request);
-        ShardId destShardId = new ShardId(concreteIndex, shardIdInt);
-        try {
-            int rowIndex = state.encoder.commitScratchTo(shardIdInt);
-            state.pendingByShard.computeIfAbsent(destShardId, k -> new ArrayList<>()).add(new PendingAttachment(request, rowIndex));
-        } catch (Exception e) {
-            // commitScratchTo failure indicates internal-state corruption (IO error on the
-            // underlying stream). Surface it; the per-item catch in groupRequestsByShards turns it
-            // into a per-item failure response.
-            throw new IllegalStateException("Failed to commit batch row for item to shard " + destShardId, e);
-        }
-        return shardIdInt;
-    }
 
-    /**
-     * Build the batch for every shard that received committed rows, set the batch row reference
-     * on each item routed there (replacing inline source bytes with a row reference), and return
-     * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
-     */
-    Map<ShardId, SourceBatch> finalizeBatches() {
-        if (disabled) {
-            return Collections.emptyMap();
-        }
-        Map<ShardId, SourceBatch> batchesByShard = new HashMap<>();
-        for (IndexState state : indexStates.values()) {
-            for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {
-                List<PendingAttachment> pending = entry.getValue();
-                if (pending.isEmpty()) {
-                    continue;
+        // One encoder per index abstraction key.
+        Map<String, EscfEncoder> encoders = new HashMap<>();
+        // Per-key abstraction cache: request.index() → batchKey. Resolved once per unique name;
+        // a null value (stored explicitly) means "seen and incompatible — abort on first access".
+        // We use containsKey() rather than computeIfAbsent() to allow caching null keys.
+        Map<String, String> keyByTargetName = new HashMap<>();
+        // Deferred list of (request, key, row) to attach after all documents encoded and batches built.
+        List<PendingAttachment> pending = new ArrayList<>(bulkRequest.requests.size());
+        // Built batches, tracked separately so they can be released on failure after the build loop.
+        Map<String, SourceBatch> batches = null;
+
+        try {
+            for (DocWriteRequest<?> docRequest : bulkRequest.requests) {
+                IndexRequest indexRequest = (IndexRequest) docRequest; // safe: isBulkBatchEligible checked
+                String targetName = indexRequest.index();
+
+                // Resolve batch key, memoized per unique target name.
+                final String key;
+                if (keyByTargetName.containsKey(targetName)) {
+                    key = keyByTargetName.get(targetName);
+                } else {
+                    IndexAbstraction ia = resolver.resolveWriteIndexAbstraction(project, indexRequest);
+                    String resolved = BatchModeRouter.batchKey(ia, project);
+                    if (resolved != null && isBatchRoutingCompatible(ia, project) == false) {
+                        resolved = null; // unsupported routing — treat same as null key
+                    }
+                    keyByTargetName.put(targetName, resolved); // cache, including null
+                    key = resolved;
                 }
-                ShardId shardId = entry.getKey();
-                SourceBatch batch = state.encoder.buildPartition(shardId.getId());
-                batchesByShard.put(shardId, batch);
-                for (PendingAttachment attachment : pending) {
-                    attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
+
+                if (key == null) {
+                    // Direct write to a backing index, alias with no write index, or unsupported routing.
+                    logger.debug("batch encoding skipped: item targeting [{}] is not batch-compatible", targetName);
+                    return null;
+                }
+
+                EscfEncoder encoder = encoders.computeIfAbsent(key, k -> new EscfEncoder());
+                int rowIndex = encoder.addDocument(indexRequest.indexSource().bytes(), indexRequest.getContentType());
+                // Attachment is deferred: indexSource().bytes() must remain intact for the row path fallback.
+                pending.add(new PendingAttachment(indexRequest, key, rowIndex));
+            }
+
+            // Build one EscfBatch per abstraction key.
+            batches = new HashMap<>(encoders.size() * 2);
+            for (Map.Entry<String, EscfEncoder> entry : encoders.entrySet()) {
+                batches.put(entry.getKey(), entry.getValue().build());
+            }
+            // Close encoders now that their batches own the column data.
+            for (EscfEncoder encoder : encoders.values()) {
+                encoder.close();
+            }
+            encoders.clear();
+
+            // Attach source-row references to each IndexRequest. Done only after every document
+            // encoded and every batch built — so any failure leaves all inline bytes intact.
+            for (PendingAttachment attachment : pending) {
+                SourceBatch batch = batches.get(attachment.key());
+                attachment.indexRequest()
+                    .indexSource()
+                    .setSourceRow(batch, attachment.rowIndex(), attachment.indexRequest().getContentType());
+            }
+
+            return BatchRouterSet.forBatches(batches);
+
+        } catch (Exception e) {
+            logger.debug("batch encoding failed; falling back to the row path for this bulk", e);
+            // Release any batches that were successfully built.
+            if (batches != null) {
+                for (SourceBatch batch : batches.values()) {
+                    batch.close();
                 }
             }
+            // Close any open encoders.
+            for (EscfEncoder encoder : encoders.values()) {
+                encoder.close();
+            }
+            return null;
         }
-        return batchesByShard;
     }
 
-    @Override
-    public void close() {
-        if (closed) {
-            return;
+    /**
+     * Returns {@code true} when the write index of {@code ia} uses a routing strategy that the
+     * batch path supports. Returns {@code false} for
+     * {@link IndexRouting.ExtractFromSource.ForRoutingPath}, which needs dimension fields extracted
+     * from the source on the shard side (unlike
+     * {@link IndexRouting.ExtractFromSource.ForIndexDimensions}, which computes the {@code _tsid}
+     * during columnar routing on the coordinating node and does not require source access at
+     * the shard).
+     */
+    private static boolean isBatchRoutingCompatible(IndexAbstraction ia, ProjectMetadata project) {
+        Index writeIndex = ia.getWriteIndex();
+        if (writeIndex == null) {
+            return true; // no write index means null batchKey, handled separately
         }
-        closed = true;
-        for (IndexState state : indexStates.values()) {
-            state.encoder.close();
+        IndexMetadata indexMeta = project.index(writeIndex);
+        if (indexMeta == null) {
+            return true; // will fail later in the routing pass anyway
         }
-        indexStates.clear();
+        IndexRouting routing = IndexRouting.fromIndexMetadata(indexMeta);
+        // ForRoutingPath requires source-field extraction at the shard to compute _tsid.
+        // ForIndexDimensions computes _tsid during columnar routing on the coordinator; it is supported.
+        if (routing instanceof IndexRouting.ExtractFromSource
+            && routing instanceof IndexRouting.ExtractFromSource.ForIndexDimensions == false) {
+            return false;
+        }
+        return true;
     }
 }

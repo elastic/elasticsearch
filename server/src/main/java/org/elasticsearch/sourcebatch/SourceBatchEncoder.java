@@ -16,48 +16,31 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 /**
- * Encodes source documents into a {@link SourceBatch}, fanning rows out to one or more partitions
- * (typically one per destination shard).
+ * Encodes source documents into a {@link SourceBatch}.
  *
- * <p>Usage: {@link #parseToScratch} stages a single document, then {@link #commitScratchTo} appends
- * it to a partition; once all documents are committed, {@link #buildPartition} produces the batch for
- * a partition. {@link #addDocument} is the single-step convenience.
+ * <p>Usage: call {@link #addDocument} for each document (in any order); once all documents are
+ * encoded, call {@link #build} to obtain the finished batch. The encoder is single-use: {@link #build}
+ * must be called exactly once, after which the encoder should be {@link #close}d.
  */
 public interface SourceBatchEncoder extends Releasable {
 
     /**
-     * Parses {@code source} into the encoder's scratch buffers, firing {@code sink} for each primitive
-     * leaf. The staged row is appended by the next {@link #commitScratchTo} call; calling this twice
-     * without an intervening commit discards the previously staged row.
-     */
-    void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException;
-
-    /**
-     * Appends the currently staged row (from {@link #parseToScratch}) to {@code partitionKey} and
-     * returns its row index within that partition.
-     */
-    int commitScratchTo(int partitionKey) throws IOException;
-
-    /**
-     * Builds the {@link SourceBatch} for {@code partitionKey} from all committed rows.
+     * Encodes {@code source} into the batch and returns its zero-based row index.
      *
-     * @throws IllegalStateException if no rows have been committed to {@code partitionKey}, or if
-     *     the partition has already been built
+     * <p>The returned index is stable: it can be stored on the originating request and used to
+     * recover the row from the finished batch via
+     * {@link org.elasticsearch.action.index.IndexSource#setSourceRow}.
      */
-    SourceBatch buildPartition(int partitionKey);
+    int addDocument(BytesReference source, XContentType xContentType) throws IOException;
 
-    /** The number of documents committed to {@code partitionKey}. */
-    int docCount(int partitionKey);
+    /**
+     * Returns the number of documents added so far (the total across successful and aborted parses).
+     */
+    int docCount();
 
-    /** Whether {@code partitionKey} has received any committed rows. */
-    boolean hasPartition(int partitionKey);
-
-    /** The cached dotted path for a schema leaf column. */
-    String columnPath(int columnIndex);
-
-    /** Parses and commits {@code source} to {@code partition} in one step, with no leaf sink. */
-    default void addDocument(BytesReference source, XContentType xContentType, int partition) throws IOException {
-        parseToScratch(source, xContentType, LeafSink.NO_OP);
-        commitScratchTo(partition);
-    }
+    /**
+     * Finalizes all columns and returns the finished {@link SourceBatch}. The batch owns the
+     * underlying buffers; close it to release them. Must be called at most once.
+     */
+    SourceBatch build();
 }

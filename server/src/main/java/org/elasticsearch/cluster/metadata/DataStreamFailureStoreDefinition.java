@@ -206,9 +206,9 @@ public class DataStreamFailureStoreDefinition {
 
     /**
      * Modifies an existing index's settings so that it can be added to a data stream's failure store.
-     *
      * @param nodeSettings settings from the cluster service which capture the node's current settings
-     * @param builder      to capture failure store specific index settings
+     * @param builder to capture failure store specific index settings
+     * @return the original settings builder, with any failure store specific settings applied
      */
     public static Settings.Builder applyFailureStoreSettings(Settings nodeSettings, Settings.Builder builder) {
         // Optionally set a custom refresh interval for the failure store index.

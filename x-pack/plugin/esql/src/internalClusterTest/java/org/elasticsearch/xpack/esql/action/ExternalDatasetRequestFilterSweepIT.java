@@ -120,7 +120,12 @@ public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSou
             "2020-01-02"
         ),
         new Column("u", DataType.UNSIGNED_LONG, i -> i % 5 != 1, i -> (long) i * 10, 100L, 50L, 300L),
-        new Column("a", DataType.IP, i -> i % 4 != 1, i -> "10.0.0." + (i % 20), "10.0.0.6", "10.0.0.2", "10.0.0.9")
+        new Column("a", DataType.IP, i -> i % 4 != 1, i -> "10.0.0." + (i % 20), "10.0.0.6", "10.0.0.2", "10.0.0.9"),
+        // Two subfields under an object path no column is named after. Every other column here is a single segment, so
+        // without these no swept reference resolves to more than one field, and the multi-field leaf an object path
+        // produces would be swept in no bool context at all.
+        new Column("o.x", DataType.KEYWORD, i -> i % 3 != 1, i -> "x" + (i % 4), "x1", "x0", "x3"),
+        new Column("o.y", DataType.KEYWORD, i -> i % 5 != 2, i -> "y" + (i % 4), "y1", "y0", "y3")
     );
 
     /** A field neither source has, swept beside the real columns. */
@@ -252,7 +257,14 @@ public class ExternalDatasetRequestFilterSweepIT extends AbstractExternalDataSou
             new Named<>(
                 "unsupported beside a term",
                 QueryBuilders.boolQuery().must(QueryBuilders.termQuery("k", "k1")).must(QueryBuilders.wildcardQuery("k", "k*"))
-            )
+            ),
+            // References that resolve to SEVERAL fields, which is the leaf shape an object path produces. Per-column
+            // sweeps cannot reach it: every column name there is one segment.
+            new Named<>("exists on an object path", QueryBuilders.existsQuery("o")),
+            new Named<>("exists on a field pattern", QueryBuilders.existsQuery("o.*")),
+            new Named<>("exists on match-all", QueryBuilders.existsQuery("*")),
+            new Named<>("range with no bounds on an object path", QueryBuilders.rangeQuery("o")),
+            new Named<>("exists on an object path with no subfields", QueryBuilders.existsQuery("no_such_object"))
         );
         List<String> failures = new ArrayList<>();
         for (Named<QueryBuilder> shape : shapes) {

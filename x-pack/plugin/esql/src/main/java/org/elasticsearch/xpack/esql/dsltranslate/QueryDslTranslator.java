@@ -145,8 +145,9 @@ public final class QueryDslTranslator {
     /**
      * A translator bound against a plan node's output schema: a field present in {@code output} binds to its
      * {@link Attribute} and one absent binds to {@link Literal#NULL}, so the DSL's missing-field leniency falls out of
-     * every leaf folding a null to false. Name references resolve against the same schema, in output order, so the
-     * emitted shape does not depend on hash order.
+     * every leaf folding a null to false. The map is insertion-ordered so a reference covering several fields emits them
+     * in the node's output order rather than in hash order; nothing depends on that, it just keeps an emitted shape
+     * readable and stable between runs.
      */
     static QueryDslTranslator forOutput(List<? extends Attribute> output, Configuration configuration, TransportVersion minimumVersion) {
         Map<String, Attribute> byName = new LinkedHashMap<>();
@@ -162,8 +163,15 @@ public final class QueryDslTranslator {
     /**
      * A {@link FieldNames} over a known schema: every reference is matched against {@code names} as a pattern, which
      * for a reference carrying no wildcard is an equality test — {@code FieldTypeLookup.getMatchingFieldNames} answers
-     * a mapping the same way, by the singleton leaf or nothing. Its remaining branch, dynamic keys under a flattened
-     * field, has no counterpart here: a source's schema is the fields it has.
+     * a mapping the same way, by the singleton leaf or nothing.
+     *
+     * <p>Where this and a mapping part company, because it is the seam this whole path rests on. An index resolves a
+     * reference through {@code QueryRewriteContext.getMatchingFieldNames}, which layers request-time runtime mappings,
+     * slice-field aliases and a field-level-security filter over {@code FieldTypeLookup} — and {@code FieldTypeLookup}
+     * resolves a bare name through {@code get}, which falls through to {@code getDynamicField}, so even its
+     * no-wildcard branch can answer with a dynamic key under a flattened field. A source's output schema has none of
+     * those layers: it is the fields there are. For a dataset and for a view's output the two therefore coincide, and
+     * for anything that acquires fields at request time they do not.
      */
     public static FieldNames over(Collection<String> names) {
         return reference -> {
@@ -579,7 +587,6 @@ public final class QueryDslTranslator {
         return existsOn(exists.fieldName());
     }
 
-    /** {@code exists} on a name reference — also what a {@code range} carrying neither bound means. */
     private Expression existsOn(String reference) {
         Collection<String> names = fieldNames.matching(reference);
         if (names.isEmpty()) {
@@ -677,12 +684,18 @@ public final class QueryDslTranslator {
     }
 
     private Expression range(RangeQueryBuilder range) {
-        // Neither bound: RangeQueryBuilder.doToQuery answers this as an exists query before it reads the time zone, the
-        // format or the field's type, so it means "has a value", not "matches everything". Checked first so none of those
-        // options can make it untranslatable. TRUE disagrees wherever the field is missing: it returns those rows too,
-        // and under must_not it returns none of the rows the index returns.
+        // Neither bound: RangeQueryBuilder.doToQuery answers this with ExistsQueryBuilder.newFilter before it reads the
+        // time zone, the format or the field's type, so it means "has a value", not "matches everything". Checked first
+        // so none of those options can make it untranslatable. TRUE disagrees wherever the field is missing: it returns
+        // those rows too, and under must_not it returns none of the rows the index returns.
+        //
+        // It is NOT existsOn: a range never reaches doToQuery unless its field names one mapped field. RangeQueryBuilder
+        // rewrites first — doSearchRewrite -> getRelation, which answers DISJOINT when getFieldType(fieldName) is null,
+        // and toQueryBuilder turns DISJOINT into match_none. So an object path or a pattern matches nothing here, where
+        // the same reference under exists expands. Binding the name itself reproduces that: a reference the source has
+        // no column for is null-bound and folds to false.
         if (range.from() == null && range.to() == null) {
-            return existsOn(range.fieldName());
+            return new IsNotNull(Source.EMPTY, fieldBinder.apply(range.fieldName()));
         }
         // A time zone shifts what the bounds mean; we parse them zone-naively, so honoring it is not something we can
         // fake. Reject rather than answer a differently-scoped question.

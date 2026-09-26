@@ -242,11 +242,7 @@ public final class ViewRequestFilterRewriter {
         return new ViewUnionAll(vua.source(), newSubqueries, vua.viewBranchKeys(), vua.output());
     }
 
-    /**
-     * Translates {@code filter} into a {@link QueryDslTranslator.TranslationResult} bound against the given output
-     * schema. A field present in {@code output} binds to its {@link Attribute}; a field absent from {@code output}
-     * binds to {@link Literal#NULL} so that the DSL's missing-field leniency is reproduced automatically.
-     */
+    /** Translates {@code filter} against one view branch's output schema — see {@link QueryDslTranslator#forOutput}. */
     private static QueryDslTranslator.TranslationResult translateFilter(
         List<Attribute> output,
         QueryBuilder filter,

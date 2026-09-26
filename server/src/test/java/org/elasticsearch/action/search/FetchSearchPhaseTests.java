@@ -32,8 +32,10 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -50,6 +52,10 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -96,7 +102,9 @@ import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -104,6 +112,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSearchPhaseTests extends ESTestCase {
     private static final long FETCH_PROFILE_TIME = 555;
+    private static final long SHARD_BYTES_READ = 7L;
 
     public void testShortcutQueryAndFetchOptimization() throws Exception {
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
@@ -187,6 +196,240 @@ public class FetchSearchPhaseTests extends ESTestCase {
         assertThat(searchResponse.getSearchProfileShardResults().values().size(), equalTo(totalShards));
         for (SearchProfileShardResult profileShardResult : searchResponse.getSearchProfileShardResults().values()) {
             assertThat(profileShardResult.getFetchPhase().getTime(), equalTo(FETCH_PROFILE_TIME));
+        }
+    }
+
+    public void testFetchedHitsAreChargedToTheRequestBreakerForTheWholePhase() throws Exception {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
+        SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        AtomicLong fetchedBytes = new AtomicLong();
+        AtomicLong chargeOnceBothShardsAreIn = new AtomicLong(-1L);
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
+            ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+            ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
+            SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
+            SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
+            consumeQueryResult(results, ctx1, shard1Target, 0, 42, 1.0F);
+            consumeQueryResult(results, ctx2, shard2Target, 1, 84, 2.0F);
+            mockSearchPhaseContext.searchTransport = fetchTransport(ctx2, shard1Target, shard2Target, 256, 256, fetchedBytes);
+
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+            new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
+                @Override
+                protected SearchPhase nextPhase(
+                    SearchResponseSections searchResponseSections,
+                    AtomicArray<SearchPhaseResult> queryPhaseResults
+                ) {
+                    // Both shards are in and the response has not gone out, so the phase is still holding their hits.
+                    chargeOnceBothShardsAreIn.set(breaker.getUsed());
+                    return searchPhaseFactory(mockSearchPhaseContext).apply(searchResponseSections, queryPhaseResults);
+                }
+            }.run();
+
+            mockSearchPhaseContext.assertNoFailure();
+            assertNotNull(mockSearchPhaseContext.searchResponse.get());
+            assertThat(fetchedBytes.get(), greaterThan(0L));
+            assertThat(chargeOnceBothShardsAreIn.get(), equalTo(fetchedBytes.get()));
+            // The response has been sent, so the charge for the hits the phase was holding is back.
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            mockSearchPhaseContext.results.close();
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+    }
+
+    public void testShardWhoseHitsTheCoordinatorCannotHoldFailsOnlyThatShard() throws Exception {
+        // Room for the first shard's small hit but not for the second shard's large one.
+        CircuitBreaker breaker = requestBreaker("2kb");
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
+        SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
+            ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+            ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
+            SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
+            SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
+            consumeQueryResult(results, ctx1, shard1Target, 0, 42, 1.0F);
+            consumeQueryResult(results, ctx2, shard2Target, 1, 84, 2.0F);
+            mockSearchPhaseContext.searchTransport = fetchTransport(ctx2, shard1Target, shard2Target, 64, 4096, new AtomicLong());
+
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+            getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase).run();
+
+            // The trip is reported like any other failed fetch, so the search still answers with what it could hold.
+            mockSearchPhaseContext.assertNoFailure();
+            SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
+            assertNotNull(searchResponse);
+            assertEquals(1, searchResponse.getSuccessfulShards());
+            assertEquals(1, searchResponse.getFailedShards());
+            Throwable cause = searchResponse.getShardFailures()[0].getCause();
+            assertThat(cause, instanceOf(CircuitBreakingException.class));
+            // The label tells an operator the coordinator ran out of room, not the data node the failure points at.
+            assertThat(cause.getMessage(), containsString("fetch[coordinator]"));
+            assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
+            assertThat(breaker.getUsed(), equalTo(0L));
+            // Both shards did the IO, so the dropped one still reports what it read.
+            DirectoryMetrics merged = mockSearchPhaseContext.getMergedDirectoryMetrics();
+            assertThat(merged.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead(), equalTo(2 * SHARD_BYTES_READ));
+        } finally {
+            mockSearchPhaseContext.results.close();
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+    }
+
+    public void testChargeIsGivenBackWhenThePhaseFails() throws Exception {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, breaker);
+        SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
+            ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+            ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
+            SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
+            SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
+            consumeQueryResult(results, ctx1, shard1Target, 0, 42, 1.0F);
+            consumeQueryResult(results, ctx2, shard2Target, 1, 84, 2.0F);
+            mockSearchPhaseContext.searchTransport = fetchTransport(ctx2, shard1Target, shard2Target, 256, 256, new AtomicLong());
+
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+            new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
+                @Override
+                protected SearchPhase nextPhase(
+                    SearchResponseSections searchResponseSections,
+                    AtomicArray<SearchPhaseResult> queryPhaseResults
+                ) {
+                    assertThat(breaker.getUsed(), greaterThan(0L));
+                    return new SearchPhase("test") {
+                        @Override
+                        protected void run() {
+                            throw new IllegalStateException("BOOM");
+                        }
+                    };
+                }
+            }.run();
+
+            assertThat(mockSearchPhaseContext.phaseFailure.get(), instanceOf(IllegalStateException.class));
+            assertNull(mockSearchPhaseContext.searchResponse.get());
+            // No response was ever sent, so the failure is what has to give the charge back.
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            mockSearchPhaseContext.results.close();
+        }
+    }
+
+    /**
+     * Answers each shard with a single hit whose source length is taken from the matching argument, adding up what the
+     * coordinator is expected to be charged for them. Each shard also reports {@link #SHARD_BYTES_READ} of IO.
+     */
+    private static SearchTransportService fetchTransport(
+        ShardSearchContextId shard2ContextId,
+        SearchShardTarget shard1Target,
+        SearchShardTarget shard2Target,
+        int shard1SourceLength,
+        int shard2SourceLength,
+        AtomicLong fetchedBytes
+    ) {
+        return new SearchTransportService(null, null, null) {
+            @Override
+            public void sendExecuteFetch(
+                Transport.Connection connection,
+                ShardFetchSearchRequest request,
+                AbstractSearchAsyncAction<?> context,
+                SearchShardTarget shardTarget,
+                ActionListener<FetchSearchResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                boolean isShard2 = request.contextId().equals(shard2ContextId);
+                SearchHit hit = new SearchHit(isShard2 ? 84 : 42).sourceRef(
+                    new BytesArray(randomAlphaOfLength(isShard2 ? shard2SourceLength : shard1SourceLength))
+                );
+                fetchedBytes.addAndGet(hit.ramBytesUsed());
+                FetchSearchResult fetchResult = new FetchSearchResult();
+                fetchResult.setSearchShardTarget(isShard2 ? shard2Target : shard1Target);
+                fetchResult.shardResult(new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F), null);
+                DirectoryMetrics.Builder metrics = new DirectoryMetrics.Builder();
+                metrics.add(StoreMetrics.NAME, new StoreMetrics(SHARD_BYTES_READ));
+                fetchResult.setDirectoryMetrics(metrics.build());
+                try {
+                    listener.onResponse(fetchResult);
+                } finally {
+                    fetchResult.decRef();
+                }
+            }
+        };
+    }
+
+    static CircuitBreaker requestBreaker(String limit) {
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit)
+            .build();
+        return new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            List.of(),
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        ).getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    private static void consumeQueryResult(
+        SearchPhaseResults<SearchPhaseResult> results,
+        ShardSearchContextId contextId,
+        SearchShardTarget shardTarget,
+        int shardIndex,
+        int docId,
+        float score
+    ) {
+        QuerySearchResult queryResult = new QuerySearchResult(contextId, shardTarget, null);
+        try {
+            queryResult.topDocs(
+                new TopDocsAndMaxScore(
+                    new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(docId, score) }),
+                    2.0F
+                ),
+                new DocValueFormat[0]
+            );
+            queryResult.size(2);
+            queryResult.setShardIndex(shardIndex);
+            results.consumeResult(queryResult, () -> {});
+        } finally {
+            queryResult.decRef();
         }
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
@@ -127,7 +128,7 @@ class FetchSearchPhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         long phaseStartTimeInNanos
     ) {
-        ArraySearchPhaseResults<FetchSearchResult> fetchResults = new ArraySearchPhaseResults<>(numShards);
+        FetchSearchPhaseResults fetchResults = new FetchSearchPhaseResults(numShards, context.circuitBreaker());
         final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRankScores(context.getRequest())
             ? null
             : splitRankDocsPerShard(scoreDocs, numShards);
@@ -159,6 +160,7 @@ class FetchSearchPhase extends SearchPhase {
             } else {
                 executeFetch(
                     shardPhaseResult,
+                    fetchResults,
                     counter,
                     entry,
                     rankDocsPerShard == null || rankDocsPerShard.get(i).isEmpty() ? null : new RankDocShardInfo(rankDocsPerShard.get(i)),
@@ -200,6 +202,7 @@ class FetchSearchPhase extends SearchPhase {
 
     private void executeFetch(
         SearchPhaseResult shardPhaseResult,
+        final FetchSearchPhaseResults fetchResults,
         final CountedCollector<FetchSearchResult> counter,
         final List<Integer> entry,
         final RankDocShardInfo rankDocs,
@@ -214,6 +217,15 @@ class FetchSearchPhase extends SearchPhase {
             @Override
             public void innerOnResponse(FetchSearchResult result) {
                 try {
+                    try {
+                        fetchResults.reserve(result);
+                    } catch (CircuitBreakingException e) {
+                        // The shard did the IO even though we cannot hold what it sent back.
+                        context.accumulateDirectoryMetrics(result.getDirectoryMetrics());
+                        // Hits this node cannot hold are dropped the same way a fetch that failed on the shard is.
+                        onFailure(e);
+                        return;
+                    }
                     progressListener.notifyFetchResult(shardIndex);
                     counter.onResult(result);
                 } catch (Exception e) {

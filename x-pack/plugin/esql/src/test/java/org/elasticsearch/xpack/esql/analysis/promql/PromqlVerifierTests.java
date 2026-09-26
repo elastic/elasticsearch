@@ -61,6 +61,21 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * Prometheus answers an instant query over a range vector with a matrix of the raw samples in the window; nothing
+     * produces that here yet, so the shape is a rejection rather than a plan that fails in the optimizer.
+     */
+    public void testPromqlRangeVectorInstantQuery() {
+        tsdb.error(
+            "PROMQL index=test time=\"2025-10-31T00:00:00Z\" network.bytes_in[5m]",
+            equalTo("1:47: range vector results are not supported at this time [network.bytes_in[5m]]")
+        );
+        tsdb.error(
+            "PROMQL index=test time=\"2025-10-31T00:00:00Z\" (network.bytes_in[5m] offset 1m)",
+            containsString("range vector results are not supported at this time [network.bytes_in[5m] offset 1m]")
+        );
+    }
+
     public void testPromqlRangeVectorBinaryExpression() {
         tsdb.error(
             "PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[10m])",

@@ -49,8 +49,12 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 1;
     public static final int VERSION_DIRECT_IO = VERSION_START;
-    public static final int VERSION_ON_DISK_MERGE = VERSION_START;
-    public static final int VERSION_CURRENT = VERSION_START;
+    // VERSION_ON_DISK_MERGE must be > VERSION_DIRECT_IO so that a reader can distinguish segments written before
+    // the on_disk_merge byte was added (meta version 1, no byte) from segments written after (meta version 2, byte present).
+    // If both versions are equal the reader unconditionally consumes the byte from an old segment and every subsequent
+    // field read shifts, causing CorruptIndexException: Invalid vector encoding id.
+    public static final int VERSION_ON_DISK_MERGE = 2;
+    public static final int VERSION_CURRENT = VERSION_ON_DISK_MERGE;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
@@ -97,6 +101,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final String sliceField;
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
+    private final int writeVersion;
 
     /** No-arg constructor for SPI. */
     public ESNextDiskASHVectorsFormat() {
@@ -134,6 +139,43 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         IvfFlushConfigSource ivfFlushConfigSource,
         IvfMergeConfigResolver ivfMergeConfigResolver,
         boolean onDiskMerge
+    ) {
+        this(
+            ashConfig,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            flatVectorThreshold,
+            sliceField,
+            ivfFlushConfigSource,
+            ivfMergeConfigResolver,
+            onDiskMerge,
+            VERSION_CURRENT
+        );
+    }
+
+    /**
+     * Full constructor that additionally accepts {@code writeVersion} for testing backwards-compatibility scenarios.
+     * Pass {@link #VERSION_START} to produce a segment that looks like one written before the {@code on_disk_merge}
+     * byte was introduced; pass {@link #VERSION_CURRENT} for normal production use.
+     */
+    ESNextDiskASHVectorsFormat(
+        IvfSegmentConfig.AshConfig ashConfig,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        int flatVectorThreshold,
+        String sliceField,
+        IvfFlushConfigSource ivfFlushConfigSource,
+        IvfMergeConfigResolver ivfMergeConfigResolver,
+        boolean onDiskMerge,
+        int writeVersion
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -177,17 +219,19 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         this.sliceField = sliceField;
         this.ivfFlushConfigSource = ivfFlushConfigSource;
         this.ivfMergeConfigResolver = ivfMergeConfigResolver;
+        this.writeVersion = writeVersion;
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
+        boolean shouldUseOnDiskMerge = onDiskMerge && writeVersion >= VERSION_ON_DISK_MERGE;
         return new ESNextDiskASHVectorsWriter(
             state,
             rawVectorFormat.getName(),
             useDirectIO,
-            onDiskMerge,
-            rawVectorFormat.fieldsWriter(state, onDiskMerge),
+            shouldUseOnDiskMerge,
+            rawVectorFormat.fieldsWriter(state, shouldUseOnDiskMerge),
             vectorPerCluster,
             centroidsPerParentCluster,
             mergeExec,
@@ -196,7 +240,8 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             sliceField,
             ivfFlushConfigSource,
             ivfMergeConfigResolver,
-            ashConfig
+            ashConfig,
+            writeVersion
         );
     }
 

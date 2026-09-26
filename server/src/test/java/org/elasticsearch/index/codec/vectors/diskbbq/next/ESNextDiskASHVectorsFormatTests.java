@@ -51,6 +51,9 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMetaVersionTestUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
 
@@ -528,5 +531,46 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
             ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
             sliceField
         );
+    }
+
+    /**
+     * Regression test for the BWC break where the {@code on_disk_merge} byte was added to the ASH per-field meta
+     * record without bumping {@code VERSION_CURRENT}. A reader at the newer build consuming a segment stamped with
+     * the old version read the byte unconditionally, shifting all subsequent field reads and throwing
+     * {@code CorruptIndexException: Invalid vector encoding id: 16777216}.
+     */
+    public void testReadsSegmentsWrittenBeforeOnDiskMergeByte() throws IOException {
+        KnnVectorsFormat oldWriter = new ESNextDiskASHVectorsFormat(
+            IvfSegmentConfig.AshConfig.defaults(),
+            ESNextDiskASHVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
+            ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            ESNextDiskASHVectorsFormat.defaultFlatThreshold(ESNextDiskASHVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER),
+            null,
+            null,
+            null,
+            false,
+            ESNextDiskASHVectorsFormat.VERSION_START
+        );
+        KnnVectorsFormat currentWriter = new ESNextDiskASHVectorsFormat();
+        try (Directory dir = newDirectory()) {
+            IvfMetaVersionTestUtils.assertReadsSegmentsWrittenBeforeOnDiskMergeByte(
+                dir,
+                oldWriter,
+                currentWriter,
+                ESNextDiskASHVectorsFormat.NAME,
+                ESNextDiskASHVectorsFormat.VERSION_START,
+                ESNextDiskASHVectorsFormat.VERSION_CURRENT,
+                random().nextInt(12, 200),
+                random().nextInt(
+                    ESNextDiskASHVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
+                    2 * ESNextDiskASHVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER
+                ),
+                random()
+            );
+        }
     }
 }

@@ -731,6 +731,68 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.close();
     }
 
+    public void testIncomingThrottleSettingsAreUpdatedAtomically() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // 2 GB heap: before effective = min(2, ceil(2 * 100)) = 2
+        // after batch update: effective = min(100, ceil(2 * 0.5)) = 1
+        final var heapBytes = ByteSizeValue.ofGb(2);
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 100.0)
+                .build()
+        );
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            heapBytes
+        );
+        service.start();
+        final var started = new AtomicInteger();
+        final var startedListeners = new ArrayList<RecoveryListener>();
+
+        for (int i = 0; i < 10; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                listener -> {
+                    started.incrementAndGet();
+                    // Hold the slot open so fillSlots cannot reclaim it during the settings update.
+                    startedListeners.add(listener);
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(2));
+
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder()
+                    .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 100)
+                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.5)
+                    .build()
+            );
+
+        // grouped update must apply both settings before fillSlots, the higher static alone would have started all 10
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(2));
+
+        // Drain
+        while (startedListeners.isEmpty() == false) {
+            final var listener = startedListeners.removeFirst();
+            listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            taskQueue.runAllRunnableTasks();
+        }
+        assertThat(started.get(), equalTo(10));
+        service.close();
+    }
+
     public void testHeapBasedLimitWithRelocationProportion() {
         final var taskQueue = new DeterministicTaskQueue();
         // 2 GB heap, ratio 2.0 -> effective max = ceil(2 * 2.0) = 4

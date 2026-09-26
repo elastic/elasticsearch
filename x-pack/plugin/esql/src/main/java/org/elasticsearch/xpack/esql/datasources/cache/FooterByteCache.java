@@ -81,7 +81,8 @@ public class FooterByteCache {
 
         /**
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
-         * using its storage identity, path string, and {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
+         * using its storage identity, path string, and
+         * {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
          * Prefer this over {@link #keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject, long)} so range
          * views ({@code RangeStorageObject}) share one entry per file.
          */

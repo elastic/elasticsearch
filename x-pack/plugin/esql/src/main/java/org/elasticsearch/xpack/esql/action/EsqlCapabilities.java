@@ -4166,6 +4166,12 @@ public class EsqlCapabilities {
          */
         TOPN_PREFILTER_LONG,
 
+        /**
+         * Warning, emitted before optimization, when an explicit NULL literal is misused: either the
+         * expression always evaluates to NULL, or a NULL in an IN list is ignored.
+         */
+        WARN_NULL_MISUSE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

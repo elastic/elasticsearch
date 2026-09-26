@@ -94,7 +94,9 @@ abc | de | 32
 
 bitLengthNull
 required_capability: fn_bit_length
+required_capability: warn_null_misuse
 row a = "abc" | eval l = bit_length(null);
+warning:Line 1:26: Expression [bit_length(null)] always evaluates to NULL.
 
 a:string | l:integer
 abc | null
@@ -564,7 +566,9 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 ;
 
 in3VLWithNull
+required_capability: warn_null_misuse
 from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
+warning:Line 1:145: NULL in the IN list of [job_positions in (\"Accountant\", \"Internship\", null)] is ignored, you can move it to [OR job_positions IS NULL].
 
 emp_no:integer |job_positions:keyword |is_in:boolean
 10024          |Junior Developer      |null
@@ -573,14 +577,18 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 ;
 
 in3VLWithNull-99347_bugfix
+required_capability: warn_null_misuse
 from employees | where emp_no == 10025 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
+warning:Line 1:84: NULL in the IN list of [job_positions in (\"Accountant\", \"Internship\", null)] is ignored, you can move it to [OR job_positions IS NULL].
 
 emp_no:integer |job_positions:keyword |is_in:boolean
 10025          |Accountant            |true
 ;
 
 in3VLWithComputedNull
+required_capability: warn_null_misuse
 from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = job_positions in ("Accountant", "Internship", nil);
+warning:Line 1:143: Expression [concat(\"\", null)] always evaluates to NULL.
 
 emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 10024          |Junior Developer      |null        |null
@@ -589,7 +597,9 @@ emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 ;
 
 in3VLWithNullAsValue
+required_capability: warn_null_misuse
 from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = null in ("Accountant", "Internship", null);
+warning:Line 1:145: NULL in the IN list of [null in (\"Accountant\", \"Internship\", null)] is ignored.
 
 emp_no:integer |job_positions:keyword |is_in:boolean
 10024          |Junior Developer      |null
@@ -598,7 +608,10 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 ;
 
 in3VLWithComputedNullAsValue
+required_capability: warn_null_misuse
 from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = nil in ("Accountant", "Internship", null);
+warning:Line 1:143: Expression [concat(\"\", null)] always evaluates to NULL.
+warning:Line 1:175: NULL in the IN list of [nil in (\"Accountant\", \"Internship\", null)] is ignored, you can move it to [OR nil IS NULL].
 
 emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 10024          |Junior Developer      |null        |null
@@ -2071,37 +2084,45 @@ c:long
 ;
 
 equalsToUpperNullFolded
+required_capability: warn_null_misuse
 from employees
 | where to_upper(null) == "Georgi"
 | keep emp_no, first_name
 ;
+warning:Line 2:9: Expression [to_upper(null)] always evaluates to NULL.
 
 emp_no:integer  | first_name:keyword
 ;
 
 equalsNullToUpperFolded
+required_capability: warn_null_misuse
 from employees
 | where to_upper(first_name) == to_string(null)
 | keep emp_no, first_name
 ;
+warning:Line 2:9: Expression [to_upper(first_name) == to_string(null)] always evaluates to NULL, did you mean [to_upper(first_name) IS NULL]?
 
 emp_no:integer  | first_name:keyword
 ;
 
 notEqualsToUpperNullFolded
+required_capability: warn_null_misuse
 from employees
 | where to_upper(null) != "Georgi"
 | keep emp_no, first_name
 ;
+warning:Line 2:9: Expression [to_upper(null)] always evaluates to NULL.
 
 emp_no:integer  | first_name:keyword
 ;
 
 notEqualsNullToUpperFolded
+required_capability: warn_null_misuse
 from employees
 | where to_upper(first_name) != to_string(null)
 | keep emp_no, first_name
 ;
+warning:Line 2:9: Expression [to_upper(first_name) != to_string(null)] always evaluates to NULL, did you mean [to_upper(first_name) IS NOT NULL]?
 
 emp_no:integer  | first_name:keyword
 ;
@@ -2265,7 +2286,9 @@ null        | null
 
 reverseRowInlineCastWithNull
 required_capability: fn_reverse
+required_capability: warn_null_misuse
 ROW x = 1 | EVAL y = REVERSE((null + 1)::string);
+warning:Line 1:31: Expression [null + 1] always evaluates to NULL.
 
 x:integer   | y:string
 1           | null
@@ -3074,7 +3097,9 @@ emp_no:integer | first_name:keyword  | first_repeated:keyword
 
 repeatStringNull
 required_capability: repeat 
+required_capability: warn_null_misuse
 row n = 2 | eval repeated = repeat(null, n);
+warning:Line 1:29: Expression [repeat(null, n)] always evaluates to NULL.
 
 n:integer | repeated:keyword
 2 | null
@@ -3082,7 +3107,9 @@ n:integer | repeated:keyword
 
 repeatNumberNull
 required_capability: repeat 
+required_capability: warn_null_misuse
 row s = "cheese" | eval repeated = repeat(s, null);
+warning:Line 1:36: Expression [repeat(s, null)] always evaluates to NULL.
 
 s:keyword | repeated:keyword
 cheese    | null
@@ -3160,7 +3187,9 @@ s:keyword
 
 spaceNull
 required_capability: space
+required_capability: warn_null_misuse
 ROW s = SPACE(null);
+warning:Line 1:9: Expression [SPACE(null)] always evaluates to NULL.
 
 s:keyword
 null
@@ -3179,12 +3208,14 @@ null
 
 spaceComplex
 required_capability: space
+required_capability: warn_null_misuse
 ROW x = 1+2+3, y = null | EVAL z = x + 5 | LIMIT 1
 | EVAL xs = SPACE(x), xsc = CONCAT("<",xs,">"),
        xn = SPACE(null),
        xz = SPACE(z), xzc = CONCAT("<",xz,">"),
        lxz = LENGTH(xz), lxs = LENGTH(xs), ltr = LENGTH(TRIM(xz))
 | DROP xs, xz;
+warning:Line 3:6: Expression [SPACE(null)] always evaluates to NULL.
 
 x:integer | y:null | z:integer | xsc:keyword | xn:keyword | xzc:keyword | lxz:integer | lxs:integer | ltr:integer
 6 | null |  11 | <      > | null | <           > | 11 | 6 | 0

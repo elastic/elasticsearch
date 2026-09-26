@@ -1718,7 +1718,32 @@ public final class EsqlTestUtils {
         return false;
     }
 
+    /**
+     * Rewrites source commands to cross-cluster index patterns, including sources nested in subqueries.
+     * PROMQL is rewritten only at the top level. An index in {@code lookupIndices} is always remote-only; when the
+     * top-level source names one, every index in the query is remote-only. {@code onlyRemotes} makes every index
+     * remote-only. Line breaks are preserved so warning line numbers still match.
+     */
     public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
+        if (isPromqlQuery(query)) {
+            return rewritePromqlIndices(query, lookupIndices, onlyRemotes);
+        }
+        if (lookupIndices.isEmpty() == false && queryContainsIndices(query, lookupIndices)) {
+            onlyRemotes = true;
+        }
+        return convertSubqueryToRemoteIndices(query, lookupIndices, onlyRemotes);
+    }
+
+    private static boolean isPromqlQuery(String query) {
+        String[] commands = query.split("\\|");
+        String first = commands[0].split(",\\s+\\(")[0].trim();
+        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
+        String afterSetStatements = setMatcher.find() ? first.substring(setMatcher.end()) : first;
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+        return commandParts.length > 0 && commandParts[0].trim().equalsIgnoreCase("PROMQL");
+    }
+
+    private static String rewritePromqlIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
         String[] commands = query.split("\\|");
         // remove subqueries
         String first = commands[0].split(",\\s+\\(")[0].trim();
@@ -1846,18 +1871,32 @@ public final class EsqlTestUtils {
      *                          enrich source indices and lookup indices. These are rewritten to the remote-only pattern {@code *:index}
      *                          instead of {@code *:index,index}: since the same rows exist on both clusters, the {@code *:index,index}
      *                          union would match them twice and double-count. Regular indices live on a single cluster,
-     *                          so {@code *:index,index} matches them exactly once and is used for everything not in this set. This mirrors
-     *                          the handling in {@link #addRemoteIndices} for the top-level (non-subquery) FROM command.
+     *                          so {@code *:index,index} matches them exactly once and is used for everything not in this set.
+     *                          {@code onlyRemotes} uses {@code *:index} for every index.
      *
      * <p>Note: like {@link #splitIgnoringParentheses}, this method is not string-literal-aware. A literal {@code (}, {@code )}, or
      * {@code |} inside a quoted string would be miscounted. The csv-spec test corpus contains no such literals in subquery tests, so this
      * matches existing behavior.
      */
     public static String convertSubqueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
-        String query = testQuery;
-        // find the main source command, ignoring pipes inside subqueries
-        List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
-        String mainFrom = mainFromCommandAndTheRest.get(0).strip();
+        return convertSubqueryToRemoteIndices(testQuery, bothClusterIndices, false);
+    }
+
+    /** @see #convertSubqueryToRemoteIndices(String, Set) */
+    public static String convertSubqueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices, boolean onlyRemotes) {
+        // Pipe and comma separators are copied from the original query, including newlines, so a warning's line
+        // number still refers to the same command.
+        SeparatorSplit pipes = splitKeepingSeparators(testQuery, "|");
+        if (pipes.rawParts.isEmpty()) {
+            return testQuery;
+        }
+        String firstRaw = pipes.rawParts.get(0);
+        int lead = leadingWhitespace(firstRaw);
+        int trail = trailingWhitespace(firstRaw);
+        if (lead + trail > firstRaw.length()) {
+            trail = firstRaw.length() - lead;
+        }
+        String mainFrom = firstRaw.substring(lead, firstRaw.length() - trail);
         // Strip any leading SET statements (e.g. "SET unmapped_fields=\"nullify\";") so that the
         // source command (FROM/TS) is correctly detected. The original SET prefix is re-prepended
         // to the rewritten source command to preserve the original query semantics.
@@ -1867,73 +1906,107 @@ public final class EsqlTestUtils {
             setStatements = mainFrom.substring(0, setMatcher.end());
             mainFrom = mainFrom.substring(setMatcher.end()).strip();
         }
-        // Detect whether the outer source command is FROM or TS so that we preserve the
-        // command keyword when rebuilding. TS cannot host nested subqueries, but it may
-        // appear as the body of a subquery passed recursively to this method.
-        String sourceCommand = startsWithCommandKeyword(mainFrom, FROM_COMMAND_PATTERN) ? "FROM"
-            : startsWithCommandKeyword(mainFrom, TS_COMMAND_PATTERN) ? "TS"
-            : "FROM";
-        // check for metadata in the main from command, and re-append after we rewrite the sources
-        List<String> mainFromCommandWithMetadata = splitIgnoringParentheses(mainFrom, "metadata");
-        mainFrom = mainFromCommandWithMetadata.get(0).strip();
-        // if there is metadata, we need to add it back later
-        String metadata = mainFromCommandWithMetadata.size() > 1 ? " metadata " + mainFromCommandWithMetadata.get(1) : "";
+        // Keep the original metadata clause, including its keyword case and spacing, and rewrite only the sources.
+        SeparatorSplit metaSplit = splitKeepingSeparators(mainFrom, "metadata");
+        String sourcePart = metaSplit.rawParts.get(0);
+        StringBuilder metadataSuffix = new StringBuilder();
+        for (int i = 0; i < metaSplit.delimiters.size(); i++) {
+            metadataSuffix.append(metaSplit.delimiters.get(i)).append(metaSplit.rawParts.get(i + 1));
+        }
+        if (metaSplit.delimiters.isEmpty()) {
+            sourcePart = sourcePart.strip();
+        }
         // Subqueries whose outer command is ROW (rather than FROM) still contain commas as part of ROW
         // syntax — those must never be interpreted as UNION-of-sources branches nor rewritten into a FROM.
         // Example: ROW emp_no = 99999, languages = 99
         // The ROW source itself has no index to rewrite, but pipe segments that follow (e.g. WHERE IN)
         // may contain FROM subqueries that do need rewriting.
-        if (startsWithCommandKeyword(mainFrom, ROW_COMMAND_PATTERN)) {
-            for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-                mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
+        List<String> rawParts = new ArrayList<>(pipes.rawParts);
+        if (startsWithCommandKeyword(sourcePart, ROW_COMMAND_PATTERN)) {
+            for (int i = 1; i < rawParts.size(); i++) {
+                rawParts.set(i, rewriteSubqueriesInExpression(rawParts.get(i), bothClusterIndices, onlyRemotes));
             }
-            return String.join(" | ", mainFromCommandAndTheRest);
+            return new SeparatorSplit(rawParts, pipes.delimiters).join();
         }
         // the main from command could be a comma separated list of index patterns, and subqueries
-        List<String> indexPatternsAndSubqueries = splitIgnoringParentheses(mainFrom, ",");
+        SeparatorSplit sources = splitKeepingSeparators(sourcePart, ",");
         // Idempotency guard: if any plain (non-subquery) source already has been rewritten to a
         // remote index pattern, skip conversion. This protects against double-rewriting when
         // the same testcase instance is reused across @Repeat iterations.
-        boolean alreadyConverted = indexPatternsAndSubqueries.stream().anyMatch(s -> isSubquery(s) == false && s.contains("*:"));
+        boolean alreadyConverted = sources.rawParts.stream().anyMatch(EsqlTestUtils::sourcePieceAlreadyRemote);
         if (alreadyConverted) {
-            return query;
+            return testQuery;
         }
-        List<String> transformed = new ArrayList<>();
-        for (String indexPatternOrSubquery : indexPatternsAndSubqueries) {
-            // remove the FROM or TS keyword if it's there
-            indexPatternOrSubquery = indexPatternOrSubquery.strip();
-            if (startsWithCommandKeyword(indexPatternOrSubquery, FROM_COMMAND_PATTERN)) {
-                indexPatternOrSubquery = indexPatternOrSubquery.substring(4).strip();
-            } else if (startsWithCommandKeyword(indexPatternOrSubquery, TS_COMMAND_PATTERN)) {
-                indexPatternOrSubquery = indexPatternOrSubquery.substring(2).strip();
-            }
-            // substitute the index patterns or subquery with remote index patterns
-            if (isSubquery(indexPatternOrSubquery)) {
-                // it's a subquery, we need to process it recursively
-                String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
-                String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices);
-                transformed.add("(" + transformedSubquery + ")");
-            } else {
-                // Indices that live on both clusters (enrich source / lookup indices) must become
-                // remote-only (*:index) to avoid double-counting; everything else uses *:index,index.
-                boolean remoteOnly = bothClusterIndices.contains(unquoteIndexName(indexPatternOrSubquery));
-                transformed.add(unquoteAndRequoteAsRemote(indexPatternOrSubquery, remoteOnly));
-            }
+        List<String> transformedSources = new ArrayList<>(sources.rawParts.size());
+        for (String piece : sources.rawParts) {
+            transformedSources.add(rewriteSourcePiece(piece, bothClusterIndices, onlyRemotes));
         }
-        // rebuild source command from transformed index patterns and subqueries, prepending any SET statements
-        String transformedFrom = setStatements + sourceCommand + " " + String.join(", ", transformed) + metadata;
+        String transformedFrom = setStatements + new SeparatorSplit(transformedSources, sources.delimiters).join() + metadataSuffix;
+        rawParts.set(0, firstRaw.substring(0, lead) + transformedFrom + firstRaw.substring(firstRaw.length() - trail));
         // Rewrite any WHERE x IN (FROM ...) / NOT IN (...) subqueries in the pipeline segments
         // that follow the source command. Non-subquery parenthesised groups (value lists, function
         // arguments, boolean groupings) are left structurally unchanged.
-        for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-            mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
+        for (int i = 1; i < rawParts.size(); i++) {
+            rawParts.set(i, rewriteSubqueriesInExpression(rawParts.get(i), bothClusterIndices, onlyRemotes));
         }
-        // rebuild the whole query
-        mainFromCommandAndTheRest.set(0, transformedFrom);
-        testQuery = String.join(" | ", mainFromCommandAndTheRest);
+        String result = new SeparatorSplit(rawParts, pipes.delimiters).join();
+        assert testQuery.split("\n").length == result.split("\n").length
+            : "the final query should have the same lines for warnings to work\nFROM:\n" + testQuery + "\nTO:\n" + result;
+        LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", testQuery, result);
+        return result;
+    }
 
-        LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", query, testQuery);
-        return testQuery;
+    /**
+     * One comma-separated source entry. Whitespace around the index or subquery stays where it was, and a leading
+     * {@code FROM} or {@code TS} stays on its original line, so later commands keep their warning line numbers.
+     */
+    private static String rewriteSourcePiece(String piece, Set<String> bothClusterIndices, boolean onlyRemotes) {
+        int start = leadingWhitespace(piece);
+        String head = piece.substring(start);
+        String keyword = "";
+        int restAt = start;
+        if (startsWithCommandKeyword(head, FROM_COMMAND_PATTERN)) {
+            keyword = head.substring(0, 4);
+            restAt = start + 4;
+        } else if (startsWithCommandKeyword(head, TS_COMMAND_PATTERN)) {
+            keyword = head.substring(0, 2);
+            restAt = start + 2;
+        }
+        String rest = piece.substring(restAt);
+        String stripped = rest.strip();
+        if (stripped.isEmpty()) {
+            return piece;
+        }
+        String rewrittenRest;
+        if (isSubquery(stripped)) {
+            int open = rest.indexOf('(');
+            int close = rest.lastIndexOf(')');
+            String inner = rest.substring(open + 1, close);
+            rewrittenRest = rest.substring(0, open)
+                + "("
+                + convertSubqueryToRemoteIndices(inner, bothClusterIndices, onlyRemotes)
+                + ")"
+                + rest.substring(close + 1);
+        } else {
+            int indexAt = rest.indexOf(stripped);
+            boolean remoteOnly = onlyRemotes || bothClusterIndices.contains(unquoteIndexName(stripped));
+            String remote = unquoteAndRequoteAsRemote(stripped, remoteOnly);
+            rewrittenRest = rest.substring(0, indexAt) + remote + rest.substring(indexAt + stripped.length());
+        }
+        return piece.substring(0, start) + keyword + rewrittenRest;
+    }
+
+    /** A plain index pattern that already contains a remote prefix ({@code *:}). Subquery pieces are ignored. */
+    private static boolean sourcePieceAlreadyRemote(String piece) {
+        int start = leadingWhitespace(piece);
+        String head = piece.substring(start);
+        String rest = head;
+        if (startsWithCommandKeyword(head, FROM_COMMAND_PATTERN)) {
+            rest = head.substring(4);
+        } else if (startsWithCommandKeyword(head, TS_COMMAND_PATTERN)) {
+            rest = head.substring(2);
+        }
+        return isSubquery(rest.strip()) == false && piece.contains("*:");
     }
 
     /**
@@ -1950,7 +2023,7 @@ public final class EsqlTestUtils {
      *
      * @param bothClusterIndices see {@link #convertSubqueryToRemoteIndices(String, Set)}.
      */
-    private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices) {
+    private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices, boolean onlyRemotes) {
         StringBuilder result = new StringBuilder();
         int i = 0;
         while (i < segment.length()) {
@@ -1973,13 +2046,13 @@ public final class EsqlTestUtils {
                 if (startsWithCommandKeyword(strippedContent, FROM_COMMAND_PATTERN)
                     || startsWithCommandKeyword(strippedContent, TS_COMMAND_PATTERN)
                     || startsWithCommandKeyword(strippedContent, ROW_COMMAND_PATTERN)) {
-                    // This group is a subquery body — rewrite it recursively.
+                    // This group is a subquery body — rewrite it recursively, keeping the body's own newlines.
                     // ROW bodies are returned unchanged by convertSubqueryToRemoteIndices.
-                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent, bothClusterIndices) + ")";
+                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(content, bothClusterIndices, onlyRemotes) + ")";
                 } else {
                     // Not a direct subquery body (value list, function args, boolean grouping, …).
                     // Recurse into the raw content to catch any nested subquery inside it.
-                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content, bothClusterIndices) + ")";
+                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content, bothClusterIndices, onlyRemotes) + ")";
                 }
                 result.append(rewrittenGroup);
                 i = j;
@@ -2014,6 +2087,73 @@ public final class EsqlTestUtils {
     private static boolean isSubquery(String indexPatternOrSubquery) {
         String trimmed = indexPatternOrSubquery.strip();
         return trimmed.startsWith("(") && trimmed.endsWith(")");
+    }
+
+    /**
+     * A split that retains every character of the input: {@code rawParts} include surrounding whitespace, and
+     * {@code delimiters} are the matched delimiter texts between them. Joining the two reproduces the input.
+     */
+    private record SeparatorSplit(List<String> rawParts, List<String> delimiters) {
+        String join() {
+            StringBuilder out = new StringBuilder();
+            for (int i = 0; i < rawParts.size(); i++) {
+                if (i > 0) {
+                    out.append(delimiters.get(i - 1));
+                }
+                out.append(rawParts.get(i));
+            }
+            return out.toString();
+        }
+    }
+
+    private static SeparatorSplit splitKeepingSeparators(String input, String delimiter) {
+        List<String> rawParts = new ArrayList<>();
+        List<String> delimiters = new ArrayList<>();
+        if (input == null || input.isEmpty()) {
+            return new SeparatorSplit(rawParts, delimiters);
+        }
+        int depth = 0;
+        int lastSplit = 0;
+        int delimiterLength = delimiter.length();
+        for (int i = 0; i <= input.length() - delimiterLength; i++) {
+            char c = input.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                if (depth > 0) {
+                    depth--;
+                }
+            }
+            if (depth == 0) {
+                boolean match = delimiterLength == 1
+                    ? c == delimiter.charAt(0)
+                    : input.regionMatches(true, i, delimiter, 0, delimiterLength);
+                if (match) {
+                    rawParts.add(input.substring(lastSplit, i));
+                    delimiters.add(input.substring(i, i + delimiterLength));
+                    lastSplit = i + delimiterLength;
+                    i += delimiterLength - 1;
+                }
+            }
+        }
+        rawParts.add(input.substring(lastSplit));
+        return new SeparatorSplit(rawParts, delimiters);
+    }
+
+    private static int leadingWhitespace(String value) {
+        int i = 0;
+        while (i < value.length() && Character.isWhitespace(value.charAt(i))) {
+            i++;
+        }
+        return i;
+    }
+
+    private static int trailingWhitespace(String value) {
+        int i = value.length();
+        while (i > 0 && Character.isWhitespace(value.charAt(i - 1))) {
+            i--;
+        }
+        return value.length() - i;
     }
 
     /**

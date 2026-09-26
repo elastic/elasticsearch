@@ -480,7 +480,9 @@ null
 ;
 
 evalDateParseNullPattern
+required_capability: warn_null_misuse
 row a = "2023-02-01" | eval b = date_parse(null, a) | keep b;
+warning:Line 1:33: Expression [date_parse(null, a)] always evaluates to NULL.
 
 b:datetime
 null
@@ -820,24 +822,33 @@ dt:datetime              |plus:datetime
 ;
 
 datePlusNull
+required_capability: warn_null_misuse
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval plus_post = dt + null, plus_pre = null + dt;
+warning:Line 2:20: Expression [dt + null] always evaluates to NULL.
+warning:Line 2:42: Expression [null + dt] always evaluates to NULL.
 
 dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
 
 datePlusNullAndDuration
+required_capability: warn_null_misuse
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval plus_post = dt + null + 1 hour, plus_pre = 1 second + null + dt;
+warning:Line 2:20: Expression [dt + null] always evaluates to NULL.
+warning:Line 2:51: Expression [1 second + null] always evaluates to NULL.
 
 dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
 
 datePlusNullAndPeriod
+required_capability: warn_null_misuse
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval plus_post = dt + null + 2 years, plus_pre = 3 weeks + null + dt;
+warning:Line 2:20: Expression [dt + null] always evaluates to NULL.
+warning:Line 2:52: Expression [3 weeks + null] always evaluates to NULL.
 
 dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
@@ -911,27 +922,33 @@ then:datetime
 ;
 
 dateMinusNull
+required_capability: warn_null_misuse
 row dt = to_dt("1953-04-04T04:03:02.001Z")
 | eval minus = dt - null
 ;
+warning:Line 2:16: Expression [dt - null] always evaluates to NULL.
 
 dt:datetime              |minus:datetime
 1953-04-04T04:03:02.001Z |null
 ;
 
 dateMinusNullAndPeriod
+required_capability: warn_null_misuse
 row dt = to_dt("1953-04-04T04:03:02.001Z")
 | eval minus = dt - null - 4 minutes
 ;
+warning:Line 2:16: Expression [dt - null] always evaluates to NULL.
 
 dt:datetime              |minus:datetime
 1953-04-04T04:03:02.001Z |null
 ;
 
 dateMinusNullAndDuration
+required_capability: warn_null_misuse
 row dt = to_dt("1953-04-04T04:03:02.001Z")
 | eval minus = dt - 6 days - null
 ;
+warning:Line 2:16: Expression [dt - 6 days - null] always evaluates to NULL.
 
 dt:datetime              |minus:datetime
 1953-04-04T04:03:02.001Z |null
@@ -1646,10 +1663,12 @@ a:datetime | b:datetime | c:datetime | d:datetime
 ;
 
 temporalAmountWithNulls
+required_capability: warn_null_misuse
 from employees
 | eval a = to_dt(null) - 1 day
 | keep a
 | limit 1;
+warning:Line 2:12: Expression [to_dt(null) - 1 day] always evaluates to NULL.
 
 a:datetime
 null

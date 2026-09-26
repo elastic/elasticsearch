@@ -120,6 +120,8 @@ public final class QuerySettings {
         Special notes about the `LOAD` option:
         - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD`.
         - Referencing subfields of `flattened` parents is not supported.
+        - A query whose only source is a [`ROW`](/reference/query-languages/esql/commands/row.md) is rejected: it names no index to
+          load from. A `ROW` that is unioned or joined with an index is still allowed. {applies_to}`stack: ga 9.6+`
         - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
           although unmapped fields cannot be loaded without an explicit invocation of `to_text`.
           {applies_to}`stack: ga 9.5+`

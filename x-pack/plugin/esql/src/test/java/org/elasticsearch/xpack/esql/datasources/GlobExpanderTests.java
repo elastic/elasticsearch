@@ -3320,6 +3320,197 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue("the flat listing must run", provider.listedPrefixes.contains("s3://bucket/data/"));
     }
 
+    /**
+     * The walk withdraws on an unhinted parent, so it never runs its stray check. {@code year} is then file data:
+     * {@code a.parquet} lives under {@code year=2024} and can still store 2025. Dropping that folder is a wrong row.
+     */
+    public void testUnhintedParentWithStrayDoesNotPruneEquality() throws IOException {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/region=eu/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/region=eu/year=2025/b.parquet", 100),
+            entry("s3://bucket/data/stray.parquet", 100)
+        );
+
+        FileList equals = GlobExpander.expand(
+            "s3://bucket/data/**",
+            new TreeStubProvider(files),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            HIVE_ON,
+            MAX,
+            MAX
+        );
+        assertEquals("a stray file means year is not a partition column", 3, equals.fileCount());
+
+        FileList in = GlobExpander.expand(
+            "s3://bucket/data/**",
+            new TreeStubProvider(files),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2025, 2030)),
+            HIVE_ON,
+            MAX,
+            MAX
+        );
+        assertEquals("IN has the same stray guard as ==", 3, in.fileCount());
+    }
+
+    /**
+     * Same withdraw, no stray. Both folders are a real {@code year} partition of one type, so the equality filter stands.
+     */
+    public void testUnhintedParentEqualityStillPrunesProvenColumn() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/region=eu/year=2024/a.parquet", 100),
+                entry("s3://bucket/data/region=eu/year=2025/b.parquet", 100)
+            )
+        );
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            HIVE_ON,
+            MAX,
+            MAX
+        );
+
+        assertEquals(List.of("s3://bucket/data/region=eu/year=2025/b.parquet"), paths(result));
+    }
+
+    /**
+     * The walk withdraws before it sees {@code month}, so nothing compares the kept type with the dropped folder.
+     * {@code month=06} alone is an integer; {@code month=abc} is what makes the column a keyword. Dropping it
+     * rejects {@code month == "06"} at analysis.
+     */
+    public void testUnhintedParentEqualityDoesNotNarrowPartitionType() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/region=eu/month=06/a.parquet", 100),
+                entry("s3://bucket/data/region=eu/month=abc/b.parquet", 100)
+            )
+        );
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, "06")),
+            HIVE_ON,
+            MAX,
+            MAX
+        );
+
+        assertEquals(
+            List.of("s3://bucket/data/region=eu/month=06/a.parquet", "s3://bucket/data/region=eu/month=abc/b.parquet"),
+            paths(result)
+        );
+        assertEquals(DataType.KEYWORD, result.partitionMetadata().partitionColumns().get("month"));
+    }
+
+    /**
+     * Same withdraw, {@code !=} instead of {@code ==}. {@code month=abc} is still the keyword that {@code month=06}
+     * alone would erase.
+     */
+    public void testUnhintedParentNotEqualsDoesNotNarrowPartitionType() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/region=eu/month=06/a.parquet", 100),
+                entry("s3://bucket/data/region=eu/month=abc/b.parquet", 100)
+            )
+        );
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(hint("month", PartitionFilterHintExtractor.Operator.NOT_EQUALS, "06")),
+            HIVE_ON,
+            MAX,
+            MAX
+        );
+
+        assertEquals(2, result.fileCount());
+        assertEquals(DataType.KEYWORD, result.partitionMetadata().partitionColumns().get("month"));
+    }
+
+    /**
+     * The widening value sits on a column the hint did not name. Dropping {@code year=2024} would leave only
+     * {@code month=06} and type {@code month} as an integer.
+     */
+    public void testUnhintedParentEqualityDoesNotNarrowOtherColumn() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/region=eu/year=2024/month=abc/a.parquet", 100),
+                entry("s3://bucket/data/region=eu/year=2025/month=06/b.parquet", 100)
+            )
+        );
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            HIVE_ON,
+            MAX,
+            MAX
+        );
+
+        assertEquals(2, result.fileCount());
+        assertEquals(DataType.KEYWORD, result.partitionMetadata().partitionColumns().get("month"));
+    }
+
+    /**
+     * A data-column hint never appears as a folder. It must not fail the proof check and put the pruned year back.
+     */
+    public void testUnhintedParentDataColumnHintDoesNotUndoPrune() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/region=eu/year=2024/a.parquet", 100),
+                entry("s3://bucket/data/region=eu/year=2025/b.parquet", 100)
+            )
+        );
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(
+                hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025),
+                hint("status", PartitionFilterHintExtractor.Operator.EQUALS, "ok")
+            ),
+            HIVE_ON,
+            MAX,
+            MAX
+        );
+
+        assertEquals(List.of("s3://bucket/data/region=eu/year=2025/b.parquet"), paths(result));
+    }
+
+    /**
+     * An open range is not the pre-existing closed-range post-filter. A stray still means the column is file data,
+     * so {@code year >= 2025} must not drop {@code year=2024}. Without the stray the same range still prunes.
+     */
+    public void testUnhintedParentOpenRangeWithStrayDoesNotPrune() throws IOException {
+        List<StorageEntry> withStray = List.of(
+            entry("s3://bucket/data/region=eu/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/region=eu/year=2025/b.parquet", 100),
+            entry("s3://bucket/data/stray.parquet", 100)
+        );
+        var range = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2025));
+
+        FileList stray = GlobExpander.expand("s3://bucket/data/**", new TreeStubProvider(withStray), range, HIVE_ON, MAX, MAX);
+        assertEquals(3, stray.fileCount());
+
+        FileList proven = GlobExpander.expand(
+            "s3://bucket/data/**",
+            new TreeStubProvider(
+                List.of(
+                    entry("s3://bucket/data/region=eu/year=2024/a.parquet", 100),
+                    entry("s3://bucket/data/region=eu/year=2025/b.parquet", 100)
+                )
+            ),
+            range,
+            HIVE_ON,
+            MAX,
+            MAX
+        );
+        assertEquals(List.of("s3://bucket/data/region=eu/year=2025/b.parquet"), paths(proven));
+    }
+
     /** A provider that cannot enumerate directories uses the flat listing, which the value filter still narrows. */
     public void testGlobstarWalkUnsupportedProviderFallsBack() throws IOException {
         TreeStubProvider provider = hiveTree();

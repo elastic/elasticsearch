@@ -800,4 +800,42 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
             containsString("negative label selectors on __name__ are not supported at this time")
         );
     }
+
+    /**
+     * Prometheus answers an instant query over a range vector with a {@code matrix} of the raw samples in the window: the
+     * two samples of every series here, 30 seconds apart. Nothing produces that yet, so the shape is rejected instead.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/metrics-program/issues/39")
+    public void testInstantRangeVectorIsAMatrixOfRawSamples() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "tx{host=\"a\"}[5m]"),
+            new BasicNameValuePair("time", QUERY_TIME.toString())
+        );
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(path.evaluate("data.resultType"), equalTo("matrix"));
+        List<Map<String, Object>> result = path.evaluate("data.result");
+        assertThat(result, hasSize(1));
+        assertThat(result.getFirst().get("metric"), equalTo(Map.of("__name__", "tx", "host", "a", "cluster", "prod")));
+        assertThat(result.getFirst().get("values"), equalTo(List.of(List.of(1715299170.0, "5.0"), List.of(1715299200.0, "10.0"))));
+    }
+
+    /** Until then the shape is a clear rejection rather than a plan that fails in the optimizer. */
+    public void testInstantRangeVectorIsRejected() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        for (String query : List.of("tx[5m]", "tx[5m] offset 1m")) {
+            Request request = prometheusReadRequest(
+                "/_prometheus/api/v1/query",
+                new BasicNameValuePair("query", query),
+                new BasicNameValuePair("time", QUERY_TIME.toString())
+            );
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(query, e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(
+                EntityUtils.toString(e.getResponse().getEntity()),
+                containsString("range vector results are not supported at this time [" + query + "]")
+            );
+        }
+    }
 }

@@ -65,7 +65,9 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         List<InferenceStringGroup> inputs = texts.stream()
             .map(text -> new InferenceStringGroup(new InferenceString(dataType, text)))
             .toList();
-        EmbeddingRequest embeddingRequest = new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of());
+        // Document mode, stated explicitly: with no input type the Elastic Inference Service embeds a lone input as a query
+        // and two or more as documents, so a row's vector would otherwise depend on how many rows shared its batch.
+        EmbeddingRequest embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
         return new BulkInferenceRequestItem(
             new EmbeddingAction.Request(
                 inferenceId,

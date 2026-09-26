@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
@@ -133,6 +134,7 @@ public class EmbeddingRequestIteratorTests extends AbstractEmbeddingRequestItera
                     EmbeddingAction.Request embeddingRequest = (EmbeddingAction.Request) requestItem.inferenceRequest();
                     assertThat(embeddingRequest.getInferenceEntityId(), equalTo(inferenceId));
                     assertThat(embeddingRequest.getTaskType(), equalTo(TaskType.EMBEDDING));
+                    assertThat(embeddingRequest.getEmbeddingRequest().inputType(), equalTo(InputType.INTERNAL_INGEST));
                     assertThat(embeddingRequest.getEmbeddingRequest().inputs().size(), equalTo(1));
                 }
             }

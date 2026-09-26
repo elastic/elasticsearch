@@ -65,6 +65,7 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
     @Override
     public Page buildOutputPage(Page inputPage, List<BulkInferenceResponseItem> responses) {
         int positionCount = inputPage.getPositionCount();
+        assertResponsesCoverThePage(responses, positionCount);
         int dimension = responses.stream().mapToInt(this::dimensionCount).max().orElse(1);
         try (FloatBlock.Builder outputBlockBuilder = blockFactory.newFloatBlockBuilder(positionCount * dimension)) {
             for (BulkInferenceResponseItem response : responses) {
@@ -72,6 +73,37 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
             }
 
             return inputPage.appendBlock(outputBlockBuilder.build());
+        }
+    }
+
+    /**
+     * Checks that the responses account for every row of the page before any block is built.
+     * <p>
+     * {@link #appendResponseToBlock} appends one entry per position named in a response's
+     * {@code positionValueCounts}, and appends nothing for a response that carries none. Responses covering fewer rows
+     * than the page holds therefore yield a short block, which {@link Page#appendBlock} rejects with a position-count
+     * mismatch naming a block type and two numbers. Failing here instead says which side is short and by how much.
+     * </p>
+     *
+     * @throws IllegalStateException if the responses cover a different number of positions than the page holds
+     */
+    private static void assertResponsesCoverThePage(List<BulkInferenceResponseItem> responses, int positionCount) {
+        int covered = 0;
+        for (BulkInferenceResponseItem response : responses) {
+            if (response != null && response.positionValueCounts() != null) {
+                covered += response.positionValueCounts().length;
+            }
+        }
+
+        if (covered != positionCount) {
+            throw new IllegalStateException(
+                format(
+                    "Inference responses cover {} of the {} rows in the page: {} response(s) received",
+                    covered,
+                    positionCount,
+                    responses.size()
+                )
+            );
         }
     }
 

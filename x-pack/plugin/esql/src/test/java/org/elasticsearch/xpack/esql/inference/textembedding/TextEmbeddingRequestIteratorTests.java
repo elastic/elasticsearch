@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -127,6 +128,7 @@ public class TextEmbeddingRequestIteratorTests extends AbstractEmbeddingRequestI
                     InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
                     assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                     assertThat(request.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
+                    assertThat(request.getInputType(), equalTo(InputType.INTERNAL_INGEST));
                     assertThat(request.getInput().size(), equalTo(1));
                     assertThat(request.getInferenceTimeout(), equalTo(expectedTimeout(timeout)));
                 }

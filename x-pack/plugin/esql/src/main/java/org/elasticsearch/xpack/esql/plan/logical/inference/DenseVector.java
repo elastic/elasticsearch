@@ -120,6 +120,43 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
      */
     public static final List<String> DEFAULT_INFERENCE_ID_CANDIDATES = List.of(EIS_JINA_V5_INFERENCE_ID, DEFAULT_INFERENCE_ID);
 
+    /**
+     * Per-request input cap of {@link #EIS_JINA_V5_INFERENCE_ID}. The Elastic Inference Service dense text-embedding endpoint
+     * rejects a request carrying more than this many inputs. The value repeats the inference plugin's own limit
+     * ({@code ElasticInferenceService.DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE}), which is private and on a module not on
+     * this module's compile classpath.
+     */
+    public static final int EIS_JINA_V5_MAX_BATCH_SIZE = 16;
+
+    /**
+     * Batch size held to for {@link #DEFAULT_INFERENCE_ID}. Not a limit the endpoint enforces: the request reaches an in-cluster
+     * ML deployment, which accepts any number of inputs. The value mirrors the size the inference plugin itself batches this
+     * model at ({@code ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE}, on a module not on this module's compile
+     * classpath), so the command asks of the deployment what the rest of the stack asks of it.
+     */
+    public static final int DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE = 10;
+
+    /**
+     * Batch size for an endpoint not named above. Elastic Inference Service dense endpoints reject a request carrying twenty
+     * inputs, so an endpoint of unknown capacity is held to a size they accept.
+     */
+    public static final int UNNAMED_ENDPOINT_BATCH_SIZE = 16;
+
+    /**
+     * Batch size for {@code inferenceId} when {@code esql.command.dense_vector.batch_size} is unset. One inference request carries
+     * one batch and nothing downstream splits an over-sized request, so a batch beyond what the endpoint accepts fails the query.
+     * A configured setting takes precedence over this value.
+     */
+    public static int defaultBatchSizeFor(String inferenceId) {
+        if (EIS_JINA_V5_INFERENCE_ID.equals(inferenceId)) {
+            return EIS_JINA_V5_MAX_BATCH_SIZE;
+        }
+        if (DEFAULT_INFERENCE_ID.equals(inferenceId)) {
+            return DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE;
+        }
+        return UNNAMED_ENDPOINT_BATCH_SIZE;
+    }
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "DenseVector",
@@ -539,7 +576,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
 
     @Override
     public boolean isFoldable() {
-        return fields.stream().allMatch(Expression::foldable);
+        // DENSE_VECTOR embeds column values, which differ per row and are never foldable; there is nothing to compute once.
+        return false;
     }
 
     @Override

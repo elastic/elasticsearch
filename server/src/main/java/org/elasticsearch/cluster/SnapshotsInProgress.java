@@ -61,6 +61,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.repositories.ProjectRepo.PROJECT_REPO_SERIALIZER;
 
 /**
@@ -204,6 +205,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return byRepo.calculateStateSummaries();
         } else {
             return NO_SNAPSHOTS_IN_PROGRESS_STATS;
+        }
+    }
+
+    /// Returns a collection of all shard snapshots that are in the [ShardState#WAITING] state.
+    public Set<Tuple<Snapshot, ShardId>> waitingShards(ProjectId projectId, String repository) {
+        ByRepo byRepo = entries.get(new ProjectRepo(projectId, repository));
+        if (byRepo != null) {
+            return byRepo.waitingShards();
+        } else {
+            return Set.of();
         }
     }
 
@@ -2021,6 +2032,19 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Map<ShardState, Integer> shardStates = Arrays.stream(ShardState.values())
                 .collect(Collectors.toUnmodifiableMap(shardState -> shardState, state -> shardCounts[state.ordinal()]));
             return Tuple.tuple(snapshotStates, shardStates);
+        }
+
+        public Set<Tuple<Snapshot, ShardId>> waitingShards() {
+            return entries().stream()
+                .filter(Entry::hasShardsInWaitingState)
+                .flatMap(
+                    entry -> entry.shards()
+                        .entrySet()
+                        .stream()
+                        .filter(kv -> kv.getValue().state() == ShardState.WAITING)
+                        .map(kv -> Tuple.tuple(entry.snapshot(), kv.getKey()))
+                )
+                .collect(toSet());
         }
 
         @Override

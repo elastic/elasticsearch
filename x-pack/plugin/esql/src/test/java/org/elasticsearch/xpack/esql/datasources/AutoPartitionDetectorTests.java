@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 public class AutoPartitionDetectorTests extends ESTestCase {
 
@@ -109,6 +110,25 @@ public class AutoPartitionDetectorTests extends ESTestCase {
         // Hive should be detected first, so the column should be "year" not "col"
         assertTrue(result.partitionColumns().containsKey("year"));
         assertFalse(result.partitionColumns().containsKey("col"));
+    }
+
+    /**
+     * {@code snapshot=2024.05/} is a hive column above a template tail. AUTO must still bind {@code {year}/{month}},
+     * or {@code WHERE year == 2024} has no such column.
+     */
+    public void testDottedParentDoesNotHideTemplateColumns() {
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.AUTO, "{year}/{month}");
+        PartitionDetector detector = AutoPartitionDetector.fromConfig(config);
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/snapshot=2024.05/2024/01/f1.csv"),
+            entry("s3://bucket/snapshot=2024.05/2023/12/f2.csv")
+        );
+
+        PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
+
+        assertEquals(Set.of("year", "month"), result.partitionColumns().keySet());
+        assertEquals(2024, result.filePartitionValues().get(StoragePath.of("s3://bucket/snapshot=2024.05/2024/01/f1.csv")).get("year"));
+        assertEquals(1, result.filePartitionValues().get(StoragePath.of("s3://bucket/snapshot=2024.05/2024/01/f1.csv")).get("month"));
     }
 
     private static StorageEntry entry(String path) {

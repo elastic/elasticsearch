@@ -780,6 +780,58 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(2024, value(result, "s3://bucket/year=2024/year=2025/f.parquet", "year"));
     }
 
+    /** {@code 1.10} and {@code 1.1} are different folders. Typing both as double would merge them. */
+    public void testTrailingZeroDecimalStaysDistinctKeyword() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/v=1.1/f1.parquet"), entry("s3://bucket/v=1.10/f2.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("v"));
+        assertEquals("1.1", value(result, "s3://bucket/v=1.1/f1.parquet", "v"));
+        assertEquals("1.10", value(result, "s3://bucket/v=1.10/f2.parquet", "v"));
+    }
+
+    /** {@code 2024.10} must not surface as {@code 2024.1}. */
+    public void testVersionLikeDecimalsStayKeyword() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/year=2024/snapshot=2024.01/f1.parquet"),
+            entry("s3://bucket/year=2024/snapshot=2024.10/f2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("snapshot"));
+        assertEquals("2024.01", value(result, "s3://bucket/year=2024/snapshot=2024.01/f1.parquet", "snapshot"));
+        assertEquals("2024.10", value(result, "s3://bucket/year=2024/snapshot=2024.10/f2.parquet", "snapshot"));
+    }
+
+    /** A base64 directory ends in {@code =}. That padding is not an empty partition column, and {@code year} stays. */
+    public void testBase64PaddingDoesNotVoidYear() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/year=2024/dXNlcjE=/f1.csv"), entry("s3://bucket/year=2024/dXNlcjI=/f2.csv"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(Set.of("year"), result.partitionColumns().keySet());
+        assertEquals(2024, value(result, "s3://bucket/year=2024/dXNlcjE=/f1.csv", "year"));
+        assertEquals(2024, value(result, "s3://bucket/year=2024/dXNlcjI=/f2.csv", "year"));
+    }
+
+    /** Padding keys differ per file. An empty column present on every file stays. */
+    public void testBase64PaddingKeepsSharedEmptyColumn() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/region=/year=2024/dXNlcjE=/f1.csv"),
+            entry("s3://bucket/region=/year=2025/dXNlcjI=/f2.csv")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(Set.of("region", "year"), result.partitionColumns().keySet());
+        assertEquals("", value(result, "s3://bucket/region=/year=2024/dXNlcjE=/f1.csv", "region"));
+        assertEquals("", value(result, "s3://bucket/region=/year=2025/dXNlcjI=/f2.csv", "region"));
+        assertEquals(2024, value(result, "s3://bucket/region=/year=2024/dXNlcjE=/f1.csv", "year"));
+        assertEquals(2025, value(result, "s3://bucket/region=/year=2025/dXNlcjI=/f2.csv", "year"));
+    }
+
     /** Empty pieces from {@code //} drop. The object name drops, including when a trailing slash follows it. */
     public void testDirectorySegmentsDropsObjectNameAndEmptyPieces() {
         assertEquals(List.of("data", "year=2024"), HivePartitionDetector.directorySegments("/data/year=2024/file.parquet"));

@@ -1492,6 +1492,11 @@ public final class GlobExpander {
                         continue;
                     }
                     List<Object> values = hint.values();
+                    // A non-integral number's printed form is one spelling. 6.0 would miss price=6.00, and 1.10
+                    // would hit price=1.1. Leave the wildcard; the typed folder filter keeps the matches.
+                    if (containsNonIntegralNumber(values)) {
+                        continue;
+                    }
                     if (hint.isSingleValue()) {
                         String value = String.valueOf(values.get(0));
                         if (globExpressible(value) == false) {
@@ -1582,6 +1587,43 @@ public final class GlobExpander {
         return filterHints;
     }
 
+    /**
+     * {@code EQUALS} and {@code IN} hints whose values include a non-integral number. The glob rewrite leaves
+     * those segments as {@code *}; this is the pass that still drops a folder the number excludes.
+     */
+    private static List<PartitionFilterHint> nonIntegralEqualityHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        if (hints == null || hints.isEmpty() || partitionConfig == null) {
+            return List.of();
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        boolean template = PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(partitionConfig.pathTemplate()).isEmpty() == false;
+        if (hive == false && template == false) {
+            return List.of();
+        }
+        List<PartitionFilterHint> equality = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if ((hint.operator() == Operator.EQUALS || hint.operator() == Operator.IN) && containsNonIntegralNumber(hint.values())) {
+                equality.add(hint);
+            }
+        }
+        return equality;
+    }
+
+    /** A {@link Float} or {@link Double} hint value, whose printed form is not the only on-disk spelling. */
+    private static boolean containsNonIntegralNumber(List<Object> values) {
+        for (Object value : values) {
+            if (value instanceof Float || value instanceof Double) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean rangeOperator(Operator operator) {
         return switch (operator) {
             case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL -> true;
@@ -1644,7 +1686,9 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         PartitionConfig partitionConfig
     ) {
-        List<PartitionFilterHint> rangeHints = closedRangeFilterHints(hints, partitionConfig);
+        List<PartitionFilterHint> rangeHints = new ArrayList<>();
+        rangeHints.addAll(closedRangeFilterHints(hints, partitionConfig));
+        rangeHints.addAll(nonIntegralEqualityHints(hints, partitionConfig));
         if (rangeHints.isEmpty()) {
             return matched;
         }
@@ -1733,6 +1777,11 @@ public final class GlobExpander {
         }
 
         List<Object> values = hint.values();
+        // Same as the template rewrite: a non-integral number is not one folder name. Keep key=* and let the
+        // typed filter decide, so IN (1.25, 6.0) still lists price=6.00.
+        if (containsNonIntegralNumber(values)) {
+            return segment;
+        }
         if (hint.isSingleValue()) {
             String value = String.valueOf(values.get(0));
             return globExpressible(value) ? key + "=" + value : segment;

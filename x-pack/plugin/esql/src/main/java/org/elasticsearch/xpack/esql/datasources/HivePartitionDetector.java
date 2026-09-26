@@ -71,28 +71,11 @@ public final class HivePartitionDetector implements PartitionDetector {
             return PartitionMetadata.EMPTY;
         }
 
-        List<Map<String, String>> allRawPartitions = new ArrayList<>();
-        Set<String> referenceKeys = null;
-
-        for (StorageEntry entry : files) {
-            Map<String, String> partitions = extractPartitions(entry.path());
-            if (partitions.isEmpty()) {
-                return PartitionMetadata.EMPTY;
-            }
-
-            Set<String> keys = partitions.keySet();
-            if (referenceKeys == null) {
-                referenceKeys = new LinkedHashSet<>(keys);
-            } else if (referenceKeys.equals(keys) == false) {
-                return PartitionMetadata.EMPTY;
-            }
-
-            allRawPartitions.add(partitions);
-        }
-
-        if (referenceKeys == null || referenceKeys.isEmpty()) {
+        List<Map<String, String>> allRawPartitions = consistentPartitions(files);
+        if (allRawPartitions == null) {
             return PartitionMetadata.EMPTY;
         }
+        Set<String> referenceKeys = allRawPartitions.get(0).keySet();
 
         Map<String, String> surfacedNames = surfacedNames(referenceKeys, warningSink);
         if (surfacedNames == null) {
@@ -183,6 +166,64 @@ public final class HivePartitionDetector implements PartitionDetector {
         return nonEmpty;
     }
 
+    /**
+     * One map per file when every file binds the same keys, or {@code null} when a file binds nothing or the
+     * key sets differ. A trailing {@code =} binds {@code ""}, so a base64 directory ({@code dXNlcjE=}) is its own
+     * column and the key sets disagree. Those empty keys are dropped when they are missing from some file; an
+     * empty key present on every file stays. A non-empty key missing from some file still voids the detection.
+     */
+    @Nullable
+    private static List<Map<String, String>> consistentPartitions(List<StorageEntry> files) {
+        List<Map<String, String>> raw = new ArrayList<>(files.size());
+        for (StorageEntry entry : files) {
+            raw.add(extractPartitions(entry.path()));
+        }
+        if (sameKeys(raw)) {
+            return raw;
+        }
+        Set<String> shared = sharedKeys(raw);
+        List<Map<String, String>> stripped = new ArrayList<>(raw.size());
+        for (Map<String, String> partitions : raw) {
+            Map<String, String> kept = new LinkedHashMap<>();
+            for (Map.Entry<String, String> e : partitions.entrySet()) {
+                if ("".equals(e.getValue()) && shared.contains(e.getKey()) == false) {
+                    continue;
+                }
+                kept.put(e.getKey(), e.getValue());
+            }
+            stripped.add(kept);
+        }
+        return sameKeys(stripped) ? stripped : null;
+    }
+
+    /** Every map non-empty and carrying the same key set. */
+    private static boolean sameKeys(List<Map<String, String>> partitions) {
+        Set<String> reference = null;
+        for (Map<String, String> map : partitions) {
+            if (map.isEmpty()) {
+                return false;
+            }
+            if (reference == null) {
+                reference = map.keySet();
+            } else if (reference.equals(map.keySet()) == false) {
+                return false;
+            }
+        }
+        return reference != null;
+    }
+
+    private static Set<String> sharedKeys(List<Map<String, String>> partitions) {
+        Set<String> shared = null;
+        for (Map<String, String> map : partitions) {
+            if (shared == null) {
+                shared = new LinkedHashSet<>(map.keySet());
+            } else {
+                shared.retainAll(map.keySet());
+            }
+        }
+        return shared == null ? Set.of() : shared;
+    }
+
     private static Map<String, String> extractPartitions(StoragePath storagePath) {
         List<String> segments = directorySegments(storagePath.path());
         if (segments.isEmpty()) {
@@ -192,10 +233,7 @@ public final class HivePartitionDetector implements PartitionDetector {
         Map<String, String> partitions = new LinkedHashMap<>();
         for (String segment : segments) {
             String key = segmentKey(segment);
-            if (key == null) {
-                continue;
-            }
-            if (partitions.containsKey(key)) {
+            if (key == null || partitions.containsKey(key)) {
                 continue;
             }
             partitions.put(key, segmentValue(segment));
@@ -312,8 +350,32 @@ public final class HivePartitionDetector implements PartitionDetector {
             } catch (Exception e) {
                 return false;
             }
+            if (faithfulDoubleToken(v) == false) {
+                return false;
+            }
         }
         return true;
+    }
+
+    /**
+     * A decimal whose fraction has a trailing zero past the first digit is not a double. {@code 1.10} and
+     * {@code 1.1} would become one value, and {@code 2024.10} would surface as {@code 2024.1}. {@code 1.0} is the
+     * canonical one-digit fraction and stays a double. Exponent forms ({@code 1e5}, {@code -0e0}) stay doubles.
+     */
+    private static boolean faithfulDoubleToken(String raw) {
+        int exp = raw.indexOf('e');
+        if (exp < 0) {
+            exp = raw.indexOf('E');
+        }
+        if (exp >= 0) {
+            return true;
+        }
+        int dot = raw.indexOf('.');
+        if (dot < 0) {
+            return true;
+        }
+        String fraction = raw.substring(dot + 1);
+        return fraction.length() <= 1 || fraction.endsWith("0") == false;
     }
 
     private static boolean tryAllBoolean(List<String> values) {

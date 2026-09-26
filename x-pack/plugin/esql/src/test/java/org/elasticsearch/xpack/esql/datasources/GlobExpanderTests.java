@@ -689,10 +689,13 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/year=2024/*.parquet", rewritten);
     }
 
-    /** A decimal and an empty value splice. A value holding {@code *} does not: the wildcard stays. */
+    /**
+     * A non-integral number is not spliced: {@code 1.5} is one spelling of a value that may be {@code 1.50} on disk,
+     * and {@code 6.0} would miss {@code 6.00}. An empty value still splices. A value holding {@code *} does not.
+     */
     public void testRewriteGlobDecimalEmptyAndMetacharacterValues() {
         assertEquals(
-            "s3://bucket/price=1.5/*.parquet",
+            "s3://bucket/price=*/*.parquet",
             GlobExpander.rewriteGlobWithHints(
                 "s3://bucket/price=*/*.parquet",
                 List.of(hint("price", PartitionFilterHintExtractor.Operator.EQUALS, 1.5))
@@ -980,6 +983,43 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/*", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/month=01", "s3://bucket/data/month=15"), paths(result));
+    }
+
+    /**
+     * {@code IN (1.25, 6.0)} must not rewrite to spellings that miss {@code price=6.00}. Both folders stay.
+     * {@code 6.00} is a keyword (the trailing zero is significant), so the typed filter does not drop it.
+     */
+    public void testInListKeepsAlternateDecimalSpellings() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(entry("s3://bucket/data/price=1.25/a.parquet", 100), entry("s3://bucket/data/price=6.00/b.parquet", 100))
+            )
+        );
+        var hints = List.of(hint("price", PartitionFilterHintExtractor.Operator.IN, 1.25, 6.0));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/price=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/data/price=1.25/a.parquet", "s3://bucket/data/price=6.00/b.parquet"), paths(result));
+    }
+
+    /** A faithful double {@code IN} still drops a folder the numbers exclude. */
+    public void testInListDropsDoubleOutsideTheList() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/price=1.5/a.parquet", 100),
+                    entry("s3://bucket/data/price=2.5/b.parquet", 100),
+                    entry("s3://bucket/data/price=9.0/c.parquet", 100)
+                )
+            )
+        );
+        var hints = List.of(hint("price", PartitionFilterHintExtractor.Operator.IN, 1.5, 2.5));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/price=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/data/price=1.5/a.parquet", "s3://bucket/data/price=2.5/b.parquet"), paths(result));
     }
 
     /** Zero-padded spellings parse as the same integer. A span past 31 values still filters; there is no brace cap. */

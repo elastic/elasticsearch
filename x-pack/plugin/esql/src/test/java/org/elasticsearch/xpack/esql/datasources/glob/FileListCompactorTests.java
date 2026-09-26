@@ -116,13 +116,13 @@ public class FileListCompactorTests extends ESTestCase {
     }
 
     /**
-     * A dotted partition value is a real column. Grouping stores the directory string, so {@code x=2.50}
-     * round-trips; the column is typed double.
+     * {@code x=2.50} is a partition column. The trailing zero keeps it a keyword, so the folder name round-trips
+     * instead of being reprinted as {@code 2.5}.
      */
-    public void testDottedPartitionValueRoundTripsAsDouble() {
+    public void testDottedPartitionValueRoundTrips() {
         String base = "s3://b/data/";
         FileList compact = assertRoundTrip(base, listOf(base + "**/*.parquet", base + "x=2.50/f.parquet"));
-        assertEquals(DataType.DOUBLE, compact.partitionMetadata().partitionColumns().get("x"));
+        assertEquals(DataType.KEYWORD, compact.partitionMetadata().partitionColumns().get("x"));
     }
 
     /** Boolean casing is normalized by typing. */

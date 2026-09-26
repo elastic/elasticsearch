@@ -2130,6 +2130,40 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return -1;
     }
 
+    // See ESVectorUtil#indexOfLineTerminatorLeadByte's javadoc for a description of this
+    private static final byte LT_NL = '\n';
+    private static final byte LT_CR = '\r';
+    private static final byte LT_C2 = (byte) 0xC2;
+    private static final ByteVector LT_V_NL = ByteVector.broadcast(BYTE_SPECIES, LT_NL);
+    private static final ByteVector LT_V_CR = ByteVector.broadcast(BYTE_SPECIES, LT_CR);
+    private static final ByteVector LT_V_C2 = ByteVector.broadcast(BYTE_SPECIES, LT_C2);
+    // 0xC2 (1100_0010) and 0xE2 (1110_0010) differ in exactly one bit (0x20), so
+    // (b & LT_HIGH_MASK) == LT_C2 is a *precise* (not approximate) test for "b is 0xC2 or 0xE2".
+    // Collapses the compare chain from 4 eq + 3 or (7 vector ops/chunk) to 2 eq + 1 and + 1 eq + 2 or
+    // (6 vector ops/chunk).
+    private static final byte LT_HIGH_MASK = (byte) 0xDF; // ~0x20
+    private static final ByteVector LT_V_HIGH_MASK = ByteVector.broadcast(BYTE_SPECIES, LT_HIGH_MASK);
+
+    @Override
+    public int indexOfLineTerminatorLeadByte(final byte[] bytes, final int offset, final int length) {
+        final int loopBound = BYTE_SPECIES.loopBound(length);
+        for (int i = 0; i < loopBound; i += BYTE_SPECIES.length()) {
+            ByteVector chunk = ByteVector.fromArray(BYTE_SPECIES, bytes, offset + i);
+            VectorMask<Byte> mask = chunk.eq(LT_V_NL).or(chunk.eq(LT_V_CR)).or(chunk.and(LT_V_HIGH_MASK).eq(LT_V_C2));
+            if (mask.anyTrue()) {
+                return i + mask.firstTrue();
+            }
+        }
+        if (loopBound < length) {
+            int remaining = length - loopBound;
+            int tail = ByteArrayUtils.indexOfLineTerminatorLeadByte(bytes, offset + loopBound, remaining);
+            if (tail >= 0) {
+                return loopBound + tail;
+            }
+        }
+        return -1;
+    }
+
     @Override
     public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
         // Scalar logic is faster for short values (below approximately 24 bytes)

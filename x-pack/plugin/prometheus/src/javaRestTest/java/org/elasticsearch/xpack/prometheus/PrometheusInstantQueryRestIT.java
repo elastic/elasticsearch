@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -667,6 +668,43 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("clamp(tx, 60, 40)");
         assertBinopInstantValues("clamp(tx, 20, 25)", 20, 25, 20);
+    }
+
+    /**
+     * Prometheus does not distinguish sample types: the count and presence functions over a counter return one value per
+     * series, whatever other metric shares the series' labels. {@code req_total} has five samples a minute apart per pod;
+     * {@code err_total} shares the {@code p1} labels and must neither fail nor count for it.
+     */
+    public void testInstantOverTimeFunctionsOverACounter() throws Exception {
+        ingestCounters(QUERY_TIME);
+        assertBinopInstantValues("count_over_time(req_total[5m])", 5, 5);
+        assertBinopInstantValues("count_over_time(err_total[5m])", 5);
+        assertBinopInstantValues("present_over_time(req_total[5m])", 1, 1);
+        assertBinopInstantValues("sum_over_time(req_total[5m])", 100, 100);
+    }
+
+    /** Five samples a minute apart ending at {@code at}: {@code req_total} for pods p1 and p2, {@code err_total} for p1. */
+    static void ingestCounters(AbstractPrometheusRestIT test, Instant at) throws Exception {
+        RemoteWrite.WriteRequest.Builder request = RemoteWrite.WriteRequest.newBuilder();
+        for (int i = 0; i < 5; i++) {
+            long timestamp = at.minusSeconds(60L * (4 - i)).toEpochMilli();
+            request.addTimeseries(counterSample("req_total", "p1", 10.0 * i, timestamp));
+            request.addTimeseries(counterSample("req_total", "p2", 10.0 * i, timestamp));
+            request.addTimeseries(counterSample("err_total", "p1", i, timestamp));
+        }
+        test.ingestTestData(request.build(), at);
+    }
+
+    private void ingestCounters(Instant at) throws Exception {
+        ingestCounters(this, at);
+    }
+
+    private static RemoteWrite.TimeSeries counterSample(String metric, String pod, double value, long timestamp) {
+        return RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(label("__name__", metric))
+            .addLabels(label("pod", pod))
+            .addSamples(RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build())
+            .build();
     }
 
     /**

@@ -43,7 +43,6 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
         .name("absent_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeriesOverTime(AbsentOverTime::new)
-        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns `1` if the range vector has no elements, and `0` otherwise.")
         .example("absent_over_time(nonexistent_metric[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)

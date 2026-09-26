@@ -96,9 +96,14 @@ public final class ScalarFunction extends LeafPlan implements PromqlPlan {
      */
     public Expression buildEsqlFunction(PromqlFunctionRegistry.PromqlContext ctx) {
         try {
-            return definition.esqlBuilder().build(source(), null, ctx, List.of());
+            Object built = definition.esqlBuilder().build(source(), null, ctx, List.of());
+            assert built instanceof Expression : "Function [" + functionName() + "] is not lowered to an expression";
+            return (Expression) built;
+        } catch (ParsingException e) {
+            throw e;
         } catch (Exception e) {
-            throw new ParsingException(source(), "Error building ESQL function for [{}]: {}", functionName(), e.getMessage());
+            String message = e.getMessage() != null ? e.getMessage() : e.toString();
+            throw new ParsingException(source(), "Error building ESQL function for [{}]: {}", functionName(), message);
         }
     }
 }

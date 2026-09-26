@@ -1,0 +1,15 @@
+area: Search
+highlight:
+  body: |-
+    Adds the experimental `_knn_eval` API for evaluating DiskBBQ kNN settings
+    against exact or approximate baselines. Evaluations can use sampled document
+    vectors or caller-supplied query vectors and run synchronously or as tasks.
+
+    Results report recall, elapsed time, vector operations, excluded or failed
+    queries, and whether a rescore window was capped.
+  notable: true
+  title: Add a simple kNN recall evaluation endpoint
+issues: []
+pr: 159778
+summary: Add a simple kNN recall evaluation endpoint
+type: feature

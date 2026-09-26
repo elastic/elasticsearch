@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -76,6 +77,7 @@ import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestStatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
@@ -89,6 +91,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -119,6 +122,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
@@ -474,6 +478,104 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         // scratch on the correct node
         ensureGreen(indexName);
         assertEquals(Set.of(indexNodes.get(1)), internalCluster().nodesInclude(indexName));
+    }
+
+    /// A primary relocation can fail after [StatelessCommitService#markRelocationStarting] has moved the shard into
+    /// `PRE_RELOCATING` but before the handoff consumer runs, so before `markRelocating` ever pins an upload bound. The
+    /// listener returned by `markRelocationStarting` must unwind the shard state in that case, otherwise the next
+    /// relocation attempt trips over a state that is no longer `RUNNING`.
+    public void testRelocationFailureWhilePreRelocating() {
+        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
+        startMasterOnlyNode(nodeSettings);
+        final String indexNode = startIndexNode(nodeSettings);
+        startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        int docCount = randomIntBetween(10, 100);
+        indexDocs(indexName, docCount);
+        flush(indexName);
+
+        final IndexShard indexShard = findIndexShard(indexName);
+        final ShardId shardId = indexShard.shardId();
+        final String indexNodeId = getNodeId(indexNode);
+        final var commitService = (TestStatelessCommitService) ((IndexEngine) indexShard.getEngineOrNull()).getStatelessCommitService();
+
+        // Park the handoff between markRelocationStarting and indexShard.relocated(), so the shard sits in PRE_RELOCATING.
+        // Only the first attempt is parked, cancelling the relocation below makes the master retry, and a retry that arrives
+        // while the first attempt still holds PRE_RELOCATING is rejected by markRelocationStarting.
+        final var enteredPreRelocating = new CountDownLatch(1);
+        final var resumeRelocation = new CountDownLatch(1);
+        final var relocationDone = new CountDownLatch(1);
+        final var firstAttempt = new AtomicBoolean(true);
+        commitService.setStrategy(new TestStatelessCommitService.Strategy() {
+            @Override
+            public ActionListener<Void> markRelocationStarting(Supplier<ActionListener<Void>> originalSupplier, ShardId sid) {
+                if (firstAttempt.compareAndSet(true, false)) {
+                    final var listener = ActionListener.runAfter(originalSupplier.get(), relocationDone::countDown);
+                    enteredPreRelocating.countDown();
+                    safeAwait(resumeRelocation);
+                    return listener;
+                }
+                return originalSupplier.get();
+            }
+        });
+
+        final String newIndexNode = startIndexNode(nodeSettings);
+        ensureStableCluster(4);
+
+        try {
+            logger.info("--> relocating {} from {} to {}", shardId, indexNode, newIndexNode);
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
+            safeAwait(enteredPreRelocating);
+            assertThat(
+                "markRelocating has not run, so no bound is pinned yet",
+                commitService.getMaxGenerationToUpload(shardId),
+                equalTo(Long.MAX_VALUE)
+            );
+
+            int preRelocatingDocs = randomIntBetween(1, 100);
+            indexDocs(indexName, preRelocatingDocs);
+            docCount += preRelocatingDocs;
+
+            logger.info("--> cancelling the relocation target so that indexShard.relocated() fails before the handoff");
+
+            // Keep the master from retrying the cancelled relocation, so the shard stays on the source node.
+            updateIndexSettings(
+                Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", newIndexNode),
+                indexName
+            );
+            ClusterRerouteUtils.reroute(client(), new CancelAllocationCommand(indexName, 0, newIndexNode, false));
+            awaitClusterState(indexNode, state -> state.routingTable().shardRoutingTable(shardId).primaryShard().relocating() == false);
+        } finally {
+            commitService.setStrategy(new TestStatelessCommitService.Strategy());
+            resumeRelocation.countDown();
+        }
+
+        logger.info("--> waiting for the failed relocation to unwind the source shard");
+        safeAwait(relocationDone);
+
+        ensureGreen(indexName);
+        assertThat("the shard stayed on the source node", findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(indexNodeId));
+
+        int afterRelocationFailedDocs = randomIntBetween(1, 100);
+        indexDocs(indexName, afterRelocationFailedDocs);
+        docCount += afterRelocationFailedDocs;
+
+        // A new relocation succeeds from the restored shard.
+        logger.info("--> relocating {} to {} now that the source has been restored", shardId, newIndexNode);
+        updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
+        ensureGreen(indexName);
+        assertThat(findIndexShard(indexName).routingEntry().currentNodeId(), equalTo(getNodeId(newIndexNode)));
+
+        // A search shard recovering from the new primary still sees every document.
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHits(true), docCount);
     }
 
     public void testCommitGenerationOnRelocatingShardNeverGoesBackward() throws Exception {
@@ -1152,7 +1254,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         assertThat(StatelessTestPlugin.timFilePrefetchCount.longValue(), equalTo(prefetchCountBeforeSecondRelocation));
     }
 
-    public static class StatelessTestPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+    public static class StatelessTestPlugin extends TestStatelessPlugin {
 
         static final LongAdder timFilePrefetchCount = new LongAdder();
 

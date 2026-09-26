@@ -57,22 +57,12 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     @Override
-    public ActionListener<Void> markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
-        return getStrategy().markRelocating(
-            () -> super.markRelocating(shardId, minRelocatedGeneration, listener),
-            shardId,
-            minRelocatedGeneration,
-            listener
-        );
+    public ActionListener<Void> markRelocationStarting(ShardId shardId) {
+        return getStrategy().markRelocationStarting(() -> super.markRelocationStarting(shardId), shardId);
     }
 
     public static class Strategy {
-        public ActionListener<Void> markRelocating(
-            Supplier<ActionListener<Void>> originalSupplier,
-            ShardId shardId,
-            long minRelocatedGeneration,
-            ActionListener<Void> listener
-        ) {
+        public ActionListener<Void> markRelocationStarting(Supplier<ActionListener<Void>> originalSupplier, ShardId shardId) {
             return originalSupplier.get();
         }
     }

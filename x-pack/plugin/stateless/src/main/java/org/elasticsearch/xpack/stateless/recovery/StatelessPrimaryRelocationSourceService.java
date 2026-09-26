@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -291,7 +292,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Client parentClient,
         StatelessPrimaryRelocationAction.Request request,
         IndexShard indexShard,
-        ActionListener<StartRelocationResponse> listener
+        ActionListener<StartRelocationResponse> relocationResponseListener
     ) {
         logger.debug(
             "[{}]: starting unsearchable primary relocation to [{}] with allocation ID [{}]",
@@ -305,7 +306,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         try {
             preFlushEngine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
         } catch (Exception e) {
-            listener.onFailure(e);
+            relocationResponseListener.onFailure(e);
             return;
         }
 
@@ -342,14 +343,20 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
-        preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {
+        preFlushStep.addListener(relocationResponseListener.delegateFailureAndWrap((responseListener, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
             if (indexShard.getEngineOrNull() == null) {
-                listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
+                responseListener.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
                 return;
             }
-            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+            final ShardId shardId = indexShard.shardId();
+            final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
+
+            final ActionListener<Void> relocationOutcomeListener = statelessCommitService.markRelocationStarting(shardId);
+            final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> handoffConsumer = (
+                primaryContext,
+                handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
                 logShardStats("obtained primary context", indexShard, engine);
@@ -359,7 +366,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
                 final long beforeFinalFlush = threadPool.relativeTimeInMillis();
 
-                final var shardId = indexShard.shardId();
                 final boolean hasRecentIdLookup = engine.hasRecentIdLookup(idLookupRecencyThreshold);
                 if (engine instanceof IndexEngine indexEngine) {
                     if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
@@ -434,12 +440,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 final var latestBccBlobLength = new AtomicLong(-1L);
                 final var otherBlobFilesCount = new AtomicLong(-1L);
                 final var markedShardAsRelocating = new SubscribableListener<Void>();
-                final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
-                ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
-                    indexShard.shardId(),
-                    lastFlushedGeneration,
-                    markedShardAsRelocating
-                );
+                statelessCommitService.markRelocating(indexShard.shardId(), lastFlushedGeneration, markedShardAsRelocating);
 
                 // Create a compound listener which will trigger both the stateless commit service listener and top-level
                 // handoffResultListener
@@ -499,7 +500,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         }
 
                         try {
-                            handoffCompleteListener.onResponse(null);
+                            relocationOutcomeListener.onResponse(null);
                         } finally {
                             handoffResultListener.onResponse(null);
                         }
@@ -508,7 +509,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     @Override
                     public void onFailure(Exception e) {
                         try {
-                            handoffCompleteListener.onFailure(e);
+                            relocationOutcomeListener.onFailure(e);
                         } finally {
                             handoffResultListener.onFailure(e);
                         }
@@ -567,7 +568,22 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         finalHandoffListener
                     );
                 }), recoveryExecutor, threadContext);
-            }, listener0.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())));
+            };
+
+            final ActionListener<Void> wrappedListener = responseListener.<Void>map(
+                unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())
+            ).delegateResponse((l, e) -> {
+                try {
+                    relocationOutcomeListener.onFailure(e);
+                } finally {
+                    l.onFailure(e);
+                }
+            });
+
+            ActionListener.run(
+                wrappedListener,
+                l -> indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), handoffConsumer, l)
+            );
         }), recoveryExecutor, threadContext);
     }
 

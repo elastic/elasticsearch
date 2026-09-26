@@ -7,13 +7,21 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationResult.Kind;
 
+import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
@@ -85,6 +93,19 @@ public final class LiteralSelector extends Selector {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), literal);
+    }
+
+    /** A literal is a scalar over the source; over a folded (empty) relation it carries the relation's own step column. */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        PromqlCommand cmd = translation.cmd();
+        LogicalPlan input = cmd.child();
+        LogicalPlan folded = PromqlLogicalPlanBuilder.tryFoldRelation(cmd, input);
+        if (folded != null) {
+            Attribute step = PromqlLabels.find(folded.output(), cmd.stepColumnName());
+            return new TranslationResult(folded, Map.of(), literal, step, null, Kind.CONSTANT);
+        }
+        return TranslationResult.scalar(input, literal, translation.stepAttr());
     }
 
     @Override

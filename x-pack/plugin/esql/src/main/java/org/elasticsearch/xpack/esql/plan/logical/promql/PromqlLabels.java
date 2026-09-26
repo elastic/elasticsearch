@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 
+import java.util.Collection;
+import java.util.List;
+
 /**
  * Shared naming conventions for PromQL labels represented as ES|QL fields.
  */
@@ -37,5 +40,24 @@ public final class PromqlLabels {
     public static String labelName(Attribute attribute) {
         String name = attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name();
         return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
+    }
+
+    /** The distinct label names the attributes carry, in order. */
+    public static List<String> labelNames(Collection<? extends Attribute> attributes) {
+        return attributes.stream().map(PromqlLabels::labelName).distinct().toList();
+    }
+
+    /** The attribute carrying {@code label}, preferring a passthrough field ({@code labels.pod}) over a bare column; null if none. */
+    public static Attribute find(List<Attribute> attributes, String label) {
+        Attribute bareMatch = null;
+        for (var attribute : attributes) {
+            if (labelName(attribute).equals(label)) {
+                if (attribute.name().equals(label) == false) {
+                    return attribute;
+                }
+                bareMatch = attribute;
+            }
+        }
+        return bareMatch;
     }
 }

@@ -81,6 +81,14 @@ public final class ScalarFunction extends LeafPlan implements PromqlPlan {
         return PromqlDataType.SCALAR;
     }
 
+    /** A function of the step alone ({@code time()}, {@code pi()}): an expression over the unchanged source. */
+    @Override
+    public TranslationResult translate(TranslationContext translation) {
+        PromqlCommand cmd = translation.cmd();
+        var ctx = new PromqlFunctionRegistry.PromqlContext(cmd.timestamp(), null, cmd.stepAttribute(), translation.configuration());
+        return TranslationResult.scalar(cmd.child(), buildEsqlFunction(ctx), translation.stepAttr());
+    }
+
     public String functionName() {
         return definition.name();
     }

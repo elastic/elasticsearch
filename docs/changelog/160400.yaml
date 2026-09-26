@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160373
+pr: 160400
+summary: Null v_magnitude keeps page length
+type: bug

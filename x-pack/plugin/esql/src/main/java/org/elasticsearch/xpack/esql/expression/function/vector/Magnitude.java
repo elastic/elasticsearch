@@ -151,7 +151,9 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
                     }
                 }
                 if (dimensions == 0) {
-                    return blockFactory.newConstantFloatBlockWith(0F, 0);
+                    // An all-null page has no vector to size. A zero-position block fails fold
+                    // and drops the page on execution. Match VectorSimilarityFunction.
+                    return blockFactory.newConstantNullBlock(positionCount);
                 }
 
                 float[] scratch = new float[dimensions];

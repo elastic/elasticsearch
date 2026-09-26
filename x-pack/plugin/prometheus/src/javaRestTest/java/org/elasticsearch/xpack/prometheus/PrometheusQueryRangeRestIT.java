@@ -559,6 +559,24 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("clamp(tx, 20, 25)", 20, 25, 20);
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantEmptyLabelValueIsAbsent}. */
+    public void testRangeEmptyLabelValueIsAbsent() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        List<PromqlResponseSeries> counted = PromqlResponseSeries.ofRange(
+            executeBinopRangeQuery("count by (dst) (label_replace(tx, \"dst\", \"\", \"host\", \".*\"))")
+        );
+        assertThat(counted, hasSize(1));
+        assertThat(counted.getFirst().labels(), equalTo(Map.of()));
+        assertThat(counted.getFirst().value(), closeTo(3.0, 1e-10));
+        Map<String, Double> byHost = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofRange(
+            executeBinopRangeQuery("sum by (host) (label_replace(tx, \"host\", \"\", \"host\", \"a\"))")
+        )) {
+            assertNull("duplicate output group", byHost.put(series.labels().getOrDefault("host", "<absent>"), series.value()));
+        }
+        assertThat(byHost, equalTo(Map.of("<absent>", 10.0, "b", 30.0, "c", 12.0)));
+    }
+
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantOverTimeFunctionsOverACounter}. */
     public void testRangeOverTimeFunctionsOverACounter() throws Exception {
         PrometheusInstantQueryRestIT.ingestCounters(this, QUERY_END);

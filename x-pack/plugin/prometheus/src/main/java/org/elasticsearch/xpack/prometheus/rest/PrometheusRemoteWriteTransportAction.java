@@ -219,10 +219,10 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             builder.field("namespace", namespace);
             builder.endObject();
 
-            // labels - all labels including __name__
+            // labels - all labels including __name__; Prometheus treats a label with an empty value as absent
             builder.startObject("labels");
             for (Label label : timeSeries.getLabelsList()) {
-                if (isIgnoredLabel(label.getName()) == false) {
+                if (isIgnoredLabel(label.getName()) == false && Strings.hasText(label.getValue())) {
                     builder.field(label.getName(), label.getValue());
                 }
             }

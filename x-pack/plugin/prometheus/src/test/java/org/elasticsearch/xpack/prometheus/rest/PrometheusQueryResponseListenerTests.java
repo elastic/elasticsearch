@@ -124,6 +124,42 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         }
     }
 
+    /** Prometheus treats a label with an empty value as absent: the key is omitted, on both label paths. */
+    public void testConvertRangeQueryOmitsEmptyLabelValues() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(
+            col("value", "double"),
+            col("_timeseries", "keyword"),
+            col("dst", "keyword"),
+            col("job", "keyword"),
+            col("step", "long")
+        );
+        List<List<Object>> rows = List.of(
+            List.of(
+                List.of(1.5, 2.0),
+                "{\"labels\":{\"__name__\":\"http_requests_total\",\"instance\":\"\"}}",
+                "",
+                "prometheus",
+                List.of(1735689600000L, 1735689660000L)
+            )
+        );
+
+        List<Page> pages = pagesOf(rows);
+        try (
+            XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(
+                pages,
+                columns,
+                ZoneOffset.UTC,
+                "matrix",
+                QueryMode.RANGE
+            )
+        ) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessMatrix(path);
+            assertThat(path.evaluate("data.result"), hasSize(1));
+            assertThat(path.evaluate("data.result.0.metric"), equalTo(Map.of("__name__", "http_requests_total", "job", "prometheus")));
+        }
+    }
+
     public void testConvertRangeQueryWithTimeseriesColumn() throws IOException {
         // The PROMQL command returns a _timeseries column with JSON format {"labels":{...}}
         // The listener extracts the inner labels as bare metric keys (no "labels." prefix)

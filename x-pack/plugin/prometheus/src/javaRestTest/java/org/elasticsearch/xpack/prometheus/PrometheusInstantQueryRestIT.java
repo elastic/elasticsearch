@@ -639,4 +639,13 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("vector(1) > 2");
         assertBinopInstantValues("vector(3) > 2", 3);
     }
+
+    /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */
+    public void testInstantFractionalKIsTruncated() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("topk(1.5, tx)", 30);
+        assertBinopInstantValues("bottomk(1.5, tx)", 10);
+        assertBinopInstantValues("topk(2.9, tx)", 30, 12);
+        assertBinopInstantValues("topk(0.5, tx)");
+    }
 }

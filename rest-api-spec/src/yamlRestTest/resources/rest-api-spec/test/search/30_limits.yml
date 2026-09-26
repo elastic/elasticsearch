@@ -163,6 +163,47 @@ setup:
                      \\[\"()<>@,;:\\\\\".\\[\\]]))|\"(?:[^\\\"\\r\\\\]|\\\\.|(?:(?:\\r\\n)?[\\t]))*\"(?:(?:\\r\\n)?[\\t/"
 
 ---
+"Terms aggregation include regex length limit":
+
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ aggregation_include_exclude_regex_length_limit ]
+      reason: include/exclude regex length is bounded by index.max_regex_length since 9.6
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: foo.keyword
+                include: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  - match:
+      error.root_cause.0.reason: /The\slength\sof\sregex\s\[1001\]\sused\sin\sthe\s\[include\]\sof\san\saggregation\shas\sexceeded\sthe\sallowed\smaximum\sof\s\[1000\]\.\sThis\smaximum\scan\sbe\sset\sby\schanging\sthe\s\[index\.max_regex_length\]\sindex\slevel\ssetting\..*/
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: foo.keyword
+                exclude: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  - match:
+      error.root_cause.0.reason: /The\slength\sof\sregex\s\[1001\]\sused\sin\sthe\s\[exclude\]\sof\san\saggregation\shas\sexceeded\sthe\sallowed\smaximum\sof\s\[1000\].*/
+
+---
 "Prefix length limit":
 
   - requires:
@@ -215,3 +256,60 @@ setup:
               query: "/b.+++++r/"
   - match: {hits.total: 1}
   - match: {hits.hits.0._id: "1"}
+
+---
+"Terms aggregation include regex length limit honours the index setting":
+
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ aggregation_include_exclude_regex_length_limit ]
+      reason: include/exclude regex length is bounded by index.max_regex_length since 9.6
+
+  - do:
+      indices.create:
+        index: test_short_regex
+        body:
+          settings:
+            index.max_regex_length: 20
+          mappings:
+            properties:
+              foo:
+                type: keyword
+
+  - do:
+      index:
+        index: test_short_regex
+        id: "1"
+        refresh: true
+        body: { foo: bar }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_short_regex
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: foo
+                include: "aaaaaaaaaaaaaaaaaaaaa"
+  - match:
+      error.root_cause.0.reason: /The\slength\sof\sregex\s\[21\]\sused\sin\sthe\s\[include\]\sof\san\saggregation\shas\sexceeded\sthe\sallowed\smaximum\sof\s\[20\].*/
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_short_regex
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: foo
+                include: "b.*"
+  - match: { aggregations.terms_agg.buckets.0.key: bar }

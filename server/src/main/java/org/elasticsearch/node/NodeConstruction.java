@@ -247,6 +247,7 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
+import org.elasticsearch.snapshots.RestoreLifecycleListener;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -1312,6 +1313,7 @@ class NodeConstruction {
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
             featureService
         );
+        registerRestoreLifecycleListener(pluginsService, restoreService);
 
         DiscoveryModule discoveryModule = createDiscoveryModule(
             settings,
@@ -1690,6 +1692,26 @@ class NodeConstruction {
             b.bind(HealthApiStats.class).toInstance(new HealthApiStats());
             b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
         };
+    }
+
+    /**
+     * Installs the {@link RestoreLifecycleListener} contributed by a plugin, if one is.
+     * <p>
+     * At most one may be installed. Two listeners would both be given the chance to modify the same cluster-state update with no defined
+     * order between them, so this fails startup rather than silently letting one of them win.
+     */
+    private static void registerRestoreLifecycleListener(PluginsService pluginsService, RestoreService restoreService) {
+        List<RestoreLifecycleListener> listeners = pluginsService.filterPlugins(RepositoryPlugin.class)
+            .map(RepositoryPlugin::getRestoreLifecycleListener)
+            .filter(listener -> listener != RestoreLifecycleListener.NOOP)
+            .toList();
+
+        if (listeners.size() > 1) {
+            throw new IllegalStateException("More than one plugin provides a " + RestoreLifecycleListener.class.getSimpleName());
+        }
+        if (listeners.isEmpty() == false) {
+            restoreService.setLifecycleListener(listeners.get(0));
+        }
     }
 
     private Module loadPluginComponents(Collection<?> pluginComponents) {

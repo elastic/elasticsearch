@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -256,22 +257,6 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      * surviving view boundary puts the filter on a view's output at all — see
      * {@link #testTheObjectPathCasesNeedASurvivingViewBoundary}.
      */
-    /**
-     * Why the two cases above are written over the pre-filtered view. A request filter reaches a view's <em>output</em>
-     * only where a view boundary survives optimization: over the pre-filtered view the translated predicate sits inside
-     * the branch, bound to a real attribute, under a {@code ViewUnionAll}. Over the passthrough view no boundary is left
-     * and the logical plan carries no filter at all — it went to the index scan, which this translation never touches,
-     * so the same case there would pass whatever the translator did.
-     */
-    public void testTheObjectPathCasesNeedASurvivingViewBoundary() {
-        String prefiltered = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + " | KEEP id", QueryBuilders.existsQuery("user"));
-        assertThat(prefiltered, containsString("ViewUnionAll"));
-        assertThat(prefiltered, containsString("ISNOTNULL(user.name"));
-        String passthrough = optimizedLogicalPlan("FROM " + PASSTHROUGH_VIEW + " | KEEP id", QueryBuilders.existsQuery("user"));
-        assertThat(passthrough, not(containsString("ViewUnionAll")));
-        assertThat(passthrough, not(containsString("ISNOTNULL")));
-    }
-
     public void testExistsOnObjectPathAppliesToViewOutput() {
         assertThat(ids(PREFILTERED_VIEW, QueryBuilders.existsQuery("user")), equalTo(List.of(0)));
         assertThat(ids(PASSTHROUGH_VIEW, QueryBuilders.existsQuery("user")), equalTo(List.of(0, 2, 4)));
@@ -282,6 +267,28 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         QueryBuilder negated = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("user"));
         assertThat(ids(PREFILTERED_VIEW, negated), equalTo(List.of(3)));
         assertThat(ids(PASSTHROUGH_VIEW, negated), equalTo(List.of(1, 3, 5)));
+    }
+
+    /**
+     * Why the two cases above are written over the pre-filtered view. A request filter reaches a view's <em>output</em>
+     * only where a view boundary survives optimization: over the pre-filtered view the translated predicate is a
+     * {@code Filter} under the {@code ViewUnionAll}, bound to a real attribute. Over the passthrough view no boundary
+     * is left and the plan holds no {@code Filter} at all — that filter went to the index scan, the path this
+     * translation never touches, so the same case there would pass whatever the translator did.
+     */
+    public void testTheObjectPathCasesNeedASurvivingViewBoundary() {
+        String prefiltered = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + " | KEEP id", QueryBuilders.existsQuery("user"));
+        // Order in the dump is depth: the predicate has to sit BELOW the view boundary, not above it.
+        assertThat(prefiltered, containsString("ViewUnionAll"));
+        assertThat(prefiltered, containsString("ISNOTNULL(user.name"));
+        assertThat(
+            "the translated predicate must sit under the view boundary",
+            prefiltered.indexOf("ViewUnionAll"),
+            lessThan(prefiltered.indexOf("ISNOTNULL(user.name"))
+        );
+        String passthrough = optimizedLogicalPlan("FROM " + PASSTHROUGH_VIEW + " | KEEP id", QueryBuilders.existsQuery("user"));
+        assertThat(passthrough, not(containsString("ViewUnionAll")));
+        assertThat("no filter is evaluated in ESQL on this path at all", passthrough, not(containsString("Filter[")));
     }
 
     // ─── Stats view: filter on computed field must work ─────────────────────────

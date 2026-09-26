@@ -37,6 +37,7 @@ import static org.elasticsearch.grok.GrokCaptureType.STRING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GrokTests extends ESTestCase {
@@ -807,6 +808,34 @@ public class GrokTests extends ESTestCase {
         Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), grokPattern, MatcherWatchdog.newInstance(200), logger::warn);
         Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
         assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));
+    }
+
+    /**
+     * The ECS v1 Cisco ASA access list patterns lost the literal {@code \[} that precedes the hashcode block when they
+     * were ported from logstash-patterns-core, which pulled the {@code [} into the following field name and left the compiled
+     * regex with an unterminated character class. Constructing a {@link Grok} for them therefore threw instead of
+     * matching, so this test compiles each pattern and checks that both hashcodes are captured.
+     */
+    public void testCiscoAsaAccessListEcsV1Patterns() {
+        Map<String, String> logLinesByPattern = Map.of(
+            "CISCOFW106023",
+            "Deny tcp src outside:192.168.1.1/54321 dst inside:10.0.0.1/22 by access-group \"acl_out\" [0xabcd1234, 0x5678ef90]",
+            "CISCOFW106100_2_3",
+            "access-list acl_in permitted tcp for user 'bob' inside/10.0.0.1(12345) -> outside/192.168.1.1(80) "
+                + "hit-cnt 1 first hit [0xabcd1234, 0x5678ef90]",
+            "CISCOFW106100",
+            "access-list acl_in permitted tcp inside/10.0.0.1(12345) -> outside/192.168.1.1(80) "
+                + "hit-cnt 1 first hit [0xabcd1234, 0x5678ef90]"
+        );
+
+        for (Map.Entry<String, String> logLineByPattern : logLinesByPattern.entrySet()) {
+            String patternName = logLineByPattern.getKey();
+            Grok grok = new Grok(GrokBuiltinPatterns.get(true), "%{" + patternName + "}", logger::warn);
+            Map<String, Object> captures = grok.captures(logLineByPattern.getValue());
+            assertThat(patternName, captures, notNullValue());
+            assertThat(patternName, captures.get("@metadata.cisco.asa.hashcode1"), equalTo("0xabcd1234"));
+            assertThat(patternName, captures.get("@metadata.cisco.asa.hashcode2"), equalTo("0x5678ef90"));
+        }
     }
 
     public void testAtInFieldName() {

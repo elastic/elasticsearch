@@ -26,7 +26,7 @@ public final class AutoCalibrationVectorFixtures {
 
     private AutoCalibrationVectorFixtures() {}
 
-    static FloatVectorValues clusteredHeapVectors(int count, int dim, int numClusters, long seed) throws IOException {
+    public static FloatVectorValues clusteredHeapVectors(int count, int dim, int numClusters, long seed) throws IOException {
         Random rnd = new Random(seed);
         float[][] centroids = new float[numClusters][dim];
         for (int c = 0; c < numClusters; c++) {

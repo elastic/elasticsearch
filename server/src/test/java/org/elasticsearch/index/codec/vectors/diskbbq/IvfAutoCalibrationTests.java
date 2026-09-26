@@ -37,6 +37,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.CalibrationUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,6 +53,7 @@ import java.util.Random;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_CANDIDATE_ENCODINGS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_RERANK_OVERSAMPLES;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -441,6 +443,73 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
+    public void testSelectFromMergeStateRecalibratesWhenMaxDocBitsExceeded() throws IOException {
+        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+
+        // Unreachable target recall: calibration always returns best-effort at the top tier
+        // allowed by the ceiling, so the ceiling is the only thing that limits the result.
+        double impossibleRecall = 1.01;
+        IvfMergeConfigResolver resolver = IvfAutoCalibration.mergeConfigResolver(
+            VPC,
+            ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            impossibleRecall,
+            IvfAutoCalibration.DEFAULT_K
+        );
+
+        int vectorsPerSeg = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 500;
+        IvfSegmentConfig sevenBitConfig = IvfSegmentConfig.fromCodecDefaults(
+            CentroidIndexFormat.FLAT,
+            new IvfSegmentConfig.OsqConfig(QuantEncoding.SEVEN_BIT_SYMMETRIC),
+            false
+        );
+        IvfSegmentConfig twoBitConfig = IvfSegmentConfig.fromCodecDefaults(
+            CentroidIndexFormat.FLAT,
+            new IvfSegmentConfig.OsqConfig(QuantEncoding.TWO_BIT_4BIT_QUERY),
+            false
+        );
+        try (Directory dir = newDirectory()) {
+            // Real DIM-dimensional vectors so the fall-through calibration path can sample them.
+            StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
+                QuantEncoding.FOUR_BIT_SYMMETRIC,
+                2f,
+                false,
+                AutoCalibrationVectorFixtures.clusteredHeapVectors(vectorsPerSeg, DIM, 16, 42L)
+            );
+            StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(
+                QuantEncoding.FOUR_BIT_SYMMETRIC,
+                2f,
+                false,
+                AutoCalibrationVectorFixtures.clusteredHeapVectors(vectorsPerSeg, DIM, 16, 43L)
+            );
+            MergeState bgMergeState = mergeState(
+                dir,
+                new KnnVectorsReader[] { segA, segB },
+                new Bits[] { liveDocs(vectorsPerSeg), liveDocs(vectorsPerSeg) },
+                backgroundSegmentInfo(dir),
+                fieldInfo
+            );
+            MergeState forceMergeState = mergeState(
+                dir,
+                new KnnVectorsReader[] { segA, segB },
+                new Bits[] { liveDocs(vectorsPerSeg), liveDocs(vectorsPerSeg) },
+                forceMergeSegmentInfo(dir),
+                fieldInfo
+            );
+
+            // Case 1: background merge, 7-bit default — reuse path wins (4 bits < ceiling).
+            IvfSegmentConfig reused = resolver.resolve(fieldInfo, bgMergeState, sevenBitConfig);
+            assertThat(reused.osqEncoding(), is(QuantEncoding.FOUR_BIT_SYMMETRIC));
+
+            // Case 2: background merge, 2-bit default — agreed encoding rejected by ceiling; calibration runs capped.
+            IvfSegmentConfig capped = resolver.resolve(fieldInfo, bgMergeState, twoBitConfig);
+            assertThat(capped.osqEncoding(), is(QuantEncoding.TWO_BIT_4BIT_QUERY));
+
+            // Case 3: force merge, 2-bit default — reuse skipped by merge kind; calibration runs capped.
+            IvfSegmentConfig forceMerged = resolver.resolve(fieldInfo, forceMergeState, twoBitConfig);
+            assertThat(forceMerged.osqEncoding(), is(QuantEncoding.TWO_BIT_4BIT_QUERY));
+        }
+    }
+
     public void testSelectBoundedForceMergeRunsCalibrate() throws IOException {
         TrackingSelector selector = new TrackingSelector(VPC);
         FieldInfo fieldInfo = vectorFieldInfo("f");
@@ -625,6 +694,47 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 assertThat(persisted.rescoreOversample(), not(equalTo(2f)));
             }
         }
+    }
+
+    /**
+     * Verifies that the {@code maxDocBits} ceiling passed directly to the constructor is respected.
+     */
+    public void testCalibrateRespectsMaxDocBits() throws IOException {
+        /*
+         * A target recall above 1.0 is unreachable, so calibration always returns the best-effort result,
+         * exhausting every candidate within the cap. This guarantees the uncapped run visits the 7-bit tier
+         * (making the guard assertion non-vacuous) and the capped run is confined to the 1-bit tier.
+         */
+        double impossibleRecall = 1.01;
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(1000, DIM, 8, 42L);
+
+        IvfAutoCalibration uncapped = new IvfAutoCalibration(
+            VPC,
+            ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            impossibleRecall,
+            IvfAutoCalibration.DEFAULT_K,
+            IvfAutoCalibration.UNCAPPED_MAX_DOC_BITS
+        );
+        IvfSegmentConfig uncappedResult = uncapped.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
+        assertThat(
+            "uncapped calibration should select an encoding above 1 doc bit",
+            (int) uncappedResult.osqEncoding().bits(),
+            greaterThan(1)
+        );
+
+        IvfAutoCalibration capped = new IvfAutoCalibration(
+            VPC,
+            ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            impossibleRecall,
+            IvfAutoCalibration.DEFAULT_K,
+            1
+        );
+        IvfSegmentConfig cappedResult = capped.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
+        assertThat(
+            "calibration with maxDocBits=1 must not select an encoding above 1 doc bit",
+            (int) cappedResult.osqEncoding().bits(),
+            equalTo(1)
+        );
     }
 
     private void assertCalibrateProducesFiniteConfig(VectorSimilarityFunction similarityFunction) throws IOException {
@@ -968,10 +1078,14 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         private final FloatVectorValues vectors;
 
         StubCalibrationKnnVectorsReader(QuantEncoding encoding, float oversample, boolean precondition, int numVectors) {
+            this(encoding, oversample, precondition, KMeansFloatVectorValues.build(Collections.nCopies(numVectors, new float[1]), null, 1));
+        }
+
+        StubCalibrationKnnVectorsReader(QuantEncoding encoding, float oversample, boolean precondition, FloatVectorValues vectors) {
             this.encoding = encoding;
             this.oversample = oversample;
             this.precondition = precondition;
-            this.vectors = KMeansFloatVectorValues.build(java.util.Collections.nCopies(numVectors, new float[1]), null, 1);
+            this.vectors = vectors;
         }
 
         @Override

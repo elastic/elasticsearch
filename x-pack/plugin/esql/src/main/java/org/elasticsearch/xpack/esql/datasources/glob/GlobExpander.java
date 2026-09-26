@@ -1092,11 +1092,12 @@ public final class GlobExpander {
                 // pattern — a keyed data/year=*/** rewrites to data/year=2024/** and the walk prunes under that
                 // prefix. Provider support cannot be known at key time; over-inclusion merely fragments, safely.
                 // A closed range does not rewrite the glob (a brace of the integer literals would drop in-range
-                // spellings such as 2.5 and narrow the detected type). It still changes which files the flat
-                // listing keeps, so on a pattern the walk does not already key, those hints join the identity.
+                // spellings such as 2.5 and narrow the detected type). A non-integral equality does not either:
+                // printing 6.0 would miss price=6.00. Both still change which files the flat listing keeps, so on
+                // a pattern the walk does not already key, those hints join the identity.
                 walkShapeEligible(effectivePattern, partitionConfig)
                     ? encodedHints(partitionPruningHints(hints))
-                    : encodedHints(closedRangeFilterHints(hints, partitionConfig)),
+                    : encodedHints(folderPostFilterHints(hints, partitionConfig)),
                 exclusionConfig,
                 fileOrder
             );
@@ -1681,14 +1682,27 @@ public final class GlobExpander {
         return value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long;
     }
 
+    /**
+     * Hints the flat listing applies after listObjects, without rewriting the glob. The listing-cache identity
+     * keys the same set on a pattern the walk does not already key: a filtered query must not share an unfiltered
+     * entry.
+     */
+    private static List<PartitionFilterHint> folderPostFilterHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        List<PartitionFilterHint> filterHints = new ArrayList<>();
+        filterHints.addAll(closedRangeFilterHints(hints, partitionConfig));
+        filterHints.addAll(nonIntegralEqualityHints(hints, partitionConfig));
+        return filterHints;
+    }
+
     private static List<StorageEntry> withoutFoldersOutsideClosedRange(
         List<StorageEntry> matched,
         @Nullable List<PartitionFilterHint> hints,
         PartitionConfig partitionConfig
     ) {
-        List<PartitionFilterHint> rangeHints = new ArrayList<>();
-        rangeHints.addAll(closedRangeFilterHints(hints, partitionConfig));
-        rangeHints.addAll(nonIntegralEqualityHints(hints, partitionConfig));
+        List<PartitionFilterHint> rangeHints = folderPostFilterHints(hints, partitionConfig);
         if (rangeHints.isEmpty()) {
             return matched;
         }

@@ -1267,6 +1267,26 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
+    /**
+     * A non-integral equality leaves {@code price=*} in place and drops folders afterwards. That narrowed listing
+     * must not be cached under the unfiltered key, or {@code price >= 0.0} reuses a list that already dropped
+     * {@code price=1e5}.
+     */
+    public void testListingCacheDiscriminatorReflectsNonIntegralEquality() {
+        String pattern = "s3://bucket/price=*/*.parquet";
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON);
+        var equals = List.of(hint("price", PartitionFilterHintExtractor.Operator.EQUALS, 1.5));
+        var inList = List.of(hint("price", PartitionFilterHintExtractor.Operator.IN, 1.25, 6.0));
+        var range = List.of(hint("price", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 0.0));
+
+        assertNotEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, equals, HIVE_ON));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, equals, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(pattern, inList, HIVE_ON)
+        );
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, range, HIVE_ON));
+    }
+
     public void testRewriteGlobMultipleHints() {
         var hints = List.of(
             hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024),

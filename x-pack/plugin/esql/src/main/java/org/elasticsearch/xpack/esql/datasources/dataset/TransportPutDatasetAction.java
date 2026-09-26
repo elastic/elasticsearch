@@ -17,12 +17,15 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<PutDatasetAction.Request> {
     private final DatasetService datasetService;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportPutDatasetAction(
@@ -31,7 +34,8 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DatasetService datasetService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        XPackLicenseState licenseState
     ) {
         super(
             PutDatasetAction.NAME,
@@ -44,6 +48,7 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.datasetService = datasetService;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -53,6 +58,7 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        EsqlLicenseChecker.checkFederation(licenseState);
         datasetService.putDataset(state.projectId(), request, listener);
     }
 

@@ -650,10 +650,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
     /**
      * These tests register no datasets, so the resolver short-circuits before ever touching a client,
-     * executor, or the cross-project remote leg — nulls are never dereferenced.
+     * executor, cross-project remote leg, or license state — nulls are never dereferenced.
      */
     private static DatasetResolver noDatasetsResolver() {
-        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP, true);
+        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP, true, null);
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

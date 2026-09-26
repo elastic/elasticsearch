@@ -19,10 +19,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -32,12 +34,15 @@ public class TransportGetDataSourceAction extends TransportLocalProjectMetadataA
     GetDataSourceAction.Request,
     GetDataSourceAction.Response> {
 
+    private final XPackLicenseState licenseState;
+
     @Inject
     public TransportGetDataSourceAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        XPackLicenseState licenseState
     ) {
         super(
             GetDataSourceAction.NAME,
@@ -47,6 +52,7 @@ public class TransportGetDataSourceAction extends TransportLocalProjectMetadataA
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             projectResolver
         );
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -56,6 +62,7 @@ public class TransportGetDataSourceAction extends TransportLocalProjectMetadataA
         ProjectState project,
         ActionListener<GetDataSourceAction.Response> listener
     ) {
+        EsqlLicenseChecker.checkFederation(licenseState);
         final DataSourceMetadata metadata = DataSourceMetadata.get(project.metadata());
         final String[] requested = request.names();
         final LinkedHashMap<String, DataSource> hits = new LinkedHashMap<>();

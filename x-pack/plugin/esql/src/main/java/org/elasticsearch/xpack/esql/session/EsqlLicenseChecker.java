@@ -27,6 +27,12 @@ public class EsqlLicenseChecker {
         License.OperationMode.ENTERPRISE
     );
 
+    private static final LicensedFeature.Momentary FEDERATION_FEATURE = LicensedFeature.momentary(
+        null,
+        "esql-federation",
+        License.OperationMode.ENTERPRISE
+    );
+
     /**
      * Only call this method once you know the user is doing a cross-cluster query, as it will update
      * the license_usage timestamp for the esql-ccs feature if the license is Enterprise (or Trial).
@@ -77,6 +83,35 @@ public class EsqlLicenseChecker {
         if (licenseState == null || QUERY_APPROXIMATION_FEATURE.check(licenseState) == false) {
             throw getException("A valid Enterprise license is required to use ES|QL query approximation.", licenseState);
         }
+    }
+
+    /**
+     * Only call this method once you know the user is running a data federation query or managing a data source or dataset,
+     * as it will update the license_usage timestamp for the esql-federation feature if the license is Enterprise (or Trial).
+     * @param licenseState
+     * @return true if the user has a license that allows ES|QL data federation.
+     */
+    public static boolean isFederationAllowed(XPackLicenseState licenseState) {
+        return licenseState != null && FEDERATION_FEATURE.check(licenseState);
+    }
+
+    /**
+     * @param licenseState existing license state. Need to extract info on the current installed license.
+     * @throws ElasticsearchStatusException if data federation is not supported by the current license.
+     */
+    public static void checkFederation(XPackLicenseState licenseState) {
+        if (isFederationAllowed(licenseState) == false) {
+            throw invalidLicenseForFederationException(licenseState);
+        }
+    }
+
+    /**
+     * @param licenseState existing license state. Need to extract info on the current installed license.
+     * @return ElasticsearchStatusException with an error message informing the caller what license is needed
+     * to use ES|QL data federation.
+     */
+    public static ElasticsearchStatusException invalidLicenseForFederationException(XPackLicenseState licenseState) {
+        return getException("A valid Enterprise license is required to use ES|QL data federation.", licenseState);
     }
 
     private static ElasticsearchStatusException getException(String message, XPackLicenseState licenseState) {

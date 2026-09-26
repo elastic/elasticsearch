@@ -13,11 +13,13 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -49,16 +51,25 @@ public class DatasetResolver {
     private final Executor executor;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final boolean federationAvailable;
+    private final XPackLicenseState licenseState;
 
     /**
      * Federation availability is resolved once by the caller (see {@link Federation#isAvailable}) rather than per query:
      * it is fixed for the lifetime of the node, since both of its levers are read at startup.
+     * The {@code licenseState} is checked per query, once the resolver determines the query actually targets a dataset.
      */
-    public DatasetResolver(Client client, Executor executor, CrossProjectModeDecider crossProjectModeDecider, boolean federationAvailable) {
+    public DatasetResolver(
+        Client client,
+        Executor executor,
+        CrossProjectModeDecider crossProjectModeDecider,
+        boolean federationAvailable,
+        XPackLicenseState licenseState
+    ) {
         this.client = client;
         this.executor = executor;
         this.crossProjectModeDecider = crossProjectModeDecider;
         this.federationAvailable = federationAvailable;
+        this.licenseState = licenseState;
     }
 
     /**
@@ -109,6 +120,11 @@ public class DatasetResolver {
         });
         if (relations.isEmpty()) {
             listener.onResponse(parsed);
+            return;
+        }
+
+        if (EsqlLicenseChecker.isFederationAllowed(licenseState) == false) {
+            listener.onFailure(EsqlLicenseChecker.invalidLicenseForFederationException(licenseState));
             return;
         }
 

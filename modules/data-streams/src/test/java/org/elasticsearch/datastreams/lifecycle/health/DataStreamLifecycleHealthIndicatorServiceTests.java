@@ -25,9 +25,12 @@ import org.elasticsearch.health.node.ProjectIndexName;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService.STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF;
 import static org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService.STAGNATING_INDEX_IMPACT;
@@ -38,11 +41,19 @@ import static org.hamcrest.core.IsNot.not;
 
 public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
 
+    private boolean multiProject;
+    private Set<ProjectId> projectIds;
     private DataStreamLifecycleHealthIndicatorService service;
 
     @Before
-    public void setupService() {
-        service = new DataStreamLifecycleHealthIndicatorService(TestProjectResolvers.singleProjectOnly(randomProjectIdOrDefault()));
+    public void chooseProjects() {
+        multiProject = randomBoolean();
+        projectIds = multiProject
+            ? IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> randomUniqueProjectId()).collect(Collectors.toSet())
+            : Set.of(randomProjectIdOrDefault());
+        service = new DataStreamLifecycleHealthIndicatorService(
+            multiProject ? TestProjectResolvers.allProjects() : TestProjectResolvers.singleProjectOnly(projectIds.iterator().next())
+        );
     }
 
     public void testGreenWhenNoDSLHealthData() {
@@ -58,11 +69,15 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testGreenWhenEmptyListOfStagnatingIndices() {
-        HealthIndicatorResult result = service.calculate(true, constructHealthInfo(new DataStreamLifecycleHealthInfo(List.of(), 15)));
+        int totalBackingIndicesInError = 15 * projectIds.size();
+        HealthIndicatorResult result = service.calculate(
+            true,
+            constructHealthInfo(new DataStreamLifecycleHealthInfo(List.of(), totalBackingIndicesInError))
+        );
         assertThat(result.status(), is(HealthStatus.GREEN));
         assertThat(result.symptom(), is("Data streams are executing their lifecycles without issues"));
         assertThat(result.details(), is(not(HealthIndicatorDetails.EMPTY)));
-        assertThat(Strings.toString(result.details()), containsString("\"total_backing_indices_in_error\":15"));
+        assertThat(Strings.toString(result.details()), containsString("\"total_backing_indices_in_error\":" + totalBackingIndicesInError));
         assertThat(result.impacts(), is(List.of()));
         assertThat(result.diagnosisList(), is(List.of()));
     }
@@ -70,101 +85,143 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
     public void testYellowWhenStagnatingIndicesPresent() {
         String secondGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 2L);
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 1L);
+        int stagnatingCount = 2 * projectIds.size();
+        int totalBackingIndicesInError = 15 * projectIds.size();
         HealthIndicatorResult result = service.calculate(
             true,
             constructHealthInfo(
-                new DataStreamLifecycleHealthInfo(
-                    List.of(new DslErrorInfo(secondGenerationIndex, 1L, 200), new DslErrorInfo(firstGenerationIndex, 3L, 100)),
-                    15
-                )
+                new DataStreamLifecycleHealthInfo(stagnatingErrors(secondGenerationIndex, firstGenerationIndex), totalBackingIndicesInError)
             )
         );
         assertThat(result.status(), is(HealthStatus.YELLOW));
-        assertThat(result.symptom(), is("2 backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle"));
-        assertThat(result.details(), is(not(HealthIndicatorDetails.EMPTY)));
-        String detailsAsString = Strings.toString(result.details());
-        assertThat(detailsAsString, containsString("\"total_backing_indices_in_error\":15"));
-        assertThat(detailsAsString, containsString("\"stagnating_backing_indices_count\":2"));
         assertThat(
-            detailsAsString,
-            containsString(
-                String.format(
-                    Locale.ROOT,
-                    "\"index_name\":\"%s\","
-                        + "\"first_occurrence_timestamp\":1,\"retry_count\":200},{\"index_name\":\"%s\","
-                        + "\"first_occurrence_timestamp\":3,\"retry_count\":100",
-                    secondGenerationIndex,
-                    firstGenerationIndex
-                )
+            result.symptom(),
+            is(
+                stagnatingCount == 1
+                    ? "A backing index has repeatedly encountered errors whilst trying to advance in its lifecycle"
+                    : stagnatingCount + " backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle"
             )
         );
+        assertThat(result.details(), is(not(HealthIndicatorDetails.EMPTY)));
+        String detailsAsString = Strings.toString(result.details());
+        assertThat(detailsAsString, containsString("\"total_backing_indices_in_error\":" + totalBackingIndicesInError));
+        assertThat(detailsAsString, containsString("\"stagnating_backing_indices_count\":" + stagnatingCount));
+        for (String displayName : stagnatingDisplayNames(secondGenerationIndex, firstGenerationIndex)) {
+            assertThat(detailsAsString, containsString("\"index_name\":\"" + displayName + "\""));
+        }
         assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
-        assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(secondGenerationIndex, firstGenerationIndex));
+        assertThat(
+            diagnosis.affectedResources().get(0).getValues(),
+            containsInAnyOrder(stagnatingDisplayNames(secondGenerationIndex, firstGenerationIndex).toArray())
+        );
     }
 
     public void testSkippingFieldsWhenVerboseIsFalse() {
         String secondGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 2L);
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 1L);
+        int stagnatingCount = 2 * projectIds.size();
         HealthIndicatorResult result = service.calculate(
             false,
             constructHealthInfo(
-                new DataStreamLifecycleHealthInfo(
-                    List.of(new DslErrorInfo(secondGenerationIndex, 1L, 200), new DslErrorInfo(firstGenerationIndex, 3L, 100)),
-                    15
-                )
+                new DataStreamLifecycleHealthInfo(stagnatingErrors(secondGenerationIndex, firstGenerationIndex), 15 * projectIds.size())
             )
         );
         assertThat(result.status(), is(HealthStatus.YELLOW));
-        assertThat(result.symptom(), is("2 backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle"));
+        assertThat(
+            result.symptom(),
+            is(
+                stagnatingCount == 1
+                    ? "A backing index has repeatedly encountered errors whilst trying to advance in its lifecycle"
+                    : stagnatingCount + " backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle"
+            )
+        );
         assertThat(result.details(), is(HealthIndicatorDetails.EMPTY));
         assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
         assertThat(result.diagnosisList().isEmpty(), is(true));
     }
 
-    public void testMultiProject() {
-        service = new DataStreamLifecycleHealthIndicatorService(TestProjectResolvers.allProjects());
-        ProjectId projectId1 = randomProjectIdOrDefault();
-        ProjectId projectId2 = randomUniqueProjectId();
-        String index1 = DataStream.getDefaultBackingIndexName("foo", 1L);
-        String index2 = DataStream.getDefaultBackingIndexName("boo", 1L);
-        String index1DisplayName = projectId1 + ProjectIndexName.DELIMITER + index1;
-        String index2DisplayName = projectId2 + ProjectIndexName.DELIMITER + index2;
+    public void testLimitNumberOfAffectedResources() {
+        ProjectId projectId = projectIds.iterator().next();
+        int errorCount = 5;
+        List<DslErrorInfo> errors = new ArrayList<>();
+        List<String> displayNames = new ArrayList<>();
+        for (int i = 0; i < errorCount; i++) {
+            String indexName = DataStream.getDefaultBackingIndexName("index", i + 1L);
+            errors.add(new DslErrorInfo(indexName, i, 100 + i, projectId));
+            displayNames.add(multiProject ? new ProjectIndexName(projectId, indexName).toString(true) : indexName);
+        }
+        int totalBackingIndicesInError = 15;
+        HealthInfo healthInfo = constructHealthInfo(new DataStreamLifecycleHealthInfo(errors, totalBackingIndicesInError));
+        String symptom = errorCount + " backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle";
 
-        HealthIndicatorResult result = service.calculate(
-            true,
-            constructHealthInfo(
-                new DataStreamLifecycleHealthInfo(
-                    List.of(new DslErrorInfo(index1, 1L, 100, projectId1), new DslErrorInfo(index2, 3L, 100, projectId2)),
-                    15
-                )
-            )
-        );
+        {
+            // With size = 0, the diagnosis resource list should be empty.
+            // `status` should stay yellow, `symptom` should still say 5 indices, and `impact` should be unchanged.
+            HealthIndicatorResult result = service.calculate(true, 0, healthInfo);
+            assertThat(result.status(), is(HealthStatus.YELLOW));
+            assertThat(result.symptom(), is(symptom));
+            assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
+            Diagnosis diagnosis = result.diagnosisList().get(0);
+            assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
+            assertThat(diagnosis.affectedResources().get(0).getValues(), is(List.of()));
+            assertDetailsIncludeEveryError(result, displayNames, errorCount, totalBackingIndicesInError);
+        }
+        {
+            // With size = 2, we should only have the first two index names in `diagnosis`, in error-list order.
+            int limit = 2;
+            HealthIndicatorResult result = service.calculate(true, limit, healthInfo);
+            assertThat(result.status(), is(HealthStatus.YELLOW));
+            assertThat(result.symptom(), is(symptom));
+            assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
+            assertThat(result.diagnosisList().get(0).affectedResources().get(0).getValues(), is(displayNames.subList(0, limit)));
+            assertDetailsIncludeEveryError(result, displayNames, errorCount, totalBackingIndicesInError);
+        }
+        {
+            // When size > number of error indices, all should be returned
+            HealthIndicatorResult result = service.calculate(true, errorCount + 5, healthInfo);
+            assertThat(result.diagnosisList().get(0).affectedResources().get(0).getValues(), is(displayNames));
+            assertDetailsIncludeEveryError(result, displayNames, errorCount, totalBackingIndicesInError);
+        }
+    }
 
-        assertThat(result.status(), is(HealthStatus.YELLOW));
-        assertThat(result.symptom(), is("2 backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle"));
-        assertThat(result.details(), is(not(HealthIndicatorDetails.EMPTY)));
+    private static void assertDetailsIncludeEveryError(
+        HealthIndicatorResult result,
+        List<String> displayNames,
+        int stagnatingCount,
+        int totalBackingIndicesInError
+    ) {
         String detailsAsString = Strings.toString(result.details());
-        assertThat(detailsAsString, containsString("\"total_backing_indices_in_error\":15"));
-        assertThat(detailsAsString, containsString("\"stagnating_backing_indices_count\":2"));
-        assertThat(
-            detailsAsString,
-            containsString(
-                String.format(
-                    Locale.ROOT,
-                    "\"index_name\":\"%s\","
-                        + "\"first_occurrence_timestamp\":1,\"retry_count\":100},{\"index_name\":\"%s\","
-                        + "\"first_occurrence_timestamp\":3,\"retry_count\":100",
-                    index1DisplayName,
-                    index2DisplayName
+        assertThat(detailsAsString, containsString("\"total_backing_indices_in_error\":" + totalBackingIndicesInError));
+        assertThat(detailsAsString, containsString("\"stagnating_backing_indices_count\":" + stagnatingCount));
+        for (int i = 0; i < displayNames.size(); i++) {
+            assertThat(
+                detailsAsString,
+                containsString(
+                    "\"index_name\":\"" + displayNames.get(i) + "\",\"first_occurrence_timestamp\":" + i + ",\"retry_count\":" + (100 + i)
                 )
-            )
-        );
-        assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
-        Diagnosis diagnosis = result.diagnosisList().get(0);
-        assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
-        assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(index1DisplayName, index2DisplayName));
+            );
+        }
+    }
+
+    private List<DslErrorInfo> stagnatingErrors(String secondGenerationIndex, String firstGenerationIndex) {
+        List<DslErrorInfo> errors = new ArrayList<>();
+        for (ProjectId projectId : projectIds) {
+            errors.add(new DslErrorInfo(secondGenerationIndex, 1L, 200, projectId));
+            errors.add(new DslErrorInfo(firstGenerationIndex, 3L, 100, projectId));
+        }
+        return errors;
+    }
+
+    private List<String> stagnatingDisplayNames(String... indexNames) {
+        List<String> names = new ArrayList<>();
+        for (String indexName : indexNames) {
+            for (ProjectId projectId : projectIds) {
+                names.add(multiProject ? new ProjectIndexName(projectId, indexName).toString(true) : indexName);
+            }
+        }
+        return names;
     }
 
     private HealthInfo constructHealthInfo(DataStreamLifecycleHealthInfo dslHealthInfo) {

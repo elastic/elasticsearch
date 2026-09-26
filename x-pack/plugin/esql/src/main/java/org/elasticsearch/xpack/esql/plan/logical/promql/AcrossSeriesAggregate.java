@@ -183,11 +183,12 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
             case NONE -> of();
         };
         TranslationResult child = translation.translate(child(), below);
-        if (child.kind().constant) {
+        if (child.isEmpty()) {
             return child;
         }
 
         // OUT: by (k) -> k, null where the child lacks one; without (d) -> child's labels - d; none -> nothing
+        // (a constant vector is one `{}` series per step: the aggregate regroups its table like any collapsed one)
         TranslationConstraint by = switch (grouping) {
             case BY -> of(keys);
             case WITHOUT -> sub(child.shape(), of(dropped));

@@ -195,11 +195,21 @@ public final class TranslationContext {
      * materialize as the value column (an Eval) so parents reference it by attribute.
      */
     public TranslationResult eval(TranslationResult child, Expression value) {
+        if (child.kind().constant) {
+            // a constant table's value is expressed over its own step column (a scalar like `time()` refers to the command's)
+            value = overStep(value, child.step());
+        }
         if (child.kind().afterInitialAggregation == false) {
             return child.with(child.plan(), value);
         }
         Alias alias = new Alias(value.source(), cmd.valueColumnName(), value);
         return child.with(new Eval(cmd.source(), child.plan(), List.of(alias)), alias.toAttribute());
+    }
+
+    /** {@code value} with every reference to the command's step attribute redirected to {@code step}. */
+    private Expression overStep(Expression value, Attribute step) {
+        Attribute stepAttr = cmd.stepAttribute();
+        return value.transformUp(Attribute.class, attr -> attr.semanticEquals(stepAttr) ? step : attr);
     }
 
     /**
@@ -445,7 +455,7 @@ public final class TranslationContext {
      * Think of IR as table
      */
     private TranslationResult translateIntermediate(LogicalPlan branch, NameId valueId) {
-        TranslationResult ir = doTranslateTryInline(translate(branch));
+        TranslationResult ir = fold(translate(branch));
 
         var plan = ir.plan();
         var value = ir.value();
@@ -457,23 +467,22 @@ public final class TranslationContext {
             plan = pushDownSrcTimestampFilter(plan, filter);
         }
 
-        if (ir.kind().constant == false) {
-            // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
-            // TODO: with metric references without last_over_time, a plain Aggregate could do (#141501 discussion).
-            if (ir.kind().afterInitialAggregation == false) {
-                ir = aggregate(ir.with(plan, value), value);
-                plan = ir.plan();
-                value = ir.value();
-            }
-            if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
-                VectorMatch match = comparison.match();
-                if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
-                    // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison.
-                    // A vector-matched comparison already applied its filter inside the join translation.
-                    ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
-                    var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
-                    plan = new Filter(comparison.source(), plan, condition);
-                }
+        // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
+        // TODO: with metric references without last_over_time, a plain Aggregate could do (#141501 discussion).
+        if (ir.kind().afterInitialAggregation == false) {
+            ir = aggregate(ir.with(plan, value), value);
+            plan = ir.plan();
+            value = ir.value();
+        }
+        if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
+            VectorMatch match = comparison.match();
+            if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
+                // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison - a
+                // constant vector included (`vector(1) > 2` is empty). A vector-matched comparison already applied its
+                // filter inside the join translation.
+                ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
+                var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
+                plan = new Filter(comparison.source(), plan, condition);
             }
         }
 
@@ -488,8 +497,13 @@ public final class TranslationContext {
         return new TranslationResult(plan, ir.labels(), valueAlias.toAttribute(), ir.step(), null, kind);
     }
 
-    /** Folds a branch whose value depends on nothing but the step column into a compile-time step/value relation. */
-    private TranslationResult doTranslateTryInline(TranslationResult result) {
+    /**
+     * Folds a table whose value depends on nothing but the step column into a compile-time relation of one row per step:
+     * the table of a constant vector ({@code vector(1)}, {@code vector(time())}), with no labels and its value at every
+     * step of the query, whether or not the source has a sample there. Anything else - a value over the source, a table
+     * that is already constant, a query with no known range - comes back unchanged.
+     */
+    public TranslationResult fold(TranslationResult result) {
         Attribute stepAttr = cmd.stepAttribute();
         if (result.kind().constant
             || result.labels().isEmpty() == false
@@ -499,8 +513,7 @@ public final class TranslationContext {
         }
         var plan = PromqlLogicalPlanBuilder.buildLocalRelation(cmd);
         var step = plan.output().getFirst();
-        var value = result.value().transformUp(Attribute.class, attr -> attr.semanticEquals(stepAttr) ? step : attr);
-        return new TranslationResult(plan, Map.of(), value, step, result.pendingFilter(), Kind.CONSTANT);
+        return new TranslationResult(plan, Map.of(), overStep(result.value(), step), step, result.pendingFilter(), Kind.CONSTANT);
     }
 
     // ---------- aggregation ----------
@@ -511,7 +524,9 @@ public final class TranslationContext {
         Alias value,
         Map<TranslationColumn, Attribute> labels
     ) {
-        return new TranslationResult(plan, labels, value.toAttribute(), input.step(), input.pendingFilter(), Kind.AFTER_INITIAL_AGGREGATE);
+        // an aggregate over a constant table is still a compile-time relation over the query's steps
+        Kind kind = input.kind().constant ? Kind.CONSTANT : Kind.AFTER_INITIAL_AGGREGATE;
+        return new TranslationResult(plan, labels, value.toAttribute(), input.step(), input.pendingFilter(), kind);
     }
 
     /**

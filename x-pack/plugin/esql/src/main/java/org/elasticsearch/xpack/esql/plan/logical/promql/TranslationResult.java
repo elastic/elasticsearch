@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationColumn.DynamicColumnList;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationColumn.Static;
 
@@ -101,6 +103,11 @@ public record TranslationResult(
     /** The value as a defined column; valid only when the value is an attribute. */
     public Attribute valueColumn() {
         return (Attribute) value;
+    }
+
+    /** A table with no rows at all - the relation of a query over no matching index; there is nothing to compute over it. */
+    public boolean isEmpty() {
+        return plan instanceof LocalRelation local && local.supplier() == EmptyLocalSupplier.EMPTY;
     }
 
     /** The attribute of a static label column, or null when the table does not carry the label. */

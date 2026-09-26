@@ -132,6 +132,68 @@ public class ShardLimitValidatorTests extends ESTestCase {
         assertEquals(shardLimitsResult.group(), group);
     }
 
+    public void testCountShardsOnIndexMetadata() {
+        for (LimitGroup group : LimitGroup.values()) {
+            int shards = randomIntBetween(1, 10);
+            int replicas = randomIntBetween(0, 3);
+            IndexMetadata open = indexMetadata("open-" + group, shards, replicas, group.groupName(), IndexMetadata.State.OPEN).build();
+            assertEquals(computeTotalShards(group, shards, replicas), group.countShards(open));
+
+            IndexMetadata closed = indexMetadata("closed-" + group, shards, replicas, group.groupName(), IndexMetadata.State.CLOSE).build();
+            assertEquals(0, group.countShards(closed));
+        }
+    }
+
+    public void testCountShardsOnMetadata() {
+        for (LimitGroup group : LimitGroup.values()) {
+            assertEquals(0L, group.countShards(Metadata.EMPTY_METADATA));
+        }
+
+        int shards1 = randomIntBetween(1, 5);
+        int replicas1 = randomIntBetween(0, 2);
+        int shards2 = randomIntBetween(1, 5);
+        int replicas2 = randomIntBetween(0, 2);
+        int closedShards = randomIntBetween(1, 5);
+        int closedReplicas = randomIntBetween(0, 2);
+        int frozenShards = randomIntBetween(1, 5);
+        int frozenReplicas = randomIntBetween(0, 2);
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                ProjectMetadata.builder(randomUniqueProjectId())
+                    .put(indexMetadata("p1-open", shards1, replicas1, ShardLimitValidator.NORMAL_GROUP, IndexMetadata.State.OPEN))
+                    .put(
+                        indexMetadata(
+                            "p1-closed",
+                            closedShards,
+                            closedReplicas,
+                            ShardLimitValidator.NORMAL_GROUP,
+                            IndexMetadata.State.CLOSE
+                        )
+                    )
+            )
+            .put(
+                ProjectMetadata.builder(randomUniqueProjectId())
+                    .put(indexMetadata("p2-open", shards2, replicas2, ShardLimitValidator.NORMAL_GROUP, IndexMetadata.State.OPEN))
+                    .put(
+                        indexMetadata("p2-frozen", frozenShards, frozenReplicas, ShardLimitValidator.FROZEN_GROUP, IndexMetadata.State.OPEN)
+                    )
+            )
+            .build();
+
+        assertEquals(
+            (long) computeTotalShards(LimitGroup.NORMAL, shards1, replicas1) + computeTotalShards(LimitGroup.NORMAL, shards2, replicas2),
+            LimitGroup.NORMAL.countShards(metadata)
+        );
+        assertEquals((long) computeTotalShards(LimitGroup.FROZEN, frozenShards, frozenReplicas), LimitGroup.FROZEN.countShards(metadata));
+        // INDEX and SEARCH count every open index, regardless of shard_limit.group
+        assertEquals((long) shards1 + shards2 + frozenShards, LimitGroup.INDEX.countShards(metadata));
+        assertEquals(
+            (long) shards1 * replicas1 + shards2 * replicas2 + frozenShards * frozenReplicas,
+            LimitGroup.SEARCH.countShards(metadata)
+        );
+    }
+
     public void testValidateShardLimitOpenIndices() {
         doTestValidateShardLimitOpenIndices(LimitGroup.NORMAL, between(2, 90));
         doTestValidateShardLimitOpenIndices(LimitGroup.FROZEN, between(2, 90));
@@ -277,6 +339,17 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
     public Index[] getIndices(ClusterState state) {
         return state.metadata().getProject().indices().values().stream().map(IndexMetadata::getIndex).toList().toArray(Index.EMPTY_ARRAY);
+    }
+
+    private static IndexMetadata.Builder indexMetadata(String name, int shards, int replicas, String group, IndexMetadata.State state) {
+        return IndexMetadata.builder(name)
+            .settings(
+                indexSettings(IndexVersion.current(), shards, replicas).put(
+                    ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(),
+                    group
+                )
+            )
+            .state(state);
     }
 
     private ClusterState createClusterStateForReplicaUpdate(int nodesInCluster, int shardsPerNode, int replicas, LimitGroup group) {

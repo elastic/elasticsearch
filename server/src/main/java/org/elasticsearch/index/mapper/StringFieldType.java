@@ -23,20 +23,22 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.CaseInsensitivePrefixQuery;
 import org.elasticsearch.common.lucene.search.CaseInsensitiveWildcardQuery;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.query.AutomatonQueryWithDescription;
+import org.elasticsearch.index.query.AutomatonKey;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.FuzzyQueries;
-import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,16 +52,16 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  *
  * <p>Circuit breaker accounting for automaton-based queries happens in two phases:
  * <ul>
- *   <li><b>Pre-flight reservation:</b> wildcard and regexp queries reserve an estimate of
- *   the {@code CompiledAutomaton} construction peak on the breaker before calling the
- *   {@link AutomatonQuery} constructor, and refund it once construction returns. This guards the
- *   construction window itself, which is invisible to any post-hoc walk of the assembled tree.
- *   A reservation left behind by a failed construction is refunded at request end.</li>
- *   <li><b>Retained-size charge (once per phase):</b>
- *   {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery(SearchExecutionContext)}
- *   walks the produced tree with {@code MaxClauseCountQueryVisitor} and charges the sum of
- *   {@code ramBytesUsed()} for every {@code Accountable} leaf in a single breaker call, peeking
- *   mid-walk so pathological fan-outs trip before the full tree is materialised.</li>
+ *   <li><b>Pre-flight reservation:</b> {@link SharedAutomaton#compile} holds an estimate of the
+ *   {@code CompiledAutomaton} construction peak on the breaker across the build. This guards the
+ *   construction window itself, which is invisible to any post-hoc walk of the assembled tree.</li>
+ *   <li><b>Retained-size charge (once per automaton):</b>
+ *   {@link SearchExecutionContext#computeAutomatonIfAbsent} charges the automaton where it is built and
+ *   reuses it for every later clause of the request resolving to the same pattern, so a pattern expanded
+ *   over many fields is compiled and charged once. Those clauses are marked pre-charged, so the
+ *   {@code MaxClauseCountQueryVisitor} walk in
+ *   {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery(SearchExecutionContext)} skips them
+ *   and charges only the leaves nobody accounted for at construction time.</li>
  * </ul>
  */
 public abstract class StringFieldType extends TermBasedFieldType {
@@ -217,36 +219,91 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
 
         CircuitBreaker circuitBreaker = context.getCircuitBreaker();
-        AutomatonQuery query;
-        long reservation = 0;
         if (circuitBreaker != null) {
-            Automaton dfa = caseInsensitive
-                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, circuitBreaker)
-                : AutomatonQueries.toWildcardAutomaton(term, circuitBreaker);
-            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-            context.addCircuitBreakerMemory(reservation, ChildMemoryCircuitBreaker.CATEGORY_WILDCARD);
+            return sharedAutomatonQuery(
+                term,
+                new AutomatonKey.Wildcard(term.text(), caseInsensitive),
+                () -> caseInsensitive
+                    ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, circuitBreaker)
+                    : AutomatonQueries.toWildcardAutomaton(term, circuitBreaker),
+                // CaseInsensitiveWildcardQuery prints the requested field rather than its own, so keep the two apart.
+                caseInsensitive
+                    ? f -> "CaseInsensitiveWildcardQuery{" + f + ":" + term.text() + "}"
+                    : SharedAutomatonQuery.fieldPrefixed(term, term.text()),
+                method,
+                context
+            );
+        }
 
-            if (caseInsensitive) {
-                query = method == null
-                    ? new CaseInsensitiveWildcardQuery(term, dfa)
-                    : new CaseInsensitiveWildcardQuery(term, dfa, false, method);
-            } else {
-                query = method == null
-                    ? new AutomatonQueryWithDescription(term, dfa, term.text())
-                    : new AutomatonQuery(term, dfa, false, method);
-            }
-            context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, ChildMemoryCircuitBreaker.CATEGORY_WILDCARD);
-            context.markQueryMemoryPreCharged(query);
+        AutomatonQuery query;
+        if (caseInsensitive) {
+            query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
         } else {
-            if (caseInsensitive) {
-                query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
-            } else {
-                query = method == null
-                    ? new WildcardQuery(term)
-                    : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
-            }
+            query = method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
         return query;
+    }
+
+    /**
+     * Builds a query over the automaton {@code key} identifies, reusing it if another clause of this request already
+     * built the same one. The automaton is charged where it is built and this clause charges only what it adds on top,
+     * so the query is marked pre-charged and the retained-size walk in
+     * {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery} does not count the automaton again.
+     */
+    protected static Query sharedAutomatonQuery(
+        Term term,
+        AutomatonKey key,
+        Supplier<Automaton> dfa,
+        Function<String, String> description,
+        MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context
+    ) {
+        SharedAutomaton shared = context.computeAutomatonIfAbsent(
+            key,
+            () -> SharedAutomaton.compile(dfa.get(), context.getCircuitBreaker(), key.category())
+        );
+        SharedAutomatonQuery query = new SharedAutomatonQuery(
+            term,
+            shared,
+            description,
+            method == null ? MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE : method
+        );
+        context.addCircuitBreakerMemory(query.unsharedRamBytesUsed(), key.category());
+        context.markQueryMemoryPreCharged(query);
+        return query;
+    }
+
+    /**
+     * Wildcard query for a field answered from doc values rather than a terms dictionary. Same automaton as the
+     * indexed form, so a pattern spanning both kinds of field still compiles and charges one.
+     */
+    protected static Query docValuesWildcardQuery(Term term, SearchExecutionContext context) {
+        return sharedAutomatonQuery(
+            term,
+            new AutomatonKey.Wildcard(term.text(), false),
+            () -> AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker()),
+            SharedAutomatonQuery.fieldPrefixed(term, term.text()),
+            MultiTermQuery.DOC_VALUES_REWRITE,
+            context
+        );
+    }
+
+    /** Regexp counterpart of {@link #docValuesWildcardQuery}. */
+    protected static Query docValuesRegexpQuery(
+        Term term,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        SearchExecutionContext context
+    ) {
+        return sharedAutomatonQuery(
+            term,
+            new AutomatonKey.Regexp(term.text(), syntaxFlags, matchFlags, maxDeterminizedStates),
+            () -> AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, context.getCircuitBreaker()),
+            SharedAutomatonQuery.fieldPrefixed(term, "/" + term.text() + "/"),
+            MultiTermQuery.DOC_VALUES_REWRITE,
+            context
+        );
     }
 
     @Override
@@ -266,25 +323,22 @@ public abstract class StringFieldType extends TermBasedFieldType {
         failIfNotIndexed();
 
         value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
-        AutomatonQuery query;
         Term term = new Term(name(), indexedValueForSearch(value));
         CircuitBreaker circuitBreaker = context.getCircuitBreaker();
-        long reservation = 0;
         if (circuitBreaker != null) {
-            Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker);
-            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-            context.addCircuitBreakerMemory(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
-            query = method == null
-                ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")
-                : new AutomatonQuery(term, dfa, false, method);
-            context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
-            context.markQueryMemoryPreCharged(query);
-        } else {
-            query = method == null
-                ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
-                : new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
+            return sharedAutomatonQuery(
+                term,
+                new AutomatonKey.Regexp(term.text(), syntaxFlags, matchFlags, maxDeterminizedStates),
+                () -> AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker),
+                SharedAutomatonQuery.fieldPrefixed(term, "/" + term.text() + "/"),
+                method,
+                context
+            );
         }
-        return query;
+
+        return method == null
+            ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
+            : new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
     }
 
     @Override

@@ -27,6 +27,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -89,6 +90,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
 
@@ -145,6 +147,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
     private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
     private final Set<Query> preChargedQueries = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+    private final ConcurrentMap<AutomatonKey, SharedAutomaton> sharedAutomata = new ConcurrentHashMap<>();
 
     public SearchExecutionContext(
         int shardId,
@@ -877,6 +880,21 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Returns the automaton {@code key} identifies, building it with {@code builder} on first use and charging its
+     * retained size once. Every later clause of this request that resolves to the same key reuses the instance, so a
+     * pattern expanded over many fields costs one automaton rather than one per field.
+     * <p>
+     * {@code builder} is responsible for guarding its own construction peak.
+     */
+    public SharedAutomaton computeAutomatonIfAbsent(AutomatonKey key, Supplier<SharedAutomaton> builder) {
+        return sharedAutomata.computeIfAbsent(key, k -> {
+            SharedAutomaton built = builder.get();
+            addCircuitBreakerMemory(built.ramBytesUsed(), k.category());
+            return built;
+        });
+    }
+
+    /**
      * Marks that {@code query}'s memory was already charged to the breaker at construction time, so the visitor walk skips it.
      */
     public void markQueryMemoryPreCharged(Query query) {
@@ -905,6 +923,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public void releaseQueryConstructionMemory() {
         clearPreChargedQueries();
+        sharedAutomata.clear();
         if (circuitBreaker == null) {
             return;
         }

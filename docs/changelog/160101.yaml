@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 160094
+pr: 160101
+summary: Share compiled automata across wildcard and regexp clauses
+type: enhancement

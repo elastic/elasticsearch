@@ -157,6 +157,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -315,6 +316,71 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
+
+    /**
+     * The default keep-alive for async search requests when none is specified by the caller. Applies to all four
+     * async APIs: {@code _async_search}, EQL async search, ES|QL async query, and SQL async query.
+     * <p>
+     * The minimum of {@code 1m} matches the most restrictive floor across those APIs (EQL and SQL both require at
+     * least 1m), ensuring the resolved default is always valid regardless of which API uses it.
+     */
+    public static final Setting<TimeValue> ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING = Setting.timeSetting(
+        "async_search.default_keep_alive",
+        TimeValue.timeValueDays(5),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.MAX_VALUE,
+        new AsyncKeepAliveValidator(),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * The maximum allowed keep-alive for async search requests. A value of {@code -1} (the default) means
+     * no maximum is enforced. When set, the limit applies at submit time and when extending results via GET.
+     * Applies to all four async APIs. The check is inclusive: exactly equal to the maximum is permitted.
+     */
+    public static final Setting<TimeValue> ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING = Setting.timeSetting(
+        "async_search.max_keep_alive",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        TimeValue.MAX_VALUE,
+        new AsyncKeepAliveValidator(),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Validates the cross-setting constraint between {@link #ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING} and
+     * {@link #ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING}: when {@code max} is non-negative (i.e., an actual limit is
+     * configured), {@code default} must not exceed it.
+     */
+    static class AsyncKeepAliveValidator implements Setting.Validator<TimeValue> {
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(TimeValue value, Map<Setting<?>, Object> settings) {
+            @SuppressWarnings("unchecked")
+            TimeValue defaultKeepAlive = (TimeValue) settings.get(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING);
+            @SuppressWarnings("unchecked")
+            TimeValue maxKeepAlive = (TimeValue) settings.get(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING);
+            if (maxKeepAlive.millis() >= 0 && defaultKeepAlive.millis() > maxKeepAlive.millis()) {
+                throw new IllegalArgumentException(
+                    "async_search.default_keep_alive ["
+                        + defaultKeepAlive
+                        + "] must not exceed async_search.max_keep_alive ["
+                        + maxKeepAlive
+                        + "]"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            List<Setting<?>> settings = List.of(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING, ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING);
+            return settings.iterator();
+        }
+    }
 
     public static final Setting<Boolean> CCS_COLLECT_TELEMETRY = Setting.boolSetting(
         "search.ccs.collect_telemetry",

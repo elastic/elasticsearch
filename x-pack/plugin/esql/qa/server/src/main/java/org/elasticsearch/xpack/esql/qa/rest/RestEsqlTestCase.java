@@ -2056,7 +2056,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         // deliberately short in order to frequently trigger return without results
         requestObject.waitForCompletion(TimeValue.timeValueNanos(randomIntBetween(1, 100)));
         requestObject.keepOnCompletion(keepOnCompletion);
-        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
+        // capped at 7d so it stays within serverless's async_search.max_keep_alive
+        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 7)));
     }
 
     // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.

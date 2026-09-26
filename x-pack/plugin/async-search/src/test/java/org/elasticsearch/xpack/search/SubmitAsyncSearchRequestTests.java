@@ -17,6 +17,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
 
@@ -43,9 +45,8 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             searchRequest.setWaitForCompletionTimeout(randomPositiveTimeValue());
         }
         searchRequest.setKeepOnCompletion(randomBoolean());
-        if (randomBoolean()) {
-            searchRequest.setKeepAlive(randomPositiveTimeValue());
-        }
+        // always set a concrete keep_alive in the random instance; null is tested explicitly
+        searchRequest.setKeepAlive(randomPositiveTimeValue());
         if (randomBoolean()) {
             searchRequest.getSearchRequest()
                 .indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
@@ -132,10 +133,29 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             "index"
         );
         Task task = request.createTask(1, "type", "action", null, Collections.emptyMap());
+        // keepAlive defaults to null; the transport action resolves it against the cluster setting
         assertEquals(
-            "waitForCompletionTimeout[1s], keepOnCompletion[false] keepAlive[5d], request=indices[index], "
+            "waitForCompletionTimeout[1s], keepOnCompletion[false] keepAlive[null], request=indices[index], "
                 + "search_type[QUERY_THEN_FETCH], source[{\"query\":{\"match_all\":{\"boost\":1.0}}}]",
             task.getDescription()
         );
+    }
+
+    public void testValidateNullKeepAlive() {
+        // null keepAlive is valid; the transport action will substitute the cluster default
+        SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
+        assertNull(req.validate());
+    }
+
+    public void testBwcSerializationNullKeepAlive() throws Exception {
+        // A null keepAlive serialized to a node that does not support the new TV falls back to DEFAULT_KEEP_ALIVE
+        SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
+        assertNull(req.getKeepAlive());
+
+        // old wire format: keepAlive was always written as a non-optional TimeValue
+        var oldVersion = TransportVersionUtils.getPreviousVersion(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING);
+        SubmitAsyncSearchRequest roundTripped = copyWriteable(req, writableRegistry(), SubmitAsyncSearchRequest::new, oldVersion);
+        // Old receivers read a concrete TimeValue; our DEFAULT_KEEP_ALIVE is written as the fallback
+        assertEquals(SubmitAsyncSearchRequest.DEFAULT_KEEP_ALIVE, roundTripped.getKeepAlive());
     }
 }

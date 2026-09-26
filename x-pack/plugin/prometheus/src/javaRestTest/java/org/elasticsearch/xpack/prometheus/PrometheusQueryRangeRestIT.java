@@ -592,6 +592,29 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(byHost, equalTo(Map.of("<absent>", 10.0, "b", 30.0, "c", 12.0)));
     }
 
+    /**
+     * The range twin of {@code PrometheusInstantQueryRestIT#testInstantPresenceOverTime}. The samples sit at the range's last
+     * two steps: a series with data is absent at the first step only and the result stops there.
+     */
+    public void testRangePresenceOverTime() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("present_over_time(tx[5m])", 1, 1, 1);
+        List<Map<String, Object>> absentBeforeTheData = executeBinopRangeQuery("absent_over_time(tx{host=\"a\"}[5m])").evaluate(
+            "data.result"
+        );
+        assertThat(absentBeforeTheData, hasSize(1));
+        assertThat(absentBeforeTheData.getFirst().get("metric"), equalTo(Map.of("host", "a")));
+        assertThat(absentBeforeTheData.getFirst().get("values"), equalTo(List.of(List.of(1715299140.0, "1.0"))));
+        assertThat(
+            PromqlResponseSeries.ofRange(executeBinopRangeQuery("absent_over_time(tx{host=~\"nope\"}[5m])")),
+            equalTo(List.of(new PromqlResponseSeries(Map.of(), 1.0)))
+        );
+        assertThat(
+            PromqlResponseSeries.ofRange(executeBinopRangeQuery("absent_over_time(tx{host=\"a\",cluster=~\"nope\"}[5m])")),
+            equalTo(List.of(new PromqlResponseSeries(Map.of("host", "a"), 1.0)))
+        );
+    }
+
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantOverTimeFunctionsOverACounter}. */
     public void testRangeOverTimeFunctionsOverACounter() throws Exception {
         PrometheusInstantQueryRestIT.ingestCounters(this, QUERY_END);

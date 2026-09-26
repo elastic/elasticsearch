@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
@@ -437,6 +439,58 @@ public final class TranslationContext {
         plan = new TopNBy(source, plan, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
         // OUT: each row's finest packing (a row comes from one branch, whose own packings are the non-null ones)
         return new Union(plan, firstNonNull(source, finestFirst));
+    }
+
+    /**
+     * The table of one {@code {labels} 1} row per step of the query that {@code present} has no value at: the steps of the
+     * query as a constant table, minus the steps the present table has a non-null value for. The two are unioned as
+     * tagged step lists and regrouped per step on the lowest tag, so a step with a present row loses; the survivors take
+     * the labels and the value 1 ({@code absent_over_time}: Prometheus emits {@code 1} with the labels of the selector's
+     * equality matchers when no series has a sample in the window, nothing otherwise).
+     */
+    public TranslationResult absent(TranslationResult present, Map<String, String> labels) {
+        Source source = cmd.source();
+        // the steps of the query, tagged 1; the steps the present table has a value at, tagged 0
+        LogicalPlan steps = PromqlLogicalPlanBuilder.buildLocalRelation(cmd);
+        Attribute step = steps.output().getFirst();
+        LogicalPlan plan = steps;
+        if (present.isEmpty() == false) {
+            Alias keepTag = new Alias(source, cmd.branchColumnName(), Literal.integer(source, 1));
+            LogicalPlan keep = new Project(source, new Eval(source, steps, List.of(keepTag)), List.of(step, keepTag.toAttribute()));
+            // the selector's matchers restrict which series count as present: they go down to the source here, as the
+            // command's own coda would for a table it returns
+            LogicalPlan presentPlan = present.pendingFilter() == null
+                ? present.plan()
+                : pushDownSrcTimestampFilter(present.plan(), present.pendingFilter());
+            Attribute presentValue = present.valueColumn();
+            Alias dropTag = new Alias(source, cmd.branchColumnName(), Literal.integer(source, 0));
+            LogicalPlan drop = new Project(
+                source,
+                new Eval(source, new Filter(source, presentPlan, new IsNotNull(source, presentValue)), List.of(dropTag)),
+                List.of(present.step(), dropTag.toAttribute())
+            );
+            // per step, the lowest tag: 0 where a series is present, 1 where none is
+            LogicalPlan union = new UnionAll(source, List.of(keep, drop), VectorBinarySet.unionOutputByName(List.of(keep, drop)));
+            Alias lowest = new Alias(source, cmd.branchColumnName(), new Min(source, keepTag.toAttribute()));
+            plan = new Aggregate(source, union, List.of(step), List.of(lowest, step));
+            plan = new Filter(source, plan, new Equals(source, lowest.toAttribute(), Literal.integer(source, 1)));
+        }
+        // the surviving steps carry the labels and the value 1
+        var fields = new ArrayList<Alias>();
+        Alias value = new Alias(source, cmd.valueColumnName(), Literal.fromDouble(source, 1.0));
+        fields.add(value);
+        var labelColumns = new LinkedHashMap<TranslationColumn, Attribute>();
+        labels.forEach((name, text) -> {
+            Alias label = new Alias(source, name, Literal.keyword(source, text));
+            fields.add(label);
+            labelColumns.put(new Static(name), label.toAttribute());
+        });
+        var projected = new ArrayList<Attribute>();
+        projected.add(value.toAttribute());
+        projected.add(step);
+        projected.addAll(labelColumns.values());
+        plan = new Project(source, new Eval(source, plan, fields), projected);
+        return new TranslationResult(plan, labelColumns, value.toAttribute(), step, null, Kind.AFTER_INITIAL_AGGREGATE);
     }
 
     /** The first non-null of {@code columns}: the column itself for one, a {@code COALESCE} for several, null for none. */

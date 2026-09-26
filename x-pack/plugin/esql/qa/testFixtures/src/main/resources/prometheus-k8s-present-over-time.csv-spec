@@ -10,6 +10,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_presence_over_time
 
 PROMQL index=prometheus-k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;
@@ -128,6 +129,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_presence_over_time
 
 PROMQL index=prometheus-k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;

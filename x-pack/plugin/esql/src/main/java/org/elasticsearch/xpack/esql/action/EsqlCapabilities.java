@@ -3902,6 +3902,13 @@ public class EsqlCapabilities {
         PROMQL_OVER_TIME_COUNTERS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code present_over_time} is {@code 1} for a series with a sample in the range and nothing otherwise, never
+         * {@code 0}; {@code absent_over_time} is one {@code {labels} 1} row at the steps no series has a sample at, the
+         * labels those of the selector's equality matchers, and nothing otherwise.
+         */
+        PROMQL_PRESENCE_OVER_TIME(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket

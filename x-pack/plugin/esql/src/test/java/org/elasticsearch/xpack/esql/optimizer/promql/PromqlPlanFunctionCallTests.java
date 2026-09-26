@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -34,8 +35,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.time.Duration;
@@ -71,6 +74,31 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("2m + 30s", equalTo(150.0));
         assertConstantResult("1ms", equalTo(0.001));
         assertConstantResult("vector(1h) / 60", equalTo(60.0));
+    }
+
+    /**
+     * {@code absent_over_time} is the table of the query's steps minus the steps a series has a sample at, carrying the
+     * selector's equality-matcher labels (a label matched twice or otherwise is left out); {@code present_over_time} maps
+     * an absent series to null rather than 0, so it drops out of the result.
+     */
+    public void testPresenceOverTime() {
+        String range = "PROMQL index=k8s start=\"2024-05-10T00:00:00Z\" end=\"2024-05-10T00:10:00Z\" step=1m result=(";
+        LogicalPlan absent = planPromql(
+            range + "absent_over_time(network.bytes_in{pod=\"one\",cluster=~\"prod\",region=\"x\",region=\"y\"}[5m]))",
+            false
+        );
+        assertThat(absent.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "pod")));
+        // the steps of the query unioned with the steps a series is present at, regrouped per step
+        assertThat(absent.collect(UnionAll.class), hasSize(1));
+        assertThat(absent.collect(MvExpand.class), hasSize(1));
+        LogicalPlan present = planPromql(range + "present_over_time(network.bytes_in[5m]))", false);
+        List<Case> cases = new ArrayList<>();
+        present.forEachExpressionDown(Case.class, cases::add);
+        assertThat(cases, hasSize(1));
+        // the time-series rule has already split the presence into its per-series phase
+        List<Present> presences = new ArrayList<>();
+        present.forEachExpressionDown(Present.class, presences::add);
+        assertThat(presences, hasSize(1));
     }
 
     /**

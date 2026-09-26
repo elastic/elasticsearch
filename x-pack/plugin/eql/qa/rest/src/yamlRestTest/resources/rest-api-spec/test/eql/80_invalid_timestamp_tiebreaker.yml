@@ -1,0 +1,123 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /{index}/_eql/search
+          parameters: [ ]
+          capabilities: [ invalid_timestamp_tiebreaker_4xx ]
+      reason: "Invalid timestamp and tiebreaker values are client errors"
+
+---
+"Sequence over a keyword timestamp":
+  - do:
+      indices.create:
+        index: keyword_timestamp
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: keyword
+  - do:
+      bulk:
+        index: keyword_timestamp
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2020-12-03T11:04:05.000Z" }
+
+  - do:
+      catch: bad_request
+      eql.search:
+        index: keyword_timestamp
+        body:
+          query: 'sequence [any where true] [any where true]'
+  - match: { error.root_cause.0.type: "invalid_argument_exception" }
+  - match: { error.root_cause.0.reason: "Expected timestamp field [@timestamp] to be mapped as [date] or [date_nanos] and to hold a single value but got [2020-12-03T11:04:05.000Z]" }
+
+---
+"Sequence over a multi-valued timestamp":
+  - do:
+      indices.create:
+        index: multi_valued_timestamp
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+  - do:
+      bulk:
+        index: multi_valued_timestamp
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": [ 1606993445000, 1606993446000 ] }
+
+  - do:
+      catch: bad_request
+      eql.search:
+        index: multi_valued_timestamp
+        body:
+          query: 'sequence [any where true] [any where true]'
+  - match: { error.root_cause.0.type: "invalid_argument_exception" }
+  - match: { error.root_cause.0.reason: "Expected timestamp field [@timestamp] to be mapped as [date] or [date_nanos] and to hold a single value but got [[1606993445000, 1606993446000]]" }
+
+---
+"Sequence over a timestamp missing from a disabled _source":
+  - do:
+      indices.create:
+        index: no_source_timestamp
+        body:
+          mappings:
+            _source:
+              enabled: false
+            properties:
+              "@timestamp":
+                type: date
+  - do:
+      bulk:
+        index: no_source_timestamp
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2020-12-03T11:04:05.000Z" }
+
+  - do:
+      catch: bad_request
+      eql.search:
+        index: no_source_timestamp
+        body:
+          query: 'sequence [any where true] [any where true]'
+  - match: { error.root_cause.0.type: "invalid_argument_exception" }
+  - match: { error.root_cause.0.reason: "Expected timestamp field [@timestamp] to have a value but got none; check that [_source] is enabled and includes the field" }
+
+---
+"Sequence with a multi-valued tiebreaker":
+  - do:
+      indices.create:
+        index: multi_valued_tiebreaker
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              tb:
+                type: long
+  - do:
+      bulk:
+        index: multi_valued_tiebreaker
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2020-12-03T11:04:05.000Z", "tb": [ 1, 2 ] }
+
+  - do:
+      catch: bad_request
+      eql.search:
+        index: multi_valued_tiebreaker
+        body:
+          query: 'sequence [any where true] [any where true]'
+          tiebreaker_field: tb
+  - match: { error.root_cause.0.type: "invalid_argument_exception" }
+  - match: { error.root_cause.0.reason: "Expected tiebreaker field [tb] to hold a single comparable value but got [[1, 2]]" }

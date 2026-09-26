@@ -559,6 +559,15 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertBinopRangeValues("clamp(tx, 20, 25)", 20, 25, 20);
     }
 
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantOverTimeFunctionsOverACounter}. */
+    public void testRangeOverTimeFunctionsOverACounter() throws Exception {
+        PrometheusInstantQueryRestIT.ingestCounters(this, QUERY_END);
+        assertBinopRangeValues("count_over_time(req_total[5m])", 5, 5);
+        assertBinopRangeValues("count_over_time(err_total[5m])", 5);
+        assertBinopRangeValues("present_over_time(req_total[5m])", 1, 1);
+        assertBinopRangeValues("sum_over_time(req_total[5m])", 100, 100);
+    }
+
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantWithoutOverAClosedBinaryOperator}. */
     public void testRangeWithoutOverAClosedBinaryOperator() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_END);

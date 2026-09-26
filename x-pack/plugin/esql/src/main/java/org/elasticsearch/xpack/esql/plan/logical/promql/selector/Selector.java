@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -117,6 +120,25 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
                     && attr instanceof TimeSeriesMetadataAttribute == false
             )
             .toList();
+        // Where the metric name is a label too (remote write: `labels.__name__` a dimension and the sample of a series
+        // named `m` in the field `metrics.m`), the name selects the series at the source as well. A document of another
+        // metric with the same labels holds no sample of this one, and a value function reads it as null, but a count or
+        // presence over it would still emit a value for a series that is not this metric's. A document without a name
+        // label (several metrics per document, from another ingest path) is not another metric's and stays; so does a
+        // metric selected by its full field path, an ES-side selection whose `__name__` need not agree.
+        Attribute nameField = PromqlLabels.find(labelFields, LabelMatcher.NAME);
+        LabelMatcher nameMatcher = labelMatchers.nameLabel();
+        if (nameField != null
+            && nameMatcher != null
+            && nameMatcher.matcher() == LabelMatcher.Matcher.EQ
+            && namedInNamespace(input.output(), nameMatcher.getFirstValue())) {
+            Expression byName = new Or(
+                source(),
+                new IsNull(source(), nameField),
+                LabelMatchers.condition(source(), nameField, nameMatcher)
+            );
+            matcherPredicate = matcherPredicate == null ? byName : new And(source(), matcherPredicate, byName);
+        }
         // IN -> columns: a complement becomes a packed column, a name the relation's field (missing ones null-fill later)
         TranslationConstraint required = translation.required();
         var labels = new LinkedHashMap<TranslationColumn, Attribute>();
@@ -159,6 +181,16 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
     /** The per-series sample: the series itself for a range vector; an instant vector overrides with its latest value. */
     protected Expression sample(Expression time) {
         return series;
+    }
+
+    /**
+     * Whether the metric name is the name of a field under a namespace ({@code metrics.<name>}, as remote write stores a
+     * sample), which the series was selected through, rather than a full field path. The relation exposes the namespaced
+     * field next to its bare alias, whichever of the two the name resolved to.
+     */
+    private static boolean namedInNamespace(List<Attribute> fields, String name) {
+        String suffix = "." + name;
+        return fields.stream().anyMatch(attr -> attr instanceof FieldAttribute field && field.fieldName().string().endsWith(suffix));
     }
 
     @Override

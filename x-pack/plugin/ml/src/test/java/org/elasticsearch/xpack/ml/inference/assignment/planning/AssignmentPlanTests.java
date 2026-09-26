@@ -25,29 +25,18 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testFindOptimalAllocations_BoundsByPerAllocationMemory_WhenPerDeploymentIsZero() {
         long perAllocation = ByteSizeValue.ofMb(100).getBytes();
+        long modelBytes = ByteSizeValue.ofMb(20).getBytes();
         // A deployment with only a per-allocation memory cost (per-deployment base is zero), as is the case once
         // observed runtime memory is threaded in for e.g. an ELSER deployment.
-        Deployment m = new AssignmentPlan.Deployment(
-            "m_1",
-            "m_1",
-            ByteSizeValue.ofMb(20).getBytes(),
-            10,
-            1,
-            Map.of(),
-            0,
-            null,
-            0,
-            perAllocation
-        );
+        Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", modelBytes, 10, 1, Map.of(), 0, null, 0, perAllocation);
 
-        long base = m.estimateMemoryUsageBytes(0);
-        // Enough headroom for exactly three allocations beyond the base footprint.
-        long availableForThree = base + perAllocation * 3 + perAllocation / 2;
+        // Enough headroom for exactly three allocations beyond the model-definition fixed cost.
+        long availableForThree = modelBytes + perAllocation * 3 + perAllocation / 2;
         assertThat(m.findOptimalAllocations(10, availableForThree), equalTo(3));
         // Still capped by the requested maximum.
         assertThat(m.findOptimalAllocations(2, availableForThree), equalTo(2));
-        // No headroom beyond the base means no allocations fit.
-        assertThat(m.findOptimalAllocations(10, base), equalTo(0));
+        // Only the model definition fits — no room for even one allocation.
+        assertThat(m.findOptimalAllocations(10, modelBytes), equalTo(0));
     }
 
     public void testFindExcessAllocations_BoundsByPerAllocationMemory_WhenPerDeploymentIsZero() {
@@ -67,6 +56,31 @@ public class AssignmentPlanTests extends ESTestCase {
 
         assertThat(m.findExcessAllocations(10, perAllocation * 4), equalTo(4));
         assertThat(m.findExcessAllocations(2, perAllocation * 4), equalTo(2));
+    }
+
+    public void testFindOptimalAllocations_SubtractsPerDeploymentFixedCost() {
+        long perDeployment = ByteSizeValue.ofMb(200).getBytes();
+        long perAllocation = ByteSizeValue.ofMb(500).getBytes();
+        long modelBytes = ByteSizeValue.ofMb(100).getBytes();
+        // perDeployment + perAllocation + modelBytes = 800 MB, which exceeds baseSize (240 + 2*100 = 440 MB),
+        // so the linear formula dominates from n=1 onward.
+        Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", modelBytes, 10, 1, Map.of(), 0, null, perDeployment, perAllocation);
+
+        // Fixed overhead (perDeployment + modelBytes = 300 MB) must be paid before any per-allocation slot.
+        // With 1800 MB available: floor((1800 - 300) / 500) = floor(3.0) = 3.
+        long available = perDeployment + modelBytes + perAllocation * 3;
+        assertThat(m.findOptimalAllocations(10, available), equalTo(3));
+
+        // Without subtracting the fixed cost, floor(1800 / 500) = 3 — same answer here by coincidence.
+        // Use a tighter budget to confirm the subtraction is actually happening:
+        // 1799 MB available -> floor((1799 - 300) / 500) = floor(2.998) = 2.
+        assertThat(m.findOptimalAllocations(10, available - 1), equalTo(2));
+
+        // Cap by maxAllocations.
+        assertThat(m.findOptimalAllocations(1, available), equalTo(1));
+
+        // Less than the minimum means 0.
+        assertThat(m.findOptimalAllocations(10, m.minimumMemoryRequiredBytes() - 1), equalTo(0));
     }
 
     public void testFindAllocations_NoMemoryBound_WhenPerAllocationMemoryIsZero() {

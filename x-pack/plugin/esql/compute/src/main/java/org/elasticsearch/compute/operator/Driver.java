@@ -26,6 +26,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -53,6 +54,11 @@ public class Driver implements Releasable, Describable {
 
     public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMinutes(5);
     public static final int DEFAULT_MAX_ITERATIONS = 10_000;
+
+    /**
+     * Closing operators can release Lucene readers, which can block for seconds and stall every channel of a transport worker.
+     */
+    private static final String CLOSE_ON_TRANSPORT_THREAD = "closing driver operators can block while releasing Lucene readers";
     /**
      * Minimum time between updating status.
      */
@@ -411,6 +417,7 @@ public class Driver implements Releasable, Describable {
                         // report one last time before closing
                         sourceOperator.reportSearchLoad(now - lastStatusUpdate, now);
                     }
+                    assert Transports.assertNotTransportThread(CLOSE_ON_TRANSPORT_THREAD);
                     op.close();
                     finishedOperators.remove();
                 }
@@ -518,6 +525,7 @@ public class Driver implements Releasable, Describable {
     }
 
     protected void drainAndCloseOperators(@Nullable Exception e) {
+        assert activeOperators.isEmpty() || Transports.assertNotTransportThread(CLOSE_ON_TRANSPORT_THREAD);
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {

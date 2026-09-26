@@ -130,29 +130,27 @@ public class CommandLicenseTests extends ESTestCase {
             "Mmr",
             "MMR"
         );
-        Map<String, String> commandNameMapper = Map.of(
-            "ChangePoint",
-            "CHANGE_POINT",
-            "LookupJoin",
-            "LOOKUP_JOIN",
-            "MvExpand",
-            "MV_EXPAND",
-            "InlineStats",
-            "INLINE_STATS",
-            "RegisteredDomain",
-            "REGISTERED_DOMAIN",
-            "UriParts",
-            "URI_PARTS",
-            "MetricsInfo",
-            "METRICS_INFO",
-            "TsInfo",
-            "TS_INFO",
-            "UserAgent",
-            "USER_AGENT",
-            "IpLocation",
-            "IP_LOCATION"
+        Map<String, String> commandNameMapper = Map.ofEntries(
+            Map.entry("DenseVector", "DENSE_VECTOR"),
+            Map.entry("ChangePoint", "CHANGE_POINT"),
+            Map.entry("LookupJoin", "LOOKUP_JOIN"),
+            Map.entry("MvExpand", "MV_EXPAND"),
+            Map.entry("InlineStats", "INLINE_STATS"),
+            Map.entry("RegisteredDomain", "REGISTERED_DOMAIN"),
+            Map.entry("UriParts", "URI_PARTS"),
+            Map.entry("MetricsInfo", "METRICS_INFO"),
+            Map.entry("TsInfo", "TS_INFO"),
+            Map.entry("UserAgent", "USER_AGENT"),
+            Map.entry("IpLocation", "IP_LOCATION")
         );
-        Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
+        Map<String, String> commandPackageMapper = Map.of(
+            "Rerank",
+            planPackage + ".inference",
+            "DenseVector",
+            planPackage + ".inference",
+            "LookupJoin",
+            planPackage + ".join"
+        );
         Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");
 
         for (Method method : EsqlBaseParserVisitor.class.getMethods()) {

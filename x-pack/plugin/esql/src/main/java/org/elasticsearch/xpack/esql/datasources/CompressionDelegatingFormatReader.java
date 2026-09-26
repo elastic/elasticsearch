@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.IntSupplier;
 
 /**
  * Delegating {@link FormatReader} that wraps the raw {@link StorageObject} in a
@@ -35,22 +36,35 @@ final class CompressionDelegatingFormatReader implements FormatReader {
 
     private final FormatReader inner;
     private final DecompressionCodec codec;
+    private final IntSupplier maxDecompressionRatio;
 
     CompressionDelegatingFormatReader(FormatReader inner, DecompressionCodec codec) {
+        this(inner, codec, () -> 0);
+    }
+
+    /**
+     * @param maxDecompressionRatio read per object so dynamic setting updates apply to the next read
+     */
+    CompressionDelegatingFormatReader(FormatReader inner, DecompressionCodec codec, IntSupplier maxDecompressionRatio) {
         Check.notNull(inner, "inner reader cannot be null");
         Check.notNull(codec, "codec cannot be null");
         this.inner = inner;
         this.codec = codec;
+        this.maxDecompressionRatio = maxDecompressionRatio;
+    }
+
+    int maxDecompressionRatio() {
+        return maxDecompressionRatio.getAsInt();
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        return inner.metadata(new DecompressingStorageObject(object, codec));
+        return inner.metadata(new DecompressingStorageObject(object, codec, null, maxDecompressionRatio()));
     }
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec, context.breaker()), context);
+        return inner.read(new DecompressingStorageObject(object, codec, context.breaker(), maxDecompressionRatio()), context);
     }
 
     @Override
@@ -76,7 +90,9 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     @Override
     public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         Configured<FormatReader> configured = inner.withConfigTrackingConsumedKeys(config);
-        FormatReader wrapped = configured.value() == inner ? this : new CompressionDelegatingFormatReader(configured.value(), codec);
+        FormatReader wrapped = configured.value() == inner
+            ? this
+            : new CompressionDelegatingFormatReader(configured.value(), codec, maxDecompressionRatio);
         return new Configured<>(wrapped, configured.consumedKeys());
     }
 
@@ -88,13 +104,13 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         FormatReader filtered = inner.withPushedFilter(pushedFilter);
-        return filtered == inner ? this : new CompressionDelegatingFormatReader(filtered, codec);
+        return filtered == inner ? this : new CompressionDelegatingFormatReader(filtered, codec, maxDecompressionRatio);
     }
 
     @Override
     public FormatReader withSchema(List<Attribute> schema) {
         FormatReader configured = inner.withSchema(schema);
-        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
     }
 
     @Override
@@ -102,7 +118,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         // Delegate to the wrapped text reader (a compressed .csv.gz / .ndjson.gz still text-parses); without this the
         // interface default would return the wrapper and the declared per-column formats would be silently dropped.
         FormatReader configured = inner.withDeclaredDateFormats(physicalNameToPattern);
-        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
     }
 
     @Override
@@ -110,7 +126,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         // Forward for symmetry with the other declared withers; the wrapped text readers no-op on it (they gate per-field
         // via ErrorPolicy, not on a whole-column type check), so this is inert today but keeps the wrapper transparent.
         FormatReader configured = inner.withDeclaredTypeColumns(physicalDeclaredColumns);
-        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
     }
 
     @Override
@@ -120,7 +136,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         // contribution can no longer match the entry the resolver seeded — the warm rail dies for compressed files
         // only.
         FormatReader configured = inner.withReadConfig(readConfig);
-        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
     }
 
     @Override
@@ -129,7 +145,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         // file. Without this the interface default would return the wrapper and every compressed read would silently
         // fall back to positional binding — the very bug this flag exists to fix.
         FormatReader configured = inner.withDeclaredProvenanceBinding(declaredProvenanceBinding);
-        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
     }
 
     @Override

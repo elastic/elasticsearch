@@ -11,6 +11,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -41,17 +42,28 @@ final class DecompressingStorageObject implements StorageObject {
     private final DecompressionCodec codec;
     @Nullable
     private final CircuitBreaker breaker;
+    private final int maxDecompressionRatio;
 
     DecompressingStorageObject(StorageObject delegate, DecompressionCodec codec) {
-        this(delegate, codec, null);
+        this(delegate, codec, null, 0);
     }
 
     DecompressingStorageObject(StorageObject delegate, DecompressionCodec codec, @Nullable CircuitBreaker breaker) {
+        this(delegate, codec, breaker, 0);
+    }
+
+    DecompressingStorageObject(
+        StorageObject delegate,
+        DecompressionCodec codec,
+        @Nullable CircuitBreaker breaker,
+        int maxDecompressionRatio
+    ) {
         Check.notNull(delegate, "delegate cannot be null");
         Check.notNull(codec, "codec cannot be null");
         this.delegate = delegate;
         this.codec = codec;
         this.breaker = breaker;
+        this.maxDecompressionRatio = maxDecompressionRatio;
     }
 
     @Override
@@ -66,8 +78,12 @@ final class DecompressingStorageObject implements StorageObject {
             // S3 that drains the full response body to recycle the connection. Hiding close() from
             // the codec lets us release its inflate buffers separately from the raw stream, so
             // abortStream() below can route the abort to the raw stream without a drain.
-            InputStream decompressed = codec.decompress(new UncloseableInputStream(raw), breaker);
-            return new DecompressedStream(decompressed, raw, delegate);
+            UncloseableInputStream rawToCodec = new UncloseableInputStream(raw);
+            InputStream decompressed = codec.decompress(rawToCodec, breaker);
+            InputStream guarded = maxDecompressionRatio > 0
+                ? new LimitGuardInputStream(decompressed, delegate.knownLength(), rawToCodec, maxDecompressionRatio, codec.name())
+                : decompressed;
+            return new DecompressedStream(guarded, raw, delegate);
         } catch (IOException | RuntimeException e) {
             try {
                 // Abort rather than close so providers like S3 skip the draining connection teardown.
@@ -232,6 +248,86 @@ final class DecompressingStorageObject implements StorageObject {
     }
 
     /**
+     * Fails with {@link ExternalClientException} (HTTP 400) once decompressed bytes exceed
+     * {@code compressedSize * maxRatio}. Uses a 1 MiB initial threshold to defer the
+     * multiplication until needed. When the object size is unknown up front, falls back to
+     * the compressed bytes consumed so far (counted by {@link UncloseableInputStream}).
+     */
+    private static final class LimitGuardInputStream extends FilterInputStream {
+        private static final long INITIAL_LIMIT = 1L << 20; // 1 MiB
+
+        private final long compressedSize;
+        private final UncloseableInputStream raw;
+        private final int maxRatio;
+        private final String settingKey;
+        private long decompressedRead = 0;
+        private long limit = INITIAL_LIMIT;
+
+        LimitGuardInputStream(InputStream decompressed, long compressedSize, UncloseableInputStream raw, int maxRatio, String codecName) {
+            super(decompressed);
+            Check.isTrue(maxRatio > 0, "LimitGuardInputStream requires a positive ratio; use the plain stream for unlimited decompression");
+            this.compressedSize = compressedSize;
+            this.raw = raw;
+            this.maxRatio = maxRatio;
+            this.settingKey = "zstd".equals(codecName)
+                ? ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getKey()
+                : ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey();
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = super.read();
+            if (b != -1) {
+                decompressedRead++;
+                checkLimit();
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] buf, int off, int len) throws IOException {
+            int n = super.read(buf, off, len);
+            if (n > 0) {
+                decompressedRead += n;
+                checkLimit();
+            }
+            return n;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = super.skip(n);
+            if (skipped > 0) {
+                decompressedRead += skipped;
+            }
+            return skipped;
+        }
+
+        private void checkLimit() {
+            if (decompressedRead > limit) {
+                long effective = compressedSize > 0 ? compressedSize : raw.bytesRead();
+                if (effective <= 0) {
+                    // Unreachable: a codec cannot produce output without first consuming compressed
+                    // input through UncloseableInputStream, so raw.bytesRead() is always > 0 here.
+                    throw new IllegalStateException("codec produced output before reading any compressed input");
+                }
+                limit = effective * maxRatio;
+                if (decompressedRead > limit) {
+                    throw new ExternalClientException(
+                        "decompression limit exceeded: decompressed {} bytes, limit is {} bytes "
+                            + "(ratio limit {}:1 × compressed bytes); reduce the object's compression ratio "
+                            + "or set [{}] to a higher value or 0 to disable",
+                        decompressedRead,
+                        limit,
+                        maxRatio,
+                        settingKey
+                    );
+                }
+            }
+        }
+    }
+
+    /**
      * Hides {@link InputStream#close()} from the wrapped stream so callers (here, the
      * decompressor) cannot cascade their close into the underlying connection. The owner of
      * the wrapped stream is responsible for closing or aborting it explicitly.
@@ -242,10 +338,44 @@ final class DecompressingStorageObject implements StorageObject {
      * {@code in.close()}. Because the underlying {@code close()} here is a no-op, codec
      * cleanup still runs; only connection release is deferred to the owner via
      * {@link DecompressingStorageObject#abortStream(InputStream)} or {@link DecompressedStream#close()}.
+     * <p>
+     * Also counts the compressed bytes the codec consumes, which {@link LimitGuardInputStream}
+     * uses when the object's size is not known up front.
      */
     private static final class UncloseableInputStream extends FilterInputStream {
+        private long bytesRead = 0;
+
         UncloseableInputStream(InputStream in) {
             super(in);
+        }
+
+        long bytesRead() {
+            return bytesRead;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = super.read();
+            if (b != -1) {
+                bytesRead++;
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] buf, int off, int len) throws IOException {
+            int n = super.read(buf, off, len);
+            if (n > 0) {
+                bytesRead += n;
+            }
+            return n;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = super.skip(n);
+            bytesRead += skipped;
+            return skipped;
         }
 
         @Override

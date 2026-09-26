@@ -27,6 +27,7 @@ import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
@@ -35,6 +36,9 @@ public final class FetchSearchResult extends SearchPhaseResult {
     private SearchHits hits;
 
     private long searchHitsSizeBytes = 0L;
+
+    // Null exactly when there is no charge outstanding.
+    private CircuitBreaker searchHitsSizeBytesBreaker;
 
     // client side counter
     private transient int counter;
@@ -127,18 +131,31 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return hits;
     }
 
-    public void setSearchHitsSizeBytes(long bytes) {
+    public void setSearchHitsSizeBytes(long bytes, CircuitBreaker circuitBreaker) {
+        if (bytes <= 0L) {
+            return;
+        }
+        Objects.requireNonNull(circuitBreaker, "no breaker to return the charged bytes to");
+        assert searchHitsSizeBytes == 0L : "overwriting an outstanding charge of [" + searchHitsSizeBytes + "] bytes";
+        // Without assertions, give back what is outstanding rather than losing track of it.
+        releaseCircuitBreakerBytes();
         this.searchHitsSizeBytes = bytes;
+        this.searchHitsSizeBytesBreaker = circuitBreaker;
     }
 
     public long getSearchHitsSizeBytes() {
         return searchHitsSizeBytes;
     }
 
-    public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
+    /**
+     * Callers release once the response is written. {@link #deallocate()} cannot guarantee that ordering, so it only
+     * catches results dropped before the release.
+     */
+    public void releaseCircuitBreakerBytes() {
         if (searchHitsSizeBytes > 0L) {
-            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+            searchHitsSizeBytesBreaker.addWithoutBreaking(-searchHitsSizeBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
             searchHitsSizeBytes = 0L;
+            searchHitsSizeBytesBreaker = null;
         }
     }
 
@@ -180,6 +197,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
             hits = null;
         }
         releaseLastChunkBytes();
+        releaseCircuitBreakerBytes();
     }
 
     @Override

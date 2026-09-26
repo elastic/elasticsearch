@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -287,6 +288,20 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         EsRelation integer = index("b", field("emp_no", DataType.INTEGER));
         SourceFanInUnionAll fanIn = fanIn(external("ds"), keyword, integer);
         assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
+    }
+
+    public void testIndexReadsWithDifferentUnmappedFieldMetadataStaySeparate() {
+        FieldAttribute mapped = field("value", DataType.LONG);
+        FieldAttribute partiallyUnmapped = mapped.withField(new PotentiallyUnmappedSingleTypeEsField(mapped.field(), Set.of("b_mapped")));
+        SourceFanInUnionAll fanIn = fanIn(external("ds"), index("a", mapped), index("b", partiallyUnmapped));
+        assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
+    }
+
+    public void testIndexReadsWithExclusionsStaySeparate() {
+        for (String pattern : List.of("idx_*,-idx_b", "remote:idx_*,remote:-idx_b", "remote:idx_*,-remote:*")) {
+            SourceFanInUnionAll fanIn = fanIn(external("ds"), index("idx_b"), index(pattern));
+            assertThat(fanIn.withIndexReadsCollapsed(), equalTo(fanIn));
+        }
     }
 
     /** Two reads of the same concrete index are two copies of its rows under UNION ALL, so they must not merge. */

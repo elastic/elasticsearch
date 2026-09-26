@@ -5205,6 +5205,43 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(fromView, hasSize(4));
     }
 
+    public void testForkOverDatasetViewWithRenameMatchesInline() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("rename_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("rename_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        String viewBody = "FROM rename_a, rename_b | RENAME emp_no AS id";
+        String tail = " | FORK (WHERE id == 1) (WHERE id == 2) | KEEP id, _fork | SORT _fork, id";
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("rename_view", viewBody)));
+
+        List<List<Object>> inline;
+        try (var response = run(syncEsqlQueryRequest(viewBody + tail), TIMEOUT)) {
+            inline = getValuesList(response);
+            assertThat(inline, hasSize(4));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM rename_view, rename_a" + tail), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(inline));
+        }
+    }
+
+    public void testForkOverDatasetViewWithDropMatchesInline() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("drop_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("drop_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("drop_c", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
+        String viewBody = "FROM drop_a, drop_b | DROP first_name";
+        String tail = " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no";
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("drop_view", viewBody)));
+
+        List<List<Object>> inline;
+        try (var response = run(syncEsqlQueryRequest(viewBody + tail), TIMEOUT)) {
+            inline = getValuesList(response);
+            assertThat(inline, hasSize(4));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM drop_view, drop_c" + tail), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(inline));
+        }
+    }
+
     public void testForkOverUserSubqueryRejected() {
         registerDataSource("local_ds", Map.of());
         registerDataset("fork_sub", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
@@ -5311,6 +5348,67 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         try (var response = run(syncEsqlQueryRequest("FROM dup_idx_view, dup_idx, dup_ds | STATS c = COUNT(*)"), TIMEOUT)) {
             assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(5L));
+        }
+    }
+
+    public void testIndexExclusionInViewDoesNotExcludeSiblingRead() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("scope_idx_a").setMapping("emp_no", "type=integer"));
+        assertAcked(client().admin().indices().prepareCreate("scope_idx_b").setMapping("emp_no", "type=integer"));
+        prepareIndex("scope_idx_a").setSource(Map.of("emp_no", 10)).get();
+        prepareIndex("scope_idx_b").setSource(Map.of("emp_no", 20)).get();
+        client().admin().indices().prepareRefresh("scope_idx_*").get();
+        registerDataSource("local_ds", Map.of());
+        registerDataset("scope_ds", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("scope_view", "FROM scope_idx_*, -scope_idx_b")));
+
+        try (var response = run(syncEsqlQueryRequest("FROM scope_idx_b, scope_view | KEEP emp_no | SORT emp_no"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(10), List.of(20))));
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM scope_idx_b, scope_ds, scope_view | KEEP emp_no | SORT emp_no"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(20))));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM scope_idx_b, scope_ds, scope_view | FORK (WHERE emp_no >= 10) (WHERE emp_no == 20)"
+                        + " | STATS c = COUNT(*) BY _fork | SORT _fork"
+                ),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
+            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(1L));
+            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
+        }
+    }
+
+    public void testUnmappedFieldLoadingAcrossIndexReadsBesideDataset() throws Exception {
+        assumeTrue("requires loading unmapped fields", Cap.OPTIONAL_FIELDS_V5.isEnabled());
+        assertAcked(client().admin().indices().prepareCreate("load_a_mapped").setMapping("value", "type=long"));
+        assertAcked(client().admin().indices().prepareCreate("load_b_mapped").setMapping("value", "type=long"));
+        assertAcked(client().admin().indices().prepareCreate("load_b_unmapped").setMapping("""
+            {"dynamic":false,"properties":{"marker":{"type":"keyword"}}}
+            """));
+        prepareIndex("load_a_mapped").setSource(Map.of("value", 10)).get();
+        prepareIndex("load_b_mapped").setSource(Map.of("value", 20)).get();
+        prepareIndex("load_b_unmapped").setSource(Map.of("value", 30, "marker", "present")).get();
+        client().admin().indices().prepareRefresh("load_a_mapped", "load_b_*").get();
+        registerDataSource("local_ds", Map.of());
+        registerDataset("load_ds", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        // The no-op exclusion keeps this view's field-caps response separate from load_b_* until analysis.
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("load_view", "FROM load_a_mapped, -load_unused")));
+
+        String prefix = "SET unmapped_fields=\"load\"; FROM ";
+        String tail = " | WHERE value IS NOT NULL | KEEP value | SORT value";
+        List<List<Object>> expected = List.of(List.of(10L), List.of(20L), List.of(30L));
+        try (var response = run(syncEsqlQueryRequest(prefix + "load_view, load_b_*" + tail), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(expected));
+        }
+        try (var response = run(syncEsqlQueryRequest(prefix + "load_view, load_b_*, load_ds" + tail), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(expected));
         }
     }
 

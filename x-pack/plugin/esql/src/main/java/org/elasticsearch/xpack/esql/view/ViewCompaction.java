@@ -563,11 +563,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      */
     private static boolean containsExclusion(UnresolvedRelation ur) {
         for (String pattern : ur.indexPattern().indexPattern().split(",")) {
-            if (pattern.startsWith("-")) {
-                return true;
-            }
-            var split = RemoteClusterAware.splitIndexName(pattern);
-            if (split.clusterAlias() != null && split.indexExpression().startsWith("-")) {
+            if (IndexPattern.isExclusion(pattern)) {
                 return true;
             }
         }

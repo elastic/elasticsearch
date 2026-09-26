@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -180,6 +181,7 @@ public final class SourceFanInUnionAll extends UnionAll {
     public static boolean isSourcePipelineUnary(LogicalPlan plan) {
         return plan instanceof Filter
             || plan instanceof Project
+            || plan instanceof Rename
             || plan instanceof Eval
             || plan instanceof Limit
             || plan instanceof OrderBy
@@ -212,9 +214,10 @@ public final class SourceFanInUnionAll extends UnionAll {
      * Sibling index scans of the same {@link IndexMode} become one {@link EsRelation}. A {@code FROM} already
      * joins local index names into one relation; a matched namesake is the same kind of read and joins that
      * relation instead of running as its own branch. Datasets stay separate. Differing index modes stay
-     * separate, because one scan cannot mix them. Scans that map a field to different types also stay
-     * separate, so the union-type rules can still reconcile them per branch. Scans that share a concrete index
-     * or request different metadata fields stay separate, so each keeps its own copy of the rows.
+     * separate, because one scan cannot mix them. Scans with different field metadata stay separate, so
+     * field resolution retains each read's mapping and unmapped-field behavior. Scans with exclusions,
+     * overlapping concrete indices, or different metadata fields also stay separate, preserving their
+     * index-selection scope and copies of rows.
      * <p>
      * Must run after index resolution and before branch alignment wraps each child in a projection. It is an
      * explicit step rather than part of the constructor, because a node must keep the children it is built with.
@@ -256,6 +259,7 @@ public final class SourceFanInUnionAll extends UnionAll {
     /**
      * True when the scans read disjoint concrete indices and request the same metadata fields. Two scans of the
      * same index are two copies of its rows under {@code UNION ALL}, and one merged scan would return them once.
+     * An exclusion must keep its original read scope rather than filtering a sibling's indices.
      * Mirrors the guards in {@code ViewCompaction.mergeIfPossible}.
      */
     private static boolean canMergeReads(List<EsRelation> relations) {
@@ -264,6 +268,11 @@ public final class SourceFanInUnionAll extends UnionAll {
         for (EsRelation es : relations) {
             if (metadataNames(es).equals(metadata) == false) {
                 return false;
+            }
+            for (String pattern : es.indexPattern().split(",")) {
+                if (IndexPattern.isExclusion(pattern.trim())) {
+                    return false;
+                }
             }
             for (var entry : es.concreteIndices().entrySet()) {
                 Set<String> indices = seen.computeIfAbsent(entry.getKey(), key -> new HashSet<>());
@@ -335,7 +344,8 @@ public final class SourceFanInUnionAll extends UnionAll {
     }
 
     /**
-     * Union of fields, or {@code null} when two scans map a name to different types. The {@link Analyzer#NO_FIELDS}
+     * Union of fields, or {@code null} when a shared name has different field metadata. Matching datatypes alone
+     * do not establish that two fields have the same mapping or unmapped-field behavior. The {@link Analyzer#NO_FIELDS}
      * marker of an empty mapping is dropped once another scan contributes real fields.
      */
     @Nullable
@@ -347,7 +357,7 @@ public final class SourceFanInUnionAll extends UnionAll {
                     continue;
                 }
                 Attribute existing = byName.putIfAbsent(attr.name(), attr);
-                if (existing != null && existing.dataType() != attr.dataType()) {
+                if (existing != null && existing.ignoreId().equals(attr.ignoreId()) == false) {
                     return null;
                 }
             }

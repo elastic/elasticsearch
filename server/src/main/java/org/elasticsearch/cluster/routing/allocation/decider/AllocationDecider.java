@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.core.Nullable;
 
+import java.util.Comparator;
 import java.util.Optional;
 import java.util.Set;
 
@@ -152,5 +154,14 @@ public abstract class AllocationDecider {
      */
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
         return Optional.empty();
+    }
+
+    /**
+     * Returns the order in which to try moving shards off {@code node}, or {@code null} when this decider does not want a shard moved
+     * off the node.
+     */
+    @Nullable
+    public Comparator<ShardRouting> shardMoveOrder(RoutingNode node, RoutingAllocation allocation) {
+        return null;
     }
 }

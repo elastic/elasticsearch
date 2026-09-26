@@ -89,6 +89,18 @@ public class PromqlPlanSetOperatorTests extends AbstractPromqlPlanOptimizerTests
     }
 
     /**
+     * The set-operator signature is the label set without {@code __name__}: the dedup keys on step and each branch's
+     * packing that excludes the name, never on the full identity. The output identity is each row's finest packing.
+     */
+    public void testDedupKeysOnTheIdentityWithoutTheMetricName() {
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m v=(network.bytes_in or network.cost)", false);
+        TopNBy dedup = plan.collect(TopNBy.class).getFirst();
+        List<String> groupings = dedup.groupings().stream().map(g -> ((NamedExpression) g).name()).toList();
+        assertThat(groupings, equalTo(List.of("step", "_timeseries$__name__")));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("v", "step", "_timeseries")));
+    }
+
+    /**
      * Asserts that the plan contains exactly one {@link UnionAll} with {@code expectedBranches} branches, fed into a
      * single {@link TopNBy} that keeps one row per group ordered by the synthetic branch tag ascending, grouped by
      * the step column (plus any label columns).

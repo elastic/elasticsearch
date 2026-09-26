@@ -152,6 +152,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(footer, not(hasKey("columns")));
         assertThat(footer, not(hasKey("values")));
         assertThat(footer, not(hasKey("error")));
+        assertThat(footer, not(hasKey("_clusters")));
     }
 
     public void testDropNullColumns() throws IOException {
@@ -414,32 +415,53 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("profile"));
     }
 
-    public void testIncludeCcsMetadataRejected() {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> EsqlStreamTestUtils.rawStream(
-                client(),
-                "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_ccs_metadata\": true}",
-                "streaming=true",
-                "format=ndjson"
-            )
+    public void testIncludeCcsMetadataLocalOnlyQueryNoClustersMeta() throws IOException {
+        Response response = EsqlStreamTestUtils.rawStream(
+            client(),
+            "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_ccs_metadata\": true}",
+            "streaming=true",
+            "format=ndjson"
         );
-        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("include_ccs_metadata"));
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        List<Map<String, Object>> lines = parseNdjson(response);
+        Map<String, Object> footer = lines.get(lines.size() - 1);
+        assertThat(footer, hasKey("took"));
+        assertThat(footer, not(hasKey("_clusters")));
     }
 
-    public void testIncludeExecutionMetadataRejected() {
+    @SuppressWarnings("unchecked")
+    public void testIncludeExecutionMetadataAddsClustersMeta() throws IOException {
+        Response response = EsqlStreamTestUtils.rawStream(
+            client(),
+            "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_execution_metadata\": true}",
+            "streaming=true",
+            "format=ndjson"
+        );
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        List<Map<String, Object>> lines = parseNdjson(response);
+        Map<String, Object> footer = lines.get(lines.size() - 1);
+        assertThat(footer, hasKey("took"));
+        assertThat("_clusters must be present with include_execution_metadata=true", footer, hasKey("_clusters"));
+        Map<String, Object> clusters = (Map<String, Object>) footer.get("_clusters");
+        assertThat(clusters.get("total"), equalTo(1));
+        assertThat("details must be present", clusters, hasKey("details"));
+        Map<String, Object> details = (Map<String, Object>) clusters.get("details");
+        assertThat("local cluster entry must be present", details, hasKey("(local)"));
+    }
+
+    public void testBothIncludeMetadataFlagsRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
-                "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_execution_metadata\": true}",
+                "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_ccs_metadata\": true, \"include_execution_metadata\": true}",
                 "streaming=true",
                 "format=ndjson"
             )
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(re.getMessage(), containsString("include_execution_metadata"));
+        assertThat(re.getMessage(), containsString("include_ccs_metadata"));
     }
 
     public void testUnmappedFieldsLoadAllRejected() {
@@ -745,12 +767,65 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             List<?> warnings = (List<?>) footer.get("warnings");
             assertThat(warnings, empty());
+            assertThat("_clusters must be present for partial CCS result even without include_ccs_metadata", footer, hasKey("_clusters"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> clusters = (Map<String, Object>) footer.get("_clusters");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> details = (Map<String, Object>) clusters.get("details");
+            assertThat("skipped remote must appear under details", details, hasKey("unavailable_remote"));
         } finally {
             Request cleanup = new Request("PUT", "/_cluster/settings");
             cleanup.setJsonEntity("""
                 {"persistent": {
                     "cluster.remote.unavailable_remote.seeds": null,
                     "cluster.remote.unavailable_remote.skip_unavailable": null
+                }}
+                """);
+            client().performRequest(cleanup);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUnavailableRemoteWithIncludeCcsMetadata() throws IOException {
+        String unavailableHost = randomIdentifier() + ".invalid";
+        Request settingsRequest = new Request("PUT", "/_cluster/settings");
+        settingsRequest.setJsonEntity(Strings.format("""
+            {"persistent": {
+                "cluster.remote.ccs_unavailable_remote.seeds": ["%s:9300"],
+                "cluster.remote.ccs_unavailable_remote.skip_unavailable": true
+            }}
+            """, unavailableHost));
+        assertOK(client().performRequest(settingsRequest));
+        try {
+            Response response = EsqlStreamTestUtils.rawStream(
+                client(),
+                "{\"query\": \"FROM ccs_unavailable_remote:logs-* | STATS sum(value)\", \"include_ccs_metadata\": true}",
+                "streaming=true",
+                "format=ndjson"
+            );
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+            List<Map<String, Object>> records = parseNdjson(response);
+
+            assertThat("expected columns line + footer, got " + records.size() + " records", records, hasSize(2));
+
+            Map<String, Object> footer = records.get(1);
+            assertThat(footer, hasKey("took"));
+            assertThat("is_partial must be true because the remote was skipped", footer.get("is_partial"), equalTo(true));
+            assertThat("_clusters must be present with include_ccs_metadata=true", footer, hasKey("_clusters"));
+
+            Map<String, Object> clusters = (Map<String, Object>) footer.get("_clusters");
+            assertThat(clusters.get("skipped"), equalTo(1));
+            assertThat(clusters, hasKey("details"));
+            Map<String, Object> details = (Map<String, Object>) clusters.get("details");
+            assertThat("skipped remote must appear in details", details, hasKey("ccs_unavailable_remote"));
+            Map<String, Object> remoteDetails = (Map<String, Object>) details.get("ccs_unavailable_remote");
+            assertThat(remoteDetails.get("status"), equalTo("skipped"));
+        } finally {
+            Request cleanup = new Request("PUT", "/_cluster/settings");
+            cleanup.setJsonEntity("""
+                {"persistent": {
+                    "cluster.remote.ccs_unavailable_remote.seeds": null,
+                    "cluster.remote.ccs_unavailable_remote.skip_unavailable": null
                 }}
                 """);
             client().performRequest(cleanup);
